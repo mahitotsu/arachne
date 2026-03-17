@@ -57,9 +57,9 @@ AgentResult result = agent.run("東京の天気は？");
 
 ---
 
-### Phase 3 — 品質・UX・Hooks `[ ]`
+### Phase 3 — 品質・UX `[ ]`
 
-**Goal**: 本番に持っていけるエラーハンドリング、設定管理、および AOP 的な hook 介入ができる。
+**Goal**: 本番に持っていけるエラーハンドリングと設定管理がある。
 
 | Task | Status |
 |---|---|
@@ -68,14 +68,40 @@ AgentResult result = agent.run("東京の天気は？");
 | `SlidingWindowConversationManager`（トークンあふれ防止） | `[ ]` |
 | エラー型整理（`ContextWindowOverflowException` 等） | `[ ]` |
 | `application.yml` でモデルID・リージョン・リトライ設定 | `[ ]` |
+
+---
+
+### Phase 4 — Plugin & Hooks `[ ]`
+
+**Goal**: Spring Bean として hook を登録し、エージェントのライフサイクルに AOP 的に介入できる。
+
+| Task | Status |
+|---|---|
 | `HookRegistry` + `HookProvider` — 可変イベントによる制御フロー介入 | `[ ]` |
 | 全 hook イベント型: `BeforeInvocationEvent`, `AfterInvocationEvent`, `BeforeToolCallEvent`, `AfterToolCallEvent`, `BeforeModelCallEvent`, `AfterModelCallEvent`, `MessageAddedEvent` | `[ ]` |
+| `Plugin` インターフェース — hook + tool を一体でバンドルする単位 | `[ ]` |
 | `@ArachneHook` アノテーション — Spring Bean として自動検出・登録 | `[ ]` |
 | Spring `ApplicationEvent` ブリッジ — 観測専用の通知を Spring イベントとして publish | `[ ]` |
 
 ---
 
-### Phase 4 — 拡張 `[ ]`
+### Phase 5 — Skills `[ ]`
+
+**Goal**: SKILL.md ファイルで定義した命令セットをエージェントに動的に注入できる。
+
+Skills は [AgentSkills.io](https://agentskills.io) 仕様に準拠する。
+Hook（Phase 4）の上に乗る機能のため、Phase 4 完了後に着手する。
+
+| Task | Status |
+|---|---|
+| `Skill` データモデル — SKILL.md（YAMLフロントマター + Markdown本文）のパース | `[ ]` |
+| `AgentSkillsPlugin` — Skill を受け取り `BeforeInvocationEvent` でシステムプロンプトに注入 | `[ ]` |
+| Spring classpath スキャン — `resources/skills/` 配下の SKILL.md を自動検出 | `[ ]` |
+| `AgentFactory.builder().skills(...)` API | `[ ]` |
+
+---
+
+### Phase 6 — 拡張 `[ ]`
 
 **Goal**: Bedrock以外のモデルとSpringのリアクティブスタックに対応する。
 
@@ -83,7 +109,6 @@ AgentResult result = agent.run("東京の天気は？");
 |---|---|
 | `OpenAIModel` / `AnthropicModel` | `[ ]` |
 | ストリーミングレスポンス（`Flux<AgentEvent>`） | `[ ]` |
-| `HookRegistry`（BeforeInvocation / AfterInvocation イベント） | `[ ]` |
 | MCP tool support | `[ ]` |
 | マルチエージェント（Orchestrator） | `[ ]` |
 
