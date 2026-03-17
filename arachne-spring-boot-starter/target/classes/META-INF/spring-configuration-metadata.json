@@ -1,0 +1,40 @@
+{
+  "groups": [
+    {
+      "name": "arachne.strands",
+      "type": "io.arachne.strands.spring.ArachneProperties",
+      "sourceType": "io.arachne.strands.spring.ArachneProperties"
+    },
+    {
+      "name": "arachne.strands.agent",
+      "type": "io.arachne.strands.spring.ArachneProperties$AgentProperties",
+      "sourceType": "io.arachne.strands.spring.ArachneProperties",
+      "sourceMethod": "getAgent()"
+    },
+    {
+      "name": "arachne.strands.model",
+      "type": "io.arachne.strands.spring.ArachneProperties$ModelProperties",
+      "sourceType": "io.arachne.strands.spring.ArachneProperties",
+      "sourceMethod": "getModel()"
+    }
+  ],
+  "properties": [
+    {
+      "name": "arachne.strands.agent.system-prompt",
+      "type": "java.lang.String",
+      "sourceType": "io.arachne.strands.spring.ArachneProperties$AgentProperties"
+    },
+    {
+      "name": "arachne.strands.model.id",
+      "type": "java.lang.String",
+      "sourceType": "io.arachne.strands.spring.ArachneProperties$ModelProperties"
+    },
+    {
+      "name": "arachne.strands.model.provider",
+      "type": "java.lang.String",
+      "sourceType": "io.arachne.strands.spring.ArachneProperties$ModelProperties",
+      "defaultValue": "bedrock"
+    }
+  ],
+  "hints": []
+}

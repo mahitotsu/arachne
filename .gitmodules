@@ -1,0 +1,3 @@
+[submodule "refs/sdk-python"]
+	path = refs/sdk-python
+	url = https://github.com/strands-agents/sdk-python
