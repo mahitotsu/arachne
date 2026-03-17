@@ -63,6 +63,20 @@ public class EventLoop {
             List<Message> messages,
             List<Tool> tools,
             int cycleCount) {
+        return run(model, messages, tools, null, cycleCount);
+    }
+
+    /**
+     * Run the event loop starting from the supplied (mutable) message list.
+     *
+     * @param systemPrompt optional system prompt forwarded to the model provider
+     */
+    public EventLoopResult run(
+            Model model,
+            List<Message> messages,
+            List<Tool> tools,
+            String systemPrompt,
+            int cycleCount) {
 
         if (cycleCount >= MAX_CYCLES) {
             throw new EventLoopException("Max event-loop cycles exceeded: " + MAX_CYCLES);
@@ -73,7 +87,7 @@ public class EventLoop {
         // ── hook callsite: BeforeModelCall ──────────────────────────────────
         hooks.onBeforeModelCall(messages, toolSpecs);
 
-        Iterable<ModelEvent> events = model.converse(messages, toolSpecs);
+        Iterable<ModelEvent> events = model.converse(messages, toolSpecs, systemPrompt);
 
         // Accumulate text deltas and tool-use requests from the model response
         StringBuilder textBuilder = new StringBuilder();
@@ -130,7 +144,7 @@ public class EventLoop {
             messages.add(new Message(Message.Role.USER, List.copyOf(toolResultBlocks)));
 
             // Recurse for the next model turn
-            return run(model, messages, tools, cycleCount + 1);
+            return run(model, messages, tools, systemPrompt, cycleCount + 1);
         }
 
         return new EventLoopResult(text, stopReason, inputTokens, outputTokens);

@@ -6,9 +6,9 @@ import io.arachne.strands.agent.DefaultAgent;
 import io.arachne.strands.eventloop.EventLoop;
 import io.arachne.strands.hooks.NoOpHookRegistry;
 import io.arachne.strands.types.Message;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 
 import java.util.List;
 
@@ -17,17 +17,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * Integration test for {@link BedrockModel} against the real AWS Bedrock service.
  *
- * <p><b>Disabled by default</b> — requires valid AWS credentials and Bedrock model access
- * in the configured region. Enable by removing {@code @Disabled} and setting:
+ * <p><b>Opt-in only</b> — requires valid AWS credentials and Bedrock model access
+ * in the configured region. Enable by setting:
  * <ul>
- *   <li>Environment variable {@code AWS_REGION} (or configure your default profile)</li>
- *   <li>Model access enabled for {@value BedrockModel#DEFAULT_MODEL_ID} in the target region</li>
+ *   <li>System property {@code -Darachne.integration.bedrock=true}</li>
+ *   <li>Optional system property {@code -Darachne.integration.bedrock.region=...}</li>
+ *   <li>Optional system property {@code -Darachne.integration.bedrock.model-id=...}</li>
  * </ul>
  *
- * <p>Run with: {@code mvn test -Dgroups=integration}
+ * <p>Run with:
+ * {@code mvn -Dtest=BedrockModelIntegrationTest -Darachne.integration.bedrock=true test}
  */
-@Disabled("Requires real AWS credentials and Bedrock model access")
 @Tag("integration")
+@EnabledIfSystemProperty(named = "arachne.integration.bedrock", matches = "true")
 class BedrockModelIntegrationTest {
 
     /**
@@ -36,7 +38,12 @@ class BedrockModelIntegrationTest {
      */
     @Test
     void helloWorldReturnsSomeText() {
-        BedrockModel model = new BedrockModel();
+        String region = System.getProperty("arachne.integration.bedrock.region", BedrockModel.DEFAULT_REGION);
+        String modelId = System.getProperty(
+                "arachne.integration.bedrock.model-id",
+                BedrockModel.DEFAULT_MODEL_ID);
+
+        BedrockModel model = new BedrockModel(modelId, region);
         NoOpHookRegistry hooks = new NoOpHookRegistry();
         EventLoop eventLoop = new EventLoop(hooks);
         Agent agent = new DefaultAgent(model, List.of(), eventLoop, hooks);

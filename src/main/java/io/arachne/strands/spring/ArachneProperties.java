@@ -10,7 +10,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *   strands:
  *     model:
  *       provider: bedrock          # bedrock | openai
- *       id: us.amazon.nova-pro-v1:0
+ *       id: jp.amazon.nova-2-lite-v1:0
+ *       region: ap-northeast-1
  *     agent:
  *       system-prompt: "You are a helpful assistant."
  * </pre>
@@ -30,12 +31,16 @@ public class ArachneProperties {
     public static class ModelProperties {
         private String provider = "bedrock";
         private String id;
+        private String region;
 
         public String getProvider() { return provider; }
         public void setProvider(String provider) { this.provider = provider; }
 
         public String getId() { return id; }
         public void setId(String id) { this.id = id; }
+
+        public String getRegion() { return region; }
+        public void setRegion(String region) { this.region = region; }
     }
 
     public static class AgentProperties {

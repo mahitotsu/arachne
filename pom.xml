@@ -48,6 +48,16 @@
             <artifactId>bedrockruntime</artifactId>
         </dependency>
 
+        <!-- AWS SDK v2 — enable DefaultCredentialsProvider to resolve AWS SSO profiles -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>sso</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>ssooidc</artifactId>
+        </dependency>
+
         <!-- Configuration metadata generation (@ConfigurationProperties) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

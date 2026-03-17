@@ -1,6 +1,13 @@
 # Maven
-target/
+/target/
 !.mvn/wrapper/maven-wrapper.jar
+.mvn/timing.properties
+dependency-reduced-pom.xml
+
+# Logs / crash dumps
+*.log
+hs_err_pid*
+replay_pid*
 
 # IDE
 .idea/

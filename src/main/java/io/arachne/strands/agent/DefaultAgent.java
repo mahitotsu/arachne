@@ -1,14 +1,14 @@
 package io.arachne.strands.agent;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import io.arachne.strands.eventloop.EventLoop;
 import io.arachne.strands.eventloop.EventLoopResult;
 import io.arachne.strands.hooks.HookRegistry;
 import io.arachne.strands.model.Model;
 import io.arachne.strands.tool.Tool;
 import io.arachne.strands.types.Message;
-
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Default {@link Agent} implementation.
@@ -27,6 +27,7 @@ public class DefaultAgent implements Agent {
     private final List<Tool> tools;
     private final EventLoop eventLoop;
     private final HookRegistry hooks;
+    private final String systemPrompt;
 
     /** Mutable conversation history. Growing across multiple run() calls = multi-turn conversation. */
     private final List<Message> messages = new ArrayList<>();
@@ -36,10 +37,20 @@ public class DefaultAgent implements Agent {
             List<Tool> tools,
             EventLoop eventLoop,
             HookRegistry hooks) {
+        this(model, tools, eventLoop, hooks, null);
+    }
+
+    public DefaultAgent(
+            Model model,
+            List<Tool> tools,
+            EventLoop eventLoop,
+            HookRegistry hooks,
+            String systemPrompt) {
         this.model = model;
         this.tools = List.copyOf(tools);
         this.eventLoop = eventLoop;
         this.hooks = hooks;
+        this.systemPrompt = systemPrompt;
     }
 
     @Override
@@ -49,7 +60,7 @@ public class DefaultAgent implements Agent {
 
         messages.add(Message.user(prompt));
 
-        EventLoopResult loopResult = eventLoop.run(model, messages, tools, 0);
+        EventLoopResult loopResult = eventLoop.run(model, messages, tools, systemPrompt, 0);
 
         // ── hook callsite: AfterInvocation ───────────────────────────────────
         hooks.onAfterInvocation(loopResult.text());

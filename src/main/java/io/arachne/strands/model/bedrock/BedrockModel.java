@@ -1,7 +1,15 @@
 package io.arachne.strands.model.bedrock;
 
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.logging.Logger;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
 import io.arachne.strands.model.Model;
 import io.arachne.strands.model.ModelEvent;
 import io.arachne.strands.model.ToolSpec;
@@ -14,7 +22,6 @@ import software.amazon.awssdk.services.bedrockruntime.model.ContentBlock.Type;
 import software.amazon.awssdk.services.bedrockruntime.model.ConversationRole;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseRequest;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseResponse;
-import software.amazon.awssdk.services.bedrockruntime.model.StopReason;
 import software.amazon.awssdk.services.bedrockruntime.model.SystemContentBlock;
 import software.amazon.awssdk.services.bedrockruntime.model.Tool;
 import software.amazon.awssdk.services.bedrockruntime.model.ToolConfiguration;
@@ -24,13 +31,6 @@ import software.amazon.awssdk.services.bedrockruntime.model.ToolResultContentBlo
 import software.amazon.awssdk.services.bedrockruntime.model.ToolResultStatus;
 import software.amazon.awssdk.services.bedrockruntime.model.ToolSpecification;
 import software.amazon.awssdk.services.bedrockruntime.model.ToolUseBlock;
-
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.logging.Logger;
 
 /**
  * {@link Model} implementation backed by the AWS Bedrock ConverseAPI.
@@ -46,10 +46,10 @@ import java.util.logging.Logger;
 public class BedrockModel implements Model {
 
     /** Default model used when none is configured. */
-    public static final String DEFAULT_MODEL_ID = "us.anthropic.claude-sonnet-4-20250514-v1:0";
+    public static final String DEFAULT_MODEL_ID = "jp.amazon.nova-2-lite-v1:0";
 
     /** Default region used when none is configured. */
-    public static final String DEFAULT_REGION = "us-west-2";
+    public static final String DEFAULT_REGION = "ap-northeast-1";
 
     private static final Logger LOG = Logger.getLogger(BedrockModel.class.getName());
 
@@ -57,6 +57,7 @@ public class BedrockModel implements Model {
 
     private final BedrockRuntimeClient client;
     private final String modelId;
+    private final String region;
 
     /**
      * Create a BedrockModel using the default region and model.
@@ -68,13 +69,14 @@ public class BedrockModel implements Model {
     /**
      * Create a BedrockModel with an explicit model ID and region.
      *
-     * @param modelId  Bedrock model ID, e.g. {@code "us.anthropic.claude-sonnet-4-20250514-v1:0"}
-     * @param region   AWS region, e.g. {@code "us-west-2"}
+         * @param modelId  Bedrock model ID, e.g. {@code "jp.amazon.nova-2-lite-v1:0"}
+         * @param region   AWS region, e.g. {@code "ap-northeast-1"}
      */
     public BedrockModel(String modelId, String region) {
         this.modelId = modelId;
+        this.region = region == null || region.isBlank() ? DEFAULT_REGION : region;
         this.client = BedrockRuntimeClient.builder()
-                .region(Region.of(region))
+            .region(Region.of(this.region))
                 .build();
     }
 
@@ -87,6 +89,7 @@ public class BedrockModel implements Model {
     public BedrockModel(BedrockRuntimeClient client, String modelId) {
         this.client = client;
         this.modelId = modelId;
+        this.region = DEFAULT_REGION;
     }
 
     /** The Bedrock model ID this instance is bound to. */
@@ -94,11 +97,21 @@ public class BedrockModel implements Model {
         return modelId;
     }
 
+    /** The AWS region this instance sends Bedrock requests to. */
+    public String getRegion() {
+        return region;
+    }
+
     // ── Model interface ──────────────────────────────────────────────────────
 
     @Override
     public Iterable<ModelEvent> converse(List<Message> messages, List<ToolSpec> tools) {
-        ConverseRequest request = buildRequest(messages, tools);
+        return converse(messages, tools, null);
+    }
+
+    @Override
+    public Iterable<ModelEvent> converse(List<Message> messages, List<ToolSpec> tools, String systemPrompt) {
+        ConverseRequest request = buildRequest(messages, tools, systemPrompt);
         LOG.fine(() -> "modelId=" + modelId + " | invoking Bedrock Converse API");
 
         ConverseResponse response = client.converse(request);
@@ -107,13 +120,17 @@ public class BedrockModel implements Model {
 
     // ── Request building ────────────────────────────────────────────────────
 
-    private ConverseRequest buildRequest(List<Message> messages, List<ToolSpec> tools) {
+    ConverseRequest buildRequest(List<Message> messages, List<ToolSpec> tools, String systemPrompt) {
         List<software.amazon.awssdk.services.bedrockruntime.model.Message> bedrockMessages =
                 messages.stream().map(this::toBedrockMessage).toList();
 
         ConverseRequest.Builder builder = ConverseRequest.builder()
                 .modelId(modelId)
                 .messages(bedrockMessages);
+
+        if (systemPrompt != null && !systemPrompt.isBlank()) {
+            builder.system(SystemContentBlock.builder().text(systemPrompt).build());
+        }
 
         if (!tools.isEmpty()) {
             builder.toolConfig(buildToolConfig(tools));
@@ -157,7 +174,6 @@ public class BedrockModel implements Model {
             }
 
             case ContentBlock.ToolResult tr -> {
-                String contentText = tr.content() != null ? tr.content().toString() : "";
                 ToolResultStatus status = "error".equalsIgnoreCase(tr.status())
                         ? ToolResultStatus.ERROR
                         : ToolResultStatus.SUCCESS;
@@ -165,13 +181,21 @@ public class BedrockModel implements Model {
                         .toolResult(ToolResultBlock.builder()
                                 .toolUseId(tr.toolUseId())
                                 .status(status)
-                                .content(List.of(ToolResultContentBlock.builder()
-                                        .text(contentText)
-                                        .build()))
+                                .content(List.of(toBedrockToolResultContentBlock(tr.content())))
                                 .build())
                         .build();
             }
         };
+    }
+
+    private ToolResultContentBlock toBedrockToolResultContentBlock(Object content) {
+        if (content instanceof CharSequence || content instanceof Character) {
+            return ToolResultContentBlock.builder().text(content.toString()).build();
+        }
+
+        return ToolResultContentBlock.builder()
+                .json(objectToDocument(content))
+                .build();
     }
 
     private ToolConfiguration buildToolConfig(List<ToolSpec> tools) {
@@ -219,10 +243,12 @@ public class BedrockModel implements Model {
 
         String stopReasonStr = response.stopReasonAsString() != null
                 ? response.stopReasonAsString()
-                : StopReason.END_TURN.toString();
+            : "end_turn";
 
-        int inputTokens = response.usage() != null ? response.usage().inputTokens() : 0;
-        int outputTokens = response.usage() != null ? response.usage().outputTokens() : 0;
+        Integer inputTokenCount = response.usage() != null ? response.usage().inputTokens() : null;
+        Integer outputTokenCount = response.usage() != null ? response.usage().outputTokens() : null;
+        int inputTokens = inputTokenCount != null ? inputTokenCount : 0;
+        int outputTokens = outputTokenCount != null ? outputTokenCount : 0;
 
         events.add(new ModelEvent.Metadata(
                 stopReasonStr,
@@ -281,7 +307,7 @@ public class BedrockModel implements Model {
         try {
             JsonNode node = OBJECT_MAPPER.valueToTree(obj);
             return jsonNodeToDocument(node);
-        } catch (Exception e) {
+        } catch (IllegalArgumentException e) {
             return Document.fromString(obj.toString());
         }
     }
@@ -294,14 +320,13 @@ public class BedrockModel implements Model {
         if (doc == null || doc.isNull()) return null;
         if (doc.isBoolean()) return doc.asBoolean();
         if (doc.isNumber()) {
-            String s = doc.asNumber().stringValue();
             try {
-                return Long.parseLong(s);
+                return doc.asNumber().longValue();
             } catch (NumberFormatException e) {
                 try {
-                    return Double.parseDouble(s);
+                    return doc.asNumber().doubleValue();
                 } catch (NumberFormatException e2) {
-                    return s;
+                    return doc.asNumber().stringValue();
                 }
             }
         }

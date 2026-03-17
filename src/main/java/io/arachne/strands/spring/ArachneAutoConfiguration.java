@@ -1,5 +1,6 @@
 package io.arachne.strands.spring;
 
+import io.arachne.strands.model.Model;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -17,7 +18,13 @@ public class ArachneAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public AgentFactory agentFactory(ArachneProperties properties) {
-        return new AgentFactory(properties);
+    public Model arachneModel(ArachneProperties properties) {
+        return AgentFactory.createDefaultModel(properties);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public AgentFactory agentFactory(ArachneProperties properties, Model model) {
+        return new AgentFactory(properties, model);
     }
 }

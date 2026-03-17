@@ -1,10 +1,10 @@
 package io.arachne.strands.hooks;
 
+import java.util.List;
+
 import io.arachne.strands.model.ToolSpec;
 import io.arachne.strands.tool.ToolResult;
 import io.arachne.strands.types.Message;
-
-import java.util.List;
 
 /**
  * Lifecycle hook registry for an agent invocation.
