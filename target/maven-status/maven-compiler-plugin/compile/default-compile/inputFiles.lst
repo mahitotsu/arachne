@@ -1,8 +1,15 @@
 /home/akring/arachne/src/main/java/io/arachne/strands/agent/Agent.java
 /home/akring/arachne/src/main/java/io/arachne/strands/agent/AgentResult.java
+/home/akring/arachne/src/main/java/io/arachne/strands/agent/DefaultAgent.java
+/home/akring/arachne/src/main/java/io/arachne/strands/eventloop/EventLoop.java
+/home/akring/arachne/src/main/java/io/arachne/strands/eventloop/EventLoopException.java
+/home/akring/arachne/src/main/java/io/arachne/strands/eventloop/EventLoopResult.java
+/home/akring/arachne/src/main/java/io/arachne/strands/hooks/HookRegistry.java
+/home/akring/arachne/src/main/java/io/arachne/strands/hooks/NoOpHookRegistry.java
 /home/akring/arachne/src/main/java/io/arachne/strands/model/Model.java
 /home/akring/arachne/src/main/java/io/arachne/strands/model/ModelEvent.java
 /home/akring/arachne/src/main/java/io/arachne/strands/model/ToolSpec.java
+/home/akring/arachne/src/main/java/io/arachne/strands/model/bedrock/BedrockModel.java
 /home/akring/arachne/src/main/java/io/arachne/strands/spring/AgentFactory.java
 /home/akring/arachne/src/main/java/io/arachne/strands/spring/ArachneAutoConfiguration.java
 /home/akring/arachne/src/main/java/io/arachne/strands/spring/ArachneProperties.java

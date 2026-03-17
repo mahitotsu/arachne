@@ -24,18 +24,18 @@ AgentResult result = agent.run("東京の天気は？");
 
 ## Phases
 
-### Phase 1 — Event Loop & BedrockModel `[ ]`
+### Phase 1 — Event Loop & BedrockModel `[x]`
 
 **Goal**: ツールなしで `agent.run("hello")` が返答する。
 
 | Task | Status |
 |---|---|
-| `EventLoop` — model→tool→model サイクル（同期） | `[ ]` |
-| `BedrockModel` — AWS SDK v2 ConverseAPI呼び出し | `[ ]` |
-| `ConverseResponse` → `ModelEvent` マッピング | `[ ]` |
-| `DefaultAgent` — EventLoopを持ち `run(String)` を実装 | `[ ]` |
-| EventLoop に hook コールサイトの骨格を仕込む（no-op） | `[ ]` |
-| Integration test: Bedrock に接続して文字列が返る | `[ ]` |
+| `EventLoop` — model→tool→model サイクル（同期） | `[x]` |
+| `BedrockModel` — AWS SDK v2 ConverseAPI呼び出し | `[x]` |
+| `ConverseResponse` → `ModelEvent` マッピング | `[x]` |
+| `DefaultAgent` — EventLoopを持ち `run(String)` を実装 | `[x]` |
+| EventLoop に hook コールサイトの骨格を仕込む（no-op） | `[x]` |
+| Integration test: Bedrock に接続して文字列が返る | `[x]` |
 
 ---
 

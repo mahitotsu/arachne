@@ -1,6 +1,9 @@
 package io.arachne.strands.spring;
 
 import io.arachne.strands.agent.Agent;
+import io.arachne.strands.agent.DefaultAgent;
+import io.arachne.strands.eventloop.EventLoop;
+import io.arachne.strands.hooks.NoOpHookRegistry;
 import io.arachne.strands.model.Model;
 import io.arachne.strands.tool.Tool;
 
@@ -71,8 +74,9 @@ public class AgentFactory {
                 throw new IllegalStateException(
                         "A Model must be provided. Set arachne.strands.model.provider or supply a Model bean.");
             }
-            // TODO: replace with DefaultAgent once implemented
-            throw new UnsupportedOperationException("DefaultAgent not yet implemented");
+            NoOpHookRegistry hooks = new NoOpHookRegistry();
+            EventLoop eventLoop = new EventLoop(hooks);
+            return new DefaultAgent(model, tools, eventLoop, hooks);
         }
     }
 }
