@@ -45,13 +45,14 @@ public class AgentFactory {
     }
 
     static Model createDefaultModel(ArachneProperties properties) {
-        String provider = properties.getModel().getProvider();
+        ArachneProperties.ModelProperties modelProperties = properties.getModel();
+        String provider = modelProperties.getProvider();
         if (!"bedrock".equalsIgnoreCase(provider)) {
             throw new IllegalStateException("Unsupported model provider for Phase 1: " + provider);
         }
 
-        String modelId = properties.getModel().getId();
-        String region = properties.getModel().getRegion();
+        String modelId = modelProperties.getId();
+        String region = modelProperties.getRegion();
         if (modelId != null && !modelId.isBlank()) {
             return new BedrockModel(modelId, region);
         }
@@ -96,10 +97,20 @@ public class AgentFactory {
         }
 
         public Agent build() {
-            Model resolvedModel = model != null ? model : (defaultModel != null ? defaultModel : createDefaultModel(properties));
+            Model resolvedModel = resolveModel();
             NoOpHookRegistry hooks = new NoOpHookRegistry();
             EventLoop eventLoop = new EventLoop(hooks);
             return new DefaultAgent(resolvedModel, tools, eventLoop, hooks, systemPrompt);
+        }
+
+        private Model resolveModel() {
+            if (model != null) {
+                return model;
+            }
+            if (defaultModel != null) {
+                return defaultModel;
+            }
+            return createDefaultModel(properties);
         }
     }
 }

@@ -22,31 +22,61 @@ public class ArachneProperties {
     private ModelProperties model = new ModelProperties();
     private AgentProperties agent = new AgentProperties();
 
-    public ModelProperties getModel() { return model; }
-    public void setModel(ModelProperties model) { this.model = model; }
+    public ModelProperties getModel() {
+        return model;
+    }
 
-    public AgentProperties getAgent() { return agent; }
-    public void setAgent(AgentProperties agent) { this.agent = agent; }
+    public void setModel(ModelProperties model) {
+        this.model = model;
+    }
+
+    public AgentProperties getAgent() {
+        return agent;
+    }
+
+    public void setAgent(AgentProperties agent) {
+        this.agent = agent;
+    }
 
     public static class ModelProperties {
         private String provider = "bedrock";
         private String id;
         private String region;
 
-        public String getProvider() { return provider; }
-        public void setProvider(String provider) { this.provider = provider; }
+        public String getProvider() {
+            return provider;
+        }
 
-        public String getId() { return id; }
-        public void setId(String id) { this.id = id; }
+        public void setProvider(String provider) {
+            this.provider = provider;
+        }
 
-        public String getRegion() { return region; }
-        public void setRegion(String region) { this.region = region; }
+        public String getId() {
+            return id;
+        }
+
+        public void setId(String id) {
+            this.id = id;
+        }
+
+        public String getRegion() {
+            return region;
+        }
+
+        public void setRegion(String region) {
+            this.region = region;
+        }
     }
 
     public static class AgentProperties {
         private String systemPrompt;
 
-        public String getSystemPrompt() { return systemPrompt; }
-        public void setSystemPrompt(String systemPrompt) { this.systemPrompt = systemPrompt; }
+        public String getSystemPrompt() {
+            return systemPrompt;
+        }
+
+        public void setSystemPrompt(String systemPrompt) {
+            this.systemPrompt = systemPrompt;
+        }
     }
 }

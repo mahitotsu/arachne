@@ -69,14 +69,14 @@ public class BedrockModel implements Model {
     /**
      * Create a BedrockModel with an explicit model ID and region.
      *
-         * @param modelId  Bedrock model ID, e.g. {@code "jp.amazon.nova-2-lite-v1:0"}
-         * @param region   AWS region, e.g. {@code "ap-northeast-1"}
+     * @param modelId Bedrock model ID, e.g. {@code "jp.amazon.nova-2-lite-v1:0"}
+     * @param region AWS region, e.g. {@code "ap-northeast-1"}
      */
     public BedrockModel(String modelId, String region) {
         this.modelId = modelId;
         this.region = region == null || region.isBlank() ? DEFAULT_REGION : region;
         this.client = BedrockRuntimeClient.builder()
-            .region(Region.of(this.region))
+                .region(Region.of(this.region))
                 .build();
     }
 
@@ -120,7 +120,10 @@ public class BedrockModel implements Model {
 
     // ── Request building ────────────────────────────────────────────────────
 
-    ConverseRequest buildRequest(List<Message> messages, List<ToolSpec> tools, String systemPrompt) {
+        ConverseRequest buildRequest(
+            List<Message> messages,
+            List<ToolSpec> tools,
+            String systemPrompt) {
         List<software.amazon.awssdk.services.bedrockruntime.model.Message> bedrockMessages =
                 messages.stream().map(this::toBedrockMessage).toList();
 
@@ -227,8 +230,7 @@ public class BedrockModel implements Model {
     private List<ModelEvent> mapResponse(ConverseResponse response) {
         List<ModelEvent> events = new ArrayList<>();
 
-        software.amazon.awssdk.services.bedrockruntime.model.Message message =
-                response.output().message();
+        software.amazon.awssdk.services.bedrockruntime.model.Message message = response.output().message();
 
         for (software.amazon.awssdk.services.bedrockruntime.model.ContentBlock block : message.content()) {
             if (block.type() == Type.TEXT) {
@@ -243,16 +245,14 @@ public class BedrockModel implements Model {
 
         String stopReasonStr = response.stopReasonAsString() != null
                 ? response.stopReasonAsString()
-            : "end_turn";
+                : "end_turn";
 
         Integer inputTokenCount = response.usage() != null ? response.usage().inputTokens() : null;
         Integer outputTokenCount = response.usage() != null ? response.usage().outputTokens() : null;
         int inputTokens = inputTokenCount != null ? inputTokenCount : 0;
         int outputTokens = outputTokenCount != null ? outputTokenCount : 0;
 
-        events.add(new ModelEvent.Metadata(
-                stopReasonStr,
-                new ModelEvent.Usage(inputTokens, outputTokens)));
+        events.add(new ModelEvent.Metadata(stopReasonStr, new ModelEvent.Usage(inputTokens, outputTokens)));
 
         return events;
     }
@@ -303,7 +303,7 @@ public class BedrockModel implements Model {
             ((Map<String, Object>) map).forEach((k, v) -> docs.put(k, objectToDocument(v)));
             return Document.fromMap(docs);
         }
-        // Fallback: try to serialize via Jackson
+        // Fallback: serialize arbitrary POJOs into a JSON-shaped Document.
         try {
             JsonNode node = OBJECT_MAPPER.valueToTree(obj);
             return jsonNodeToDocument(node);

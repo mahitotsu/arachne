@@ -1,5 +1,10 @@
 package io.arachne.strands.eventloop;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
 import io.arachne.strands.hooks.HookRegistry;
 import io.arachne.strands.model.Model;
 import io.arachne.strands.model.ModelEvent;
@@ -8,11 +13,6 @@ import io.arachne.strands.tool.Tool;
 import io.arachne.strands.tool.ToolResult;
 import io.arachne.strands.types.ContentBlock;
 import io.arachne.strands.types.Message;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * Synchronous model→tool→model event loop.
@@ -77,7 +77,6 @@ public class EventLoop {
             List<Tool> tools,
             String systemPrompt,
             int cycleCount) {
-
         if (cycleCount >= MAX_CYCLES) {
             throw new EventLoopException("Max event-loop cycles exceeded: " + MAX_CYCLES);
         }
@@ -135,10 +134,11 @@ public class EventLoop {
                 // ── hook callsite: AfterToolCall ─────────────────────────────
                 hooks.onAfterToolCall(tu.name(), tu.toolUseId(), result);
 
-                toolResultBlocks.add(new ContentBlock.ToolResult(
-                        result.toolUseId(),
-                        result.content(),
-                        result.status().name().toLowerCase()));
+                toolResultBlocks.add(
+                        new ContentBlock.ToolResult(
+                                result.toolUseId(),
+                                result.content(),
+                                result.status().name().toLowerCase()));
             }
 
             messages.add(new Message(Message.Role.USER, List.copyOf(toolResultBlocks)));
