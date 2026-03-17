@@ -34,6 +34,7 @@ AgentResult result = agent.run("東京の天気は？");
 | `BedrockModel` — AWS SDK v2 ConverseAPI呼び出し | `[ ]` |
 | `ConverseResponse` → `ModelEvent` マッピング | `[ ]` |
 | `DefaultAgent` — EventLoopを持ち `run(String)` を実装 | `[ ]` |
+| EventLoop に hook コールサイトの骨格を仕込む（no-op） | `[ ]` |
 | Integration test: Bedrock に接続して文字列が返る | `[ ]` |
 
 ---
@@ -56,9 +57,9 @@ AgentResult result = agent.run("東京の天気は？");
 
 ---
 
-### Phase 3 — 品質・UX `[ ]`
+### Phase 3 — 品質・UX・Hooks `[ ]`
 
-**Goal**: 本番に持っていけるエラーハンドリングと設定管理がある。
+**Goal**: 本番に持っていけるエラーハンドリング、設定管理、および AOP 的な hook 介入ができる。
 
 | Task | Status |
 |---|---|
@@ -67,6 +68,10 @@ AgentResult result = agent.run("東京の天気は？");
 | `SlidingWindowConversationManager`（トークンあふれ防止） | `[ ]` |
 | エラー型整理（`ContextWindowOverflowException` 等） | `[ ]` |
 | `application.yml` でモデルID・リージョン・リトライ設定 | `[ ]` |
+| `HookRegistry` + `HookProvider` — 可変イベントによる制御フロー介入 | `[ ]` |
+| 全 hook イベント型: `BeforeInvocationEvent`, `AfterInvocationEvent`, `BeforeToolCallEvent`, `AfterToolCallEvent`, `BeforeModelCallEvent`, `AfterModelCallEvent`, `MessageAddedEvent` | `[ ]` |
+| `@ArachneHook` アノテーション — Spring Bean として自動検出・登録 | `[ ]` |
+| Spring `ApplicationEvent` ブリッジ — 観測専用の通知を Spring イベントとして publish | `[ ]` |
 
 ---
 
