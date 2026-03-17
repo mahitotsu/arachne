@@ -38,17 +38,21 @@ AgentResult result = agent.run("東京の天気は？");
 
 ---
 
-### Phase 2 — @StrandsTool `[ ]`
+### Phase 2 — @StrandsTool & Structured Output `[ ]`
 
 **Goal**: `@StrandsTool` を付けたメソッドが自動的にエージェントから呼ばれる。
+型付き戻り値（Structured Output）も取得できる。
 
 | Task | Status |
 |---|---|
 | `@StrandsTool` / `@ToolParam` アノテーション定義 | `[ ]` |
-| JavaメソッドシグネチャからJSON Schema自動生成 | `[ ]` |
+| JavaクラスからJSON Schema自動生成（共通インフラ） | `[ ]` |
 | `AnnotationToolScanner` — SpringコンテキストからBean自動検出 | `[ ]` |
 | `AgentFactory.builder().tools(...)` 連携 | `[ ]` |
+| `StructuredOutputTool` — Javaクラスを ToolSpec に変換し最終ツールとして強制呼び出し | `[ ]` |
+| `agent.run("...", MyRecord.class)` API — 型付き戻り値のサポート | `[ ]` |
 | Integration test: ツール呼び出しが1往復で完結する | `[ ]` |
+| Integration test: Structured Output で型付きオブジェクトが返る | `[ ]` |
 
 ---
 
