@@ -1,0 +1,20 @@
+{
+    "folders": [
+        {
+            "name": "arachne",
+            "path": "."
+        },
+        {
+            "name": "phase1-chat",
+            "path": "samples/phase1-chat"
+        },
+        {
+            "name": "phase2-tools",
+            "path": "samples/phase2-tools"
+        }
+    ],
+    "settings": {
+        "java.configuration.updateBuildConfiguration": "automatic",
+        "java.compile.nullAnalysis.mode": "automatic"
+    }
+}

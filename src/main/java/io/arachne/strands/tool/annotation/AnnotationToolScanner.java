@@ -10,12 +10,11 @@ import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Qualifier;
 
-import jakarta.validation.Validator;
-
 import io.arachne.strands.schema.JsonSchemaGenerator;
 import io.arachne.strands.tool.BeanValidationSupport;
 import io.arachne.strands.tool.Tool;
 import io.arachne.strands.tool.ToolDefinitionException;
+import jakarta.validation.Validator;
 
 /**
  * Discovers tool methods from application beans.

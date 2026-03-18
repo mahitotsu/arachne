@@ -6,8 +6,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import org.junit.jupiter.api.Test;
 
-import jakarta.validation.constraints.NotBlank;
-
 import io.arachne.strands.eventloop.EventLoop;
 import io.arachne.strands.hooks.NoOpHookRegistry;
 import io.arachne.strands.model.Model;
@@ -16,6 +14,7 @@ import io.arachne.strands.model.ToolSelection;
 import io.arachne.strands.model.ToolSpec;
 import io.arachne.strands.tool.StructuredOutputException;
 import io.arachne.strands.types.Message;
+import jakarta.validation.constraints.NotBlank;
 
 /**
  * Unit tests for {@link DefaultAgent}.

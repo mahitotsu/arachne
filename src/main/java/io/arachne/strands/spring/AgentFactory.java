@@ -5,8 +5,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
 
-import jakarta.validation.Validator;
-
 import io.arachne.strands.agent.Agent;
 import io.arachne.strands.agent.DefaultAgent;
 import io.arachne.strands.eventloop.EventLoop;
@@ -18,6 +16,7 @@ import io.arachne.strands.tool.Tool;
 import io.arachne.strands.tool.ToolExecutionMode;
 import io.arachne.strands.tool.ToolExecutor;
 import io.arachne.strands.tool.annotation.DiscoveredTool;
+import jakarta.validation.Validator;
 
 /**
  * Factory for creating {@link Agent} instances.

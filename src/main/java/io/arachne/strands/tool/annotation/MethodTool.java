@@ -9,14 +9,13 @@ import java.util.Optional;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import jakarta.validation.Validator;
-
 import io.arachne.strands.model.ToolSpec;
 import io.arachne.strands.schema.JsonSchemaGenerator;
 import io.arachne.strands.tool.BeanValidationSupport;
 import io.arachne.strands.tool.Tool;
 import io.arachne.strands.tool.ToolDefinitionException;
 import io.arachne.strands.tool.ToolResult;
+import jakarta.validation.Validator;
 
 /**
  * Tool wrapper around a method annotated with {@link StrandsTool}.

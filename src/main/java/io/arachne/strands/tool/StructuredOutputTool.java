@@ -2,10 +2,9 @@ package io.arachne.strands.tool;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import jakarta.validation.Validator;
-
 import io.arachne.strands.model.ToolSpec;
 import io.arachne.strands.schema.JsonSchemaGenerator;
+import jakarta.validation.Validator;
 
 /**
  * Final tool used to capture typed structured output from the model.

@@ -3,8 +3,6 @@ package io.arachne.strands.agent;
 import java.util.ArrayList;
 import java.util.List;
 
-import jakarta.validation.Validator;
-
 import io.arachne.strands.eventloop.EventLoop;
 import io.arachne.strands.eventloop.EventLoopResult;
 import io.arachne.strands.eventloop.StructuredOutputContext;
@@ -14,6 +12,7 @@ import io.arachne.strands.tool.BeanValidationSupport;
 import io.arachne.strands.tool.StructuredOutputTool;
 import io.arachne.strands.tool.Tool;
 import io.arachne.strands.types.Message;
+import jakarta.validation.Validator;
 
 /**
  * Default {@link Agent} implementation.

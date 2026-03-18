@@ -1,9 +1,9 @@
 package io.arachne.strands.tool.annotation;
 
-import java.util.LinkedHashSet;
-import java.util.Set;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.Objects;
+import java.util.Set;
 
 import io.arachne.strands.tool.Tool;
 

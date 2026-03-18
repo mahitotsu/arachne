@@ -8,11 +8,10 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 
-import jakarta.validation.Validator;
-
 import io.arachne.strands.model.Model;
 import io.arachne.strands.tool.BeanValidationSupport;
 import io.arachne.strands.tool.annotation.DiscoveredTool;
+import jakarta.validation.Validator;
 
 /**
  * Spring Boot auto-configuration for Arachne Strands.

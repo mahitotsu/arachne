@@ -8,11 +8,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Qualifier;
 
-import jakarta.validation.constraints.NotBlank;
-
 import io.arachne.strands.tool.Tool;
 import io.arachne.strands.tool.ToolDefinitionException;
 import io.arachne.strands.tool.ToolValidationException;
+import jakarta.validation.constraints.NotBlank;
 
 class AnnotationToolScannerTest {
 
