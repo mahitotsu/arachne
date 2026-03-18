@@ -45,6 +45,8 @@ mvn install
 
 Arachne registers its auto-configuration through Spring Boot, so having the jar on the classpath is enough to make `Model` and `AgentFactory` available.
 
+The values under `application.yml` are library-wide defaults. They do not define a single canonical agent for the whole application.
+
 Configure the model in `application.yml`:
 
 ```yaml
@@ -70,6 +72,8 @@ Notes:
 - `provider` must be `bedrock` in Phase 1
 - if `id` is omitted, Arachne uses `jp.amazon.nova-2-lite-v1:0`
 - if `region` is omitted, Arachne uses `ap-northeast-1`
+- `agent.system-prompt` is the default prompt used when a builder does not override it
+- these properties are best treated as defaults for simple applications, not as the main way to describe many agents
 
 ## Creating An Agent
 
@@ -97,6 +101,35 @@ Agent supportAgent(AgentFactory factory) {
             .build();
 }
 ```
+
+You can define multiple agents in the same application. Each one can override the shared defaults from `application.yml`.
+
+```java
+@Configuration
+class MultiAgentConfiguration {
+
+  @Bean
+  Agent supportAgent(AgentFactory factory) {
+    return factory.builder()
+        .systemPrompt("You are a customer support agent.")
+        .build();
+  }
+
+  @Bean
+  Agent analystAgent(AgentFactory factory) {
+    return factory.builder()
+        .model(new BedrockModel("us.amazon.nova-pro-v1:0", "us-east-1"))
+        .systemPrompt("You are an analyst. Answer with concise bullet points.")
+        .build();
+  }
+}
+```
+
+So the current model is:
+
+- `application.yml` supplies defaults
+- `AgentFactory.builder()` defines each agent instance
+- per-agent Java configuration is where multiple-agent applications are expressed today
 
 Builder precedence is:
 

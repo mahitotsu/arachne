@@ -34,8 +34,11 @@ AgentResult result = agent.run("東京の天気は？");
 | `BedrockModel` — AWS SDK v2 ConverseAPI呼び出し | `[x]` |
 | `ConverseResponse` → `ModelEvent` マッピング | `[x]` |
 | `DefaultAgent` — EventLoopを持ち `run(String)` を実装 | `[x]` |
+| `AgentFactory` + Spring Boot auto-configuration — 既定 `Model` と builder を提供 | `[x]` |
+| `application.yml` によるデフォルト model / region / system prompt 設定 | `[x]` |
 | EventLoop に hook コールサイトの骨格を仕込む（no-op） | `[x]` |
 | Integration test: Bedrock に接続して文字列が返る | `[x]` |
+| User guide + runnable sample app — Phase 1 の使い方と multi-turn を確認可能にする | `[x]` |
 
 ---
 
@@ -59,18 +62,20 @@ AgentResult result = agent.run("東京の天気は？");
 
 ---
 
-### Phase 3 — 品質・UX・Session `[ ]`
+### Phase 3 — 品質・設定UX・Session `[ ]`
 
-**Goal**: 本番に持っていけるエラーハンドリング、設定管理、会話の永続化がある。
+**Goal**: 本番に持っていけるエラーハンドリング、複数エージェント向け設定UX、会話の永続化がある。
 
 | Task | Status |
 |---|---|
 | リトライ戦略（スロットリング、`MAX_ATTEMPTS=6` 相当） | `[ ]` |
-| システムプロンプト対応 | `[ ]` |
 | `SlidingWindowConversationManager`（トークンあふれ防止） | `[ ]` |
 | `SummarizingConversationManager`（LLMで要約して圧縮） | `[ ]` |
 | エラー型整理（`ContextWindowOverflowException` 等） | `[ ]` |
-| `application.yml` でモデルID・リージョン・リトライ設定 | `[ ]` |
+| `application.yml` でリトライ・会話管理・セッション設定 | `[ ]` |
+| **Named Agent** 設定 — `arachne.strands.agents.<name>.*` で agent ごとの model / system prompt / tools / policy を宣言 | `[ ]` |
+| `AgentFactory.builder("name")` または `NamedAgentFactory` — named default から agent を構築 | `[ ]` |
+| Spring 連携 — named agent の bean / qualifier / sample を提供 | `[ ]` |
 | `AgentState` — ツールや Hook から参照できるセッションスコープの key-value ストア | `[ ]` |
 | `SessionManager` インターフェース + `InMemorySessionManager` | `[ ]` |
 | `FileSessionManager` — 会話履歴をファイルに永続化、Spring `@Bean` で差し替え可能 | `[ ]` |
