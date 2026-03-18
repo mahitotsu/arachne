@@ -2,11 +2,14 @@
 
 Arachne is a Java port of the Strands Agents SDK with Spring Boot integration.
 
-Phase 1 is complete. You can already:
+Phase 2 is now underway in the main branch. You can already:
 
 - auto-configure a Bedrock-backed `Model` in Spring Boot
 - create an `Agent` from `AgentFactory`
 - call `agent.run("...")` and receive a text response
+- expose Spring bean methods as tools with `@StrandsTool`
+- auto-discover those tools from the Spring context
+- request typed structured output with `agent.run("...", MyType.class)`
 - set a system prompt from configuration or per agent
 - keep multi-turn conversation state in a single `Agent` instance
 
@@ -17,6 +20,7 @@ The current user-facing guide is here:
 The runnable sample app is here:
 
 - [samples/phase1-chat/README.md](samples/phase1-chat/README.md)
+- [samples/phase2-tools/README.md](samples/phase2-tools/README.md)
 
 The implementation plan and remaining work are tracked in:
 
@@ -24,14 +28,15 @@ The implementation plan and remaining work are tracked in:
 
 ## Current Status
 
-Phase 1 covers the synchronous Bedrock event loop. Phase 2 is where annotation-driven tools and structured output become first-class APIs.
+Phase 1 covers the synchronous Bedrock event loop. Phase 2 adds annotation-driven tools and structured output as first-class APIs.
 
-Today, low-level `Tool` wiring already exists in the core loop, but the following are not finished yet:
+Available now on the Phase 2 path:
 
 - `@StrandsTool` and `@ToolParam`
-- Spring bean scanning for tools
-- JSON schema generation from Java types
+- Spring bean scanning for annotated tools
+- JSON schema generation from Java signatures and Java types
 - structured output via `agent.run("...", MyType.class)`
+- the Spring agent-as-tool pattern, where a `@Service` can expose a method as a tool and delegate to another `Agent`
 
 ## Quick Start
 
@@ -47,12 +52,23 @@ arachne:
 ```
 
 ```java
+import io.arachne.strands.tool.annotation.StrandsTool;
+
 @Configuration
 class AgentConfiguration {
 
     @Bean
     Agent agent(AgentFactory factory) {
         return factory.builder().build();
+    }
+}
+
+@Service
+class WeatherToolService {
+
+    @StrandsTool(description = "Look up weather facts for a city")
+    String weather(String city) {
+        return "Tokyo is mild today.";
     }
 }
 ```
@@ -71,6 +87,14 @@ class ChatService {
         return agent.run(prompt).text();
     }
 }
+```
+
+Typed structured output is also available:
+
+```java
+record Summary(String city, String advice) {}
+
+Summary summary = agent.run("Plan a short Tokyo walk", Summary.class);
 ```
 
 ## Build And Verify

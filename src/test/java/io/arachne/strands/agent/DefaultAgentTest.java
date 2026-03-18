@@ -1,17 +1,21 @@
 package io.arachne.strands.agent;
 
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import org.junit.jupiter.api.Test;
+
+import jakarta.validation.constraints.NotBlank;
+
 import io.arachne.strands.eventloop.EventLoop;
 import io.arachne.strands.hooks.NoOpHookRegistry;
 import io.arachne.strands.model.Model;
 import io.arachne.strands.model.ModelEvent;
+import io.arachne.strands.model.ToolSelection;
 import io.arachne.strands.model.ToolSpec;
+import io.arachne.strands.tool.StructuredOutputException;
 import io.arachne.strands.types.Message;
-import org.junit.jupiter.api.Test;
-
-import java.util.ArrayList;
-import java.util.List;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Unit tests for {@link DefaultAgent}.
@@ -40,6 +44,87 @@ class DefaultAgentTest {
         return (messages, tools) -> List.of(
                 new ModelEvent.TextDelta(reply),
                 new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(10, 5)));
+    }
+
+    private static Model structuredOutputModel() {
+        return new Model() {
+            private int calls;
+
+            @Override
+            public Iterable<ModelEvent> converse(List<Message> messages, List<ToolSpec> tools) {
+                throw new AssertionError("Structured output should use the extended overloads");
+            }
+
+            @Override
+            public Iterable<ModelEvent> converse(List<Message> messages, List<ToolSpec> tools, String systemPrompt) {
+                calls++;
+                return List.of(
+                        new ModelEvent.TextDelta("Plain text draft"),
+                        new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(10, 5)));
+            }
+
+            @Override
+            public Iterable<ModelEvent> converse(
+                    List<Message> messages,
+                    List<ToolSpec> tools,
+                    String systemPrompt,
+                    ToolSelection toolSelection) {
+                if (toolSelection == null) {
+                    return converse(messages, tools, systemPrompt);
+                }
+                if (calls == 1) {
+                    calls++;
+                    return List.of(
+                            new ModelEvent.ToolUse(
+                                    "structured-1",
+                                    toolSelection.toolName(),
+                                    java.util.Map.of("answer", "Tokyo", "confidence", 0.9)),
+                            new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(12, 4)));
+                }
+                return List.of(
+                        new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(13, 2)));
+            }
+        };
+    }
+
+    private static Model invalidStructuredOutputModel() {
+        return new Model() {
+            private int calls;
+
+            @Override
+            public Iterable<ModelEvent> converse(List<Message> messages, List<ToolSpec> tools) {
+                throw new AssertionError("Structured output should use the extended overloads");
+            }
+
+            @Override
+            public Iterable<ModelEvent> converse(List<Message> messages, List<ToolSpec> tools, String systemPrompt) {
+                calls++;
+                return List.of(
+                        new ModelEvent.TextDelta("Draft"),
+                        new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(10, 5)));
+            }
+
+            @Override
+            public Iterable<ModelEvent> converse(
+                    List<Message> messages,
+                    List<ToolSpec> tools,
+                    String systemPrompt,
+                    ToolSelection toolSelection) {
+                if (toolSelection == null) {
+                    return converse(messages, tools, systemPrompt);
+                }
+                if (calls == 1) {
+                    calls++;
+                    return List.of(
+                            new ModelEvent.ToolUse(
+                                    "structured-1",
+                                    toolSelection.toolName(),
+                                    java.util.Map.of("answer", "  ", "confidence", 0.9)),
+                            new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(12, 4)));
+                }
+                return List.of(new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(13, 2)));
+            }
+        };
     }
 
     @Test
@@ -78,5 +163,35 @@ class DefaultAgentTest {
 
         assertThat(result.text()).isEqualTo("Hello!");
         assertThat(model.systemPrompt).isEqualTo("You are terse.");
+    }
+
+    @Test
+    void runCanReturnStructuredOutput() {
+        NoOpHookRegistry hooks = new NoOpHookRegistry();
+        EventLoop eventLoop = new EventLoop(hooks);
+        DefaultAgent agent = new DefaultAgent(structuredOutputModel(), List.of(), eventLoop, hooks);
+
+        WeatherSummary result = agent.run("東京の天気を返してください", WeatherSummary.class);
+
+        assertThat(result.answer()).isEqualTo("Tokyo");
+        assertThat(result.confidence()).isEqualTo(0.9);
+        assertThat(agent.getMessages()).hasSize(5);
+    }
+
+    @Test
+    void runRejectsInvalidStructuredOutput() {
+        NoOpHookRegistry hooks = new NoOpHookRegistry();
+        EventLoop eventLoop = new EventLoop(hooks);
+        DefaultAgent agent = new DefaultAgent(invalidStructuredOutputModel(), List.of(), eventLoop, hooks);
+
+        assertThatThrownBy(() -> agent.run("東京の天気を返してください", ValidatedWeatherSummary.class))
+                .isInstanceOf(StructuredOutputException.class)
+                .hasMessageContaining("answer");
+    }
+
+    record WeatherSummary(String answer, double confidence) {
+    }
+
+    record ValidatedWeatherSummary(@NotBlank String answer, double confidence) {
     }
 }

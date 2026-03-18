@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import io.arachne.strands.model.Model;
 import io.arachne.strands.model.ModelEvent;
+import io.arachne.strands.model.ToolSelection;
 import io.arachne.strands.model.ToolSpec;
 import io.arachne.strands.types.ContentBlock;
 import io.arachne.strands.types.Message;
@@ -22,8 +23,10 @@ import software.amazon.awssdk.services.bedrockruntime.model.ContentBlock.Type;
 import software.amazon.awssdk.services.bedrockruntime.model.ConversationRole;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseRequest;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseResponse;
+import software.amazon.awssdk.services.bedrockruntime.model.SpecificToolChoice;
 import software.amazon.awssdk.services.bedrockruntime.model.SystemContentBlock;
 import software.amazon.awssdk.services.bedrockruntime.model.Tool;
+import software.amazon.awssdk.services.bedrockruntime.model.ToolChoice;
 import software.amazon.awssdk.services.bedrockruntime.model.ToolConfiguration;
 import software.amazon.awssdk.services.bedrockruntime.model.ToolInputSchema;
 import software.amazon.awssdk.services.bedrockruntime.model.ToolResultBlock;
@@ -111,7 +114,16 @@ public class BedrockModel implements Model {
 
     @Override
     public Iterable<ModelEvent> converse(List<Message> messages, List<ToolSpec> tools, String systemPrompt) {
-        ConverseRequest request = buildRequest(messages, tools, systemPrompt);
+        return converse(messages, tools, systemPrompt, null);
+    }
+
+    @Override
+    public Iterable<ModelEvent> converse(
+            List<Message> messages,
+            List<ToolSpec> tools,
+            String systemPrompt,
+            ToolSelection toolSelection) {
+        ConverseRequest request = buildRequest(messages, tools, systemPrompt, toolSelection);
         LOG.fine(() -> "modelId=" + modelId + " | invoking Bedrock Converse API");
 
         ConverseResponse response = client.converse(request);
@@ -120,10 +132,11 @@ public class BedrockModel implements Model {
 
     // ── Request building ────────────────────────────────────────────────────
 
-        ConverseRequest buildRequest(
+    ConverseRequest buildRequest(
             List<Message> messages,
             List<ToolSpec> tools,
-            String systemPrompt) {
+            String systemPrompt,
+            ToolSelection toolSelection) {
         List<software.amazon.awssdk.services.bedrockruntime.model.Message> bedrockMessages =
                 messages.stream().map(this::toBedrockMessage).toList();
 
@@ -136,7 +149,7 @@ public class BedrockModel implements Model {
         }
 
         if (!tools.isEmpty()) {
-            builder.toolConfig(buildToolConfig(tools));
+            builder.toolConfig(buildToolConfig(tools, toolSelection));
         }
 
         return builder.build();
@@ -201,7 +214,7 @@ public class BedrockModel implements Model {
                 .build();
     }
 
-    private ToolConfiguration buildToolConfig(List<ToolSpec> tools) {
+    private ToolConfiguration buildToolConfig(List<ToolSpec> tools, ToolSelection toolSelection) {
         List<Tool> bedrockTools = tools.stream().map(spec -> {
             Document schemaDoc = jsonNodeToDocument(spec.inputSchema());
             return Tool.builder()
@@ -215,7 +228,13 @@ public class BedrockModel implements Model {
                     .build();
         }).toList();
 
-        return ToolConfiguration.builder().tools(bedrockTools).build();
+        ToolConfiguration.Builder builder = ToolConfiguration.builder().tools(bedrockTools);
+        if (toolSelection != null) {
+            builder.toolChoice(ToolChoice.fromTool(SpecificToolChoice.builder()
+                    .name(toolSelection.toolName())
+                    .build()));
+        }
+        return builder.build();
     }
 
     // ── Response mapping ────────────────────────────────────────────────────

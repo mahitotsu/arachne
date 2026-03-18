@@ -1,18 +1,20 @@
 package io.arachne.strands.spring;
 
-import io.arachne.strands.agent.Agent;
-import io.arachne.strands.model.Model;
-import io.arachne.strands.model.ModelEvent;
-import io.arachne.strands.model.bedrock.BedrockModel;
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import java.util.List;
-
-import static org.assertj.core.api.Assertions.assertThat;
+import io.arachne.strands.agent.Agent;
+import io.arachne.strands.model.Model;
+import io.arachne.strands.model.ModelEvent;
+import io.arachne.strands.model.bedrock.BedrockModel;
+import io.arachne.strands.tool.annotation.StrandsTool;
 
 class ArachneAutoConfigurationTest {
 
@@ -46,6 +48,45 @@ class ArachneAutoConfigurationTest {
                 });
     }
 
+    @Test
+    void autoConfigurationDiscoversAnnotatedToolBeans() {
+        contextRunner
+                .withUserConfiguration(AnnotatedToolConfiguration.class, CustomModelConfiguration.class)
+                .run(context -> {
+                    Agent agent = context.getBean(AgentFactory.class).builder().build();
+
+                    assertThat(agent.getTools()).extracting(tool -> tool.spec().name()).contains("weather");
+                });
+    }
+
+    @Test
+    void autoConfigurationCanFilterDiscoveredToolsPerAgent() {
+        contextRunner
+                .withUserConfiguration(AnnotatedToolConfiguration.class, CustomModelConfiguration.class)
+                .run(context -> {
+                    AgentFactory factory = context.getBean(AgentFactory.class);
+
+                    Agent plannerAgent = factory.builder().toolQualifiers("planner").build();
+                    Agent supportAgent = factory.builder().toolQualifiers("support").build();
+
+                    assertThat(plannerAgent.getTools()).extracting(tool -> tool.spec().name()).containsExactly("weather");
+                    assertThat(supportAgent.getTools()).extracting(tool -> tool.spec().name()).containsExactly("supportWeather");
+                });
+    }
+
+    @Test
+    void autoConfigurationBridgesSpringQualifierIntoToolQualifiers() {
+        contextRunner
+                .withUserConfiguration(SpringQualifiedToolConfiguration.class, CustomModelConfiguration.class)
+                .run(context -> {
+                    AgentFactory factory = context.getBean(AgentFactory.class);
+
+                    Agent bridgedAgent = factory.builder().toolQualifiers("planner").build();
+
+                    assertThat(bridgedAgent.getTools()).extracting(tool -> tool.spec().name()).containsExactly("qualifiedWeather");
+                });
+    }
+
     @Configuration(proxyBeanMethods = false)
     static class CustomModelConfiguration {
         @Bean
@@ -54,6 +95,46 @@ class ArachneAutoConfigurationTest {
             return (messages, tools) -> List.of(
                     new ModelEvent.TextDelta("ok"),
                     new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
+        }
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    static class AnnotatedToolConfiguration {
+        @Bean
+        @SuppressWarnings("unused")
+        AnnotatedToolBean annotatedToolBean() {
+            return new AnnotatedToolBean();
+        }
+    }
+
+    static class AnnotatedToolBean {
+
+        @StrandsTool(qualifiers = "planner")
+        public String weather() {
+            return "sunny";
+        }
+
+        @StrandsTool(qualifiers = "support")
+        public String supportWeather() {
+            return "cloudy";
+        }
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    static class SpringQualifiedToolConfiguration {
+        @Bean
+        @SuppressWarnings("unused")
+        SpringQualifiedToolBean springQualifiedToolBean() {
+            return new SpringQualifiedToolBean();
+        }
+    }
+
+    @Qualifier("planner")
+    static class SpringQualifiedToolBean {
+
+        @StrandsTool
+        public String qualifiedWeather() {
+            return "windy";
         }
     }
 }

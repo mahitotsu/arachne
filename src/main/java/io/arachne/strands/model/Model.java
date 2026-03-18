@@ -1,8 +1,8 @@
 package io.arachne.strands.model;
 
-import io.arachne.strands.types.Message;
-
 import java.util.List;
+
+import io.arachne.strands.types.Message;
 
 /**
  * Abstraction over an LLM provider.
@@ -28,5 +28,16 @@ public interface Model {
      */
     default Iterable<ModelEvent> converse(List<Message> messages, List<ToolSpec> tools, String systemPrompt) {
         return converse(messages, tools);
+    }
+
+    /**
+     * Send a converse request with an optional system prompt and tool selection hint.
+     */
+    default Iterable<ModelEvent> converse(
+            List<Message> messages,
+            List<ToolSpec> tools,
+            String systemPrompt,
+            ToolSelection toolSelection) {
+        return converse(messages, tools, systemPrompt);
     }
 }

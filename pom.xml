@@ -72,6 +72,12 @@
             <version>1.5.4</version>
         </dependency>
 
+        <!-- Runtime Bean Validation for tool input and structured output -->
+        <dependency>
+            <groupId>org.hibernate.validator</groupId>
+            <artifactId>hibernate-validator</artifactId>
+        </dependency>
+
         <!-- Null-safety annotations -->
         <dependency>
             <groupId>org.jspecify</groupId>

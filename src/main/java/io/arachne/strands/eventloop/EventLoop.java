@@ -2,14 +2,15 @@ package io.arachne.strands.eventloop;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import io.arachne.strands.hooks.HookRegistry;
 import io.arachne.strands.model.Model;
 import io.arachne.strands.model.ModelEvent;
+import io.arachne.strands.model.ToolSelection;
 import io.arachne.strands.model.ToolSpec;
+import io.arachne.strands.tool.StructuredOutputException;
 import io.arachne.strands.tool.Tool;
+import io.arachne.strands.tool.ToolExecutor;
 import io.arachne.strands.tool.ToolResult;
 import io.arachne.strands.types.ContentBlock;
 import io.arachne.strands.types.Message;
@@ -38,12 +39,16 @@ public class EventLoop {
     /** Maximum recursive cycles to prevent infinite tool-use loops. */
     static final int MAX_CYCLES = 10;
 
-    private static final Logger LOG = Logger.getLogger(EventLoop.class.getName());
-
     private final HookRegistry hooks;
+    private final ToolExecutor toolExecutor;
 
     public EventLoop(HookRegistry hooks) {
+        this(hooks, new ToolExecutor());
+    }
+
+    public EventLoop(HookRegistry hooks, ToolExecutor toolExecutor) {
         this.hooks = hooks;
+        this.toolExecutor = toolExecutor;
     }
 
     /**
@@ -63,7 +68,7 @@ public class EventLoop {
             List<Message> messages,
             List<Tool> tools,
             int cycleCount) {
-        return run(model, messages, tools, null, cycleCount);
+        return run(model, messages, tools, null, null, cycleCount);
     }
 
     /**
@@ -77,16 +82,32 @@ public class EventLoop {
             List<Tool> tools,
             String systemPrompt,
             int cycleCount) {
+        return run(model, messages, tools, systemPrompt, null, cycleCount);
+    }
+
+    public EventLoopResult run(
+            Model model,
+            List<Message> messages,
+            List<Tool> tools,
+            String systemPrompt,
+            StructuredOutputContext<?> structuredOutputContext,
+            int cycleCount) {
         if (cycleCount >= MAX_CYCLES) {
             throw new EventLoopException("Max event-loop cycles exceeded: " + MAX_CYCLES);
         }
 
         List<ToolSpec> toolSpecs = tools.stream().map(Tool::spec).toList();
+        ToolSelection toolSelection = null;
+        if (structuredOutputContext != null
+                && structuredOutputContext.forceAttempted()
+                && !structuredOutputContext.isSatisfied()) {
+            toolSelection = ToolSelection.force(structuredOutputContext.forcedToolName());
+        }
 
         // ── hook callsite: BeforeModelCall ──────────────────────────────────
         hooks.onBeforeModelCall(messages, toolSpecs);
 
-        Iterable<ModelEvent> events = model.converse(messages, toolSpecs, systemPrompt);
+        Iterable<ModelEvent> events = model.converse(messages, toolSpecs, systemPrompt, toolSelection);
 
         // Accumulate text deltas and tool-use requests from the model response
         StringBuilder textBuilder = new StringBuilder();
@@ -125,15 +146,7 @@ public class EventLoop {
         if ("tool_use".equals(stopReason)) {
             List<ContentBlock> toolResultBlocks = new ArrayList<>();
 
-            for (ContentBlock.ToolUse tu : toolUseBlocks) {
-                // ── hook callsite: BeforeToolCall ────────────────────────────
-                hooks.onBeforeToolCall(tu.name(), tu.toolUseId(), tu.input());
-
-                ToolResult result = executeToolSafely(tools, tu);
-
-                // ── hook callsite: AfterToolCall ─────────────────────────────
-                hooks.onAfterToolCall(tu.name(), tu.toolUseId(), result);
-
+            for (ToolResult result : toolExecutor.execute(tools, toolUseBlocks, hooks)) {
                 toolResultBlocks.add(
                         new ContentBlock.ToolResult(
                                 result.toolUseId(),
@@ -143,29 +156,24 @@ public class EventLoop {
 
             messages.add(new Message(Message.Role.USER, List.copyOf(toolResultBlocks)));
 
+            if (structuredOutputContext != null && structuredOutputContext.isSatisfied()) {
+                return new EventLoopResult(text, stopReason, inputTokens, outputTokens);
+            }
+
             // Recurse for the next model turn
-            return run(model, messages, tools, systemPrompt, cycleCount + 1);
+            return run(model, messages, tools, systemPrompt, structuredOutputContext, cycleCount + 1);
+        }
+
+        if (structuredOutputContext != null && !structuredOutputContext.isSatisfied()) {
+            if (structuredOutputContext.forceAttempted()) {
+                throw new StructuredOutputException(
+                        "The model failed to invoke the structured output tool even after it was forced.");
+            }
+            structuredOutputContext.markForceAttempted();
+            messages.add(Message.user(structuredOutputContext.forcePrompt()));
+            return run(model, messages, tools, systemPrompt, structuredOutputContext, cycleCount + 1);
         }
 
         return new EventLoopResult(text, stopReason, inputTokens, outputTokens);
-    }
-
-    private ToolResult executeToolSafely(List<Tool> tools, ContentBlock.ToolUse tu) {
-        Tool tool = tools.stream()
-                .filter(t -> t.spec().name().equals(tu.name()))
-                .findFirst()
-                .orElse(null);
-
-        if (tool == null) {
-            LOG.warning(() -> "Unknown tool requested by model: " + tu.name());
-            return ToolResult.error(tu.toolUseId(), "Unknown tool: " + tu.name());
-        }
-
-        try {
-            return tool.invoke(tu.input());
-        } catch (Exception e) {
-            LOG.log(Level.WARNING, "Tool invocation failed: " + tu.name(), e);
-            return ToolResult.error(tu.toolUseId(), e.getMessage());
-        }
     }
 }

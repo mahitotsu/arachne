@@ -3,10 +3,15 @@ package io.arachne.strands.agent;
 import java.util.ArrayList;
 import java.util.List;
 
+import jakarta.validation.Validator;
+
 import io.arachne.strands.eventloop.EventLoop;
 import io.arachne.strands.eventloop.EventLoopResult;
+import io.arachne.strands.eventloop.StructuredOutputContext;
 import io.arachne.strands.hooks.HookRegistry;
 import io.arachne.strands.model.Model;
+import io.arachne.strands.tool.BeanValidationSupport;
+import io.arachne.strands.tool.StructuredOutputTool;
 import io.arachne.strands.tool.Tool;
 import io.arachne.strands.types.Message;
 
@@ -28,6 +33,7 @@ public class DefaultAgent implements Agent {
     private final EventLoop eventLoop;
     private final HookRegistry hooks;
     private final String systemPrompt;
+    private final Validator validator;
 
     /** Mutable conversation history. Growing across multiple run() calls = multi-turn conversation. */
     private final List<Message> messages = new ArrayList<>();
@@ -37,7 +43,7 @@ public class DefaultAgent implements Agent {
             List<Tool> tools,
             EventLoop eventLoop,
             HookRegistry hooks) {
-        this(model, tools, eventLoop, hooks, null);
+        this(model, tools, eventLoop, hooks, null, BeanValidationSupport.defaultValidator());
     }
 
     public DefaultAgent(
@@ -46,11 +52,22 @@ public class DefaultAgent implements Agent {
             EventLoop eventLoop,
             HookRegistry hooks,
             String systemPrompt) {
+        this(model, tools, eventLoop, hooks, systemPrompt, BeanValidationSupport.defaultValidator());
+    }
+
+    public DefaultAgent(
+            Model model,
+            List<Tool> tools,
+            EventLoop eventLoop,
+            HookRegistry hooks,
+            String systemPrompt,
+            Validator validator) {
         this.model = model;
         this.tools = List.copyOf(tools);
         this.eventLoop = eventLoop;
         this.hooks = hooks;
         this.systemPrompt = systemPrompt;
+        this.validator = validator;
     }
 
     @Override
@@ -66,6 +83,34 @@ public class DefaultAgent implements Agent {
         hooks.onAfterInvocation(loopResult.text());
 
         return new AgentResult(loopResult.text(), List.copyOf(messages), loopResult.stopReason());
+    }
+
+    @Override
+    public <T> T run(String prompt, Class<T> outputType) {
+        hooks.onBeforeInvocation(prompt);
+
+        messages.add(Message.user(prompt));
+
+        StructuredOutputTool<T> structuredOutputTool = new StructuredOutputTool<>(
+            outputType,
+            new io.arachne.strands.schema.JsonSchemaGenerator(),
+            new com.fasterxml.jackson.databind.ObjectMapper(),
+            validator);
+        StructuredOutputContext<T> structuredOutputContext = new StructuredOutputContext<>(structuredOutputTool);
+        List<Tool> invocationTools = new ArrayList<>(tools);
+        invocationTools.add(structuredOutputTool);
+
+        EventLoopResult loopResult = eventLoop.run(
+                model,
+                messages,
+                List.copyOf(invocationTools),
+                systemPrompt,
+                structuredOutputContext,
+                0);
+
+        hooks.onAfterInvocation(loopResult.text());
+
+        return structuredOutputContext.requireValue();
     }
 
     @Override
