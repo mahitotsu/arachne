@@ -42,23 +42,25 @@ AgentResult result = agent.run("東京の天気は？");
 
 ---
 
-### Phase 2 — @StrandsTool & Structured Output `[ ]`
+### Phase 2 — @StrandsTool & Structured Output `[x]`
 
 **Goal**: `@StrandsTool` を付けたメソッドが自動的にエージェントから呼ばれる。
 型付き戻り値（Structured Output）も取得できる。
 
 | Task | Status |
 |---|---|
-| `@StrandsTool` / `@ToolParam` アノテーション定義 | `[ ]` |
-| JavaクラスからJSON Schema自動生成（共通インフラ） | `[ ]` |
-| `AnnotationToolScanner` — SpringコンテキストからBean自動検出 | `[ ]` |
-| `AgentFactory.builder().tools(...)` 連携 | `[ ]` |
-| `ToolExecutor` — 並行（デフォルト）と直列の切り替え | `[ ]` |
-| `StructuredOutputTool` — Javaクラスを ToolSpec に変換し最終ツールとして強制呼び出し | `[ ]` |
-| `agent.run("...", MyRecord.class)` API — 型付き戻り値のサポート | `[ ]` |
-| Integration test: ツール呼び出しが1往復で完結する | `[ ]` |
-| Integration test: Structured Output で型付きオブジェクトが返る | `[ ]` |
-| **Agent-as-tool パターンのドキュメント・サンプル** — `@StrandsTool` を付けた `@Service` が別エージェントのツールになる Spring idiom を明示 | `[ ]` |
+| `@StrandsTool` / `@ToolParam` アノテーション定義 | `[x]` |
+| JavaクラスからJSON Schema自動生成（共通インフラ） | `[x]` |
+| `AnnotationToolScanner` — SpringコンテキストからBean自動検出 | `[x]` |
+| `AgentFactory.builder().tools(...)` 連携 | `[x]` |
+| qualifier ベースの discovered tool スコープ制御 — `toolQualifiers(...)` / `useDiscoveredTools(false)` / Spring `@Qualifier` bridge | `[x]` |
+| `ToolExecutor` — 並行（デフォルト）と直列の切り替え | `[x]` |
+| `StructuredOutputTool` — Javaクラスを ToolSpec に変換し最終ツールとして強制呼び出し | `[x]` |
+| `agent.run("...", MyRecord.class)` API — 型付き戻り値のサポート | `[x]` |
+| runtime validation — tool input と structured output に Bean Validation を適用 | `[x]` |
+| Integration test: ツール呼び出しが1往復で完結する | `[x]` |
+| Integration test: Structured Output で型付きオブジェクトが返る | `[x]` |
+| **Agent-as-tool パターンのドキュメント・サンプル** — `@StrandsTool` を付けた `@Service` が別エージェントのツールになる Spring idiom を明示 | `[x]` |
 
 ---
 

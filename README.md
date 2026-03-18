@@ -2,7 +2,7 @@
 
 Arachne is a Java port of the Strands Agents SDK with Spring Boot integration.
 
-Phase 2 is now underway in the main branch. You can already:
+Phase 2 is complete in the main branch. You can already:
 
 - auto-configure a Bedrock-backed `Model` in Spring Boot
 - create an `Agent` from `AgentFactory`
