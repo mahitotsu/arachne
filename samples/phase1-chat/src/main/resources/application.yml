@@ -1,0 +1,12 @@
+spring:
+  main:
+    banner-mode: off
+
+arachne:
+  strands:
+    model:
+      provider: bedrock
+      id: jp.amazon.nova-2-lite-v1:0
+      region: ap-northeast-1
+    agent:
+      system-prompt: "You are a concise assistant. Preserve facts stated earlier in the conversation."
