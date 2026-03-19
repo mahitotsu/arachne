@@ -11,6 +11,14 @@
         {
             "name": "phase2-tools",
             "path": "samples/phase2-tools"
+        },
+        {
+            "name": "phase3-redis-session",
+            "path": "samples/phase3-redis-session"
+        },
+        {
+            "name": "phase3-jdbc-session",
+            "path": "samples/phase3-jdbc-session"
         }
     ],
     "settings": {

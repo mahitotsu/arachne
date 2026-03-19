@@ -1,16 +1,24 @@
 package io.arachne.strands.spring;
 
+import java.time.Duration;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Stream;
 
 import io.arachne.strands.agent.Agent;
+import io.arachne.strands.agent.AgentState;
 import io.arachne.strands.agent.DefaultAgent;
+import io.arachne.strands.agent.conversation.ConversationManager;
+import io.arachne.strands.agent.conversation.SlidingWindowConversationManager;
 import io.arachne.strands.eventloop.EventLoop;
 import io.arachne.strands.hooks.NoOpHookRegistry;
 import io.arachne.strands.model.Model;
 import io.arachne.strands.model.bedrock.BedrockModel;
+import io.arachne.strands.model.retry.ModelRetryStrategy;
+import io.arachne.strands.model.retry.RetryingModel;
+import io.arachne.strands.session.SessionManager;
 import io.arachne.strands.tool.BeanValidationSupport;
 import io.arachne.strands.tool.Tool;
 import io.arachne.strands.tool.ToolExecutionMode;
@@ -40,17 +48,19 @@ public class AgentFactory {
     private final Model defaultModel;
     private final List<DiscoveredTool> discoveredTools;
     private final Validator validator;
+    private final SessionManager defaultSessionManager;
+    private final ModelRetryStrategy defaultRetryStrategy;
 
     public AgentFactory(ArachneProperties properties) {
-        this(properties, null, List.of(), BeanValidationSupport.defaultValidator());
+        this(properties, null, List.of(), BeanValidationSupport.defaultValidator(), null, null);
     }
 
     public AgentFactory(ArachneProperties properties, Model defaultModel) {
-        this(properties, defaultModel, List.of(), BeanValidationSupport.defaultValidator());
+        this(properties, defaultModel, List.of(), BeanValidationSupport.defaultValidator(), null, null);
     }
 
     public AgentFactory(ArachneProperties properties, Model defaultModel, List<DiscoveredTool> discoveredTools) {
-        this(properties, defaultModel, discoveredTools, BeanValidationSupport.defaultValidator());
+        this(properties, defaultModel, discoveredTools, BeanValidationSupport.defaultValidator(), null, null);
     }
 
     public AgentFactory(
@@ -58,21 +68,49 @@ public class AgentFactory {
             Model defaultModel,
             List<DiscoveredTool> discoveredTools,
             Validator validator) {
+        this(properties, defaultModel, discoveredTools, validator, null, null);
+    }
+
+    public AgentFactory(
+            ArachneProperties properties,
+            Model defaultModel,
+            List<DiscoveredTool> discoveredTools,
+            Validator validator,
+            SessionManager defaultSessionManager) {
+        this(properties, defaultModel, discoveredTools, validator, defaultSessionManager, null);
+    }
+
+    public AgentFactory(
+            ArachneProperties properties,
+            Model defaultModel,
+            List<DiscoveredTool> discoveredTools,
+            Validator validator,
+            SessionManager defaultSessionManager,
+            ModelRetryStrategy defaultRetryStrategy) {
         this.properties = properties;
         this.defaultModel = defaultModel;
         this.discoveredTools = List.copyOf(discoveredTools);
         this.validator = validator;
+        this.defaultSessionManager = defaultSessionManager;
+        this.defaultRetryStrategy = defaultRetryStrategy;
     }
 
     public Builder builder() {
-        return new Builder(properties, defaultModel, discoveredTools, validator);
+        return new Builder(resolveBuilderDefaults(null), discoveredTools, validator, defaultSessionManager);
+    }
+
+    public Builder builder(String name) {
+        return new Builder(resolveBuilderDefaults(name), discoveredTools, validator, defaultSessionManager);
     }
 
     static Model createDefaultModel(ArachneProperties properties) {
-        ArachneProperties.ModelProperties modelProperties = properties.getModel();
+        return createDefaultModel(properties.getModel());
+    }
+
+    static Model createDefaultModel(ArachneProperties.ModelProperties modelProperties) {
         String provider = modelProperties.getProvider();
         if (!"bedrock".equalsIgnoreCase(provider)) {
-            throw new IllegalStateException("Unsupported model provider for Phase 1: " + provider);
+            throw new UnsupportedModelProviderException(provider);
         }
 
         String modelId = modelProperties.getId();
@@ -86,29 +124,182 @@ public class AgentFactory {
         return new BedrockModel();
     }
 
+    private BuilderDefaults resolveBuilderDefaults(String name) {
+        if (name == null || name.isBlank()) {
+            return new BuilderDefaults(
+                    copyModelProperties(properties.getModel()),
+                    defaultModel,
+                    properties.getAgent().getSystemPrompt(),
+                    ToolExecutionMode.PARALLEL,
+                    true,
+                    Set.of(),
+                    properties.getAgent().getConversation().getWindowSize(),
+                    properties.getAgent().getSession().getId(),
+                    defaultRetryStrategy);
+        }
+
+        ArachneProperties.NamedAgentProperties namedProperties = properties.getAgents().get(name);
+        if (namedProperties == null) {
+            throw new NamedAgentNotFoundException(name);
+        }
+
+        ArachneProperties.ModelProperties mergedModel = mergeModelProperties(properties.getModel(), namedProperties.getModel());
+        Model namedDefaultModel = hasModelOverride(namedProperties.getModel())
+                ? createDefaultModel(mergedModel)
+                : defaultModel;
+        Integer namedWindowSize = namedProperties.getConversation().getWindowSize();
+        Boolean useDiscoveredTools = namedProperties.getUseDiscoveredTools();
+        return new BuilderDefaults(
+                mergedModel,
+                namedDefaultModel,
+                firstNonBlank(namedProperties.getSystemPrompt(), properties.getAgent().getSystemPrompt()),
+                namedProperties.getToolExecutionMode() != null ? namedProperties.getToolExecutionMode() : ToolExecutionMode.PARALLEL,
+                useDiscoveredTools != null ? useDiscoveredTools : true,
+                normalizeQualifiers(namedProperties.getToolQualifiers()),
+                namedWindowSize != null
+                        ? namedWindowSize
+                        : properties.getAgent().getConversation().getWindowSize(),
+                firstNonBlank(namedProperties.getSession().getId(), properties.getAgent().getSession().getId()),
+                resolveNamedRetryStrategy(namedProperties.getRetry()));
+        }
+
+    private ModelRetryStrategy resolveNamedRetryStrategy(ArachneProperties.RetryOverrideProperties retryProperties) {
+        if (!hasRetryOverride(retryProperties)) {
+            return defaultRetryStrategy;
+        }
+
+        Boolean enabledOverride = retryProperties.getEnabled();
+        boolean enabled;
+        if (enabledOverride != null) {
+            enabled = enabledOverride;
+        } else {
+            enabled = properties.getAgent().getRetry().isEnabled();
+        }
+        if (!enabled) {
+            return null;
+        }
+
+        ArachneProperties.RetryProperties defaults = properties.getAgent().getRetry();
+        Integer maxAttemptsOverride = retryProperties.getMaxAttempts();
+        int maxAttempts = maxAttemptsOverride != null
+                ? maxAttemptsOverride
+                : defaults.getMaxAttempts();
+        Duration initialDelay = retryProperties.getInitialDelay() != null
+                ? retryProperties.getInitialDelay()
+                : defaults.getInitialDelay();
+        Duration maxDelay = retryProperties.getMaxDelay() != null
+                ? retryProperties.getMaxDelay()
+                : defaults.getMaxDelay();
+        return new io.arachne.strands.model.retry.ExponentialBackoffRetryStrategy(maxAttempts, initialDelay, maxDelay);
+    }
+
+    private static boolean hasRetryOverride(ArachneProperties.RetryOverrideProperties retryProperties) {
+        return retryProperties != null
+                && (retryProperties.getEnabled() != null
+                || retryProperties.getMaxAttempts() != null
+                || retryProperties.getInitialDelay() != null
+                || retryProperties.getMaxDelay() != null);
+    }
+
+    private static boolean hasModelOverride(ArachneProperties.ModelOverrideProperties modelProperties) {
+        return modelProperties != null
+                && (hasText(modelProperties.getProvider())
+                || hasText(modelProperties.getId())
+                || hasText(modelProperties.getRegion()));
+    }
+
+    private static ArachneProperties.ModelProperties mergeModelProperties(
+            ArachneProperties.ModelProperties defaults,
+            ArachneProperties.ModelOverrideProperties overrides) {
+        ArachneProperties.ModelProperties merged = copyModelProperties(defaults);
+        if (overrides == null) {
+            return merged;
+        }
+        if (hasText(overrides.getProvider())) {
+            merged.setProvider(overrides.getProvider());
+        }
+        if (hasText(overrides.getId())) {
+            merged.setId(overrides.getId());
+        }
+        if (hasText(overrides.getRegion())) {
+            merged.setRegion(overrides.getRegion());
+        }
+        return merged;
+    }
+
+    private static ArachneProperties.ModelProperties copyModelProperties(ArachneProperties.ModelProperties source) {
+        ArachneProperties.ModelProperties copy = new ArachneProperties.ModelProperties();
+        copy.setProvider(source.getProvider());
+        copy.setId(source.getId());
+        copy.setRegion(source.getRegion());
+        return copy;
+    }
+
+    private static Set<String> normalizeQualifiers(List<String> toolQualifiers) {
+        LinkedHashSet<String> normalized = new LinkedHashSet<>();
+        for (String toolQualifier : toolQualifiers == null ? List.<String>of() : toolQualifiers) {
+            if (hasText(toolQualifier)) {
+                normalized.add(toolQualifier);
+            }
+        }
+        return Set.copyOf(normalized);
+    }
+
+    private static String firstNonBlank(String preferred, String fallback) {
+        return hasText(preferred) ? preferred : fallback;
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    private record BuilderDefaults(
+            ArachneProperties.ModelProperties modelProperties,
+            Model defaultModel,
+            String systemPrompt,
+            ToolExecutionMode toolExecutionMode,
+            boolean useDiscoveredTools,
+            Set<String> toolQualifiers,
+            int conversationWindowSize,
+            String sessionId,
+            ModelRetryStrategy retryStrategy) {
+    }
+
     public static class Builder {
 
-        private final ArachneProperties properties;
+        private final BuilderDefaults defaults;
         private final Model defaultModel;
         private final List<DiscoveredTool> discoveredTools;
         private final Validator validator;
+        private final SessionManager defaultSessionManager;
         private Model model;
         private List<Tool> tools = List.of();
         private String systemPrompt;
-        private ToolExecutionMode toolExecutionMode = ToolExecutionMode.PARALLEL;
-        private boolean useDiscoveredTools = true;
-        private Set<String> toolQualifiers = Set.of();
+        private ToolExecutionMode toolExecutionMode;
+        private boolean useDiscoveredTools;
+        private Set<String> toolQualifiers;
+        private ConversationManager conversationManager;
+        private SessionManager sessionManager;
+        private ModelRetryStrategy retryStrategy;
+        private String sessionId;
+        private AgentState state = new AgentState();
 
         private Builder(
-                ArachneProperties properties,
-                Model defaultModel,
+                BuilderDefaults defaults,
                 List<DiscoveredTool> discoveredTools,
-                Validator validator) {
-            this.properties = properties;
-            this.defaultModel = defaultModel;
+                Validator validator,
+                SessionManager defaultSessionManager) {
+            this.defaults = Objects.requireNonNull(defaults, "defaults must not be null");
+            this.defaultModel = defaults.defaultModel();
             this.discoveredTools = List.copyOf(discoveredTools);
             this.validator = validator;
-            this.systemPrompt = properties.getAgent().getSystemPrompt();
+            this.defaultSessionManager = defaultSessionManager;
+            this.systemPrompt = defaults.systemPrompt();
+            this.toolExecutionMode = defaults.toolExecutionMode();
+            this.useDiscoveredTools = defaults.useDiscoveredTools();
+            this.toolQualifiers = defaults.toolQualifiers();
+            this.retryStrategy = defaults.retryStrategy();
+            this.sessionId = defaults.sessionId();
         }
 
         public Builder model(Model model) {
@@ -152,12 +343,52 @@ public class AgentFactory {
             return this;
         }
 
+        public Builder conversationManager(ConversationManager conversationManager) {
+            this.conversationManager = conversationManager;
+            return this;
+        }
+
+        public Builder sessionManager(SessionManager sessionManager) {
+            this.sessionManager = sessionManager;
+            return this;
+        }
+
+        public Builder retryStrategy(ModelRetryStrategy retryStrategy) {
+            this.retryStrategy = retryStrategy;
+            return this;
+        }
+
+        public Builder sessionId(String sessionId) {
+            this.sessionId = sessionId;
+            return this;
+        }
+
+        public Builder state(AgentState state) {
+            this.state = state == null ? new AgentState() : state;
+            return this;
+        }
+
+        public Builder state(java.util.Map<String, Object> state) {
+            this.state = new AgentState(state);
+            return this;
+        }
+
         public Agent build() {
             Model resolvedModel = resolveModel();
             NoOpHookRegistry hooks = new NoOpHookRegistry();
             EventLoop eventLoop = new EventLoop(hooks, new ToolExecutor(toolExecutionMode));
             List<Tool> resolvedTools = Stream.concat(resolveDiscoveredTools().stream(), tools.stream()).toList();
-            return new DefaultAgent(resolvedModel, resolvedTools, eventLoop, hooks, systemPrompt, validator);
+            return new DefaultAgent(
+                wrapWithRetryIfNeeded(resolvedModel),
+                    resolvedTools,
+                    eventLoop,
+                    hooks,
+                    systemPrompt,
+                    validator,
+                    resolveConversationManager(),
+                    resolveSessionManager(),
+                    sessionId,
+                    state);
         }
 
         private List<Tool> resolveDiscoveredTools() {
@@ -177,7 +408,29 @@ public class AgentFactory {
             if (defaultModel != null) {
                 return defaultModel;
             }
-            return createDefaultModel(properties);
+            return createDefaultModel(defaults.modelProperties());
+        }
+
+        private Model wrapWithRetryIfNeeded(Model resolvedModel) {
+            ModelRetryStrategy resolvedRetryStrategy = retryStrategy;
+            if (resolvedRetryStrategy == null) {
+                return resolvedModel;
+            }
+            return new RetryingModel(resolvedModel, resolvedRetryStrategy);
+        }
+
+        private ConversationManager resolveConversationManager() {
+            if (conversationManager != null) {
+                return conversationManager;
+            }
+            return new SlidingWindowConversationManager(defaults.conversationWindowSize());
+        }
+
+        private SessionManager resolveSessionManager() {
+            if (sessionManager != null) {
+                return sessionManager;
+            }
+            return defaultSessionManager;
         }
     }
 }

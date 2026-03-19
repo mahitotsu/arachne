@@ -10,3 +10,11 @@ arachne:
       region: ap-northeast-1
     agent:
       system-prompt: "You are a travel planner. Use tools when they improve factual accuracy."
+    agents:
+      trip-planner:
+        system-prompt: "You are a trip planner. Call tools when you need local facts, then return concise travel advice."
+        tool-qualifiers:
+          - trip-planner
+      weather-research:
+        system-prompt: "You are a weather research specialist. Answer with one short factual sentence."
+        use-discovered-tools: false

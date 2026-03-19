@@ -2,8 +2,9 @@
 
 This sample shows the intended Spring idiom for Phase 2:
 
+- named-agent defaults are declared in `application.yml`
 - a `@Service` method annotated with `@StrandsTool` is auto-discovered as a tool
-- the tool is scoped to the coordinator agent with a Phase 2 qualifier
+- the tool is scoped to the coordinator agent with a named-agent qualifier policy
 - that service can delegate to another `Agent`, which makes the service an agent-as-tool adapter
 - the top-level agent can still request typed structured output through `agent.run("...", MyType.class)`
 - Jakarta Bean Validation annotations on tool parameters and the structured output type are enforced at runtime
@@ -53,7 +54,7 @@ The sample is centered on three beans:
 - `cityForecastTool`: a Spring `@Service` whose `@StrandsTool` method is auto-discovered
 - `weatherResearchAgent`: a second agent used internally by that tool service
 
-The coordinator binds only tools tagged with `trip-planner`, while the specialist agent opts out of discovered tools entirely. That keeps the tool surface agent-scoped instead of application-global.
+Both `Agent` beans are built with `factory.builder("...")`, while Spring `@Qualifier` keeps injection explicit on the Java side. The coordinator binds only tools tagged with `trip-planner`, while the specialist agent opts out of discovered tools entirely. That keeps the tool surface agent-scoped instead of application-global.
 
 That means the tool method is not doing the real language-model work itself. It delegates to another agent and exposes the result through a narrow Spring service API.
 
@@ -72,6 +73,11 @@ arachne:
       provider: bedrock
       id: jp.amazon.nova-2-lite-v1:0
       region: ap-northeast-1
+    agents:
+      trip-planner:
+        tool-qualifiers: [trip-planner]
+      weather-research:
+        use-discovered-tools: false
 ```
 
-Override any of those values with standard Spring Boot configuration mechanisms if needed.
+Override any of those values with standard Spring Boot configuration mechanisms if needed. The sample's Java configuration stays small because the per-agent defaults now live under `arachne.strands.agents.<name>.*`.

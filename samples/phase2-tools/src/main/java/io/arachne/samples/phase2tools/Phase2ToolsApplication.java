@@ -2,6 +2,7 @@ package io.arachne.samples.phase2tools;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 
 import io.arachne.strands.agent.Agent;
@@ -15,20 +16,18 @@ public class Phase2ToolsApplication {
     }
 
     @Bean
+    @Qualifier("tripPlanner")
     @SuppressWarnings("unused")
     Agent tripPlannerAgent(AgentFactory factory) {
-        return factory.builder()
-                .toolQualifiers("trip-planner")
-                .systemPrompt("You are a trip planner. Call tools when you need local facts, then return concise travel advice.")
+        return factory.builder("trip-planner")
                 .build();
     }
 
     @Bean
+    @Qualifier("weatherResearch")
     @SuppressWarnings("unused")
     Agent weatherResearchAgent(AgentFactory factory) {
-        return factory.builder()
-                .useDiscoveredTools(false)
-                .systemPrompt("You are a weather research specialist. Answer with one short factual sentence.")
+        return factory.builder("weather-research")
                 .build();
     }
 }

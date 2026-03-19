@@ -15,5 +15,7 @@
     <modules>
         <module>phase1-chat</module>
         <module>phase2-tools</module>
+        <module>phase3-redis-session</module>
+        <module>phase3-jdbc-session</module>
     </modules>
 </project>

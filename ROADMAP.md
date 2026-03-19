@@ -64,23 +64,29 @@ AgentResult result = agent.run("東京の天気は？");
 
 ---
 
-### Phase 3 — 品質・設定UX・Session `[ ]`
+### Phase 3 — 品質・設定UX・Session `[x]`
 
 **Goal**: 本番に持っていけるエラーハンドリング、複数エージェント向け設定UX、会話の永続化がある。
 
 | Task | Status |
 |---|---|
-| リトライ戦略（スロットリング、`MAX_ATTEMPTS=6` 相当） | `[ ]` |
-| `SlidingWindowConversationManager`（トークンあふれ防止） | `[ ]` |
-| `SummarizingConversationManager`（LLMで要約して圧縮） | `[ ]` |
-| エラー型整理（`ContextWindowOverflowException` 等） | `[ ]` |
-| `application.yml` でリトライ・会話管理・セッション設定 | `[ ]` |
-| **Named Agent** 設定 — `arachne.strands.agents.<name>.*` で agent ごとの model / system prompt / tools / policy を宣言 | `[ ]` |
-| `AgentFactory.builder("name")` または `NamedAgentFactory` — named default から agent を構築 | `[ ]` |
-| Spring 連携 — named agent の bean / qualifier / sample を提供 | `[ ]` |
-| `AgentState` — ツールや Hook から参照できるセッションスコープの key-value ストア | `[ ]` |
-| `SessionManager` インターフェース + `InMemorySessionManager` | `[ ]` |
-| `FileSessionManager` — 会話履歴をファイルに永続化、Spring `@Bean` で差し替え可能 | `[ ]` |
+| リトライ戦略（スロットリング、`MAX_ATTEMPTS=6` 相当） | `[x]` |
+| `SlidingWindowConversationManager`（トークンあふれ防止） | `[x]` |
+| `SummarizingConversationManager`（LLMで要約して圧縮） | `[x]` |
+| エラー型整理（`ContextWindowOverflowException` 等） | `[x]` |
+| `application.yml` でリトライ・会話管理・セッション設定 | `[x]` |
+| **Named Agent** 設定 — `arachne.strands.agents.<name>.*` で agent ごとの model / system prompt / tools / policy を宣言 | `[x]` |
+| `AgentFactory.builder("name")` または `NamedAgentFactory` — named default から agent を構築 | `[x]` |
+| Spring 連携 — named agent の bean / qualifier / sample を提供 | `[x]` |
+| `AgentState` — ツールや Hook から参照できるセッションスコープの key-value ストア | `[x]` |
+| `SessionManager` インターフェース + `InMemorySessionManager` / Spring Session adapter | `[x]` |
+| `FileSessionManager` — 会話履歴をファイルに永続化、Spring `@Bean` で差し替え可能 | `[x]` |
+| Spring Session Redis adapter — explicit `sessionId` を維持したまま Redis backend に保存/復元 | `[x]` |
+| Spring Session JDBC adapter — explicit `sessionId` を維持したまま JDBC backend に保存/復元 | `[x]` |
+| Redis integration test — Testcontainers で新しい agent instance への restore を検証 | `[x]` |
+| JDBC integration test — 新しい agent instance への restore を検証 | `[x]` |
+| Runnable Redis sample — Docker Compose で Redis を起動し、再起動を跨いだ session restore を確認 | `[x]` |
+| Runnable JDBC sample — ローカル DB で再起動を跨いだ session restore を確認 | `[x]` |
 
 ---
 

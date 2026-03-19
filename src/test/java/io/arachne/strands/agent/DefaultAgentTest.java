@@ -6,12 +6,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import org.junit.jupiter.api.Test;
 
+import io.arachne.strands.agent.conversation.NoOpConversationManager;
+import io.arachne.strands.agent.conversation.SlidingWindowConversationManager;
+import io.arachne.strands.agent.conversation.SummarizingConversationManager;
 import io.arachne.strands.eventloop.EventLoop;
 import io.arachne.strands.hooks.NoOpHookRegistry;
 import io.arachne.strands.model.Model;
 import io.arachne.strands.model.ModelEvent;
 import io.arachne.strands.model.ToolSelection;
 import io.arachne.strands.model.ToolSpec;
+import io.arachne.strands.session.InMemorySessionManager;
 import io.arachne.strands.tool.StructuredOutputException;
 import io.arachne.strands.types.Message;
 import jakarta.validation.constraints.NotBlank;
@@ -187,6 +191,106 @@ class DefaultAgentTest {
                 .isInstanceOf(StructuredOutputException.class)
                 .hasMessageContaining("answer");
     }
+
+            @Test
+            void runAppliesConversationManagementAfterInvocation() {
+            NoOpHookRegistry hooks = new NoOpHookRegistry();
+            EventLoop eventLoop = new EventLoop(hooks);
+            DefaultAgent agent = new DefaultAgent(
+                stubModel("Pong"),
+                List.of(),
+                eventLoop,
+                hooks,
+                null,
+                io.arachne.strands.tool.BeanValidationSupport.defaultValidator(),
+                new SlidingWindowConversationManager(2),
+                null,
+                null,
+                new AgentState());
+
+            agent.run("Ping 1");
+            agent.run("Ping 2");
+
+            assertThat(agent.getMessages()).hasSize(2);
+            assertThat(agent.getMessages().getFirst().content().getFirst()).isEqualTo(io.arachne.strands.types.ContentBlock.text("Ping 2"));
+            }
+
+            @Test
+            void restoresMessagesAndStateFromSessionStorage() {
+            NoOpHookRegistry hooks = new NoOpHookRegistry();
+            EventLoop eventLoop = new EventLoop(hooks);
+            InMemorySessionManager sessionManager = new InMemorySessionManager();
+            DefaultAgent firstAgent = new DefaultAgent(
+                stubModel("Pong"),
+                List.of(),
+                eventLoop,
+                hooks,
+                null,
+                io.arachne.strands.tool.BeanValidationSupport.defaultValidator(),
+                new NoOpConversationManager(),
+                sessionManager,
+                "demo-session",
+                new AgentState());
+
+            firstAgent.getState().put("city", "Tokyo");
+            firstAgent.run("Ping 1");
+
+            DefaultAgent restoredAgent = new DefaultAgent(
+                stubModel("Pong"),
+                List.of(),
+                eventLoop,
+                hooks,
+                null,
+                io.arachne.strands.tool.BeanValidationSupport.defaultValidator(),
+                new NoOpConversationManager(),
+                sessionManager,
+                "demo-session",
+                new AgentState());
+
+            assertThat(restoredAgent.getMessages()).hasSize(2);
+            assertThat(restoredAgent.getState().get("city")).isEqualTo("Tokyo");
+            }
+
+            @Test
+            void restoresSummarizingConversationManagerStateFromSessionStorage() {
+            NoOpHookRegistry hooks = new NoOpHookRegistry();
+            EventLoop eventLoop = new EventLoop(hooks);
+            InMemorySessionManager sessionManager = new InMemorySessionManager();
+            SummarizingConversationManager manager = new SummarizingConversationManager(stubModel("summary"), 4, 2);
+            DefaultAgent firstAgent = new DefaultAgent(
+                stubModel("Pong"),
+                List.of(),
+                eventLoop,
+                hooks,
+                null,
+                io.arachne.strands.tool.BeanValidationSupport.defaultValidator(),
+                manager,
+                sessionManager,
+                "summary-session",
+                new AgentState());
+
+            firstAgent.run("Ping 1");
+            firstAgent.run("Ping 2");
+            firstAgent.run("Ping 3");
+
+            SummarizingConversationManager restoredManager = new SummarizingConversationManager(stubModel("summary"), 4, 2);
+            DefaultAgent restoredAgent = new DefaultAgent(
+                stubModel("Pong"),
+                List.of(),
+                eventLoop,
+                hooks,
+                null,
+                io.arachne.strands.tool.BeanValidationSupport.defaultValidator(),
+                restoredManager,
+                sessionManager,
+                "summary-session",
+                new AgentState());
+
+            assertThat(restoredManager.getSummary()).isNotBlank();
+            assertThat(restoredAgent.getMessages().getFirst().content().getFirst())
+                .isEqualTo(io.arachne.strands.types.ContentBlock.text(
+                    SummarizingConversationManager.SUMMARY_MESSAGE_PREFIX + "summary"));
+            }
 
     record WeatherSummary(String answer, double confidence) {
     }

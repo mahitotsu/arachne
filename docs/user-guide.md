@@ -10,29 +10,37 @@ Available now:
 
 - Spring Boot auto-configuration for `Model` and `AgentFactory`
 - `AgentFactory.builder().build()` for creating an agent
+- `AgentFactory.builder("name").build()` for creating an agent from named defaults
 - `Agent.run(String)` returning an `AgentResult`
+- opt-in retry strategy for retryable model failures
 - `@StrandsTool` and `@ToolParam` for annotation-driven tools
 - automatic tool discovery from Spring beans
 - structured output with typed return values through `Agent.run(String, Class<T>)`
 - Bedrock model ID and region configuration
 - system prompt configuration
 - multi-turn conversation state inside a single `Agent` instance
+- sliding-window conversation management via `AgentFactory`
+- model-backed summary compaction with `SummarizingConversationManager`
+- session persistence with in-memory, file-backed, Redis-backed, and JDBC-backed storage
+- session-scoped key-value state via `AgentState`
+- Spring Session integration through `SessionRepository<?>`, including Redis-backed and JDBC-backed repositories
+- named-agent defaults under `arachne.strands.agents.<name>.*`
 
 Not available yet:
 
 - hook dispatch beyond no-op callsites
 - streaming responses
-- session persistence and conversation managers
 
 If you want runnable examples instead of only reading the API docs, use these samples:
 
 - [samples/phase1-chat/README.md](samples/phase1-chat/README.md)
 - [samples/phase2-tools/README.md](samples/phase2-tools/README.md)
+- [samples/phase3-redis-session/README.md](samples/phase3-redis-session/README.md)
 
 ## Prerequisites
 
 - Java 21
-- Spring Boot 3.4.x
+- Spring Boot 3.5.12
 - AWS credentials resolvable by the AWS SDK default credentials chain
 - access to the configured Bedrock model in the target AWS region
 
@@ -48,6 +56,8 @@ Arachne registers its auto-configuration through Spring Boot, so having the jar 
 
 The values under `application.yml` are library-wide defaults. They do not define a single canonical agent for the whole application.
 
+For multi-agent applications, keep shared defaults under `arachne.strands.agent.*` and put agent-specific overrides under `arachne.strands.agents.<name>.*`. Named-agent settings are applied only when you call `AgentFactory.builder("name")`.
+
 Configure the model in `application.yml`:
 
 ```yaml
@@ -59,14 +69,56 @@ arachne:
       region: ap-northeast-1
     agent:
       system-prompt: "You are a concise assistant."
+      retry:
+        enabled: true
+        max-attempts: 6
+        initial-delay: 4s
+        max-delay: 240s
+      conversation:
+        window-size: 40
+      session:
+        id: support-session
+        file:
+          directory: .arachne/sessions
+    agents:
+      support:
+        system-prompt: "You are a customer support agent. Answer in short Japanese sentences."
+        session:
+          id: support-session
+      analyst:
+        model:
+          id: us.amazon.nova-pro-v1:0
+          region: us-east-1
+        system-prompt: "You are an analyst. Answer with concise bullet points."
+        use-discovered-tools: false
 ```
 
-Configuration keys currently used by Phase 1:
+Configuration keys currently used on the current branch:
 
 - `arachne.strands.model.provider`
 - `arachne.strands.model.id`
 - `arachne.strands.model.region`
 - `arachne.strands.agent.system-prompt`
+- `arachne.strands.agent.retry.enabled`
+- `arachne.strands.agent.retry.max-attempts`
+- `arachne.strands.agent.retry.initial-delay`
+- `arachne.strands.agent.retry.max-delay`
+- `arachne.strands.agent.conversation.window-size`
+- `arachne.strands.agent.session.id`
+- `arachne.strands.agent.session.file.directory`
+- `arachne.strands.agents.<name>.model.provider`
+- `arachne.strands.agents.<name>.model.id`
+- `arachne.strands.agents.<name>.model.region`
+- `arachne.strands.agents.<name>.system-prompt`
+- `arachne.strands.agents.<name>.use-discovered-tools`
+- `arachne.strands.agents.<name>.tool-qualifiers`
+- `arachne.strands.agents.<name>.tool-execution-mode`
+- `arachne.strands.agents.<name>.conversation.window-size`
+- `arachne.strands.agents.<name>.session.id`
+- `arachne.strands.agents.<name>.retry.enabled`
+- `arachne.strands.agents.<name>.retry.max-attempts`
+- `arachne.strands.agents.<name>.retry.initial-delay`
+- `arachne.strands.agents.<name>.retry.max-delay`
 
 Notes:
 
@@ -74,7 +126,19 @@ Notes:
 - if `id` is omitted, Arachne uses `jp.amazon.nova-2-lite-v1:0`
 - if `region` is omitted, Arachne uses `ap-northeast-1`
 - `agent.system-prompt` is the default prompt used when a builder does not override it
-- these properties are best treated as defaults for simple applications, not as the main way to describe many agents
+- `agent.retry.*` enables exponential-backoff retry at the model invocation boundary
+- retry is disabled by default so unconfigured `agent.run("...")` keeps the prior failure behavior
+- the default retry values match the current Phase 3 target: `max-attempts=6`, `initial-delay=4s`, `max-delay=240s`
+- retry applies only to provider-mapped retryable model failures; it does not retry tool execution or structured-output validation
+- `agent.conversation.window-size` is used by the default `SlidingWindowConversationManager`
+- `agent.session.id` enables automatic restore/persist across agents created by the builder
+- `agent.session.file.directory` switches the default session storage from in-memory to JSON files
+- without `agent.session.file.directory`, Arachne uses a Spring Session-backed in-memory repository by default
+- when a Spring Session `SessionRepository<?>` bean is present, Arachne uses it instead of the in-memory fallback
+- if both a file directory and a Spring Session repository are configured, file storage wins explicitly
+- named-agent properties are override-only and do not replace the shared defaults unless you build that named agent explicitly
+- these properties are best treated as shared defaults, while `arachne.strands.agents.<name>.*` describes multi-agent applications
+- `SummarizingConversationManager` is currently an explicit builder-level feature, not a property-bound default
 
 ## Creating An Agent
 
@@ -130,13 +194,141 @@ So the current model is:
 
 - `application.yml` supplies defaults
 - `AgentFactory.builder()` defines each agent instance
-- per-agent Java configuration is where multiple-agent applications are expressed today
+- `AgentFactory.builder("name")` applies named defaults and still allows explicit builder overrides
+- per-agent Java configuration remains the Spring bean definition point
+
+Named-agent Spring wiring typically looks like this:
+
+```java
+@Configuration
+class MultiAgentConfiguration {
+
+  @Bean
+  @Qualifier("support")
+  Agent supportAgent(AgentFactory factory) {
+    return factory.builder("support").build();
+  }
+
+  @Bean
+  @Qualifier("analyst")
+  Agent analystAgent(AgentFactory factory) {
+    return factory.builder("analyst").build();
+  }
+}
+```
 
 Builder precedence is:
 
 1. `builder().model(...)` if you set it explicitly
 2. the auto-configured `Model` bean if one exists
 3. a default `BedrockModel` created from `arachne.strands.*` properties
+
+Named builder precedence is:
+
+1. `builder("name").model(...)` if you set it explicitly
+2. `arachne.strands.agents.<name>.model.*` if present
+3. the auto-configured shared `Model` bean if one exists
+4. the shared `arachne.strands.model.*` defaults
+
+For Phase 3 foundations, the current builder defaults are:
+
+1. `builder().retryStrategy(...)` if you set it explicitly
+2. the auto-configured retry strategy built from `arachne.strands.agent.retry.*`
+3. no retry wrapper when retry is not enabled
+
+For named agents:
+
+1. `builder("name").retryStrategy(...)` if you set it explicitly
+2. `arachne.strands.agents.<name>.retry.*` if present
+3. the auto-configured shared retry strategy built from `arachne.strands.agent.retry.*`
+4. no retry wrapper when retry is not enabled
+
+1. `builder().conversationManager(...)` if you set it explicitly
+2. a new `SlidingWindowConversationManager` created from `arachne.strands.agent.conversation.window-size`
+
+For named agents:
+
+1. `builder("name").conversationManager(...)` if you set it explicitly
+2. a new `SlidingWindowConversationManager` created from `arachne.strands.agents.<name>.conversation.window-size`
+3. the shared `arachne.strands.agent.conversation.window-size`
+
+If you need summary compaction instead of a pure sliding window, provide the conversation manager explicitly:
+
+```java
+import io.arachne.strands.agent.conversation.SummarizingConversationManager;
+
+@Bean
+Agent supportAgent(AgentFactory factory, Model model) {
+  return factory.builder()
+      .conversationManager(new SummarizingConversationManager(model, 40, 12))
+      .build();
+}
+```
+
+`SummarizingConversationManager` replaces older turns with one assistant summary message and keeps the most recent turns verbatim. Its persisted state stores the running summary text and the summarization counters, so session restore continues from the existing summary instead of starting over.
+
+1. `builder().sessionManager(...)` if you set it explicitly
+2. the auto-configured `SessionManager` bean
+
+1. `builder().sessionId(...)` if you set it explicitly
+2. `arachne.strands.agent.session.id`
+
+For named agents:
+
+1. `builder("name").sessionId(...)` if you set it explicitly
+2. `arachne.strands.agents.<name>.session.id`
+3. `arachne.strands.agent.session.id`
+
+For discovered tools and execution policy:
+
+1. explicit builder calls such as `toolQualifiers(...)`, `useDiscoveredTools(...)`, and `toolExecutionMode(...)`
+2. `arachne.strands.agents.<name>.tool-qualifiers`, `use-discovered-tools`, and `tool-execution-mode`
+3. shared defaults of all discovered tools enabled with parallel execution
+
+## Retry Strategy
+
+Phase 3 retry is intentionally scoped to the model invocation boundary.
+That means Arachne retries provider-mapped retryable model failures before the event loop continues, but it does not implicitly retry:
+
+- tool execution
+- tool-result handling
+- structured-output validation failures
+
+The current built-in strategy is exponential backoff with Phase 3 defaults equivalent to the Python SDK target:
+
+- `max-attempts=6`
+- `initial-delay=4s`
+- `max-delay=240s`
+
+For Bedrock, Arachne currently maps throttling and temporary availability failures into retryable model exceptions.
+
+You can enable retry from configuration:
+
+```yaml
+arachne:
+  strands:
+    agent:
+      retry:
+        enabled: true
+        max-attempts: 6
+        initial-delay: 4s
+        max-delay: 240s
+```
+
+Or override it per agent in Java:
+
+```java
+import java.time.Duration;
+
+import io.arachne.strands.model.retry.ExponentialBackoffRetryStrategy;
+
+@Bean
+Agent supportAgent(AgentFactory factory) {
+  return factory.builder()
+      .retryStrategy(new ExponentialBackoffRetryStrategy(6, Duration.ofSeconds(4), Duration.ofSeconds(240)))
+      .build();
+}
+```
 
 ## Running The Agent
 
@@ -155,6 +347,98 @@ Object stopReason = result.stopReason();
 - `text`: the final assistant text returned by the loop
 - `messages`: the full accumulated conversation
 - `stopReason`: the final model stop reason, such as `end_turn`
+
+The `Agent` instance also exposes session-scoped state:
+
+```java
+agent.getState().put("tenant", "acme");
+Object tenant = agent.getState().get("tenant");
+```
+
+When a session id is configured, both message history and `AgentState` are restored into newly built agent instances that use the same session id.
+
+## Spring Session Backends
+
+For clustered or Spring-managed session storage, expose a `SessionRepository<?>` bean.
+Arachne keeps its own `SessionManager` abstraction for agent state, but delegates persistence to Spring Session through an adapter.
+
+```java
+@Configuration
+class SessionConfiguration {
+
+  @Bean
+  SessionRepository<MapSession> arachneSessionRepository() {
+    return new MapSessionRepository(new ConcurrentHashMap<>());
+  }
+}
+```
+
+This integration point now supports `MapSessionRepository`-style storage plus Redis-backed and JDBC-backed Spring Session repositories while preserving Arachne's explicit `sessionId` contract.
+
+For Redis, the intended setup is:
+
+1. add Redis connectivity through Spring Boot
+2. enable a Spring Session Redis repository
+3. keep using `arachne.strands.agent.session.id` or `builder().sessionId(...)` as the stable Arachne session key
+
+```yaml
+spring:
+  data:
+    redis:
+      host: localhost
+      port: 6379
+  session:
+    redis:
+      namespace: arachne:sessions
+
+arachne:
+  strands:
+    agent:
+      session:
+        id: support-session
+```
+
+```java
+@SpringBootApplication
+@EnableRedisIndexedHttpSession(redisNamespace = "arachne:sessions")
+class SupportApplication {
+}
+```
+
+This keeps session persistence in Spring Session while Arachne continues to load and save `Message` history, `AgentState`, and conversation-manager state through its own `SessionManager` abstraction.
+
+The runnable reference for this setup is [samples/phase3-redis-session/README.md](samples/phase3-redis-session/README.md).
+
+For JDBC, the intended setup is:
+
+1. add JDBC connectivity through Spring Boot
+2. enable a Spring Session JDBC repository
+3. keep using `arachne.strands.agent.session.id` or `builder().sessionId(...)` as the stable Arachne session key
+
+```yaml
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/arachne
+    username: arachne
+    password: secret
+
+arachne:
+  strands:
+    agent:
+      session:
+        id: support-session
+```
+
+```java
+@SpringBootApplication
+@EnableJdbcHttpSession
+class SupportApplication {
+}
+```
+
+This keeps session persistence in Spring Session while Arachne continues to load and save `Message` history, `AgentState`, and conversation-manager state through its own `SessionManager` abstraction.
+
+The runnable reference for this setup is [samples/phase3-jdbc-session/README.md](samples/phase3-jdbc-session/README.md).
 
 ## Annotation-Driven Tools
 

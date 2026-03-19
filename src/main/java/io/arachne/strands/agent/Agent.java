@@ -37,4 +37,9 @@ public interface Agent {
      * The conversation history accumulated so far.
      */
     List<Message> getMessages();
+
+    /**
+     * Session-scoped state available to this agent.
+     */
+    AgentState getState();
 }

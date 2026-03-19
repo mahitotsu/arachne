@@ -12,6 +12,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import io.arachne.strands.model.Model;
 import io.arachne.strands.model.ModelEvent;
+import io.arachne.strands.model.ModelException;
+import io.arachne.strands.model.ModelRetryableException;
+import io.arachne.strands.model.ModelThrottledException;
 import io.arachne.strands.model.ToolSelection;
 import io.arachne.strands.model.ToolSpec;
 import io.arachne.strands.types.ContentBlock;
@@ -126,8 +129,28 @@ public class BedrockModel implements Model {
         ConverseRequest request = buildRequest(messages, tools, systemPrompt, toolSelection);
         LOG.fine(() -> "modelId=" + modelId + " | invoking Bedrock Converse API");
 
-        ConverseResponse response = client.converse(request);
+        ConverseResponse response;
+        try {
+            response = client.converse(request);
+        } catch (RuntimeException exception) {
+            throw translateException(exception);
+        }
         return mapResponse(response);
+    }
+
+    private RuntimeException translateException(RuntimeException exception) {
+        String exceptionName = exception.getClass().getSimpleName();
+        String message = exception.getMessage() == null ? exceptionName : exception.getMessage();
+
+        if ("ThrottlingException".equals(exceptionName)) {
+            return new ModelThrottledException("Bedrock throttled the model request: " + message, exception);
+        }
+        if ("ServiceUnavailableException".equals(exceptionName)
+                || "ModelNotReadyException".equals(exceptionName)
+                || "InternalServerException".equals(exceptionName)) {
+            return new ModelRetryableException("Bedrock temporarily failed the model request: " + message, exception);
+        }
+        return new ModelException("Bedrock model request failed: " + message, exception);
     }
 
     // ── Request building ────────────────────────────────────────────────────

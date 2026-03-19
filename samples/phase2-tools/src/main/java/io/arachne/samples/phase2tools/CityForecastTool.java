@@ -2,18 +2,21 @@ package io.arachne.samples.phase2tools;
 
 import jakarta.validation.constraints.NotBlank;
 
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
+import org.springframework.validation.annotation.Validated;
 
 import io.arachne.strands.agent.Agent;
 import io.arachne.strands.tool.annotation.StrandsTool;
 import io.arachne.strands.tool.annotation.ToolParam;
 
 @Service
+@Validated
 public class CityForecastTool {
 
     private final Agent weatherResearchAgent;
 
-    public CityForecastTool(Agent weatherResearchAgent) {
+    public CityForecastTool(@Qualifier("weatherResearch") Agent weatherResearchAgent) {
         this.weatherResearchAgent = weatherResearchAgent;
     }
 

@@ -2,6 +2,7 @@ package io.arachne.samples.phase2tools;
 
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 import io.arachne.strands.agent.Agent;
@@ -11,7 +12,7 @@ public class SampleTripPlannerRunner implements ApplicationRunner {
 
     private final Agent tripPlannerAgent;
 
-    public SampleTripPlannerRunner(Agent tripPlannerAgent) {
+    public SampleTripPlannerRunner(@Qualifier("tripPlanner") Agent tripPlannerAgent) {
         this.tripPlannerAgent = tripPlannerAgent;
     }
 
