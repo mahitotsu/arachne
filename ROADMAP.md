@@ -90,6 +90,25 @@ AgentResult result = agent.run("東京の天気は？");
 
 ---
 
+### Phase 3.5 — Spring 整合性レビュー `[ ]`
+
+**Goal**: Phase 4 に進む前に、Agent / Tool / Executor の Spring 統合方針を見直し、
+マルチスレッド環境でも誤用しにくい API と wiring に整える。
+
+| Task | Status |
+|---|---|
+| Agent lifecycle 方針の確定 — stateful な `Agent` を singleton `@Bean` として共有しない前提を明文化し、短命 instance / provider 経由の利用を標準化 | `[ ]` |
+| Agent 定義と実行時状態の境界レビュー — session 永続化と会話状態を踏まえ、singleton-safe な definition と短命 runtime の分離が必要か結論を出す | `[ ]` |
+| ADR 運用の導入 — Phase 3.5 以降の重要判断を `docs/adr/` に記録するルールと対象範囲を定める | `[ ]` |
+| 既存判断の ADR 化 — 今回見直す項目だけでなく、現時点で採用済み・保留中の重要判断も ADR として棚卸しする | `[ ]` |
+| tool input / structured output の binding パイプライン見直し — data binding と constraint validation の責務を分離し、Bean Validation をどこに使うか整理する | `[ ]` |
+| Spring 標準インフラとの整合 — `Validator`, `ObjectMapper`, `ConversionService`, `Executor` / `TaskExecutor` の再利用方針を定める | `[ ]` |
+| `ToolExecutor` 実行基盤の見直し — 並列実行を固定実装にせず、Spring から差し替え可能な execution backend に寄せる | `[ ]` |
+| Web / multi-thread 利用ガイドと sample の更新 — `AgentFactory` / `ObjectProvider` ベースの安全な利用例を追加する | `[ ]` |
+| Concurrency test / wiring test の追加 — 新しい lifecycle 方針が Spring 環境で破綻しないことを検証する | `[ ]` |
+
+---
+
 ### Phase 4 — Plugin & Hooks & Interrupts `[ ]`
 
 **Goal**: Spring Bean として hook を登録し、エージェントのライフサイクルに AOP 的に介入できる。

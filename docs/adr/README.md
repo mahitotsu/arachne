@@ -1,0 +1,59 @@
+# ADRs
+
+このディレクトリには、Arachne の重要なアーキテクチャ判断を ADR (Architectural Decision Record) として保存する。
+
+## 目的
+
+- Phase をまたいで効く判断を、実装や issue の文脈から独立して参照できるようにする。
+- 採用しなかった案や保留した理由も残し、後続フェーズで同じ議論をやり直さないようにする。
+- Spring 統合、agent lifecycle、tool binding、session、hook/plugin などの横断的な設計判断を追跡可能にする。
+- すでに実装済みの判断も retrospective ADR として棚卸しし、暗黙の前提を明文化する。
+
+## 対象
+
+次のいずれかに当てはまる変更・判断は ADR を作る。
+
+- public API や標準的な利用パターンを変える
+- Spring wiring や bean lifecycle の前提を変える
+- 複数フェーズに影響する core 境界を決める
+- 採用案と却下案の比較が必要な論点を閉じる
+- 今回は見送るが、明示的に保留として残したい論点を記録する
+- すでに採用済みで、今後の設計や互換性の前提になる判断を後追いで記録する
+
+## 最低限の書式
+
+各 ADR は `docs/adr/NNNN-title.md` とし、最低限次を含める。
+
+- Status
+- Context
+- Decision
+- Consequences
+- Alternatives Considered
+
+## Phase 3.5 の候補
+
+- Agent lifecycle を stateful runtime として扱い、singleton bean 共有を標準にしないか
+- Agent definition と runtime instance を分離するか
+- tool input / structured output の binding と validation をどう分離するか
+- `ToolExecutor` の execution backend を Spring `Executor` / `TaskExecutor` に寄せるか
+- Arachne が再利用する Spring 標準 bean (`Validator`, `ObjectMapper`, `ConversionService`) の範囲をどう定めるか
+- Session 永続化の標準方針として `SessionManager` と Spring Session adapter を採用するか
+- Redis / JDBC / file による session restore を core と Spring integration のどちらの責務に置くか
+- Spring Boot auto-configuration をライブラリ標準の統合入口として維持するか
+
+## Retrospective ADR の扱い
+
+後追いで作る ADR も有効であり、むしろ必要である。対象は次のような「すでにコードに入っているが、今後も前提として参照される判断」である。
+
+- `SessionManager` 抽象と `InMemorySessionManager` / `FileSessionManager` / Spring Session adapter を採用した判断
+- Redis / JDBC backend でも explicit `sessionId` を維持する判断
+- Spring Boot auto-configuration と `AgentFactory` を標準の統合入口にした判断
+- annotation tool discovery と qualifier ベースの tool scope を採用した判断
+
+retrospective ADR では、当時の背景を後から補ってよいが、少なくとも「現在のコードベースが何を採用しているか」「代替案は何だったか」「今後どこまで固定したいか」を明示する。
+
+## 運用ルール
+
+- 実装前に判断を閉じる必要がある論点は、実装着手前に ADR を追加または更新する。
+- 実装の途中で判断が変わった場合は、コードだけでなく ADR も同じターンで更新する。
+- 廃止した判断は削除せず superseded として残す。
