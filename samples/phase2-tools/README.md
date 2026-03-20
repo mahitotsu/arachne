@@ -1,6 +1,6 @@
 # Phase 2 Tools Sample
 
-This sample shows the intended Spring idiom for Phase 2:
+This sample shows the intended Phase 2-style Spring idiom on the current main branch:
 
 - named-agent defaults are declared in `application.yml`
 - a `@Service` method annotated with `@StrandsTool` is auto-discovered as a tool
@@ -61,6 +61,8 @@ That means the tool method is not doing the real language-model work itself. It 
 This is the Phase 2 agent-as-tool pattern in Spring form.
 
 The sample also shows the current validation model for Phase 2: `@NotBlank` on the tool input and the `TripPlan` record is checked at runtime, but those constraints are not projected into the generated JSON schema.
+
+The sample intentionally stays focused on tool wiring and typed output. For persisted session restore, use the Phase 3 session samples.
 
 ## Configuration
 

@@ -2,7 +2,7 @@
 
 Arachne is a Java port of the Strands Agents SDK with Spring Boot integration.
 
-Phase 2 and Phase 3 are complete in the main branch. You can already:
+Phase 1 through Phase 3 are complete on the current main branch. You can already:
 
 - auto-configure a Bedrock-backed `Model` in Spring Boot
 - create an `Agent` from `AgentFactory`
@@ -15,8 +15,13 @@ Phase 2 and Phase 3 are complete in the main branch. You can already:
 - bound conversation history with a sliding window manager
 - summarize older conversation turns with a model-backed conversation manager
 - retry retryable model calls with exponential backoff at the model boundary
-- persist conversation history and agent state with in-memory, file-backed, Redis-backed, or JDBC-backed Spring Session storage
+- persist conversation history and agent state with in-memory, file-backed, Redis-backed, or JDBC-backed session storage
 - declare named-agent defaults in `application.yml` and build them with `AgentFactory.builder("name")`
+
+Not available yet:
+
+- hook dispatch beyond no-op callsites
+- streaming responses
 
 The current user-facing guide is here:
 
@@ -71,6 +76,7 @@ arachne:
       id: jp.amazon.nova-2-lite-v1:0
       region: ap-northeast-1
         agent:
+            system-prompt: "You are a concise assistant."
             retry:
                 enabled: true
                 max-attempts: 6
@@ -183,6 +189,8 @@ Agent agent = factory.builder()
 This keeps summarization in the conversation-management layer. It does not route through tool execution or structured-output handling.
 
 If you want a Spring-managed shared backend, provide a `SessionRepository<?>` bean and Arachne will wrap it with its `SessionManager` adapter. Redis-backed and JDBC-backed Spring Session repositories are supported on the current branch.
+
+If you configure `arachne.strands.agent.session.file.directory`, Arachne uses file-backed persistence explicitly. Without that file setting, it falls back to in-memory session storage unless a Spring Session repository bean is present.
 
 ## Build And Verify
 

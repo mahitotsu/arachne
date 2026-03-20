@@ -4,7 +4,7 @@ This guide documents the features that are available on the current main branch.
 
 ## Scope
 
-The current implementation gives you a synchronous, Bedrock-backed agent loop with Phase 2 tool ergonomics.
+The current implementation gives you a synchronous, Bedrock-backed agent loop with the Phase 1 through Phase 3 feature set on the current main branch.
 
 Available now:
 
@@ -36,6 +36,7 @@ If you want runnable examples instead of only reading the API docs, use these sa
 - [samples/phase1-chat/README.md](samples/phase1-chat/README.md)
 - [samples/phase2-tools/README.md](samples/phase2-tools/README.md)
 - [samples/phase3-redis-session/README.md](samples/phase3-redis-session/README.md)
+- [samples/phase3-jdbc-session/README.md](samples/phase3-jdbc-session/README.md)
 
 ## Prerequisites
 
@@ -122,7 +123,7 @@ Configuration keys currently used on the current branch:
 
 Notes:
 
-- `provider` must be `bedrock` in Phase 1
+- `provider` must currently be `bedrock`
 - if `id` is omitted, Arachne uses `jp.amazon.nova-2-lite-v1:0`
 - if `region` is omitted, Arachne uses `ap-northeast-1`
 - `agent.system-prompt` is the default prompt used when a builder does not override it
@@ -133,7 +134,7 @@ Notes:
 - `agent.conversation.window-size` is used by the default `SlidingWindowConversationManager`
 - `agent.session.id` enables automatic restore/persist across agents created by the builder
 - `agent.session.file.directory` switches the default session storage from in-memory to JSON files
-- without `agent.session.file.directory`, Arachne uses a Spring Session-backed in-memory repository by default
+- without `agent.session.file.directory`, Arachne falls back to in-memory session storage by default
 - when a Spring Session `SessionRepository<?>` bean is present, Arachne uses it instead of the in-memory fallback
 - if both a file directory and a Spring Session repository are configured, file storage wins explicitly
 - named-agent properties are override-only and do not replace the shared defaults unless you build that named agent explicitly
@@ -619,17 +620,28 @@ AgentResult result = agent.run("私の名前を覚えていますか");
 
 But it also means a singleton Spring bean will accumulate shared state across callers.
 
+Phase 3 adds two mechanisms that change how you should think about that lifecycle:
+
+- a conversation manager can trim or summarize old turns before they hit the model context window
+- a configured session id can restore persisted `Message` history, `AgentState`, and conversation-manager state into newly built agent instances
+
 Use one of these patterns when that is not acceptable:
 
 1. create a fresh `Agent` per conversation
-2. scope the bean to the lifecycle you need
-3. build agents in an application service instead of sharing one singleton globally
+2. configure `builder().sessionId(...)` or `arachne.strands.agent.session.id` when you want conversation continuity across agent instances
+3. scope the bean to the lifecycle you need
+4. build agents in an application service instead of sharing one singleton globally
 
-Phase 3 is where dedicated session management is planned.
+Without a configured session id, conversation state still lives only inside the current `Agent` instance.
 
 If you want to see this behavior in a runnable application, the sample app keeps one `Agent` bean alive and exposes both a fixed two-turn demo and an interactive REPL:
 
 - [samples/phase1-chat/README.md](samples/phase1-chat/README.md)
+
+For persisted session restore examples, see these Phase 3 samples:
+
+- [samples/phase3-redis-session/README.md](samples/phase3-redis-session/README.md)
+- [samples/phase3-jdbc-session/README.md](samples/phase3-jdbc-session/README.md)
 
 ## Customizing The Model
 
@@ -688,7 +700,7 @@ The current implementation is intentionally narrow.
 - the loop is synchronous and blocking
 - responses are non-streaming
 - hook methods exist but dispatch is still no-op
-- there is no built-in session store or conversation trimming
+- sliding-window trimming is property-driven, but summary compaction still requires an explicit `SummarizingConversationManager` on the builder
 - structured output currently targets simple JSON-shaped Java types rather than arbitrary object graphs
 
 ## Verification

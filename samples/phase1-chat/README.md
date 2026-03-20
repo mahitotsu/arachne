@@ -1,6 +1,6 @@
 # Phase 1 Chat Sample
 
-This is a minimal Spring Boot application that uses Arachne Phase 1 as an actual chat loop.
+This is a minimal Spring Boot application that demonstrates the Phase 1-style chat loop on the current main branch.
 
 It exists to make the current implementation concrete:
 
@@ -57,7 +57,9 @@ you> 私の名前は何ですか？
 agent> 明日香です。
 ```
 
-Because this sample keeps a single `Agent` bean alive, it demonstrates the current Phase 1 behavior directly.
+Because this sample keeps a single `Agent` bean alive, it demonstrates the baseline in-memory multi-turn behavior directly.
+
+If you want restore across restarts or external session storage, use the Phase 3 session samples instead.
 
 ## Configuration
 
