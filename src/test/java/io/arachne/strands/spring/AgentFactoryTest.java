@@ -117,6 +117,27 @@ class AgentFactoryTest {
     }
 
     @Test
+    void buildCreatesIndependentRuntimeInstances() {
+        ArachneProperties properties = new ArachneProperties();
+        AgentFactory factory = new AgentFactory(properties, echoModel());
+
+        Agent first = factory.builder().build();
+        Agent second = factory.builder().build();
+
+        first.getState().put("topic", "travel");
+        first.run("first");
+        second.run("second");
+
+        assertThat(first.getMessages()).hasSize(2);
+        assertThat(second.getMessages()).hasSize(2);
+        assertThat(first.getMessages().getFirst().content().getFirst())
+                .isEqualTo(io.arachne.strands.types.ContentBlock.text("first"));
+        assertThat(second.getMessages().getFirst().content().getFirst())
+                .isEqualTo(io.arachne.strands.types.ContentBlock.text("second"));
+        assertThat(second.getState().get("topic")).isNull();
+    }
+
+    @Test
     void buildCanApplyExplicitRetryStrategy() {
         ArachneProperties properties = new ArachneProperties();
         AtomicInteger calls = new AtomicInteger();
@@ -286,5 +307,19 @@ class AgentFactoryTest {
         public String supportTool() {
             return "support";
         }
+    }
+
+    private static Model echoModel() {
+        return (messages, tools) -> {
+            String prompt = messages.getLast().content().stream()
+                    .filter(io.arachne.strands.types.ContentBlock.Text.class::isInstance)
+                    .map(io.arachne.strands.types.ContentBlock.Text.class::cast)
+                    .map(io.arachne.strands.types.ContentBlock.Text::text)
+                    .findFirst()
+                    .orElse("(missing prompt)");
+            return List.of(
+                    new ModelEvent.TextDelta("Echo: " + prompt),
+                    new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
+        };
     }
 }

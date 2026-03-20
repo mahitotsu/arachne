@@ -11,6 +11,7 @@ import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabase;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.session.MapSessionRepository;
 import org.springframework.session.jdbc.JdbcIndexedSessionRepository;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -48,6 +49,7 @@ class SpringSessionManagerTest {
             JdbcIndexedSessionRepository sessionRepository = new JdbcIndexedSessionRepository(
                     new JdbcTemplate(database),
                     new TransactionTemplate(new DataSourceTransactionManager(database)));
+            sessionRepository.setCleanupCron(Scheduled.CRON_DISABLED);
             sessionRepository.afterPropertiesSet();
 
             SpringSessionManager manager = new SpringSessionManager(sessionRepository);

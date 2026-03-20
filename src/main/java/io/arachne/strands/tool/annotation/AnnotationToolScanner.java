@@ -10,6 +10,8 @@ import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Qualifier;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import io.arachne.strands.schema.JsonSchemaGenerator;
 import io.arachne.strands.tool.BeanValidationSupport;
 import io.arachne.strands.tool.Tool;
@@ -22,14 +24,20 @@ import jakarta.validation.Validator;
 public class AnnotationToolScanner {
 
     private final JsonSchemaGenerator schemaGenerator;
+    private final ObjectMapper objectMapper;
     private final Validator validator;
 
     public AnnotationToolScanner() {
-        this(new JsonSchemaGenerator(), BeanValidationSupport.defaultValidator());
+        this(new JsonSchemaGenerator(), new ObjectMapper(), BeanValidationSupport.defaultValidator());
     }
 
     public AnnotationToolScanner(JsonSchemaGenerator schemaGenerator, Validator validator) {
+        this(schemaGenerator, new ObjectMapper(), validator);
+    }
+
+    public AnnotationToolScanner(JsonSchemaGenerator schemaGenerator, ObjectMapper objectMapper, Validator validator) {
         this.schemaGenerator = schemaGenerator;
+        this.objectMapper = objectMapper;
         this.validator = validator;
     }
 
@@ -47,7 +55,7 @@ public class AnnotationToolScanner {
                 if (!method.isAnnotationPresent(StrandsTool.class)) {
                     continue;
                 }
-                Tool tool = new MethodTool(bean, method, schemaGenerator, new com.fasterxml.jackson.databind.ObjectMapper(), validator);
+                Tool tool = new MethodTool(bean, method, schemaGenerator, objectMapper, validator);
                 DiscoveredTool discoveredTool = new DiscoveredTool(tool, qualifierList(bean.getClass(), method));
                 DiscoveredTool previous = toolsByName.putIfAbsent(tool.spec().name(), discoveredTool);
                 if (previous != null) {

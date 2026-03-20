@@ -5,7 +5,10 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.stream.Stream;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import io.arachne.strands.agent.Agent;
 import io.arachne.strands.agent.AgentState;
@@ -50,17 +53,19 @@ public class AgentFactory {
     private final Validator validator;
     private final SessionManager defaultSessionManager;
     private final ModelRetryStrategy defaultRetryStrategy;
+    private final ObjectMapper objectMapper;
+    private final Executor defaultToolExecutionExecutor;
 
     public AgentFactory(ArachneProperties properties) {
-        this(properties, null, List.of(), BeanValidationSupport.defaultValidator(), null, null);
+        this(properties, null, List.of(), BeanValidationSupport.defaultValidator(), null, null, new ObjectMapper(), null);
     }
 
     public AgentFactory(ArachneProperties properties, Model defaultModel) {
-        this(properties, defaultModel, List.of(), BeanValidationSupport.defaultValidator(), null, null);
+        this(properties, defaultModel, List.of(), BeanValidationSupport.defaultValidator(), null, null, new ObjectMapper(), null);
     }
 
     public AgentFactory(ArachneProperties properties, Model defaultModel, List<DiscoveredTool> discoveredTools) {
-        this(properties, defaultModel, discoveredTools, BeanValidationSupport.defaultValidator(), null, null);
+        this(properties, defaultModel, discoveredTools, BeanValidationSupport.defaultValidator(), null, null, new ObjectMapper(), null);
     }
 
     public AgentFactory(
@@ -68,7 +73,7 @@ public class AgentFactory {
             Model defaultModel,
             List<DiscoveredTool> discoveredTools,
             Validator validator) {
-        this(properties, defaultModel, discoveredTools, validator, null, null);
+        this(properties, defaultModel, discoveredTools, validator, null, null, new ObjectMapper(), null);
     }
 
     public AgentFactory(
@@ -77,7 +82,7 @@ public class AgentFactory {
             List<DiscoveredTool> discoveredTools,
             Validator validator,
             SessionManager defaultSessionManager) {
-        this(properties, defaultModel, discoveredTools, validator, defaultSessionManager, null);
+        this(properties, defaultModel, discoveredTools, validator, defaultSessionManager, null, new ObjectMapper(), null);
     }
 
     public AgentFactory(
@@ -87,20 +92,34 @@ public class AgentFactory {
             Validator validator,
             SessionManager defaultSessionManager,
             ModelRetryStrategy defaultRetryStrategy) {
+        this(properties, defaultModel, discoveredTools, validator, defaultSessionManager, defaultRetryStrategy, new ObjectMapper(), null);
+    }
+
+    public AgentFactory(
+            ArachneProperties properties,
+            Model defaultModel,
+            List<DiscoveredTool> discoveredTools,
+            Validator validator,
+            SessionManager defaultSessionManager,
+            ModelRetryStrategy defaultRetryStrategy,
+            ObjectMapper objectMapper,
+            Executor defaultToolExecutionExecutor) {
         this.properties = properties;
         this.defaultModel = defaultModel;
         this.discoveredTools = List.copyOf(discoveredTools);
         this.validator = validator;
         this.defaultSessionManager = defaultSessionManager;
         this.defaultRetryStrategy = defaultRetryStrategy;
+        this.objectMapper = objectMapper;
+        this.defaultToolExecutionExecutor = defaultToolExecutionExecutor;
     }
 
     public Builder builder() {
-        return new Builder(resolveBuilderDefaults(null), discoveredTools, validator, defaultSessionManager);
+        return new Builder(resolveBuilderDefaults(null), discoveredTools, validator, defaultSessionManager, objectMapper, defaultToolExecutionExecutor);
     }
 
     public Builder builder(String name) {
-        return new Builder(resolveBuilderDefaults(name), discoveredTools, validator, defaultSessionManager);
+        return new Builder(resolveBuilderDefaults(name), discoveredTools, validator, defaultSessionManager, objectMapper, defaultToolExecutionExecutor);
     }
 
     static Model createDefaultModel(ArachneProperties properties) {
@@ -272,6 +291,8 @@ public class AgentFactory {
         private final List<DiscoveredTool> discoveredTools;
         private final Validator validator;
         private final SessionManager defaultSessionManager;
+        private final ObjectMapper objectMapper;
+        private final Executor defaultToolExecutionExecutor;
         private Model model;
         private List<Tool> tools = List.of();
         private String systemPrompt;
@@ -282,18 +303,23 @@ public class AgentFactory {
         private SessionManager sessionManager;
         private ModelRetryStrategy retryStrategy;
         private String sessionId;
+        private Executor toolExecutionExecutor;
         private AgentState state = new AgentState();
 
         private Builder(
                 BuilderDefaults defaults,
                 List<DiscoveredTool> discoveredTools,
                 Validator validator,
-                SessionManager defaultSessionManager) {
+                SessionManager defaultSessionManager,
+                ObjectMapper objectMapper,
+                Executor defaultToolExecutionExecutor) {
             this.defaults = Objects.requireNonNull(defaults, "defaults must not be null");
             this.defaultModel = defaults.defaultModel();
             this.discoveredTools = List.copyOf(discoveredTools);
             this.validator = validator;
             this.defaultSessionManager = defaultSessionManager;
+            this.objectMapper = objectMapper;
+            this.defaultToolExecutionExecutor = defaultToolExecutionExecutor;
             this.systemPrompt = defaults.systemPrompt();
             this.toolExecutionMode = defaults.toolExecutionMode();
             this.useDiscoveredTools = defaults.useDiscoveredTools();
@@ -319,6 +345,11 @@ public class AgentFactory {
 
         public Builder toolExecutionMode(ToolExecutionMode toolExecutionMode) {
             this.toolExecutionMode = toolExecutionMode;
+            return this;
+        }
+
+        public Builder toolExecutionExecutor(Executor toolExecutionExecutor) {
+            this.toolExecutionExecutor = toolExecutionExecutor;
             return this;
         }
 
@@ -376,7 +407,7 @@ public class AgentFactory {
         public Agent build() {
             Model resolvedModel = resolveModel();
             NoOpHookRegistry hooks = new NoOpHookRegistry();
-            EventLoop eventLoop = new EventLoop(hooks, new ToolExecutor(toolExecutionMode));
+            EventLoop eventLoop = new EventLoop(hooks, new ToolExecutor(toolExecutionMode, resolveToolExecutionExecutor()));
             List<Tool> resolvedTools = Stream.concat(resolveDiscoveredTools().stream(), tools.stream()).toList();
             return new DefaultAgent(
                 wrapWithRetryIfNeeded(resolvedModel),
@@ -385,6 +416,7 @@ public class AgentFactory {
                     hooks,
                     systemPrompt,
                     validator,
+                    objectMapper,
                     resolveConversationManager(),
                     resolveSessionManager(),
                     sessionId,
@@ -431,6 +463,13 @@ public class AgentFactory {
                 return sessionManager;
             }
             return defaultSessionManager;
+        }
+
+        private Executor resolveToolExecutionExecutor() {
+            if (toolExecutionExecutor != null) {
+                return toolExecutionExecutor;
+            }
+            return defaultToolExecutionExecutor;
         }
     }
 }

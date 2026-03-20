@@ -9,23 +9,25 @@ import org.springframework.stereotype.Component;
 
 import io.arachne.strands.agent.Agent;
 import io.arachne.strands.agent.AgentResult;
+import io.arachne.strands.spring.AgentFactory;
 
 @Component
 public class SampleRedisSessionRunner implements ApplicationRunner {
 
-    private final Agent agent;
+    private final AgentFactory agentFactory;
     private final String sessionId;
 
     public SampleRedisSessionRunner(
-            Agent agent,
+            AgentFactory agentFactory,
             @Value("${arachne.strands.agent.session.id}") String sessionId) {
-        this.agent = agent;
+        this.agentFactory = agentFactory;
         this.sessionId = sessionId;
     }
 
     @Override
     public void run(ApplicationArguments args) {
-        int runCountBefore = readRunCount();
+        Agent agent = agentFactory.builder().build();
+        int runCountBefore = readRunCount(agent);
         String prompt = prompt(args);
 
         System.out.println("Arachne Phase 3 Redis session sample");
@@ -39,11 +41,11 @@ public class SampleRedisSessionRunner implements ApplicationRunner {
 
         System.out.println("reply> " + result.text());
         System.out.println("persisted.messages.after> " + result.messages().size());
-        System.out.println("persisted.runCount.after> " + readRunCount());
+        System.out.println("persisted.runCount.after> " + readRunCount(agent));
         System.out.println("next> Run the same command again to see Redis-backed restore.");
     }
 
-    private int readRunCount() {
+    private int readRunCount(Agent agent) {
         Object value = agent.getState().get("runCount");
         if (value instanceof Number number) {
             return number.intValue();

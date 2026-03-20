@@ -9,14 +9,15 @@ import org.springframework.stereotype.Component;
 
 import io.arachne.strands.agent.Agent;
 import io.arachne.strands.agent.AgentResult;
+import io.arachne.strands.spring.AgentFactory;
 
 @Component
 public class SampleConversationRunner implements ApplicationRunner {
 
     private final Agent agent;
 
-    public SampleConversationRunner(Agent agent) {
-        this.agent = agent;
+    public SampleConversationRunner(AgentFactory factory) {
+        this.agent = factory.builder().build();
     }
 
     @Override
@@ -31,7 +32,7 @@ public class SampleConversationRunner implements ApplicationRunner {
 
     private void runDemoConversation() {
         System.out.println("Arachne Phase 1 demo conversation");
-        System.out.println("The same Agent instance is reused across turns.");
+        System.out.println("One runner-owned Agent runtime is reused across turns.");
         System.out.println();
 
         List<String> prompts = List.of(

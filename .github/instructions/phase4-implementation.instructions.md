@@ -17,6 +17,8 @@ applyTo: "src/main/java/**/*.java"
 - HookRegistry / HookProvider は hook の解決と dispatch を担い、EventLoop 本体を hook 分岐だらけにしない。
 - interrupt は Phase 4 で定義された境界、特に tool 呼び出し前後の制御に留め、model・tool・session の責務を混同しない。
 - Spring `ApplicationEvent` ブリッジは観測専用に保ち、制御フローを書き換える入口にしない。
+- Phase 3.5 で確定した lifecycle 方針を崩さない。Spring では `AgentFactory` / provider が標準入口であり、stateful な `Agent` runtime を shared singleton bean 前提へ戻さない。
+- Phase 3.5 で追加した shared `ObjectMapper` 再利用と pluggable `ToolExecutor` backend の入口を壊さない。
 
 ## 互換性ルール
 - 既存の Phase 1 AgentFactory 経路を壊さない。

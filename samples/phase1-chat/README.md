@@ -5,7 +5,7 @@ This is a minimal Spring Boot application that demonstrates the Phase 1-style ch
 It exists to make the current implementation concrete:
 
 - the app wires `AgentFactory` through Spring Boot auto-configuration
-- one `Agent` bean is reused across turns
+- one runner-owned `Agent` runtime is reused across turns
 - you can confirm multi-turn memory with either a fixed demo or an interactive REPL
 
 ## Prerequisites
@@ -28,7 +28,7 @@ cd samples/phase1-chat
 mvn spring-boot:run -Dspring-boot.run.arguments=--demo
 ```
 
-The demo sends two prompts through the same `Agent` instance:
+The demo sends two prompts through the same runner-owned `Agent` instance:
 
 1. it stores a fact in the conversation
 2. it asks about that fact on the next turn
@@ -57,7 +57,7 @@ you> 私の名前は何ですか？
 agent> 明日香です。
 ```
 
-Because this sample keeps a single `Agent` bean alive, it demonstrates the baseline in-memory multi-turn behavior directly.
+Because this sample creates one `Agent` runtime inside the runner and keeps it alive across turns, it demonstrates the baseline in-memory multi-turn behavior directly without publishing `Agent` as a shared Spring bean.
 
 If you want restore across restarts or external session storage, use the Phase 3 session samples instead.
 

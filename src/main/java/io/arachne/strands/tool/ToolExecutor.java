@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.logging.Level;
@@ -20,13 +21,19 @@ public class ToolExecutor {
     private static final Logger LOG = Logger.getLogger(ToolExecutor.class.getName());
 
     private final ToolExecutionMode executionMode;
+    private final Executor parallelExecutor;
 
     public ToolExecutor() {
-        this(ToolExecutionMode.PARALLEL);
+        this(ToolExecutionMode.PARALLEL, null);
     }
 
     public ToolExecutor(ToolExecutionMode executionMode) {
+        this(executionMode, null);
+    }
+
+    public ToolExecutor(ToolExecutionMode executionMode, Executor parallelExecutor) {
         this.executionMode = executionMode;
+        this.parallelExecutor = parallelExecutor;
     }
 
     public List<ToolResult> execute(List<Tool> tools, List<ContentBlock.ToolUse> requests, HookRegistry hooks) {
@@ -45,17 +52,29 @@ public class ToolExecutor {
     }
 
     private List<ToolResult> executeParallel(List<Tool> tools, List<ContentBlock.ToolUse> requests, HookRegistry hooks) {
-        try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
-            List<CompletableFuture<ToolResult>> futures = requests.stream()
-                    .map(request -> CompletableFuture.supplyAsync(() -> executeOne(tools, request, hooks), executor))
-                    .toList();
-
-            List<ToolResult> results = new ArrayList<>(futures.size());
-            for (CompletableFuture<ToolResult> future : futures) {
-                results.add(await(future));
-            }
-            return List.copyOf(results);
+        if (parallelExecutor != null) {
+            return executeParallel(tools, requests, hooks, parallelExecutor);
         }
+
+        try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            return executeParallel(tools, requests, hooks, executor);
+        }
+    }
+
+    private List<ToolResult> executeParallel(
+            List<Tool> tools,
+            List<ContentBlock.ToolUse> requests,
+            HookRegistry hooks,
+            Executor executor) {
+        List<CompletableFuture<ToolResult>> futures = requests.stream()
+                .map(request -> CompletableFuture.supplyAsync(() -> executeOne(tools, request, hooks), executor))
+                .toList();
+
+        List<ToolResult> results = new ArrayList<>(futures.size());
+        for (CompletableFuture<ToolResult> future : futures) {
+            results.add(await(future));
+        }
+        return List.copyOf(results);
     }
 
     private ToolResult await(CompletableFuture<ToolResult> future) {
@@ -80,8 +99,11 @@ public class ToolExecutor {
             Tool tool = findTool(tools, request.name());
             result = tool.invoke(request.input());
         } catch (StructuredOutputException e) {
-            LOG.log(Level.WARNING, "Tool invocation failed: " + request.name(), e);
+            LOG.log(Level.FINE, () -> "Tool invocation failed: " + request.name() + ": " + e.getMessage());
             throw e;
+        } catch (ToolDefinitionException | ToolValidationException e) {
+            LOG.log(Level.FINE, () -> "Tool invocation failed: " + request.name() + ": " + e.getMessage());
+            result = ToolResult.error(request.toolUseId(), e.getMessage());
         } catch (Exception e) {
             LOG.log(Level.WARNING, "Tool invocation failed: " + request.name(), e);
             result = ToolResult.error(request.toolUseId(), e.getMessage());

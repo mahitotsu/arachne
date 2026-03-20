@@ -8,6 +8,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Qualifier;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
+
+import io.arachne.strands.schema.JsonSchemaGenerator;
+import io.arachne.strands.tool.BeanValidationSupport;
 import io.arachne.strands.tool.Tool;
 import io.arachne.strands.tool.ToolDefinitionException;
 import io.arachne.strands.tool.ToolValidationException;
@@ -62,6 +67,20 @@ class AnnotationToolScannerTest {
                 .hasMessageContaining("city");
     }
 
+        @Test
+        void usesConfiguredObjectMapperForNestedBinding() {
+        ObjectMapper objectMapper = new ObjectMapper().setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
+        AnnotationToolScanner customScanner = new AnnotationToolScanner(
+            new JsonSchemaGenerator(objectMapper),
+            objectMapper,
+            BeanValidationSupport.defaultValidator());
+
+        Tool tool = customScanner.scan(List.of(new NestedRequestTools())).getFirst();
+
+        assertThat(tool.invoke(Map.of("request", Map.of("city_name", "Tokyo"))).content())
+            .isEqualTo("Tokyo");
+        }
+
     static class WeatherTools {
 
         @StrandsTool(name = "lookup_weather", description = "Look up weather information")
@@ -104,5 +123,16 @@ class AnnotationToolScannerTest {
         public String weather(@ToolParam @NotBlank String city) {
             return city;
         }
+    }
+
+    static class NestedRequestTools {
+
+        @StrandsTool(name = "nested_weather")
+        public String weather(@ToolParam NestedRequest request) {
+            return request.cityName();
+        }
+    }
+
+    record NestedRequest(String cityName) {
     }
 }

@@ -3,8 +3,12 @@ package io.arachne.strands.spring;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -14,6 +18,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.session.MapSessionRepository;
 import org.springframework.session.Session;
 import org.springframework.session.SessionRepository;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import io.arachne.strands.model.Model;
 import io.arachne.strands.model.retry.ExponentialBackoffRetryStrategy;
@@ -37,6 +43,12 @@ public class ArachneAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    public ObjectMapper objectMapper() {
+        return new ObjectMapper();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
     public Model arachneModel(ArachneProperties properties) {
         return AgentFactory.createDefaultModel(properties);
     }
@@ -49,9 +61,12 @@ public class ArachneAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public io.arachne.strands.tool.annotation.AnnotationToolScanner annotationToolScanner(Validator validator) {
+    public io.arachne.strands.tool.annotation.AnnotationToolScanner annotationToolScanner(
+            ObjectMapper objectMapper,
+            Validator validator) {
         return new io.arachne.strands.tool.annotation.AnnotationToolScanner(
-                new io.arachne.strands.schema.JsonSchemaGenerator(),
+                new io.arachne.strands.schema.JsonSchemaGenerator(objectMapper),
+                objectMapper,
                 validator);
     }
 
@@ -66,16 +81,23 @@ public class ArachneAutoConfiguration {
     @ConditionalOnMissingBean
     public SessionManager sessionManager(
             ArachneProperties properties,
-            ObjectProvider<SessionRepository<?>> sessionRepositoryProvider) {
+            ObjectProvider<SessionRepository<?>> sessionRepositoryProvider,
+            ObjectMapper objectMapper) {
         String directory = properties.getAgent().getSession().getFile().getDirectory();
         if (directory != null && !directory.isBlank()) {
-            return new FileSessionManager(Path.of(directory));
+            return new FileSessionManager(Path.of(directory), objectMapper);
         }
         SessionRepository<?> sessionRepository = sessionRepositoryProvider.getIfAvailable();
         if (sessionRepository != null) {
-            return new SpringSessionManager(asSessionRepository(sessionRepository));
+            return new SpringSessionManager(asSessionRepository(sessionRepository), objectMapper);
         }
-        return new SpringSessionManager(new MapSessionRepository(new ConcurrentHashMap<>()));
+        return new SpringSessionManager(new MapSessionRepository(new ConcurrentHashMap<>()), objectMapper);
+    }
+
+    @Bean(name = "arachneToolExecutionExecutor", destroyMethod = "close")
+    @ConditionalOnMissingBean(name = "arachneToolExecutionExecutor")
+    public ExecutorService arachneToolExecutionExecutor() {
+        return Executors.newVirtualThreadPerTaskExecutor();
     }
 
     @Bean
@@ -97,14 +119,18 @@ public class ArachneAutoConfiguration {
             List<DiscoveredTool> arachneDiscoveredTools,
             Validator validator,
             SessionManager sessionManager,
-            ObjectProvider<ModelRetryStrategy> modelRetryStrategyProvider) {
+            ObjectProvider<ModelRetryStrategy> modelRetryStrategyProvider,
+            ObjectMapper objectMapper,
+            @Qualifier("arachneToolExecutionExecutor") Executor toolExecutionExecutor) {
         return new AgentFactory(
                 properties,
                 model,
                 arachneDiscoveredTools,
                 validator,
                 sessionManager,
-                modelRetryStrategyProvider.getIfAvailable());
+                modelRetryStrategyProvider.getIfAvailable(),
+                objectMapper,
+                toolExecutionExecutor);
     }
 
     private static SessionRepository<? extends Session> asSessionRepository(SessionRepository<?> sessionRepository) {

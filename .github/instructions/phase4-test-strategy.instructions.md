@@ -21,6 +21,7 @@ applyTo: "src/test/java/**/*.java"
 - plugin は、hook と tool をまとめて登録したときの wiring outcome を検証する。
 - Spring `ApplicationEvent` ブリッジは観測専用であり、イベント購読だけでは制御フローが変わらないことを検証する。
 - configuration properties や builder wiring を導入する場合は、`application.yml` 相当の binding から最終挙動まで検証する。
+- Phase 3.5 で追加した runtime 分離の前提を回帰させない。singleton な Spring service から `AgentFactory` を使う並行呼び出しで、会話状態が混線しないことを必要に応じて検証する。
 
 ## テストの書き方
 - テストは小さく、単一責務に保つ。

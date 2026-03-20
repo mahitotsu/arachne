@@ -7,10 +7,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.session.data.redis.config.annotation.web.http.EnableRedisIndexedHttpSession;
 
-import io.arachne.strands.agent.Agent;
 import io.arachne.strands.model.Model;
 import io.arachne.strands.model.ModelEvent;
-import io.arachne.strands.spring.AgentFactory;
 import io.arachne.strands.types.ContentBlock;
 import io.arachne.strands.types.Message;
 
@@ -20,14 +18,6 @@ public class Phase3RedisSessionApplication {
 
     public static void main(String[] args) {
         SpringApplication.run(Phase3RedisSessionApplication.class, args);
-    }
-
-    @Bean
-    @SuppressWarnings("unused")
-    Agent redisSessionAgent(AgentFactory agentFactory) {
-        return agentFactory.builder()
-                .systemPrompt("Track the user's latest destination and answer with one sentence.")
-                .build();
     }
 
     @Bean

@@ -143,50 +143,72 @@ Notes:
 
 ## Creating An Agent
 
-The normal Spring idiom is to define an `Agent` bean from `AgentFactory`.
+The standard Spring idiom is to inject `AgentFactory` and build an `Agent` runtime at the point where you need a conversation.
+
+For stateless request handling, build a fresh runtime per call:
 
 ```java
-@Configuration
-class AgentConfiguration {
+@Service
+class SupportService {
 
-    @Bean
-    Agent supportAgent(AgentFactory factory) {
-        return factory.builder()
+    private final AgentFactory factory;
+
+    SupportService(AgentFactory factory) {
+        this.factory = factory;
+    }
+
+    String reply(String prompt) {
+        return factory.builder("support")
+                .build()
+                .run(prompt)
+                .text();
+    }
+}
+```
+
+If you intentionally want one in-memory multi-turn conversation inside a component such as a CLI runner, create the runtime once inside that component and keep it there instead of publishing `Agent` as a shared Spring bean:
+
+```java
+@Component
+class CliRunner {
+
+    private final Agent agent;
+
+    CliRunner(AgentFactory factory) {
+        this.agent = factory.builder()
+                .systemPrompt("You answer in short Japanese sentences.")
                 .build();
     }
 }
 ```
 
-You can also override the system prompt per agent:
+You can still define multiple named agents in the same application. Each one can override the shared defaults from `application.yml`; the key point is that the runtime is built from `AgentFactory`, not shared as the default bean-level integration point.
 
 ```java
-@Bean
-Agent supportAgent(AgentFactory factory) {
-    return factory.builder()
-            .systemPrompt("You answer in short Japanese sentences.")
-            .build();
-}
-```
+@Service
+class MultiAgentService {
 
-You can define multiple agents in the same application. Each one can override the shared defaults from `application.yml`.
+  private final AgentFactory factory;
 
-```java
-@Configuration
-class MultiAgentConfiguration {
-
-  @Bean
-  Agent supportAgent(AgentFactory factory) {
-    return factory.builder()
-        .systemPrompt("You are a customer support agent.")
-        .build();
+  MultiAgentService(AgentFactory factory) {
+    this.factory = factory;
   }
 
-  @Bean
-  Agent analystAgent(AgentFactory factory) {
-    return factory.builder()
+  String supportReply(String prompt) {
+    return factory.builder("support")
+        .systemPrompt("You are a customer support agent.")
+        .build()
+        .run(prompt)
+        .text();
+  }
+
+  String analystReply(String prompt) {
+    return factory.builder("analyst")
         .model(new BedrockModel("us.amazon.nova-pro-v1:0", "us-east-1"))
         .systemPrompt("You are an analyst. Answer with concise bullet points.")
-        .build();
+        .build()
+        .run(prompt)
+        .text();
   }
 }
 ```
@@ -194,29 +216,9 @@ class MultiAgentConfiguration {
 So the current model is:
 
 - `application.yml` supplies defaults
-- `AgentFactory.builder()` defines each agent instance
+- `AgentFactory.builder()` creates one runtime instance for one conversation scope
 - `AgentFactory.builder("name")` applies named defaults and still allows explicit builder overrides
-- per-agent Java configuration remains the Spring bean definition point
-
-Named-agent Spring wiring typically looks like this:
-
-```java
-@Configuration
-class MultiAgentConfiguration {
-
-  @Bean
-  @Qualifier("support")
-  Agent supportAgent(AgentFactory factory) {
-    return factory.builder("support").build();
-  }
-
-  @Bean
-  @Qualifier("analyst")
-  Agent analystAgent(AgentFactory factory) {
-    return factory.builder("analyst").build();
-  }
-}
-```
+- if you need a longer-lived in-memory conversation, keep that runtime in the owning component rather than exposing it as a shared singleton `Agent` bean
 
 Builder precedence is:
 
@@ -258,12 +260,9 @@ If you need summary compaction instead of a pure sliding window, provide the con
 ```java
 import io.arachne.strands.agent.conversation.SummarizingConversationManager;
 
-@Bean
-Agent supportAgent(AgentFactory factory, Model model) {
-  return factory.builder()
-      .conversationManager(new SummarizingConversationManager(model, 40, 12))
-      .build();
-}
+Agent supportAgent = factory.builder()
+  .conversationManager(new SummarizingConversationManager(model, 40, 12))
+  .build();
 ```
 
 `SummarizingConversationManager` replaces older turns with one assistant summary message and keeps the most recent turns verbatim. Its persisted state stores the running summary text and the summarization counters, so session restore continues from the existing summary instead of starting over.
@@ -323,11 +322,22 @@ import java.time.Duration;
 
 import io.arachne.strands.model.retry.ExponentialBackoffRetryStrategy;
 
-@Bean
-Agent supportAgent(AgentFactory factory) {
-  return factory.builder()
-      .retryStrategy(new ExponentialBackoffRetryStrategy(6, Duration.ofSeconds(4), Duration.ofSeconds(240)))
-      .build();
+@Service
+class SupportService {
+
+  private final AgentFactory factory;
+
+  SupportService(AgentFactory factory) {
+    this.factory = factory;
+  }
+
+  String reply(String prompt) {
+    return factory.builder()
+        .retryStrategy(new ExponentialBackoffRetryStrategy(6, Duration.ofSeconds(4), Duration.ofSeconds(240)))
+        .build()
+        .run(prompt)
+        .text();
+  }
 }
 ```
 
@@ -463,11 +473,22 @@ Any Spring bean method annotated with `@StrandsTool` is discovered automatically
 That means a plain agent bean can pick up those tools without calling `builder().tools(...)` explicitly:
 
 ```java
-@Bean
-Agent plannerAgent(AgentFactory factory) {
-  return factory.builder()
-      .systemPrompt("Use tools when factual lookup helps.")
-      .build();
+@Service
+class PlannerService {
+
+  private final AgentFactory factory;
+
+  PlannerService(AgentFactory factory) {
+    this.factory = factory;
+  }
+
+  String reply(String prompt) {
+    return factory.builder()
+        .systemPrompt("Use tools when factual lookup helps.")
+        .build()
+        .run(prompt)
+        .text();
+  }
 }
 ```
 
@@ -487,18 +508,30 @@ class WeatherToolService {
   }
 }
 
-@Bean
-Agent plannerAgent(AgentFactory factory) {
-  return factory.builder()
-      .toolQualifiers("planner")
-      .build();
-}
+@Service
+class PlannerService {
 
-@Bean
-Agent internalAgent(AgentFactory factory) {
-  return factory.builder()
-      .useDiscoveredTools(false)
-      .build();
+  private final AgentFactory factory;
+
+  PlannerService(AgentFactory factory) {
+    this.factory = factory;
+  }
+
+  String plannerReply(String prompt) {
+    return factory.builder()
+        .toolQualifiers("planner")
+        .build()
+        .run(prompt)
+        .text();
+  }
+
+  String internalReply(String prompt) {
+    return factory.builder()
+        .useDiscoveredTools(false)
+        .build()
+        .run(prompt)
+        .text();
+  }
 }
 ```
 
@@ -537,39 +570,46 @@ The intended Spring idiom is to keep tool exposure and model orchestration separ
 
 One practical pattern is:
 
-1. build a specialist `Agent`
-2. inject that agent into a Spring `@Service`
+1. inject `AgentFactory`
+2. build a specialist runtime inside a Spring `@Service`
 3. annotate one service method with `@StrandsTool`
 4. let another top-level agent call that tool
 
 ```java
-@Bean
-Agent researchAgent(AgentFactory factory) {
-  return factory.builder()
-      .systemPrompt("You are a weather researcher.")
-      .build();
-}
-
 @Service
 class WeatherResearchTool {
 
-  private final Agent researchAgent;
+  private final AgentFactory factory;
 
-  WeatherResearchTool(Agent researchAgent) {
-    this.researchAgent = researchAgent;
+  WeatherResearchTool(AgentFactory factory) {
+    this.factory = factory;
   }
 
   @StrandsTool(description = "Research a city forecast with a specialist agent")
   String lookupForecast(String city) {
+    Agent researchAgent = factory.builder()
+        .systemPrompt("You are a weather researcher.")
+        .build();
     return researchAgent.run("Give a one-sentence forecast for " + city).text();
   }
 }
 
-@Bean
-Agent plannerAgent(AgentFactory factory) {
-  return factory.builder()
-      .systemPrompt("You are a trip planner. Use tools when needed.")
-      .build();
+@Service
+class PlannerService {
+
+  private final AgentFactory factory;
+
+  PlannerService(AgentFactory factory) {
+    this.factory = factory;
+  }
+
+  String reply(String prompt) {
+    return factory.builder()
+        .systemPrompt("You are a trip planner. Use tools when needed.")
+        .build()
+        .run(prompt)
+        .text();
+  }
 }
 ```
 
@@ -604,6 +644,7 @@ The current Phase 2 implementation is intentionally narrow:
 - Bean Validation is applied at runtime to tool invocation and structured output when you use Jakarta Validation annotations such as `@NotBlank`
 - Bean Validation is not projected back into generated JSON schema in Phase 2
 - validation failures surface as runtime errors rather than a dedicated recovery policy
+- when Spring manages an `ObjectMapper`, Arachne reuses it for annotation-tool binding, structured output coercion, and Spring Session payloads
 
 ## Conversation Lifetime
 
@@ -618,7 +659,7 @@ agent.run("私の名前は明日香です");
 AgentResult result = agent.run("私の名前を覚えていますか");
 ```
 
-But it also means a singleton Spring bean will accumulate shared state across callers.
+But it also means a shared `Agent` runtime will accumulate state across callers.
 
 Phase 3 adds two mechanisms that change how you should think about that lifecycle:
 
@@ -634,7 +675,7 @@ Use one of these patterns when that is not acceptable:
 
 Without a configured session id, conversation state still lives only inside the current `Agent` instance.
 
-If you want to see this behavior in a runnable application, the sample app keeps one `Agent` bean alive and exposes both a fixed two-turn demo and an interactive REPL:
+If you want to see this behavior in a runnable application, the sample app keeps one runner-owned `Agent` runtime alive and exposes both a fixed two-turn demo and an interactive REPL:
 
 - [samples/phase1-chat/README.md](samples/phase1-chat/README.md)
 
@@ -691,6 +732,8 @@ Agent agent = factory.builder()
 ```
 
 The default is parallel tool execution. Switch to sequential execution only when your tools depend on ordered side effects.
+
+When you need to align tool execution with application infrastructure, Spring Boot auto-configuration exposes the parallel backend through the `arachneToolExecutionExecutor` bean. Override that bean with an `Executor` or `TaskExecutor` if you do not want the default virtual-thread executor.
 
 ## Current Constraints
 

@@ -2,22 +2,23 @@ package io.arachne.samples.phase2tools;
 
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 import io.arachne.strands.agent.Agent;
+import io.arachne.strands.spring.AgentFactory;
 
 @Component
 public class SampleTripPlannerRunner implements ApplicationRunner {
 
-    private final Agent tripPlannerAgent;
+    private final AgentFactory agentFactory;
 
-    public SampleTripPlannerRunner(@Qualifier("tripPlanner") Agent tripPlannerAgent) {
-        this.tripPlannerAgent = tripPlannerAgent;
+    public SampleTripPlannerRunner(AgentFactory agentFactory) {
+        this.agentFactory = agentFactory;
     }
 
     @Override
     public void run(ApplicationArguments args) {
+        Agent tripPlannerAgent = agentFactory.builder("trip-planner").build();
         String request = "Plan a short Tokyo outing for tomorrow. Use tools if needed. Return city, forecast, and one advice sentence.";
 
         System.out.println("Arachne Phase 2 agent-as-tool sample");

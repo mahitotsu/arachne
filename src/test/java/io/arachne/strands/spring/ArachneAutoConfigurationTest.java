@@ -1,6 +1,13 @@
 package io.arachne.strands.spring;
 
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -16,16 +23,23 @@ import org.springframework.session.MapSession;
 import org.springframework.session.MapSessionRepository;
 import org.springframework.session.SessionRepository;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
+
 import io.arachne.strands.agent.Agent;
 import io.arachne.strands.model.Model;
 import io.arachne.strands.model.ModelEvent;
 import io.arachne.strands.model.ModelThrottledException;
+import io.arachne.strands.model.ToolSelection;
+import io.arachne.strands.model.ToolSpec;
 import io.arachne.strands.model.bedrock.BedrockModel;
 import io.arachne.strands.model.retry.ModelRetryStrategy;
 import io.arachne.strands.session.FileSessionManager;
 import io.arachne.strands.session.SessionManager;
 import io.arachne.strands.session.SpringSessionManager;
 import io.arachne.strands.tool.annotation.StrandsTool;
+import io.arachne.strands.tool.annotation.ToolParam;
+import io.arachne.strands.types.Message;
 
 class ArachneAutoConfigurationTest {
 
@@ -179,6 +193,56 @@ class ArachneAutoConfigurationTest {
 
                     assertThat(restored.getMessages()).hasSize(2);
                     assertThat(restored.getState().get("city")).isEqualTo("Osaka");
+                });
+    }
+
+    @Test
+    void autoConfigurationReusesObjectMapperForStructuredOutput() {
+        contextRunner
+                .withUserConfiguration(CustomObjectMapperConfiguration.class, StructuredOutputSnakeCaseModelConfiguration.class)
+                .run(context -> {
+                    Agent agent = context.getBean(AgentFactory.class).builder().build();
+
+                    SnakeCaseSummary result = agent.run("hello", SnakeCaseSummary.class);
+
+                    assertThat(result.answerText()).isEqualTo("Tokyo");
+                });
+    }
+
+    @Test
+    void autoConfigurationUsesConfiguredToolExecutionExecutor() {
+        contextRunner
+                .withUserConfiguration(
+                        EchoToolConfiguration.class,
+                        ToolUseModelConfiguration.class,
+                        CustomToolExecutionExecutorConfiguration.class)
+                .run(context -> {
+                    Agent agent = context.getBean(AgentFactory.class).builder().build();
+
+                    assertThat(agent.run("hello").text()).isEqualTo("done");
+                    assertThat(context.getBean(RecordingExecutor.class).count()).isEqualTo(2);
+                });
+    }
+
+    @Test
+    void singletonServiceCanHandleConcurrentRequestsWithFactoryOwnedRuntimes() {
+        contextRunner
+                .withUserConfiguration(FactoryOwnedChatServiceConfiguration.class, ConcurrentIsolationModelConfiguration.class)
+                .run(context -> {
+                    FactoryOwnedChatService service = context.getBean(FactoryOwnedChatService.class);
+                    ConcurrentIsolationModel model = context.getBean(ConcurrentIsolationModel.class);
+
+                    try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+                        Future<String> first = executor.submit(() -> service.reply("first"));
+                        Future<String> second = executor.submit(() -> service.reply("second"));
+
+                        assertThat(List.of(first.get(5, TimeUnit.SECONDS), second.get(5, TimeUnit.SECONDS)))
+                                .containsExactlyInAnyOrder("reply:first", "reply:second");
+                    }
+
+                    assertThat(model.maxConcurrentCalls()).isGreaterThanOrEqualTo(2);
+                    assertThat(model.messageSizes()).containsExactlyInAnyOrder(1, 1);
+                    assertThat(model.prompts()).containsExactlyInAnyOrder("first", "second");
                 });
     }
 
@@ -351,6 +415,206 @@ class ArachneAutoConfigurationTest {
         public Iterable<ModelEvent> converse(List<io.arachne.strands.types.Message> messages, List<io.arachne.strands.model.ToolSpec> tools) {
             calls.incrementAndGet();
             throw new ModelThrottledException("throttled");
+        }
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    static class CustomObjectMapperConfiguration {
+        @Bean
+        @SuppressWarnings("unused")
+        ObjectMapper customObjectMapper() {
+            return new ObjectMapper().setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
+        }
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    static class StructuredOutputSnakeCaseModelConfiguration {
+        @Bean
+        @SuppressWarnings("unused")
+        Model customModel() {
+            return new StructuredOutputSnakeCaseModel();
+        }
+    }
+
+    static class StructuredOutputSnakeCaseModel implements Model {
+        private int calls;
+
+        @Override
+        public Iterable<ModelEvent> converse(List<Message> messages, List<ToolSpec> tools) {
+            throw new AssertionError("Structured output should use the extended overloads");
+        }
+
+        @Override
+        public Iterable<ModelEvent> converse(List<Message> messages, List<ToolSpec> tools, String systemPrompt) {
+            calls++;
+            return List.of(
+                    new ModelEvent.TextDelta("draft"),
+                    new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(10, 5)));
+        }
+
+        @Override
+        public Iterable<ModelEvent> converse(
+                List<Message> messages,
+                List<ToolSpec> tools,
+                String systemPrompt,
+                ToolSelection toolSelection) {
+            if (toolSelection == null) {
+                return converse(messages, tools, systemPrompt);
+            }
+            if (calls == 1) {
+                calls++;
+                return List.of(
+                        new ModelEvent.ToolUse(
+                                "structured-1",
+                                toolSelection.toolName(),
+                                Map.of("answer_text", "Tokyo")),
+                        new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(12, 4)));
+            }
+            return List.of(new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(13, 2)));
+        }
+    }
+
+    record SnakeCaseSummary(String answerText) {
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    static class EchoToolConfiguration {
+        @Bean
+        @SuppressWarnings("unused")
+        EchoToolBean echoToolBean() {
+            return new EchoToolBean();
+        }
+    }
+
+    static class EchoToolBean {
+
+        @StrandsTool(name = "echo")
+        public String echo(@ToolParam String value) {
+            return value;
+        }
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    static class ToolUseModelConfiguration {
+        @Bean
+        @SuppressWarnings("unused")
+        Model customModel() {
+            return new ToolUseModel();
+        }
+    }
+
+    static class ToolUseModel implements Model {
+        private boolean firstCall = true;
+
+        @Override
+        public Iterable<ModelEvent> converse(List<Message> messages, List<ToolSpec> tools) {
+            if (firstCall) {
+                firstCall = false;
+                return List.of(
+                        new ModelEvent.ToolUse("tool-1", "echo", Map.of("value", "a")),
+                        new ModelEvent.ToolUse("tool-2", "echo", Map.of("value", "b")),
+                        new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(2, 2)));
+            }
+            return List.of(
+                    new ModelEvent.TextDelta("done"),
+                    new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
+        }
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    static class CustomToolExecutionExecutorConfiguration {
+        @Bean(name = "arachneToolExecutionExecutor")
+        @SuppressWarnings("unused")
+        RecordingExecutor arachneToolExecutionExecutor() {
+            return new RecordingExecutor();
+        }
+    }
+
+    static class RecordingExecutor implements Executor {
+        private final AtomicInteger executions = new AtomicInteger();
+
+        @Override
+        public void execute(Runnable command) {
+            executions.incrementAndGet();
+            command.run();
+        }
+
+        int count() {
+            return executions.get();
+        }
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    static class FactoryOwnedChatServiceConfiguration {
+        @Bean
+        @SuppressWarnings("unused")
+        FactoryOwnedChatService factoryOwnedChatService(AgentFactory agentFactory) {
+            return new FactoryOwnedChatService(agentFactory);
+        }
+    }
+
+    static class FactoryOwnedChatService {
+        private final AgentFactory agentFactory;
+
+        FactoryOwnedChatService(AgentFactory agentFactory) {
+            this.agentFactory = agentFactory;
+        }
+
+        String reply(String prompt) {
+            return agentFactory.builder().build().run(prompt).text();
+        }
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    static class ConcurrentIsolationModelConfiguration {
+        @Bean
+        @SuppressWarnings("unused")
+        ConcurrentIsolationModel customModel() {
+            return new ConcurrentIsolationModel();
+        }
+    }
+
+    static class ConcurrentIsolationModel implements Model {
+        private final AtomicInteger inFlight = new AtomicInteger();
+        private final AtomicInteger maxConcurrentCalls = new AtomicInteger();
+        private final CopyOnWriteArrayList<Integer> messageSizes = new CopyOnWriteArrayList<>();
+        private final CopyOnWriteArrayList<String> prompts = new CopyOnWriteArrayList<>();
+
+        @Override
+        public Iterable<ModelEvent> converse(List<Message> messages, List<ToolSpec> tools) {
+            int concurrentCalls = inFlight.incrementAndGet();
+            maxConcurrentCalls.accumulateAndGet(concurrentCalls, Math::max);
+            try {
+                String prompt = messages.getLast().content().stream()
+                        .filter(io.arachne.strands.types.ContentBlock.Text.class::isInstance)
+                        .map(io.arachne.strands.types.ContentBlock.Text.class::cast)
+                        .map(io.arachne.strands.types.ContentBlock.Text::text)
+                        .findFirst()
+                        .orElse("(missing prompt)");
+                prompts.add(prompt);
+                messageSizes.add(messages.size());
+                Thread.sleep(100);
+                return List.of(
+                        new ModelEvent.TextDelta("reply:" + prompt),
+                        new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new AssertionError("Interrupted while coordinating concurrent test", e);
+            } finally {
+                inFlight.decrementAndGet();
+            }
+        }
+
+        int maxConcurrentCalls() {
+            return maxConcurrentCalls.get();
+        }
+
+        List<Integer> messageSizes() {
+            return List.copyOf(messageSizes);
+        }
+
+        List<String> prompts() {
+            return List.copyOf(prompts);
         }
     }
 }

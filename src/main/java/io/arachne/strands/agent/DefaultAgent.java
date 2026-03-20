@@ -2,6 +2,9 @@ package io.arachne.strands.agent;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import io.arachne.strands.agent.conversation.ConversationManager;
 import io.arachne.strands.agent.conversation.NoOpConversationManager;
@@ -37,6 +40,7 @@ public class DefaultAgent implements Agent {
     private final HookRegistry hooks;
     private final String systemPrompt;
     private final Validator validator;
+    private final ObjectMapper objectMapper;
     private final ConversationManager conversationManager;
     private final SessionManager sessionManager;
     private final String sessionId;
@@ -76,11 +80,37 @@ public class DefaultAgent implements Agent {
                 hooks,
                 systemPrompt,
                 validator,
+                new ObjectMapper(),
                 new NoOpConversationManager(),
                 null,
                 null,
                 new AgentState());
     }
+
+            public DefaultAgent(
+                Model model,
+                List<Tool> tools,
+                EventLoop eventLoop,
+                HookRegistry hooks,
+                String systemPrompt,
+                Validator validator,
+                ConversationManager conversationManager,
+                SessionManager sessionManager,
+                String sessionId,
+                AgentState state) {
+            this(
+                model,
+                tools,
+                eventLoop,
+                hooks,
+                systemPrompt,
+                validator,
+                new ObjectMapper(),
+                conversationManager,
+                sessionManager,
+                sessionId,
+                state);
+            }
 
     public DefaultAgent(
             Model model,
@@ -89,6 +119,7 @@ public class DefaultAgent implements Agent {
             HookRegistry hooks,
             String systemPrompt,
             Validator validator,
+                ObjectMapper objectMapper,
             ConversationManager conversationManager,
             SessionManager sessionManager,
             String sessionId,
@@ -99,6 +130,7 @@ public class DefaultAgent implements Agent {
         this.hooks = hooks;
         this.systemPrompt = systemPrompt;
         this.validator = validator;
+        this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper must not be null");
         this.conversationManager = conversationManager;
         this.sessionManager = sessionManager;
         this.sessionId = sessionId;
@@ -131,8 +163,8 @@ public class DefaultAgent implements Agent {
 
         StructuredOutputTool<T> structuredOutputTool = new StructuredOutputTool<>(
             outputType,
-            new io.arachne.strands.schema.JsonSchemaGenerator(),
-            new com.fasterxml.jackson.databind.ObjectMapper(),
+            new io.arachne.strands.schema.JsonSchemaGenerator(objectMapper),
+            objectMapper,
             validator);
         StructuredOutputContext<T> structuredOutputContext = new StructuredOutputContext<>(structuredOutputTool);
         List<Tool> invocationTools = new ArrayList<>(tools);

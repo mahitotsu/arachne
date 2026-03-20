@@ -10,6 +10,7 @@ import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactor
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.session.data.redis.RedisIndexedSessionRepository;
 import org.testcontainers.DockerClientFactory;
 import org.testcontainers.containers.GenericContainer;
@@ -93,6 +94,7 @@ class RedisSessionManagerIntegrationTest {
 
         RedisIndexedSessionRepository sessionRepository = new RedisIndexedSessionRepository(redisTemplate);
         sessionRepository.setRedisKeyNamespace("arachne:test:redis-session");
+        sessionRepository.setCleanupCron(Scheduled.CRON_DISABLED);
         sessionRepository.afterPropertiesSet();
         return sessionRepository;
     }

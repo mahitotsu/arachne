@@ -8,6 +8,7 @@ What it demonstrates:
 
 - Spring Session JDBC is the persistence backend
 - Arachne still uses its own explicit `sessionId`
+- each application run creates a fresh `Agent` runtime from `AgentFactory`
 - message history and `AgentState` survive application restarts
 - H2 is used as a local file-backed database, so no Docker is required
 
@@ -64,6 +65,6 @@ rm -rf .arachne/jdbc
 ## Configuration
 
 The sample uses Spring Boot JDBC configuration and Spring Session JDBC.
-The fixed Arachne session id is configured in `src/main/resources/application.yml`.
+The runner builds a fresh `Agent` runtime from `AgentFactory`, and the fixed Arachne session id in `src/main/resources/application.yml` drives restore across launches.
 
 Because the model is a stub, the demo is deterministic and safe to rerun as many times as you want.

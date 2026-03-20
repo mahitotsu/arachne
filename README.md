@@ -40,7 +40,7 @@ The implementation plan and remaining work are tracked in:
 
 ## Current Status
 
-Phase 1 covers the synchronous Bedrock event loop. Phase 2 adds annotation-driven tools and structured output as first-class APIs. Phase 3 completes conversation management, session persistence backends, retry, and multi-agent configuration.
+Phase 1 covers the synchronous Bedrock event loop. Phase 2 adds annotation-driven tools and structured output as first-class APIs. Phase 3 completes conversation management, session persistence backends, retry, and multi-agent configuration. Phase 3.5 completes the Spring integration review: the standard idiom is now factory-owned runtimes, shared application-facing `ObjectMapper` reuse, and a pluggable tool-execution backend.
 
 Available now on the Phase 2 path:
 
@@ -91,14 +91,25 @@ arachne:
 ```
 
 ```java
+import org.springframework.stereotype.Service;
+
+import io.arachne.strands.spring.AgentFactory;
 import io.arachne.strands.tool.annotation.StrandsTool;
 
-@Configuration
-class AgentConfiguration {
+@Service
+class ChatService {
 
-    @Bean
-    Agent agent(AgentFactory factory) {
-        return factory.builder().build();
+        private final AgentFactory factory;
+
+        ChatService(AgentFactory factory) {
+                this.factory = factory;
+        }
+
+        String reply(String prompt) {
+                return factory.builder()
+                                .build()
+                                .run(prompt)
+                                .text();
     }
 }
 
@@ -112,28 +123,16 @@ class WeatherToolService {
 }
 ```
 
-```java
-@Service
-class ChatService {
-
-    private final Agent agent;
-
-    ChatService(Agent agent) {
-        this.agent = agent;
-    }
-
-    String reply(String prompt) {
-        return agent.run(prompt).text();
-    }
-}
-```
+If you want one in-memory multi-turn conversation inside a CLI or batch component, create the `Agent` once in that component from `AgentFactory` and keep it there rather than publishing it as a shared singleton bean.
 
 Typed structured output is also available:
 
 ```java
 record Summary(String city, String advice) {}
 
-Summary summary = agent.run("Plan a short Tokyo walk", Summary.class);
+Summary summary = factory.builder()
+    .build()
+    .run("Plan a short Tokyo walk", Summary.class);
 ```
 
 Session-scoped state can be seeded or read through the builder and agent API:
@@ -174,7 +173,9 @@ Agent agent = factory.builder()
 
 Retry is disabled unless you enable it explicitly. When enabled, it applies only to the model invocation boundary and does not retry tool execution or structured-output validation.
 
-For multi-agent applications, define shared defaults under `arachne.strands.agent.*` and named defaults under `arachne.strands.agents.<name>.*`. Then build the agent with `factory.builder("name")` from your Spring `@Bean` method.
+For multi-agent applications, define shared defaults under `arachne.strands.agent.*` and named defaults under `arachne.strands.agents.<name>.*`. Then build the agent with `factory.builder("name")` from the service, runner, or provider that owns that conversation scope.
+
+Spring Boot auto-configuration also reuses the application `ObjectMapper` for annotation-tool binding, structured output coercion, and Spring Session payloads. Parallel tool execution is still the default, but the backend is no longer fixed: you can override the `arachneToolExecutionExecutor` bean if your application needs a different `Executor` / `TaskExecutor`.
 
 If you need LLM-backed compaction instead of a fixed sliding window, pass `SummarizingConversationManager` explicitly through the builder:
 

@@ -30,6 +30,15 @@
 - Consequences
 - Alternatives Considered
 
+## Current ADRs
+
+- [0001-agent-runtime-lifecycle.md](0001-agent-runtime-lifecycle.md) — stateful な agent runtime を shared singleton bean として標準化しない
+- [0002-session-manager-explicit-session-id.md](0002-session-manager-explicit-session-id.md) — `SessionManager` 境界と explicit `sessionId` 維持を session 永続化の標準方針とする
+- [0003-spring-integration-entrypoint.md](0003-spring-integration-entrypoint.md) — Spring Boot auto-configuration と `AgentFactory` を標準統合入口として扱う
+- [0004-agent-definition-runtime-split.md](0004-agent-definition-runtime-split.md) — definition/runtime の別型導入は保留し、当面は `AgentFactory` 主導で扱う
+- [0005-binding-validation-boundaries.md](0005-binding-validation-boundaries.md) — binding と validation を別段階として扱い、Spring bean 再利用範囲を定める
+- [0006-tool-execution-backend.md](0006-tool-execution-backend.md) — `ToolExecutor` の execution backend は固定実装にせず Spring から差し替え可能とする
+
 ## Phase 3.5 の候補
 
 - Agent lifecycle を stateful runtime として扱い、singleton bean 共有を標準にしないか
