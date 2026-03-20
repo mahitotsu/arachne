@@ -1,22 +1,23 @@
 ---
-description: "Generate a Japanese quality evaluation report from Arachne's observation-oriented Maven quality profiles and repository context."
+description: "Run Arachne's Maven quality profiles and generate a Japanese quality evaluation report from fresh repository evidence."
 name: "Quality Audit"
 argument-hint: "Optional scope, package focus, or notes"
 agent: "agent"
 ---
-Generate a quality evaluation report for the current Arachne repository state.
+Refresh the quality evidence for the current Arachne repository state and then generate a quality evaluation report.
 
 Use repository evidence first. Prefer measured artifacts over assumptions.
 
 Required procedure:
 
-1. Read `docs/quality-evaluation.md`, `pom.xml`, `ROADMAP.md`, and `.github/copilot-instructions.md` before interpreting results.
-2. Confirm which quality artifacts already exist under `target/` and `target/site/`.
-   - Prefer artifacts that match the current workflow defined in `docs/quality-evaluation.md`.
+1. Read `pom.xml`, `ROADMAP.md`, and `.github/copilot-instructions.md` before interpreting results.
+2. Run the current workflow from the repository root unless the user explicitly limits the scope.
+   - Run `mvn -Pquality-report verify` first so coverage, surefire, SpotBugs, PMD, and CPD evidence is regenerated for this review.
+   - Run `mvn -Pquality-security verify` next so SBOM artifacts are regenerated for this review.
+   - If a command fails, report the failure, inspect any artifacts that were still produced in this run, and clearly separate partial fresh evidence from stale leftovers.
+3. Confirm which quality artifacts now exist under `target/` and `target/site/`.
+   - Prefer artifacts that match the current workflow implied by the active Maven profiles and were refreshed by the current command run.
    - If legacy artifacts from an older workflow are still present, treat them as stale unless there is evidence they were regenerated intentionally for the current review.
-3. If the required quality artifacts do not exist, say which command should be run next:
-   - `mvn -Pquality-report verify`
-   - `mvn -Pquality-security verify`
 4. Base the report on concrete evidence such as:
    - JaCoCo coverage reports
    - Surefire test reports
@@ -33,6 +34,7 @@ Required procedure:
    - dependency inventory evidence such as SBOM content
    - repository-side vulnerability or update signals such as Dependabot configuration or alerts
    Do not imply that SBOM alone provides advisory matching.
+10. In `補足`, include the commands you ran, whether they succeeded, and any missing or stale artifacts that limited confidence.
 
 Focus on these repo-specific questions:
 

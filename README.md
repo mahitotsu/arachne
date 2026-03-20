@@ -49,8 +49,7 @@ Contributor workflow helpers for roadmap phases:
 
 Quality evaluation workflow:
 
-- [docs/quality-evaluation.md](docs/quality-evaluation.md) defines the observation-oriented report profiles and the interpretation flow for repository quality reviews.
-- `/quality-audit` uses the generated quality artifacts and repository context to produce a Japanese quality evaluation report.
+- `/quality-audit` runs the quality Maven profiles, refreshes the artifacts, and then produces a Japanese quality evaluation report from the fresh repository evidence.
 - `.github/dependabot.yml` keeps repository-side dependency updates and advisory-backed remediation visible without making the local Maven loop heavy.
 
 ## Current Status
