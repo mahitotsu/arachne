@@ -38,6 +38,11 @@ The implementation plan and remaining work are tracked in:
 
 - [ROADMAP.md](ROADMAP.md)
 
+Contributor workflow helpers for roadmap phases:
+
+- `/phase-audit <phase>` checks whether a phase is actually ready to close, with explicit findings for roadmap gaps, stale docs, missing ADR work, sample drift, instruction drift, and regression risk.
+- `/phase-closeout <phase>` runs the same repository-specific checklist, makes the required updates when they are clearly supported by the current repo state, and finishes with a completion report.
+
 ## Current Status
 
 Phase 1 covers the synchronous Bedrock event loop. Phase 2 adds annotation-driven tools and structured output as first-class APIs. Phase 3 completes conversation management, session persistence backends, retry, and multi-agent configuration. Phase 3.5 completes the Spring integration review: the standard idiom is now factory-owned runtimes, shared application-facing `ObjectMapper` reuse, and a pluggable tool-execution backend.
