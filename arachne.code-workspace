@@ -19,6 +19,10 @@
         {
             "name": "phase3-jdbc-session",
             "path": "samples/phase3-jdbc-session"
+        },
+        {
+            "name": "phase4-hooks-interrupts",
+            "path": "samples/phase4-hooks-interrupts"
         }
     ],
     "settings": {

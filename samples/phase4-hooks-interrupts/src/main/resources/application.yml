@@ -1,0 +1,6 @@
+spring:
+  application:
+    name: arachne-phase4-hooks-interrupts
+  main:
+    banner-mode: off
+    web-application-type: none

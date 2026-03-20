@@ -36,6 +36,7 @@ The runnable sample app is here:
 - [samples/phase2-tools/README.md](samples/phase2-tools/README.md)
 - [samples/phase3-redis-session/README.md](samples/phase3-redis-session/README.md)
 - [samples/phase3-jdbc-session/README.md](samples/phase3-jdbc-session/README.md)
+- [samples/phase4-hooks-interrupts/README.md](samples/phase4-hooks-interrupts/README.md)
 
 The implementation plan and remaining work are tracked in:
 
