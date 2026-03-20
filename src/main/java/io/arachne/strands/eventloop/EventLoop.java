@@ -35,9 +35,6 @@ import io.arachne.strands.types.Message;
  *       appends a {@code user} message containing all tool results, then recurses.</li>
  *   <li>Otherwise returns the {@link EventLoopResult}.</li>
  * </ol>
- *
- * <p>Hook callsites are present but delegate to {@link HookRegistry} no-ops in Phase 1.
- * Phase 4 will wire in real hook dispatch.
  */
 public class EventLoop {
 

@@ -39,17 +39,15 @@
 - [0005-binding-validation-boundaries.md](0005-binding-validation-boundaries.md) — binding と validation を別段階として扱い、Spring bean 再利用範囲を定める
 - [0006-tool-execution-backend.md](0006-tool-execution-backend.md) — `ToolExecutor` の execution backend は固定実装にせず Spring から差し替え可能とする
 - [0007-phase2-tool-contracts.md](0007-phase2-tool-contracts.md) — annotation-driven tools、qualifier ベースの tool scope、structured output を Phase 2 の公開契約として扱う
+- [0008-hook-registry-and-plugin-boundary.md](0008-hook-registry-and-plugin-boundary.md) — typed hook event、runtime-local registry、plugin bundling、Spring hook discovery の境界を定める
+- [0009-interrupt-resume-and-observation-bridge.md](0009-interrupt-resume-and-observation-bridge.md) — interrupt/resume API と observation-only Spring event bridge の境界を定める
 
-## Phase 3.5 の候補
+## 今後の候補
 
-- Agent lifecycle を stateful runtime として扱い、singleton bean 共有を標準にしないか
-- Agent definition と runtime instance を分離するか
-- tool input / structured output の binding と validation をどう分離するか
-- `ToolExecutor` の execution backend を Spring `Executor` / `TaskExecutor` に寄せるか
-- Arachne が再利用する Spring 標準 bean (`Validator`, `ObjectMapper`, `ConversionService`) の範囲をどう定めるか
-- Session 永続化の標準方針として `SessionManager` と Spring Session adapter を採用するか
-- Redis / JDBC / file による session restore を core と Spring integration のどちらの責務に置くか
-- Spring Boot auto-configuration をライブラリ標準の統合入口として維持するか
+- Skill データモデルと `SKILL.md` パース境界をどこまで AgentSkills.io に寄せるか
+- `AgentSkillsPlugin` による prompt 注入責務を hook/plugin 境界の上でどう固定するか
+- `resources/skills/` の classpath scan と `builder().skills(...)` API の責務分担をどう定めるか
+- 将来の provider 拡張や streaming と、skills の注入タイミングをどう整合させるか
 
 ## Retrospective ADR の扱い
 

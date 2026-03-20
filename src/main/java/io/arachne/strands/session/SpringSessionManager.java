@@ -109,12 +109,18 @@ public class SpringSessionManager implements SessionManager {
         }
 
         Session session = sessionRepository.createSession();
+        if (session == null) {
+            throw new IllegalStateException("sessionRepository.createSession() must not return null");
+        }
         if (session instanceof MapSession mapSession) {
             mapSession.setId(sessionId);
             return mapSession;
         }
 
         String createdSessionId = session.getId();
+        if (createdSessionId == null) {
+            throw new IllegalStateException("session id must not be null");
+        }
         if (sessionId.equals(createdSessionId)) {
             return session;
         }

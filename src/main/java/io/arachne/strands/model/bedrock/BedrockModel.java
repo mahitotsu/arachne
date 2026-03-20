@@ -1,7 +1,6 @@
 package io.arachne.strands.model.bedrock;
 
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -316,9 +315,7 @@ public class BedrockModel implements Model {
         }
         if (node.isObject()) {
             Map<String, Document> map = new LinkedHashMap<>();
-            Iterator<Map.Entry<String, JsonNode>> fields = node.fields();
-            while (fields.hasNext()) {
-                Map.Entry<String, JsonNode> entry = fields.next();
+            for (Map.Entry<String, JsonNode> entry : node.properties()) {
                 map.put(entry.getKey(), jsonNodeToDocument(entry.getValue()));
             }
             return Document.fromMap(map);

@@ -20,6 +20,7 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.lang.NonNull;
 import org.springframework.session.MapSession;
 import org.springframework.session.MapSessionRepository;
 import org.springframework.session.SessionRepository;
@@ -404,7 +405,7 @@ class ArachneAutoConfigurationTest {
         private final CopyOnWriteArrayList<String> types = new CopyOnWriteArrayList<>();
 
         @Override
-        public void onApplicationEvent(ArachneLifecycleApplicationEvent event) {
+        public void onApplicationEvent(@NonNull ArachneLifecycleApplicationEvent event) {
             types.add(event.type());
         }
 
