@@ -11,6 +11,9 @@ import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 
+import io.arachne.strands.agent.AgentState;
+import io.arachne.strands.hooks.DispatchingHookRegistry;
+import io.arachne.strands.hooks.HookProvider;
 import io.arachne.strands.hooks.NoOpHookRegistry;
 import io.arachne.strands.model.ToolSpec;
 import io.arachne.strands.types.ContentBlock;
@@ -29,7 +32,8 @@ class ToolExecutorTest {
                 List.of(
                         new ContentBlock.ToolUse("1", "first", Map.of()),
                         new ContentBlock.ToolUse("2", "second", Map.of())),
-                new NoOpHookRegistry());
+            new NoOpHookRegistry(),
+            new AgentState());
 
         assertThat(order).containsExactly("first", "second");
         assertThat(results).extracting(ToolResult::toolUseId).containsExactly("1", "2");
@@ -48,11 +52,31 @@ class ToolExecutorTest {
                 List.of(
                         new ContentBlock.ToolUse("1", "first", Map.of()),
                         new ContentBlock.ToolUse("2", "second", Map.of())),
-                new NoOpHookRegistry());
+            new NoOpHookRegistry(),
+            new AgentState());
 
         assertThat(recordingExecutor.count()).isEqualTo(2);
         assertThat(results).extracting(ToolResult::toolUseId).containsExactly("1", "2");
     }
+
+        @Test
+        void toolHooksCanShortCircuitAndRewriteResult() {
+        HookProvider hookProvider = registrar -> registrar
+            .beforeToolCall(event -> event.skipWith(ToolResult.success(event.toolUseId(), "short-circuited")))
+            .afterToolCall(event -> event.setResult(ToolResult.success(event.toolUseId(), event.result().content() + "-after")));
+        ToolExecutor executor = new ToolExecutor(ToolExecutionMode.SEQUENTIAL);
+
+        List<ToolResult> results = executor.execute(
+            List.of(namedTool("first", new CopyOnWriteArrayList<>())),
+            List.of(new ContentBlock.ToolUse("1", "first", Map.of("value", 1))),
+            DispatchingHookRegistry.fromProviders(List.of(hookProvider)),
+            new AgentState());
+
+        assertThat(results).singleElement().satisfies(result -> {
+            assertThat(result.toolUseId()).isEqualTo("1");
+            assertThat(result.content()).isEqualTo("short-circuited-after");
+        });
+        }
 
     private static final class RecordingExecutor implements Executor {
 

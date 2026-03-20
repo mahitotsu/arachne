@@ -10,6 +10,8 @@ import io.arachne.strands.agent.conversation.NoOpConversationManager;
 import io.arachne.strands.agent.conversation.SlidingWindowConversationManager;
 import io.arachne.strands.agent.conversation.SummarizingConversationManager;
 import io.arachne.strands.eventloop.EventLoop;
+import io.arachne.strands.hooks.DispatchingHookRegistry;
+import io.arachne.strands.hooks.HookProvider;
 import io.arachne.strands.hooks.NoOpHookRegistry;
 import io.arachne.strands.model.Model;
 import io.arachne.strands.model.ModelEvent;
@@ -17,6 +19,9 @@ import io.arachne.strands.model.ToolSelection;
 import io.arachne.strands.model.ToolSpec;
 import io.arachne.strands.session.InMemorySessionManager;
 import io.arachne.strands.tool.StructuredOutputException;
+import io.arachne.strands.tool.Tool;
+import io.arachne.strands.tool.ToolResult;
+import io.arachne.strands.types.ContentBlock;
 import io.arachne.strands.types.Message;
 import jakarta.validation.constraints.NotBlank;
 
@@ -140,6 +145,79 @@ class DefaultAgentTest {
 
         assertThat(result.text()).isEqualTo("Hello!");
         assertThat(result.stopReason()).isEqualTo("end_turn");
+    }
+
+    @Test
+    void runDispatchesInvocationHooksAndMessageAddedEvents() {
+        List<String> events = new java.util.ArrayList<>();
+        HookProvider hookProvider = registrar -> registrar
+                .beforeInvocation(event -> {
+                    events.add("beforeInvocation:" + event.prompt());
+                    event.setPrompt("rewritten");
+                })
+                .afterInvocation(event -> {
+                    events.add("afterInvocation:" + event.text());
+                    event.setText(event.text() + "!");
+                })
+                .messageAdded(event -> events.add("messageAdded:" + event.message().role()));
+        DispatchingHookRegistry hooks = DispatchingHookRegistry.fromProviders(List.of(hookProvider));
+        EventLoop eventLoop = new EventLoop(hooks);
+        DefaultAgent agent = new DefaultAgent(stubModel("model reply"), List.of(), eventLoop, hooks);
+
+        AgentResult result = agent.run("hello");
+
+        assertThat(result.text()).isEqualTo("model reply!");
+        assertThat(agent.getMessages().getFirst()).isEqualTo(Message.user("rewritten"));
+        assertThat(events).containsExactly(
+                "beforeInvocation:hello",
+                "messageAdded:USER",
+                "messageAdded:ASSISTANT",
+                "afterInvocation:model reply");
+    }
+
+    @Test
+    void runReturnsInterruptsAndResumeContinuesWithToolResults() {
+        HookProvider interruptingHook = registrar -> registrar.beforeToolCall(event -> event.interrupt("approval", "need approval"));
+        DispatchingHookRegistry hooks = DispatchingHookRegistry.fromProviders(List.of(interruptingHook));
+        EventLoop eventLoop = new EventLoop(hooks);
+        DefaultAgent agent = new DefaultAgent(toolUseThenResumeModel(), List.of(stubTool()), eventLoop, hooks);
+
+        AgentResult interrupted = agent.run("book the trip");
+
+        assertThat(interrupted.interrupted()).isTrue();
+        assertThat(interrupted.stopReason()).isEqualTo("interrupt");
+        assertThat(interrupted.interrupts()).singleElement().satisfies(interrupt -> {
+            assertThat(interrupt.name()).isEqualTo("approval");
+            assertThat(interrupt.reason()).isEqualTo("need approval");
+            assertThat(interrupt.toolUseId()).isEqualTo("tool-1");
+        });
+        assertThat(agent.getMessages()).hasSize(2);
+        assertThat(agent.getMessages().getLast().content()).anyMatch(ContentBlock.ToolUse.class::isInstance);
+
+        AgentResult resumed = interrupted.resume(new InterruptResponse("tool-1", "approved"));
+
+        assertThat(resumed.interrupted()).isFalse();
+        assertThat(resumed.text()).isEqualTo("Approval result: approved");
+        assertThat(agent.getMessages()).hasSize(4);
+        Message resumedToolResult = agent.getMessages().get(2);
+        assertThat(resumedToolResult.role()).isEqualTo(Message.Role.USER);
+        ContentBlock.ToolResult toolResult = (ContentBlock.ToolResult) resumedToolResult.content().getFirst();
+        assertThat(toolResult.toolUseId()).isEqualTo("tool-1");
+        assertThat(toolResult.content()).isEqualTo("approved");
+    }
+
+    @Test
+    void resumeRejectsMissingInterruptResponse() {
+        HookProvider interruptingHook = registrar -> registrar.beforeToolCall(event -> event.interrupt("need approval"));
+        DispatchingHookRegistry hooks = DispatchingHookRegistry.fromProviders(List.of(interruptingHook));
+        EventLoop eventLoop = new EventLoop(hooks);
+        DefaultAgent agent = new DefaultAgent(toolUseThenResumeModel(), List.of(stubTool()), eventLoop, hooks);
+
+        AgentResult interrupted = agent.run("book the trip");
+
+        assertThatThrownBy(() -> interrupted.resume(List.of()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Missing interrupt response");
     }
 
     @Test
@@ -296,5 +374,40 @@ class DefaultAgentTest {
     }
 
     record ValidatedWeatherSummary(@NotBlank String answer, double confidence) {
+    }
+
+    private static Model toolUseThenResumeModel() {
+        return new Model() {
+            private int calls;
+
+            @Override
+            public Iterable<ModelEvent> converse(List<Message> messages, List<ToolSpec> tools) {
+                calls++;
+                if (calls == 1) {
+                    return List.of(
+                            new ModelEvent.ToolUse("tool-1", "approvalTool", java.util.Map.of("city", "Tokyo")),
+                            new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(3, 2)));
+                }
+                Message lastMessage = messages.getLast();
+                ContentBlock.ToolResult toolResult = (ContentBlock.ToolResult) lastMessage.content().getFirst();
+                return List.of(
+                        new ModelEvent.TextDelta("Approval result: " + toolResult.content()),
+                        new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(4, 2)));
+            }
+        };
+    }
+
+    private static Tool stubTool() {
+        return new Tool() {
+            @Override
+            public ToolSpec spec() {
+                return new ToolSpec("approvalTool", "approval", null);
+            }
+
+            @Override
+            public ToolResult invoke(Object input) {
+                return ToolResult.success("tool-1", input);
+            }
+        };
     }
 }

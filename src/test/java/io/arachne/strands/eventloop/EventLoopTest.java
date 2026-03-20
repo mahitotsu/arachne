@@ -1,5 +1,15 @@
 package io.arachne.strands.eventloop;
 
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import org.junit.jupiter.api.Test;
+
+import io.arachne.strands.agent.AgentState;
+import io.arachne.strands.hooks.DispatchingHookRegistry;
+import io.arachne.strands.hooks.HookProvider;
 import io.arachne.strands.hooks.NoOpHookRegistry;
 import io.arachne.strands.model.Model;
 import io.arachne.strands.model.ModelEvent;
@@ -8,13 +18,6 @@ import io.arachne.strands.tool.Tool;
 import io.arachne.strands.tool.ToolResult;
 import io.arachne.strands.types.ContentBlock;
 import io.arachne.strands.types.Message;
-import org.junit.jupiter.api.Test;
-
-import java.util.ArrayList;
-import java.util.List;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Unit tests for {@link EventLoop}.
@@ -60,7 +63,7 @@ class EventLoopTest {
         List<Message> messages = new ArrayList<>();
         messages.add(Message.user("hello"));
 
-        EventLoopResult result = loop.run(textModel("Hi there!"), messages, List.of(), 0);
+        EventLoopResult result = loop.run(textModel("Hi there!"), messages, List.of(), new AgentState(), 0);
 
         assertThat(result.text()).isEqualTo("Hi there!");
         assertThat(result.stopReason()).isEqualTo("end_turn");
@@ -89,7 +92,7 @@ class EventLoopTest {
 
         Model model = toolThenTextModel("id-1", "echo", "ping", "Done!");
 
-        EventLoopResult result = loop.run(model, messages, List.of(echoTool), 0);
+        EventLoopResult result = loop.run(model, messages, List.of(echoTool), new AgentState(), 0);
 
         assertThat(result.text()).isEqualTo("Done!");
         assertThat(result.stopReason()).isEqualTo("end_turn");
@@ -116,7 +119,7 @@ class EventLoopTest {
         // Model requests a tool that is not registered
         Model model = toolThenTextModel("id-x", "nonexistent", null, "Fallback");
 
-        EventLoopResult result = loop.run(model, messages, List.of(), 0);
+        EventLoopResult result = loop.run(model, messages, List.of(), new AgentState(), 0);
 
         assertThat(result.text()).isEqualTo("Fallback");
 
@@ -135,8 +138,58 @@ class EventLoopTest {
         List<Message> messages = new ArrayList<>();
         messages.add(Message.user("loop forever"));
 
-        assertThatThrownBy(() -> loop.run(infiniteToolModel, messages, List.of(), 0))
+        assertThatThrownBy(() -> loop.run(infiniteToolModel, messages, List.of(), new AgentState(), 0))
                 .isInstanceOf(EventLoopException.class)
                 .hasMessageContaining("Max event-loop cycles exceeded");
+    }
+
+    @Test
+    void modelHooksCanRewriteSystemPromptAndAssistantMessage() {
+        AgentState state = new AgentState();
+        List<String> events = new ArrayList<>();
+        HookProvider hookProvider = registrar -> registrar
+                .beforeModelCall(event -> {
+                    events.add("beforeModel:" + event.systemPrompt());
+                    event.setSystemPrompt("rewritten-system");
+                })
+                .afterModelCall(event -> {
+                    events.add("afterModel:" + event.stopReason());
+                    event.setResponse(Message.assistant("Hooked reply"));
+                })
+                .messageAdded(event -> events.add("messageAdded:" + event.message().role()));
+
+        EventLoop hookedLoop = new EventLoop(DispatchingHookRegistry.fromProviders(List.of(hookProvider)));
+        List<Message> messages = new ArrayList<>();
+        messages.add(Message.user("hello"));
+        RecordingSystemPromptModel model = new RecordingSystemPromptModel();
+
+        EventLoopResult result = hookedLoop.run(model, messages, List.of(), "original-system", state, 0);
+
+        assertThat(result.text()).isEqualTo("Hooked reply");
+        assertThat(model.systemPrompt()).isEqualTo("rewritten-system");
+        assertThat(messages.getLast()).isEqualTo(Message.assistant("Hooked reply"));
+        assertThat(events).containsExactly("beforeModel:original-system", "afterModel:end_turn", "messageAdded:ASSISTANT");
+    }
+
+    private static final class RecordingSystemPromptModel implements Model {
+
+        private String systemPrompt;
+
+        @Override
+        public Iterable<ModelEvent> converse(List<Message> messages, List<ToolSpec> tools) {
+            throw new AssertionError("Expected system-prompt-aware overload");
+        }
+
+        @Override
+        public Iterable<ModelEvent> converse(List<Message> messages, List<ToolSpec> tools, String systemPrompt) {
+            this.systemPrompt = systemPrompt;
+            return List.of(
+                    new ModelEvent.TextDelta("Original reply"),
+                    new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(3, 2)));
+        }
+
+        String systemPrompt() {
+            return systemPrompt;
+        }
     }
 }

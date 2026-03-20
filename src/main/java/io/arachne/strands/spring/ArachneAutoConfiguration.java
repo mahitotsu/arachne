@@ -14,6 +14,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.session.MapSessionRepository;
 import org.springframework.session.Session;
@@ -21,6 +22,7 @@ import org.springframework.session.SessionRepository;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import io.arachne.strands.hooks.HookProvider;
 import io.arachne.strands.model.Model;
 import io.arachne.strands.model.retry.ExponentialBackoffRetryStrategy;
 import io.arachne.strands.model.retry.ModelRetryStrategy;
@@ -77,6 +79,22 @@ public class ArachneAutoConfiguration {
         return annotationToolScanner.scanDiscoveredTools(applicationContext.getBeansOfType(Object.class).values());
     }
 
+    @Bean(name = "arachneDiscoveredHooks")
+    @ConditionalOnMissingBean(name = "arachneDiscoveredHooks")
+    public List<HookProvider> arachneDiscoveredHooks(ApplicationContext applicationContext) {
+        return applicationContext.getBeansWithAnnotation(ArachneHook.class).values().stream()
+                .filter(HookProvider.class::isInstance)
+                .map(HookProvider.class::cast)
+                .toList();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public ApplicationEventPublishingHookProvider arachneApplicationEventHookProvider(
+            ApplicationEventPublisher applicationEventPublisher) {
+        return new ApplicationEventPublishingHookProvider(applicationEventPublisher);
+    }
+
     @Bean
     @ConditionalOnMissingBean
     public SessionManager sessionManager(
@@ -117,6 +135,7 @@ public class ArachneAutoConfiguration {
             ArachneProperties properties,
             Model model,
             List<DiscoveredTool> arachneDiscoveredTools,
+            @Qualifier("arachneDiscoveredHooks") List<HookProvider> arachneDiscoveredHooks,
             Validator validator,
             SessionManager sessionManager,
             ObjectProvider<ModelRetryStrategy> modelRetryStrategyProvider,
@@ -126,6 +145,7 @@ public class ArachneAutoConfiguration {
                 properties,
                 model,
                 arachneDiscoveredTools,
+                arachneDiscoveredHooks,
                 validator,
                 sessionManager,
                 modelRetryStrategyProvider.getIfAvailable(),

@@ -17,6 +17,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.context.ApplicationListener;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.session.MapSession;
@@ -27,6 +28,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 
 import io.arachne.strands.agent.Agent;
+import io.arachne.strands.hooks.HookProvider;
 import io.arachne.strands.model.Model;
 import io.arachne.strands.model.ModelEvent;
 import io.arachne.strands.model.ModelThrottledException;
@@ -81,6 +83,36 @@ class ArachneAutoConfigurationTest {
                     Agent agent = context.getBean(AgentFactory.class).builder().build();
 
                     assertThat(agent.getTools()).extracting(tool -> tool.spec().name()).contains("weather");
+                });
+    }
+
+    @Test
+    void autoConfigurationDiscoversAnnotatedHookBeans() {
+        contextRunner
+                .withUserConfiguration(AnnotatedHookConfiguration.class, CustomModelConfiguration.class)
+                .run(context -> {
+                    Agent agent = context.getBean(AgentFactory.class).builder().build();
+
+                    assertThat(agent.run("hello").text()).isEqualTo("ok-hooked");
+                    assertThat(agent.getState().get("hooked")).isEqualTo(Boolean.TRUE);
+                });
+    }
+
+    @Test
+    void applicationEventBridgePublishesObservationOnlyEvents() {
+        contextRunner
+                .withUserConfiguration(CustomModelConfiguration.class, LifecycleEventCollectorConfiguration.class)
+                .run(context -> {
+                    Agent agent = context.getBean(AgentFactory.class).builder().build();
+                    LifecycleEventCollector collector = context.getBean(LifecycleEventCollector.class);
+
+                    assertThat(agent.run("hello").text()).isEqualTo("ok");
+                    assertThat(collector.types()).contains(
+                            "beforeInvocation",
+                            "messageAdded",
+                            "beforeModelCall",
+                            "afterModelCall",
+                            "afterInvocation");
                 });
     }
 
@@ -338,6 +370,46 @@ class ArachneAutoConfigurationTest {
         @StrandsTool(qualifiers = "support")
         public String supportWeather() {
             return "cloudy";
+        }
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    static class AnnotatedHookConfiguration {
+        @Bean
+        @SuppressWarnings("unused")
+        HookProvider annotatedHookProvider() {
+            return new AnnotatedHookProvider();
+        }
+    }
+
+    @ArachneHook
+    static class AnnotatedHookProvider implements HookProvider {
+        @Override
+        public void registerHooks(io.arachne.strands.hooks.HookRegistrar registrar) {
+            registrar.beforeInvocation(event -> event.state().put("hooked", Boolean.TRUE));
+            registrar.afterInvocation(event -> event.setText(event.text() + "-hooked"));
+        }
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    static class LifecycleEventCollectorConfiguration {
+        @Bean
+        @SuppressWarnings("unused")
+        LifecycleEventCollector lifecycleEventCollector() {
+            return new LifecycleEventCollector();
+        }
+    }
+
+    static class LifecycleEventCollector implements ApplicationListener<ArachneLifecycleApplicationEvent> {
+        private final CopyOnWriteArrayList<String> types = new CopyOnWriteArrayList<>();
+
+        @Override
+        public void onApplicationEvent(ArachneLifecycleApplicationEvent event) {
+            types.add(event.type());
+        }
+
+        List<String> types() {
+            return List.copyOf(types);
         }
     }
 

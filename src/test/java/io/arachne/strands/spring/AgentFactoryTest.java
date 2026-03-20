@@ -10,12 +10,15 @@ import org.junit.jupiter.api.Test;
 import org.springframework.session.MapSessionRepository;
 
 import io.arachne.strands.agent.Agent;
+import io.arachne.strands.hooks.Plugin;
 import io.arachne.strands.model.Model;
 import io.arachne.strands.model.ModelEvent;
 import io.arachne.strands.model.ModelThrottledException;
 import io.arachne.strands.model.bedrock.BedrockModel;
 import io.arachne.strands.model.retry.ExponentialBackoffRetryStrategy;
 import io.arachne.strands.session.SpringSessionManager;
+import io.arachne.strands.tool.Tool;
+import io.arachne.strands.tool.ToolResult;
 import io.arachne.strands.tool.annotation.DiscoveredTool;
 import io.arachne.strands.tool.annotation.StrandsTool;
 
@@ -59,6 +62,45 @@ class AgentFactoryTest {
         Agent agent = new AgentFactory(properties, model, List.of(discoveredTool)).builder().build();
 
         assertThat(agent.getTools()).extracting(tool -> tool.spec().name()).contains("helloTool");
+    }
+
+    @Test
+    void buildCanRegisterPluginToolsAndHooks() {
+        ArachneProperties properties = new ArachneProperties();
+        Model model = (messages, tools) -> List.of(
+                new ModelEvent.TextDelta("ok"),
+                new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
+        Plugin plugin = new Plugin() {
+            @Override
+            public List<Tool> tools() {
+                return List.of(new Tool() {
+                    @Override
+                    public io.arachne.strands.model.ToolSpec spec() {
+                        return new io.arachne.strands.model.ToolSpec("pluginTool", "plugin", null);
+                    }
+
+                    @Override
+                    public ToolResult invoke(Object input) {
+                        return ToolResult.success(null, "plugin");
+                    }
+                });
+            }
+
+            @Override
+            public void registerHooks(io.arachne.strands.hooks.HookRegistrar registrar) {
+                registrar.beforeInvocation(event -> event.state().put("source", "plugin"));
+            }
+        };
+
+        Agent agent = new AgentFactory(properties, model)
+                .builder()
+                .plugins(plugin)
+                .build();
+
+        agent.run("hello");
+
+        assertThat(agent.getTools()).extracting(tool -> tool.spec().name()).contains("pluginTool");
+        assertThat(agent.getState().get("source")).isEqualTo("plugin");
     }
 
         @Test

@@ -1,7 +1,9 @@
 package io.arachne.strands.agent;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -11,13 +13,17 @@ import io.arachne.strands.agent.conversation.NoOpConversationManager;
 import io.arachne.strands.eventloop.EventLoop;
 import io.arachne.strands.eventloop.EventLoopResult;
 import io.arachne.strands.eventloop.StructuredOutputContext;
+import io.arachne.strands.hooks.AfterInvocationEvent;
+import io.arachne.strands.hooks.BeforeInvocationEvent;
 import io.arachne.strands.hooks.HookRegistry;
+import io.arachne.strands.hooks.MessageAddedEvent;
 import io.arachne.strands.model.Model;
 import io.arachne.strands.session.AgentSession;
 import io.arachne.strands.session.SessionManager;
 import io.arachne.strands.tool.BeanValidationSupport;
 import io.arachne.strands.tool.StructuredOutputTool;
 import io.arachne.strands.tool.Tool;
+import io.arachne.strands.types.ContentBlock;
 import io.arachne.strands.types.Message;
 import jakarta.validation.Validator;
 
@@ -45,6 +51,7 @@ public class DefaultAgent implements Agent {
     private final SessionManager sessionManager;
     private final String sessionId;
     private final AgentState state;
+    private List<AgentInterrupt> pendingInterrupts = List.of();
 
     /** Mutable conversation history. Growing across multiple run() calls = multi-turn conversation. */
     private final List<Message> messages = new ArrayList<>();
@@ -140,26 +147,47 @@ public class DefaultAgent implements Agent {
 
     @Override
     public AgentResult run(String prompt) {
+        ensureNoPendingInterrupts();
+
         // ── hook callsite: BeforeInvocation ─────────────────────────────────
-        hooks.onBeforeInvocation(prompt);
+        BeforeInvocationEvent beforeInvocationEvent = hooks.onBeforeInvocation(
+            new BeforeInvocationEvent(prompt, messages, state));
 
-        messages.add(Message.user(prompt));
+        addMessage(Message.user(beforeInvocationEvent.prompt()));
 
-        EventLoopResult loopResult = eventLoop.run(model, messages, tools, systemPrompt, 0);
-        conversationManager.applyManagement(messages);
-        persistSession();
+        EventLoopResult loopResult = eventLoop.run(model, messages, tools, systemPrompt, state, 0);
+        if (loopResult.interrupted()) {
+            pendingInterrupts = loopResult.interrupts();
+            persistSession();
+        } else {
+            pendingInterrupts = List.of();
+            conversationManager.applyManagement(messages);
+            persistSession();
+        }
 
         // ── hook callsite: AfterInvocation ───────────────────────────────────
-        hooks.onAfterInvocation(loopResult.text());
+        AfterInvocationEvent afterInvocationEvent = hooks.onAfterInvocation(new AfterInvocationEvent(
+            loopResult.text(),
+            messages,
+            loopResult.stopReason(),
+            state));
 
-        return new AgentResult(loopResult.text(), List.copyOf(messages), loopResult.stopReason());
+        return new AgentResult(
+            afterInvocationEvent.text(),
+            List.copyOf(afterInvocationEvent.messages()),
+            afterInvocationEvent.stopReason(),
+            pendingInterrupts,
+            this::resume);
     }
 
     @Override
     public <T> T run(String prompt, Class<T> outputType) {
-        hooks.onBeforeInvocation(prompt);
+        ensureNoPendingInterrupts();
 
-        messages.add(Message.user(prompt));
+        BeforeInvocationEvent beforeInvocationEvent = hooks.onBeforeInvocation(
+            new BeforeInvocationEvent(prompt, messages, state));
+
+        addMessage(Message.user(beforeInvocationEvent.prompt()));
 
         StructuredOutputTool<T> structuredOutputTool = new StructuredOutputTool<>(
             outputType,
@@ -176,12 +204,30 @@ public class DefaultAgent implements Agent {
                 List.copyOf(invocationTools),
                 systemPrompt,
                 structuredOutputContext,
+                state,
                 0);
 
+        if (loopResult.interrupted()) {
+            pendingInterrupts = loopResult.interrupts();
+            persistSession();
+            hooks.onAfterInvocation(new AfterInvocationEvent(
+                loopResult.text(),
+                messages,
+                loopResult.stopReason(),
+                state));
+            throw new IllegalStateException(
+                    "Structured output invocation was interrupted. Use Agent#run(String) and AgentResult.resume(...) instead.");
+        }
+
+        pendingInterrupts = List.of();
         conversationManager.applyManagement(messages);
         persistSession();
 
-        hooks.onAfterInvocation(loopResult.text());
+        hooks.onAfterInvocation(new AfterInvocationEvent(
+            loopResult.text(),
+            messages,
+            loopResult.stopReason(),
+            state));
 
         return structuredOutputContext.requireValue();
     }
@@ -227,5 +273,61 @@ public class DefaultAgent implements Agent {
         sessionManager.save(
                 sessionId,
                 new AgentSession(List.copyOf(messages), state.get(), conversationManager.getState()));
+    }
+
+    private void addMessage(Message message) {
+        messages.add(message);
+        hooks.onMessageAdded(new MessageAddedEvent(message, messages, state));
+    }
+
+    private AgentResult resume(List<InterruptResponse> responses) {
+        if (pendingInterrupts.isEmpty()) {
+            throw new IllegalStateException("This agent does not have any pending interrupts to resume.");
+        }
+
+        Map<String, InterruptResponse> responsesById = new LinkedHashMap<>();
+        for (InterruptResponse response : responses) {
+            InterruptResponse previous = responsesById.put(response.interruptId(), response);
+            if (previous != null) {
+                throw new IllegalArgumentException("Duplicate interrupt response: " + response.interruptId());
+            }
+        }
+
+        List<ContentBlock.ToolResult> resumeBlocks = new ArrayList<>(pendingInterrupts.size());
+        for (AgentInterrupt interrupt : pendingInterrupts) {
+            InterruptResponse response = responsesById.remove(interrupt.id());
+            if (response == null) {
+                throw new IllegalArgumentException("Missing interrupt response for: " + interrupt.id());
+            }
+            resumeBlocks.add(new ContentBlock.ToolResult(interrupt.toolUseId(), response.response(), "success"));
+        }
+        if (!responsesById.isEmpty()) {
+            throw new IllegalArgumentException("Unknown interrupt response ids: " + responsesById.keySet());
+        }
+
+        pendingInterrupts = List.of();
+        addMessage(new Message(Message.Role.USER, List.copyOf(resumeBlocks)));
+
+        EventLoopResult loopResult = eventLoop.run(model, messages, tools, systemPrompt, state, 0);
+        if (loopResult.interrupted()) {
+            pendingInterrupts = loopResult.interrupts();
+            persistSession();
+            return new AgentResult(
+                    loopResult.text(),
+                    List.copyOf(messages),
+                    loopResult.stopReason(),
+                    pendingInterrupts,
+                    this::resume);
+        }
+
+        conversationManager.applyManagement(messages);
+        persistSession();
+        return new AgentResult(loopResult.text(), List.copyOf(messages), loopResult.stopReason());
+    }
+
+    private void ensureNoPendingInterrupts() {
+        if (!pendingInterrupts.isEmpty()) {
+            throw new IllegalStateException("This agent has pending interrupts. Resume the last result before starting a new invocation.");
+        }
     }
 }

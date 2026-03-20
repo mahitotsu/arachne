@@ -117,20 +117,20 @@ class ChatService {
 
 ---
 
-### Phase 4 — Plugin & Hooks & Interrupts `[ ]`
+### Phase 4 — Plugin & Hooks & Interrupts `[x]`
 
 **Goal**: Spring Bean として hook を登録し、エージェントのライフサイクルに AOP 的に介入できる。
 Interrupts で Human-in-the-loop ワークフローを実現できる。
 
 | Task | Status |
 |---|---|
-| `HookRegistry` + `HookProvider` — 可変イベントによる制御フロー介入 | `[ ]` |
-| 全 hook イベント型: `BeforeInvocationEvent`, `AfterInvocationEvent`, `BeforeToolCallEvent`, `AfterToolCallEvent`, `BeforeModelCallEvent`, `AfterModelCallEvent`, `MessageAddedEvent` | `[ ]` |
-| `Plugin` インターフェース — hook + tool を一体でバンドルする単位 | `[ ]` |
-| `@ArachneHook` アノテーション — Spring Bean として自動検出・登録 | `[ ]` |
-| Spring `ApplicationEvent` ブリッジ — 観測専用の通知を Spring イベントとして publish | `[ ]` |
-| **Interrupts** — `BeforeToolCallEvent.interrupt()` で実行を一時停止し人間の承認を待つ | `[ ]` |
-| `AgentResult.interrupts` — 発生した interrupt の一覧と resume API | `[ ]` |
+| `HookRegistry` + `HookProvider` — 可変イベントによる制御フロー介入 | `[x]` |
+| 全 hook イベント型: `BeforeInvocationEvent`, `AfterInvocationEvent`, `BeforeToolCallEvent`, `AfterToolCallEvent`, `BeforeModelCallEvent`, `AfterModelCallEvent`, `MessageAddedEvent` | `[x]` |
+| `Plugin` インターフェース — hook + tool を一体でバンドルする単位 | `[x]` |
+| `@ArachneHook` アノテーション — Spring Bean として自動検出・登録 | `[x]` |
+| Spring `ApplicationEvent` ブリッジ — 観測専用の通知を Spring イベントとして publish | `[x]` |
+| **Interrupts** — `BeforeToolCallEvent.interrupt()` で実行を一時停止し人間の承認を待つ | `[x]` |
+| `AgentResult.interrupts` — 発生した interrupt の一覧と resume API | `[x]` |
 
 ---
 

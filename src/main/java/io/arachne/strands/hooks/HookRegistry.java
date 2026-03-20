@@ -1,11 +1,5 @@
 package io.arachne.strands.hooks;
 
-import java.util.List;
-
-import io.arachne.strands.model.ToolSpec;
-import io.arachne.strands.tool.ToolResult;
-import io.arachne.strands.types.Message;
-
 /**
  * Lifecycle hook registry for an agent invocation.
  *
@@ -17,20 +11,37 @@ import io.arachne.strands.types.Message;
 public interface HookRegistry {
 
     /** Called before the agent processes a user prompt. */
-    default void onBeforeInvocation(String prompt) {}
+    default BeforeInvocationEvent onBeforeInvocation(BeforeInvocationEvent event) {
+        return event;
+    }
 
     /** Called after the agent has produced its final response. */
-    default void onAfterInvocation(String text) {}
+    default AfterInvocationEvent onAfterInvocation(AfterInvocationEvent event) {
+        return event;
+    }
+
+    /** Called after a message is appended to the conversation history. */
+    default MessageAddedEvent onMessageAdded(MessageAddedEvent event) {
+        return event;
+    }
 
     /** Called immediately before each model call inside the event loop. */
-    default void onBeforeModelCall(List<Message> messages, List<ToolSpec> toolSpecs) {}
+    default BeforeModelCallEvent onBeforeModelCall(BeforeModelCallEvent event) {
+        return event;
+    }
 
     /** Called immediately after each model call returns. */
-    default void onAfterModelCall(Message response, String stopReason) {}
+    default AfterModelCallEvent onAfterModelCall(AfterModelCallEvent event) {
+        return event;
+    }
 
     /** Called before a tool is executed. */
-    default void onBeforeToolCall(String toolName, String toolUseId, Object input) {}
+    default BeforeToolCallEvent onBeforeToolCall(BeforeToolCallEvent event) {
+        return event;
+    }
 
     /** Called after a tool completes (success or error). */
-    default void onAfterToolCall(String toolName, String toolUseId, ToolResult result) {}
+    default AfterToolCallEvent onAfterToolCall(AfterToolCallEvent event) {
+        return event;
+    }
 }

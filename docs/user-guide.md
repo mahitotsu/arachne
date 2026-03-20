@@ -4,7 +4,7 @@ This guide documents the features that are available on the current main branch.
 
 ## Scope
 
-The current implementation gives you a synchronous, Bedrock-backed agent loop with the Phase 1 through Phase 3 feature set on the current main branch.
+The current implementation gives you a synchronous, Bedrock-backed agent loop with the Phase 1 through Phase 4 feature set on the current main branch.
 
 Available now:
 
@@ -25,10 +25,12 @@ Available now:
 - session-scoped key-value state via `AgentState`
 - Spring Session integration through `SessionRepository<?>`, including Redis-backed and JDBC-backed repositories
 - named-agent defaults under `arachne.strands.agents.<name>.*`
+- typed hook dispatch and plugin bundling
+- interrupt / resume handling before tool execution
+- Spring `ApplicationEvent` bridge for lifecycle observation
 
 Not available yet:
 
-- hook dispatch beyond no-op callsites
 - streaming responses
 
 If you want runnable examples instead of only reading the API docs, use these samples:
@@ -358,6 +360,21 @@ Object stopReason = result.stopReason();
 - `text`: the final assistant text returned by the loop
 - `messages`: the full accumulated conversation
 - `stopReason`: the final model stop reason, such as `end_turn`
+- `interrupts`: pending interrupt payloads when tool execution was paused before running
+
+When `stopReason` is `interrupt`, resume the same runtime through the returned result:
+
+```java
+AgentResult result = agent.run("予約を進めて");
+
+if (result.interrupted()) {
+  AgentResult resumed = result.resume(
+      new InterruptResponse(result.interrupts().getFirst().id(), Map.of("approved", true)));
+  String finalText = resumed.text();
+}
+```
+
+Structured-output runs still require a completed invocation. If a hook interrupts a structured-output call, Arachne currently throws and asks you to resume through the string-based `AgentResult` path instead.
 
 The `Agent` instance also exposes session-scoped state:
 
@@ -737,6 +754,60 @@ The default is parallel tool execution. Switch to sequential execution only when
 
 When you need to align tool execution with application infrastructure, Spring Boot auto-configuration exposes the parallel backend through the `arachneToolExecutionExecutor` bean. Override that bean with an `Executor` or `TaskExecutor` if you do not want the default virtual-thread executor.
 
+## Hooks, Plugins, And Interrupts
+
+Phase 4 adds typed lifecycle hooks around invocation, model calls, tool calls, and message additions.
+
+For direct Java usage, register hooks on the builder:
+
+```java
+Agent agent = factory.builder()
+  .hooks(registrar -> registrar.beforeModelCall(event -> {
+    if (event.systemPrompt() == null) {
+      event.setSystemPrompt("You are a concise assistant.");
+    }
+  }))
+  .build();
+```
+
+If you want to bundle tools and hooks together, use `Plugin`:
+
+```java
+Plugin approvalPlugin = new Plugin() {
+  @Override
+  public void registerHooks(HookRegistrar registrar) {
+    registrar.beforeToolCall(event -> event.interrupt("approval", "Operator approval required"));
+  }
+
+  @Override
+  public List<Tool> tools() {
+    return List.of(new ApprovalTool());
+  }
+};
+
+Agent agent = factory.builder()
+  .plugins(approvalPlugin)
+  .build();
+```
+
+For Spring-managed hooks, annotate the bean class with `@ArachneHook` and implement `HookProvider`:
+
+```java
+@Component
+@ArachneHook
+class AuditHook implements HookProvider {
+
+  @Override
+  public void registerHooks(HookRegistrar registrar) {
+    registrar.afterInvocation(event -> {
+      System.out.println(event.stopReason() + ": " + event.text());
+    });
+  }
+}
+```
+
+Spring Boot also publishes observation-only lifecycle notifications as `ArachneLifecycleApplicationEvent`. These events carry immutable snapshots for listeners; subscribing to them does not change the agent control flow.
+
 ## Current Constraints
 
 The current implementation is intentionally narrow.
@@ -744,7 +815,7 @@ The current implementation is intentionally narrow.
 - only AWS Bedrock is supported as a built-in provider
 - the loop is synchronous and blocking
 - responses are non-streaming
-- hook methods exist but dispatch is still no-op
+- interrupt/resume currently feeds human responses back into the conversation as tool results rather than re-entering the original tool invocation automatically
 - sliding-window trimming is property-driven, but summary compaction still requires an explicit `SummarizingConversationManager` on the builder
 - structured output currently targets simple JSON-shaped Java types rather than arbitrary object graphs
 

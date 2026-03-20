@@ -10,6 +10,10 @@ import java.util.concurrent.Executors;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import io.arachne.strands.agent.AgentInterrupt;
+import io.arachne.strands.agent.AgentState;
+import io.arachne.strands.hooks.AfterToolCallEvent;
+import io.arachne.strands.hooks.BeforeToolCallEvent;
 import io.arachne.strands.hooks.HookRegistry;
 import io.arachne.strands.types.ContentBlock;
 
@@ -36,38 +40,72 @@ public class ToolExecutor {
         this.parallelExecutor = parallelExecutor;
     }
 
-    public List<ToolResult> execute(List<Tool> tools, List<ContentBlock.ToolUse> requests, HookRegistry hooks) {
+    public List<ToolResult> execute(
+            List<Tool> tools,
+            List<ContentBlock.ToolUse> requests,
+            HookRegistry hooks,
+            AgentState state) {
+        List<BeforeToolCallEvent> preparedRequests = prepareRequests(requests, hooks, state);
         return switch (executionMode) {
-            case PARALLEL -> executeParallel(tools, requests, hooks);
-            case SEQUENTIAL -> executeSequential(tools, requests, hooks);
+            case PARALLEL -> executeParallel(tools, preparedRequests, hooks, state);
+            case SEQUENTIAL -> executeSequential(tools, preparedRequests, hooks, state);
         };
     }
 
-    private List<ToolResult> executeSequential(List<Tool> tools, List<ContentBlock.ToolUse> requests, HookRegistry hooks) {
-        List<ToolResult> results = new ArrayList<>(requests.size());
+    private List<BeforeToolCallEvent> prepareRequests(
+            List<ContentBlock.ToolUse> requests,
+            HookRegistry hooks,
+            AgentState state) {
+        List<BeforeToolCallEvent> preparedRequests = new ArrayList<>(requests.size());
+        List<AgentInterrupt> interrupts = new ArrayList<>();
         for (ContentBlock.ToolUse request : requests) {
-            results.add(executeOne(tools, request, hooks));
+            BeforeToolCallEvent event = hooks.onBeforeToolCall(
+                    new BeforeToolCallEvent(request.name(), request.toolUseId(), request.input(), state));
+            preparedRequests.add(event);
+            if (event.interrupt() != null) {
+                interrupts.add(event.interrupt());
+            }
+        }
+        if (!interrupts.isEmpty()) {
+            throw new ToolExecutionInterruptedException(interrupts);
+        }
+        return List.copyOf(preparedRequests);
+    }
+
+    private List<ToolResult> executeSequential(
+            List<Tool> tools,
+            List<BeforeToolCallEvent> requests,
+            HookRegistry hooks,
+            AgentState state) {
+        List<ToolResult> results = new ArrayList<>(requests.size());
+        for (BeforeToolCallEvent request : requests) {
+            results.add(executeOne(tools, request, hooks, state));
         }
         return List.copyOf(results);
     }
 
-    private List<ToolResult> executeParallel(List<Tool> tools, List<ContentBlock.ToolUse> requests, HookRegistry hooks) {
+    private List<ToolResult> executeParallel(
+            List<Tool> tools,
+            List<BeforeToolCallEvent> requests,
+            HookRegistry hooks,
+            AgentState state) {
         if (parallelExecutor != null) {
-            return executeParallel(tools, requests, hooks, parallelExecutor);
+            return executeParallel(tools, requests, hooks, state, parallelExecutor);
         }
 
         try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
-            return executeParallel(tools, requests, hooks, executor);
+            return executeParallel(tools, requests, hooks, state, executor);
         }
     }
 
     private List<ToolResult> executeParallel(
             List<Tool> tools,
-            List<ContentBlock.ToolUse> requests,
+            List<BeforeToolCallEvent> requests,
             HookRegistry hooks,
+            AgentState state,
             Executor executor) {
         List<CompletableFuture<ToolResult>> futures = requests.stream()
-                .map(request -> CompletableFuture.supplyAsync(() -> executeOne(tools, request, hooks), executor))
+                .map(request -> CompletableFuture.supplyAsync(() -> executeOne(tools, request, hooks, state), executor))
                 .toList();
 
         List<ToolResult> results = new ArrayList<>(futures.size());
@@ -92,28 +130,38 @@ public class ToolExecutor {
         }
     }
 
-    private ToolResult executeOne(List<Tool> tools, ContentBlock.ToolUse request, HookRegistry hooks) {
-        hooks.onBeforeToolCall(request.name(), request.toolUseId(), request.input());
+    private ToolResult executeOne(
+            List<Tool> tools,
+            BeforeToolCallEvent request,
+            HookRegistry hooks,
+            AgentState state) {
         ToolResult result;
         try {
-            Tool tool = findTool(tools, request.name());
-            result = tool.invoke(request.input());
+            if (request.overrideResult() != null) {
+                result = request.overrideResult();
+            } else {
+                Tool tool = findTool(tools, request.toolName());
+                result = tool.invoke(request.input());
+            }
         } catch (StructuredOutputException e) {
-            LOG.log(Level.FINE, () -> "Tool invocation failed: " + request.name() + ": " + e.getMessage());
+            LOG.log(Level.FINE, () -> "Tool invocation failed: " + request.toolName() + ": " + e.getMessage());
             throw e;
         } catch (ToolDefinitionException | ToolValidationException e) {
-            LOG.log(Level.FINE, () -> "Tool invocation failed: " + request.name() + ": " + e.getMessage());
+            LOG.log(Level.FINE, () -> "Tool invocation failed: " + request.toolName() + ": " + e.getMessage());
             result = ToolResult.error(request.toolUseId(), e.getMessage());
         } catch (Exception e) {
-            LOG.log(Level.WARNING, "Tool invocation failed: " + request.name(), e);
+            LOG.log(Level.WARNING, "Tool invocation failed: " + request.toolName(), e);
             result = ToolResult.error(request.toolUseId(), e.getMessage());
         }
 
         if (result.toolUseId() == null || result.toolUseId().isBlank()) {
             result = new ToolResult(request.toolUseId(), result.status(), result.content());
         }
-        hooks.onAfterToolCall(request.name(), request.toolUseId(), result);
-        return result;
+        return hooks.onAfterToolCall(new AfterToolCallEvent(
+                request.toolName(),
+                request.toolUseId(),
+                result,
+                state)).result();
     }
 
     private Tool findTool(List<Tool> tools, String name) {

@@ -2,7 +2,7 @@
 
 Arachne is a Java port of the Strands Agents SDK with Spring Boot integration.
 
-Phase 1 through Phase 3 are complete on the current main branch. You can already:
+Phase 1 through Phase 4 are complete on the current main branch. You can already:
 
 - auto-configure a Bedrock-backed `Model` in Spring Boot
 - create an `Agent` from `AgentFactory`
@@ -17,10 +17,13 @@ Phase 1 through Phase 3 are complete on the current main branch. You can already
 - retry retryable model calls with exponential backoff at the model boundary
 - persist conversation history and agent state with in-memory, file-backed, Redis-backed, or JDBC-backed session storage
 - declare named-agent defaults in `application.yml` and build them with `AgentFactory.builder("name")`
+- register runtime hooks and plugins through `AgentFactory.Builder`
+- auto-discover Spring hook beans with `@ArachneHook`
+- observe hook activity through the Spring `ApplicationEvent` bridge
+- pause tool execution with interrupts and continue through `AgentResult.resume(...)`
 
 Not available yet:
 
-- hook dispatch beyond no-op callsites
 - streaming responses
 
 The current user-facing guide is here:
@@ -45,7 +48,7 @@ Contributor workflow helpers for roadmap phases:
 
 ## Current Status
 
-Phase 1 covers the synchronous Bedrock event loop. Phase 2 adds annotation-driven tools and structured output as first-class APIs. Phase 3 completes conversation management, session persistence backends, retry, and multi-agent configuration. Phase 3.5 completes the Spring integration review: the standard idiom is now factory-owned runtimes, shared application-facing `ObjectMapper` reuse, and a pluggable tool-execution backend.
+Phase 1 covers the synchronous Bedrock event loop. Phase 2 adds annotation-driven tools and structured output as first-class APIs. Phase 3 completes conversation management, session persistence backends, retry, and multi-agent configuration. Phase 3.5 completes the Spring integration review: the standard idiom is now factory-owned runtimes, shared application-facing `ObjectMapper` reuse, and a pluggable tool-execution backend. Phase 4 completes typed hook dispatch, plugin bundling, Spring hook discovery, the observation-only Spring event bridge, and interrupt/resume control flow before tool execution.
 
 Available now on the Phase 2 path:
 
@@ -68,6 +71,15 @@ Available now on the Phase 3 path:
 - `application.yml` defaults for session id, file session storage, and conversation window size
 - a runnable Redis session sample backed by Docker Compose
 - a runnable JDBC session sample backed by a local H2 database
+
+Available now on the Phase 4 path:
+
+- typed lifecycle hook events for invocation, model calls, tool calls, and message additions
+- runtime hook registration with `HookProvider` and `builder().hooks(...)`
+- tool-and-hook bundling with `Plugin` and `builder().plugins(...)`
+- Spring hook auto-discovery with `@ArachneHook`
+- observation-only lifecycle publication through Spring `ApplicationEvent`
+- `AgentResult.interrupts()` and `AgentResult.resume(...)` for human-in-the-loop pauses before tool execution
 
 ## Quick Start
 

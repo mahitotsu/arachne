@@ -3,13 +3,18 @@ package io.arachne.strands.eventloop;
 import java.util.ArrayList;
 import java.util.List;
 
+import io.arachne.strands.agent.AgentState;
+import io.arachne.strands.hooks.AfterModelCallEvent;
+import io.arachne.strands.hooks.BeforeModelCallEvent;
 import io.arachne.strands.hooks.HookRegistry;
+import io.arachne.strands.hooks.MessageAddedEvent;
 import io.arachne.strands.model.Model;
 import io.arachne.strands.model.ModelEvent;
 import io.arachne.strands.model.ToolSelection;
 import io.arachne.strands.model.ToolSpec;
 import io.arachne.strands.tool.StructuredOutputException;
 import io.arachne.strands.tool.Tool;
+import io.arachne.strands.tool.ToolExecutionInterruptedException;
 import io.arachne.strands.tool.ToolExecutor;
 import io.arachne.strands.tool.ToolResult;
 import io.arachne.strands.types.ContentBlock;
@@ -67,8 +72,9 @@ public class EventLoop {
             Model model,
             List<Message> messages,
             List<Tool> tools,
+            AgentState state,
             int cycleCount) {
-        return run(model, messages, tools, null, null, cycleCount);
+        return run(model, messages, tools, null, null, state, cycleCount);
     }
 
     /**
@@ -81,8 +87,9 @@ public class EventLoop {
             List<Message> messages,
             List<Tool> tools,
             String systemPrompt,
+            AgentState state,
             int cycleCount) {
-        return run(model, messages, tools, systemPrompt, null, cycleCount);
+        return run(model, messages, tools, systemPrompt, null, state, cycleCount);
     }
 
     public EventLoopResult run(
@@ -91,6 +98,7 @@ public class EventLoop {
             List<Tool> tools,
             String systemPrompt,
             StructuredOutputContext<?> structuredOutputContext,
+            AgentState state,
             int cycleCount) {
         if (cycleCount >= MAX_CYCLES) {
             throw new EventLoopException("Max event-loop cycles exceeded: " + MAX_CYCLES);
@@ -105,9 +113,14 @@ public class EventLoop {
         }
 
         // ── hook callsite: BeforeModelCall ──────────────────────────────────
-        hooks.onBeforeModelCall(messages, toolSpecs);
+        BeforeModelCallEvent beforeModelCallEvent = hooks.onBeforeModelCall(
+            new BeforeModelCallEvent(messages, toolSpecs, systemPrompt, toolSelection, state));
 
-        Iterable<ModelEvent> events = model.converse(messages, toolSpecs, systemPrompt, toolSelection);
+        Iterable<ModelEvent> events = model.converse(
+            beforeModelCallEvent.messages(),
+            beforeModelCallEvent.toolSpecs(),
+            beforeModelCallEvent.systemPrompt(),
+            beforeModelCallEvent.toolSelection());
 
         // Accumulate text deltas and tool-use requests from the model response
         StringBuilder textBuilder = new StringBuilder();
@@ -138,30 +151,56 @@ public class EventLoop {
         assistantContent.addAll(toolUseBlocks);
 
         Message assistantMessage = new Message(Message.Role.ASSISTANT, List.copyOf(assistantContent));
-        messages.add(assistantMessage);
 
         // ── hook callsite: AfterModelCall ────────────────────────────────────
-        hooks.onAfterModelCall(assistantMessage, stopReason);
+        AfterModelCallEvent afterModelCallEvent = hooks.onAfterModelCall(
+            new AfterModelCallEvent(assistantMessage, stopReason, messages, state));
+        assistantMessage = afterModelCallEvent.response();
+        stopReason = afterModelCallEvent.stopReason();
+        text = assistantMessage.content().stream()
+            .filter(ContentBlock.Text.class::isInstance)
+            .map(ContentBlock.Text.class::cast)
+            .map(ContentBlock.Text::text)
+            .collect(java.util.stream.Collectors.joining());
+        messages.add(assistantMessage);
+        hooks.onMessageAdded(new MessageAddedEvent(assistantMessage, messages, state));
 
         if ("tool_use".equals(stopReason)) {
+            List<ContentBlock.ToolUse> requestedToolUseBlocks = assistantMessage.content().stream()
+                .filter(ContentBlock.ToolUse.class::isInstance)
+                .map(ContentBlock.ToolUse.class::cast)
+                .toList();
             List<ContentBlock> toolResultBlocks = new ArrayList<>();
 
-            for (ToolResult result : toolExecutor.execute(tools, toolUseBlocks, hooks)) {
-                toolResultBlocks.add(
-                        new ContentBlock.ToolResult(
-                                result.toolUseId(),
-                                result.content(),
-                                result.status().name().toLowerCase()));
+            try {
+                for (ToolResult result : toolExecutor.execute(tools, requestedToolUseBlocks, hooks, state)) {
+                    toolResultBlocks.add(
+                            new ContentBlock.ToolResult(
+                                    result.toolUseId(),
+                                    result.content(),
+                                    result.status().name().toLowerCase()));
+                }
+            } catch (ToolExecutionInterruptedException interruptedException) {
+                return new EventLoopResult(text, "interrupt", inputTokens, outputTokens, interruptedException.interrupts());
             }
 
-            messages.add(new Message(Message.Role.USER, List.copyOf(toolResultBlocks)));
+            Message toolResultMessage = new Message(Message.Role.USER, List.copyOf(toolResultBlocks));
+            messages.add(toolResultMessage);
+            hooks.onMessageAdded(new MessageAddedEvent(toolResultMessage, messages, state));
 
             if (structuredOutputContext != null && structuredOutputContext.isSatisfied()) {
                 return new EventLoopResult(text, stopReason, inputTokens, outputTokens);
             }
 
             // Recurse for the next model turn
-            return run(model, messages, tools, systemPrompt, structuredOutputContext, cycleCount + 1);
+                return run(
+                    model,
+                    messages,
+                    tools,
+                    beforeModelCallEvent.systemPrompt(),
+                    structuredOutputContext,
+                    state,
+                    cycleCount + 1);
         }
 
         if (structuredOutputContext != null && !structuredOutputContext.isSatisfied()) {
@@ -170,8 +209,17 @@ public class EventLoop {
                         "The model failed to invoke the structured output tool even after it was forced.");
             }
             structuredOutputContext.markForceAttempted();
-            messages.add(Message.user(structuredOutputContext.forcePrompt()));
-            return run(model, messages, tools, systemPrompt, structuredOutputContext, cycleCount + 1);
+                Message forcePromptMessage = Message.user(structuredOutputContext.forcePrompt());
+                messages.add(forcePromptMessage);
+                hooks.onMessageAdded(new MessageAddedEvent(forcePromptMessage, messages, state));
+                return run(
+                    model,
+                    messages,
+                    tools,
+                    beforeModelCallEvent.systemPrompt(),
+                    structuredOutputContext,
+                    state,
+                    cycleCount + 1);
         }
 
         return new EventLoopResult(text, stopReason, inputTokens, outputTokens);
