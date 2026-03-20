@@ -88,7 +88,7 @@ Any leftover work must be classified instead of left implicit:
 
 ## 9. Report format
 
-Use a compact report with these fields:
+Use a compact report in Japanese by default with these fields:
 
 - Phase: target phase and goal
 - Status: complete, incomplete, or blocked
@@ -96,3 +96,5 @@ Use a compact report with these fields:
 - Updates made: exact files changed and why
 - Remaining work: only if anything is still open
 - Recommendation: mark complete, continue implementation, run closeout later, or prepare next phase
+
+If the invoking prompt requires a different final section set or heading wording, follow the prompt while keeping the prose in Japanese.

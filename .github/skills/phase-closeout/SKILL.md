@@ -17,6 +17,7 @@ Load and follow the repository checklist in [closeout-checklist](./references/cl
 - The slash-command arguments identify the target phase.
 - If the phase is ambiguous, resolve it from ROADMAP.md before making edits.
 - If the user asked for an audit rather than closeout, keep edits narrow and prioritize findings.
+- Unless the user explicitly asks for another language, produce the report in Japanese.
 
 ## Required Procedure
 
@@ -39,10 +40,12 @@ Load and follow the repository checklist in [closeout-checklist](./references/cl
 
 ## Expected Output
 
-Return a concise report with these sections when relevant:
+Return a concise report in Japanese with these sections when relevant:
 
 - Phase status
 - Updates made
 - Checks performed
 - Open items or risks
 - Recommendation for next action
+
+Use natural Japanese section headings. When the invoking prompt specifies exact required headings or section order, follow that prompt.
