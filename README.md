@@ -47,6 +47,12 @@ Contributor workflow helpers for roadmap phases:
 - `/phase-audit <phase>` checks whether a phase is actually ready to close, with explicit findings for roadmap gaps, stale docs, missing ADR work, sample drift, instruction drift, and regression risk.
 - `/phase-closeout <phase>` runs the same repository-specific checklist, makes the required updates when they are clearly supported by the current repo state, and finishes with a completion report.
 
+Quality evaluation workflow:
+
+- [docs/quality-evaluation.md](docs/quality-evaluation.md) defines the observation-oriented report profiles and the interpretation flow for repository quality reviews.
+- `/quality-audit` uses the generated quality artifacts and repository context to produce a Japanese quality evaluation report.
+- `.github/dependabot.yml` keeps repository-side dependency updates and advisory-backed remediation visible without making the local Maven loop heavy.
+
 ## Current Status
 
 Phase 1 covers the synchronous Bedrock event loop. Phase 2 adds annotation-driven tools and structured output as first-class APIs. Phase 3 completes conversation management, session persistence backends, retry, and multi-agent configuration. Phase 3.5 completes the Spring integration review: the standard idiom is now factory-owned runtimes, shared application-facing `ObjectMapper` reuse, and a pluggable tool-execution backend. Phase 4 completes typed hook dispatch, plugin bundling, Spring hook discovery, the observation-only Spring event bridge, and interrupt/resume control flow before tool execution.
