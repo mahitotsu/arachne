@@ -623,6 +623,8 @@ The runnable version of this pattern is here:
 
 - [samples/phase2-tools/README.md](samples/phase2-tools/README.md)
 
+On the current main branch, that runnable sample uses named-agent defaults from Phase 3 to keep the Java wiring small. The core pattern it demonstrates is still the Phase 2 one: a `@StrandsTool`-annotated Spring service method delegates to another short-lived agent runtime, and the caller can still request structured output from the top-level agent.
+
 ## Structured Output
 
 You can ask the final answer to be returned as a Java type.

@@ -38,6 +38,7 @@
 - [0004-agent-definition-runtime-split.md](0004-agent-definition-runtime-split.md) — definition/runtime の別型導入は保留し、当面は `AgentFactory` 主導で扱う
 - [0005-binding-validation-boundaries.md](0005-binding-validation-boundaries.md) — binding と validation を別段階として扱い、Spring bean 再利用範囲を定める
 - [0006-tool-execution-backend.md](0006-tool-execution-backend.md) — `ToolExecutor` の execution backend は固定実装にせず Spring から差し替え可能とする
+- [0007-phase2-tool-contracts.md](0007-phase2-tool-contracts.md) — annotation-driven tools、qualifier ベースの tool scope、structured output を Phase 2 の公開契約として扱う
 
 ## Phase 3.5 の候補
 
@@ -57,7 +58,7 @@
 - `SessionManager` 抽象と `InMemorySessionManager` / `FileSessionManager` / Spring Session adapter を採用した判断
 - Redis / JDBC backend でも explicit `sessionId` を維持する判断
 - Spring Boot auto-configuration と `AgentFactory` を標準の統合入口にした判断
-- annotation tool discovery と qualifier ベースの tool scope を採用した判断
+- Phase 2 の annotation tool discovery、tool scope、structured output をどこまで後方互換対象として固定するか
 
 retrospective ADR では、当時の背景を後から補ってよいが、少なくとも「現在のコードベースが何を採用しているか」「代替案は何だったか」「今後どこまで固定したいか」を明示する。
 

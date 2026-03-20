@@ -1,6 +1,10 @@
 # Phase 2 Tools Sample
 
-This sample shows the intended Phase 2-style Spring idiom on the current main branch:
+This sample shows the intended Phase 2-style Spring idiom on the current main branch.
+
+It is not a phase-pure snapshot of the original Phase 2 branch. On today's main branch, the runnable sample uses named-agent defaults introduced in Phase 3 so the Java wiring can stay small while the sample still demonstrates the Phase 2 tool and structured-output contract.
+
+Concretely, the sample is here to show these Phase 2 concepts in a runnable form:
 
 - named-agent defaults are declared in `application.yml`
 - a `@Service` method annotated with `@StrandsTool` is auto-discovered as a tool
@@ -58,7 +62,7 @@ Both agent runtimes are built with `factory.builder("...")` at the point of use 
 
 That means the tool method is not doing the real language-model work itself. It delegates to another agent and exposes the result through a narrow Spring service API.
 
-This is the Phase 2 agent-as-tool pattern in Spring form.
+This is the Phase 2 agent-as-tool pattern in Spring form, packaged with current-main configuration conveniences from later phases.
 
 The sample also shows the current validation model for Phase 2: `@NotBlank` on the tool input and the `TripPlan` record is checked at runtime, but those constraints are not projected into the generated JSON schema.
 
@@ -83,3 +87,5 @@ arachne:
 ```
 
 Override any of those values with standard Spring Boot configuration mechanisms if needed. The sample's Java configuration stays small because the per-agent defaults now live under `arachne.strands.agents.<name>.*`.
+
+If you want the phase-pure minimal idiom, read this sample together with the simpler builder-based snippets in the user guide. This runnable sample intentionally prefers current-main wiring over historical fidelity.
