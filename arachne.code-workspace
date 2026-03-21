@@ -27,6 +27,10 @@
         {
             "name": "phase5-skills",
             "path": "samples/phase5-skills"
+        },
+        {
+            "name": "phase6-streaming-steering",
+            "path": "samples/phase6-streaming-steering"
         }
     ],
     "settings": {
