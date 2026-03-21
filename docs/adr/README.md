@@ -41,7 +41,7 @@
 - [0007-phase2-tool-contracts.md](0007-phase2-tool-contracts.md) — annotation-driven tools、qualifier ベースの tool scope、structured output を Phase 2 の公開契約として扱う
 - [0008-hook-registry-and-plugin-boundary.md](0008-hook-registry-and-plugin-boundary.md) — typed hook event、runtime-local registry、plugin bundling、Spring hook discovery の境界を定める
 - [0009-interrupt-resume-and-observation-bridge.md](0009-interrupt-resume-and-observation-bridge.md) — interrupt/resume API と observation-only Spring event bridge の境界を定める
-- [0010-skills-injection-and-discovery-boundary.md](0010-skills-injection-and-discovery-boundary.md) — `Skill` / `SkillParser`、prompt injection、classpath discovery、`builder().skills(...)` の境界を定める
+- [0010-skills-injection-and-discovery-boundary.md](0010-skills-injection-and-discovery-boundary.md) — `Skill` / `SkillParser`、delayed skill activation、context management、classpath discovery、`builder().skills(...)` の境界を定める
 
 ## 今後の候補
 

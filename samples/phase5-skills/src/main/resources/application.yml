@@ -1,0 +1,13 @@
+spring:
+  application:
+    name: arachne-phase5-skills
+  main:
+    banner-mode: off
+    web-application-type: none
+
+arachne:
+  strands:
+    agent:
+      system-prompt: "You are a release assistant. Use skills when they are relevant."
+      session:
+        id: phase5-skills-demo

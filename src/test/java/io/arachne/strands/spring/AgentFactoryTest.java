@@ -105,7 +105,7 @@ class AgentFactoryTest {
     }
 
     @Test
-    void buildIncludesDiscoveredSkillsInSystemPrompt() {
+    void buildIncludesDiscoveredSkillsInCatalogAndActivationTool() {
         ArachneProperties properties = new ArachneProperties();
         properties.getAgent().setSystemPrompt("Base system prompt");
         RecordingSystemPromptModel model = new RecordingSystemPromptModel();
@@ -130,44 +130,46 @@ class AgentFactoryTest {
 
         agent.run("prepare release");
 
+        assertThat(agent.getTools()).extracting(tool -> tool.spec().name()).contains("activate_skill");
         assertThat(model.systemPrompt()).contains("Base system prompt");
         assertThat(model.systemPrompt()).contains("release-checklist");
-        assertThat(model.systemPrompt()).contains("Run mvn test before merging.");
+        assertThat(model.systemPrompt()).contains("<available_skills>");
+        assertThat(model.systemPrompt()).doesNotContain("Run mvn test before merging.");
     }
 
-        @Test
-        void buildCanFilterDiscoveredToolsByQualifier() {
+    @Test
+    void buildCanFilterDiscoveredToolsByQualifier() {
         ArachneProperties properties = new ArachneProperties();
         Model model = (messages, tools) -> List.of(
-            new ModelEvent.TextDelta("ok"),
-            new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
+                new ModelEvent.TextDelta("ok"),
+                new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
         List<DiscoveredTool> discoveredTools = new io.arachne.strands.tool.annotation.AnnotationToolScanner()
-            .scanDiscoveredTools(List.of(new PlannerToolBean(), new SupportToolBean()));
+                .scanDiscoveredTools(List.of(new PlannerToolBean(), new SupportToolBean()));
 
         Agent agent = new AgentFactory(properties, model, discoveredTools)
-            .builder()
-            .toolQualifiers("planner")
-            .build();
+                .builder()
+                .toolQualifiers("planner")
+                .build();
 
         assertThat(agent.getTools()).extracting(tool -> tool.spec().name()).containsExactly("plannerTool");
-        }
+    }
 
-        @Test
-        void buildCanDisableDiscoveredTools() {
+    @Test
+    void buildCanDisableDiscoveredTools() {
         ArachneProperties properties = new ArachneProperties();
         Model model = (messages, tools) -> List.of(
-            new ModelEvent.TextDelta("ok"),
-            new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
+                new ModelEvent.TextDelta("ok"),
+                new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
         List<DiscoveredTool> discoveredTools = new io.arachne.strands.tool.annotation.AnnotationToolScanner()
-            .scanDiscoveredTools(List.of(new PlannerToolBean()));
+                .scanDiscoveredTools(List.of(new PlannerToolBean()));
 
         Agent agent = new AgentFactory(properties, model, discoveredTools)
-            .builder()
-            .useDiscoveredTools(false)
-            .build();
+                .builder()
+                .useDiscoveredTools(false)
+                .build();
 
         assertThat(agent.getTools()).isEmpty();
-        }
+    }
 
     @Test
     void buildUsesConfiguredSessionIdAndRestoresAcrossAgents() {
@@ -188,6 +190,45 @@ class AgentFactoryTest {
 
         assertThat(restored.getMessages()).hasSize(2);
         assertThat(restored.getState().get("topic")).isEqualTo("travel");
+    }
+
+    @Test
+    void buildRestoresActivatedSkillsAcrossAgents() {
+        ArachneProperties properties = new ArachneProperties();
+        properties.getAgent().getSession().setId("skills-session");
+        Skill skill = new Skill(
+                "release-checklist",
+                "Use this skill when preparing a release.",
+                "Run mvn test before merging.");
+        SkillSessionRestoreModel model = new SkillSessionRestoreModel();
+        SpringSessionManager sessionManager = new SpringSessionManager(
+                new MapSessionRepository(new java.util.concurrent.ConcurrentHashMap<>()));
+
+        AgentFactory factory = new AgentFactory(
+                properties,
+                model,
+                List.of(),
+                List.of(),
+                List.of(skill),
+                io.arachne.strands.tool.BeanValidationSupport.defaultValidator(),
+                sessionManager,
+                null,
+                new com.fasterxml.jackson.databind.ObjectMapper(),
+                null);
+
+        Agent first = factory.builder().build();
+        assertThat(first.run("prepare release").text()).isEqualTo("loaded");
+
+        Agent restored = factory.builder().build();
+        assertThat(restored.getState().get("arachne.skills.loaded")).isEqualTo(List.of("release-checklist"));
+        assertThat(restored.run("what should I do next?").text()).isEqualTo("restored");
+
+        assertThat(model.systemPrompts()).hasSize(3);
+        assertThat(model.systemPrompts().get(0)).contains("<available_skills>");
+        assertThat(model.systemPrompts().get(0)).doesNotContain("<active_skills>");
+        assertThat(model.systemPrompts().get(1)).doesNotContain("<active_skills>");
+        assertThat(model.systemPrompts().get(2)).contains("<active_skills>");
+        assertThat(model.systemPrompts().get(2)).contains("Run mvn test before merging.");
     }
 
     @Test
@@ -419,6 +460,75 @@ class AgentFactoryTest {
 
         String systemPrompt() {
             return systemPrompt;
+        }
+    }
+
+    private static final class SkillSessionRestoreModel implements Model {
+
+        private final java.util.ArrayList<String> systemPrompts = new java.util.ArrayList<>();
+
+        @Override
+        public Iterable<ModelEvent> converse(List<io.arachne.strands.types.Message> messages, List<io.arachne.strands.model.ToolSpec> tools) {
+            throw new AssertionError("Expected the system-prompt-aware overload");
+        }
+
+        @Override
+        public Iterable<ModelEvent> converse(
+                List<io.arachne.strands.types.Message> messages,
+                List<io.arachne.strands.model.ToolSpec> tools,
+                String systemPrompt) {
+            return converse(messages, tools, systemPrompt, null);
+        }
+
+        @Override
+        public Iterable<ModelEvent> converse(
+                List<io.arachne.strands.types.Message> messages,
+                List<io.arachne.strands.model.ToolSpec> tools,
+                String systemPrompt,
+                io.arachne.strands.model.ToolSelection toolSelection) {
+            systemPrompts.add(systemPrompt);
+            if (!hasSkillActivation(messages)) {
+                return List.of(
+                        new ModelEvent.ToolUse("skill-1", "activate_skill", java.util.Map.of("name", "release-checklist")),
+                        new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
+            }
+            String latestUserText = latestUserText(messages);
+            String text = "what should I do next?".equals(latestUserText) ? "restored" : "loaded";
+            return List.of(
+                    new ModelEvent.TextDelta(text),
+                    new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
+        }
+
+        List<String> systemPrompts() {
+            return List.copyOf(systemPrompts);
+        }
+
+        private boolean hasSkillActivation(List<io.arachne.strands.types.Message> messages) {
+            for (io.arachne.strands.types.Message message : messages) {
+                for (io.arachne.strands.types.ContentBlock block : message.content()) {
+                    if (block instanceof io.arachne.strands.types.ContentBlock.ToolResult toolResult
+                            && toolResult.content() instanceof java.util.Map<?, ?> content
+                            && "skill_activation".equals(content.get("type"))) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        private String latestUserText(List<io.arachne.strands.types.Message> messages) {
+            for (int index = messages.size() - 1; index >= 0; index--) {
+                io.arachne.strands.types.Message message = messages.get(index);
+                if (message.role() != io.arachne.strands.types.Message.Role.USER) {
+                    continue;
+                }
+                for (io.arachne.strands.types.ContentBlock block : message.content()) {
+                    if (block instanceof io.arachne.strands.types.ContentBlock.Text text) {
+                        return text.text();
+                    }
+                }
+            }
+            return null;
         }
     }
 }

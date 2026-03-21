@@ -18,5 +18,6 @@
         <module>phase3-redis-session</module>
         <module>phase3-jdbc-session</module>
         <module>phase4-hooks-interrupts</module>
+        <module>phase5-skills</module>
     </modules>
 </project>

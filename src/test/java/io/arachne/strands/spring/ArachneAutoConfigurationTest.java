@@ -109,8 +109,10 @@ class ArachneAutoConfigurationTest {
                     RecordingSystemPromptModel model = context.getBean(RecordingSystemPromptModel.class);
 
                     assertThat(agent.run("hello").text()).isEqualTo("ok");
+                    assertThat(agent.getTools()).extracting(tool -> tool.spec().name()).contains("activate_skill");
                     assertThat(model.systemPrompt()).contains("release-checklist");
-                    assertThat(model.systemPrompt()).contains("Run mvn test before merging.");
+                    assertThat(model.systemPrompt()).contains("<available_skills>");
+                    assertThat(model.systemPrompt()).doesNotContain("Run mvn test before merging.");
                 });
     }
 

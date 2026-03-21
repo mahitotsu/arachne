@@ -23,6 +23,10 @@
         {
             "name": "phase4-hooks-interrupts",
             "path": "samples/phase4-hooks-interrupts"
+        },
+        {
+            "name": "phase5-skills",
+            "path": "samples/phase5-skills"
         }
     ],
     "settings": {
