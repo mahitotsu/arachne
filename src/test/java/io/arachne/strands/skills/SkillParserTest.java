@@ -76,6 +76,47 @@ class SkillParserTest {
     }
 
     @Test
+    void rejectsMissingClosingFrontmatterDelimiter() {
+        assertThatThrownBy(() -> parser.parse("""
+                ---
+                name: release-checklist
+                description: Use this skill when preparing a release.
+                Run mvn test before merging.
+                """))
+                .isInstanceOf(SkillParseException.class)
+                .hasMessageContaining("closing --- delimiter");
+    }
+
+    @Test
+    void rejectsNonMappingFrontmatter() {
+        assertThatThrownBy(() -> parser.parse("""
+                ---
+                - release-checklist
+                - another-skill
+                ---
+                body
+                """))
+                .isInstanceOf(SkillParseException.class)
+                .hasMessageContaining("frontmatter must be a YAML mapping");
+    }
+
+    @Test
+    void rejectsNonMappingMetadata() {
+        assertThatThrownBy(() -> parser.parse("""
+                ---
+                name: release-checklist
+                description: Use this skill when preparing a release.
+                metadata:
+                  - release
+                  - qa
+                ---
+                body
+                """))
+                .isInstanceOf(SkillParseException.class)
+                .hasMessageContaining("'metadata' must be a YAML mapping");
+    }
+
+    @Test
     void rejectsUnsupportedAllowedToolsShape() {
         assertThatThrownBy(() -> parser.parse("""
                 ---

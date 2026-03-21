@@ -117,6 +117,23 @@ class ArachneAutoConfigurationTest {
     }
 
     @Test
+    void autoConfigurationDiscoversClasspathSkillsAndWiresThemIntoBuiltAgents() {
+        contextRunner
+                .withUserConfiguration(RecordingSystemPromptModelConfiguration.class)
+                .run(context -> {
+                    Agent agent = context.getBean(AgentFactory.class).builder().build();
+                    RecordingSystemPromptModel model = context.getBean(RecordingSystemPromptModel.class);
+
+                    assertThat(agent.run("hello").text()).isEqualTo("ok");
+                    assertThat(agent.getTools()).extracting(tool -> tool.spec().name()).contains("activate_skill");
+                    assertThat(model.systemPrompt()).contains("autoconfig-release-skill");
+                    assertThat(model.systemPrompt()).contains("<available_skills>");
+                    assertThat(model.systemPrompt()).contains("git_status");
+                    assertThat(model.systemPrompt()).doesNotContain("Run mvn test before merging and summarize the remaining risk.");
+                });
+    }
+
+    @Test
     void applicationEventBridgePublishesObservationOnlyEvents() {
         contextRunner
                 .withUserConfiguration(CustomModelConfiguration.class, LifecycleEventCollectorConfiguration.class)
@@ -144,8 +161,12 @@ class ArachneAutoConfigurationTest {
                     Agent plannerAgent = factory.builder().toolQualifiers("planner").build();
                     Agent supportAgent = factory.builder().toolQualifiers("support").build();
 
-                    assertThat(plannerAgent.getTools()).extracting(tool -> tool.spec().name()).containsExactly("weather");
-                    assertThat(supportAgent.getTools()).extracting(tool -> tool.spec().name()).containsExactly("supportWeather");
+                        assertThat(plannerAgent.getTools()).extracting(tool -> tool.spec().name())
+                            .contains("weather", "activate_skill")
+                            .doesNotContain("supportWeather");
+                        assertThat(supportAgent.getTools()).extracting(tool -> tool.spec().name())
+                            .contains("supportWeather", "activate_skill")
+                            .doesNotContain("weather");
                 });
     }
 
@@ -158,7 +179,8 @@ class ArachneAutoConfigurationTest {
 
                     Agent bridgedAgent = factory.builder().toolQualifiers("planner").build();
 
-                    assertThat(bridgedAgent.getTools()).extracting(tool -> tool.spec().name()).containsExactly("qualifiedWeather");
+                        assertThat(bridgedAgent.getTools()).extracting(tool -> tool.spec().name())
+                            .contains("qualifiedWeather", "activate_skill");
                 });
     }
 
@@ -330,7 +352,9 @@ class ArachneAutoConfigurationTest {
 
                     Agent restored = factory.builder("planner").build();
 
-                    assertThat(restored.getTools()).extracting(tool -> tool.spec().name()).containsExactly("weather");
+                        assertThat(restored.getTools()).extracting(tool -> tool.spec().name())
+                            .contains("weather", "activate_skill")
+                            .doesNotContain("supportWeather");
                     assertThat(restored.getMessages()).hasSize(2);
                     assertThat(restored.getState().get("city")).isEqualTo("Nagoya");
                 });
