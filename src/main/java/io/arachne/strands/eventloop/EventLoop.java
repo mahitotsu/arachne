@@ -27,8 +27,9 @@ import io.arachne.strands.types.Message;
  * Synchronous model→tool→model event loop.
  *
  * <p>Corresponds to {@code strands.event_loop.event_loop_cycle} in the Python SDK.
- * This Java port is intentionally synchronous (blocking); reactive / virtual-thread
- * variants are planned for Phase 6.
+ * This Java port keeps the core event loop synchronous (blocking); Phase 6 adds
+ * callback-based streaming on top of the same loop, while reactive / virtual-thread
+ * variants remain future work.
  *
  * <p>The loop:
  * <ol>

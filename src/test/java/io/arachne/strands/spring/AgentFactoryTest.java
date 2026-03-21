@@ -19,6 +19,8 @@ import io.arachne.strands.model.retry.ExponentialBackoffRetryStrategy;
 import io.arachne.strands.session.SpringSessionManager;
 import io.arachne.strands.skills.Skill;
 import io.arachne.strands.steering.Guide;
+import io.arachne.strands.steering.Interrupt;
+import io.arachne.strands.steering.Proceed;
 import io.arachne.strands.steering.SteeringHandler;
 import io.arachne.strands.tool.Tool;
 import io.arachne.strands.tool.ToolResult;
@@ -152,6 +154,97 @@ class AgentFactoryTest {
 
         assertThat(agent.run("hello").text()).isEqualTo("guided");
         assertThat(toolCalls).hasValue(0);
+    }
+
+    @Test
+    void buildCanProceedThroughSteeringHandlers() {
+        ArachneProperties properties = new ArachneProperties();
+        AtomicInteger toolCalls = new AtomicInteger();
+        Model model = new Model() {
+            private int calls;
+
+            @Override
+            public Iterable<ModelEvent> converse(List<io.arachne.strands.types.Message> messages, List<io.arachne.strands.model.ToolSpec> tools) {
+                calls++;
+                if (calls == 1) {
+                    return List.of(
+                            new ModelEvent.ToolUse("tool-1", "echo", java.util.Map.of("value", "a")),
+                            new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
+                }
+                return List.of(
+                        new ModelEvent.TextDelta("executed"),
+                        new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
+            }
+        };
+        Tool tool = new Tool() {
+            @Override
+            public io.arachne.strands.model.ToolSpec spec() {
+                return new io.arachne.strands.model.ToolSpec("echo", "echo", null);
+            }
+
+            @Override
+            public ToolResult invoke(Object input) {
+                toolCalls.incrementAndGet();
+                return ToolResult.success("tool-1", input);
+            }
+        };
+
+        Agent agent = new AgentFactory(properties, model)
+                .builder()
+                .tools(tool)
+                .steeringHandlers(new SteeringHandler() {
+                    @Override
+                    protected io.arachne.strands.steering.ToolSteeringAction steerBeforeTool(io.arachne.strands.hooks.BeforeToolCallEvent event) {
+                        return new Proceed("allow");
+                    }
+                })
+                .build();
+
+        assertThat(agent.run("hello").text()).isEqualTo("executed");
+        assertThat(toolCalls).hasValue(1);
+    }
+
+    @Test
+    void buildCanInterruptThroughSteeringHandlers() {
+        ArachneProperties properties = new ArachneProperties();
+        AtomicInteger toolCalls = new AtomicInteger();
+        Model model = (messages, tools) -> List.of(
+                new ModelEvent.ToolUse("tool-1", "echo", java.util.Map.of("value", "a")),
+                new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
+        Tool tool = new Tool() {
+            @Override
+            public io.arachne.strands.model.ToolSpec spec() {
+                return new io.arachne.strands.model.ToolSpec("echo", "echo", null);
+            }
+
+            @Override
+            public ToolResult invoke(Object input) {
+                toolCalls.incrementAndGet();
+                return ToolResult.success("tool-1", input);
+            }
+        };
+
+        Agent agent = new AgentFactory(properties, model)
+                .builder()
+                .tools(tool)
+                .steeringHandlers(new SteeringHandler() {
+                    @Override
+                    protected io.arachne.strands.steering.ToolSteeringAction steerBeforeTool(io.arachne.strands.hooks.BeforeToolCallEvent event) {
+                        return new Interrupt("Operator approval required.");
+                    }
+                })
+                .build();
+
+        io.arachne.strands.agent.AgentResult result = agent.run("hello");
+
+        assertThat(result.interrupted()).isTrue();
+        assertThat(result.stopReason()).isEqualTo("interrupt");
+        assertThat(toolCalls).hasValue(0);
+        assertThat(result.interrupts()).singleElement().satisfies(interrupt -> {
+            assertThat(interrupt.name()).isEqualTo("steering_input_echo");
+            assertThat(interrupt.reason()).isEqualTo(java.util.Map.of("message", "Operator approval required."));
+            assertThat(interrupt.toolName()).isEqualTo("echo");
+        });
     }
 
     @Test

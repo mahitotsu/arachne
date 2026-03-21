@@ -56,8 +56,8 @@ import software.amazon.awssdk.services.bedrockruntime.model.ToolUseBlock;
 /**
  * {@link Model} implementation backed by the AWS Bedrock ConverseAPI.
  *
- * <p>Uses the synchronous (non-streaming) {@code converse} API for Phase 1 simplicity.
- * Streaming via {@code converseStream} is planned for Phase 6.
+ * <p>Uses the synchronous {@code converse} API for the standard blocking path and
+ * {@code converseStream} for the optional Phase 6 streaming path.
  *
  * <p>Corresponds to {@code strands.models.BedrockModel} in the Python SDK.
  *

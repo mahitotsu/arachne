@@ -369,6 +369,48 @@ class DefaultAgentTest {
         assertThat(events).containsExactly("partial");
     }
 
+    @Test
+    void streamFallsBackToNonStreamingModelEvents() {
+        NoOpHookRegistry hooks = new NoOpHookRegistry();
+        EventLoop eventLoop = new EventLoop(hooks);
+        List<String> calls = new java.util.ArrayList<>();
+        Model model = new Model() {
+            @Override
+            public Iterable<ModelEvent> converse(List<Message> messages, List<ToolSpec> tools) {
+                throw new AssertionError("Expected tool-selection-aware overload");
+            }
+
+            @Override
+            public Iterable<ModelEvent> converse(
+                    List<Message> messages,
+                    List<ToolSpec> tools,
+                    String systemPrompt,
+                    ToolSelection toolSelection) {
+                calls.add(systemPrompt == null ? "" : systemPrompt);
+                return List.of(
+                        new ModelEvent.TextDelta("fallback"),
+                        new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(2, 1)));
+            }
+        };
+        DefaultAgent agent = new DefaultAgent(model, List.of(), eventLoop, hooks, "fallback-system");
+        List<String> events = new java.util.ArrayList<>();
+
+        AgentResult result = agent.stream("hello", event -> {
+            switch (event) {
+                case AgentStreamEvent.TextDelta textDelta -> events.add("text:" + textDelta.delta());
+                case AgentStreamEvent.ToolUseRequested toolUseRequested -> events.add("toolUse:" + toolUseRequested.toolName());
+                case AgentStreamEvent.ToolResultObserved toolResultObserved ->
+                        events.add("toolResult:" + toolResultObserved.result().status().name().toLowerCase());
+                case AgentStreamEvent.Retry retry -> events.add("retry:" + retry.guidance());
+                case AgentStreamEvent.Complete complete -> events.add("complete:" + complete.result().text());
+            }
+        });
+
+        assertThat(result.text()).isEqualTo("fallback");
+        assertThat(events).containsExactly("text:fallback", "complete:fallback");
+        assertThat(calls).containsExactly("fallback-system");
+    }
+
             @Test
             void runAppliesConversationManagementAfterInvocation() {
             NoOpHookRegistry hooks = new NoOpHookRegistry();
