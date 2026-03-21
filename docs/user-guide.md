@@ -4,7 +4,7 @@ This guide documents the features that are available on the current main branch.
 
 ## Scope
 
-The current implementation gives you a synchronous, Bedrock-backed agent loop with the Phase 1 through Phase 4 feature set on the current main branch.
+The current implementation gives you a synchronous, Bedrock-backed agent loop with the Phase 1 through Phase 4 feature set complete on the current main branch, plus partial Phase 5 foundation work.
 
 Available now:
 
@@ -28,6 +28,8 @@ Available now:
 - typed hook dispatch and plugin bundling
 - interrupt / resume handling before tool execution
 - Spring `ApplicationEvent` bridge for lifecycle observation
+- AgentSkills.io-style `SKILL.md` parsing and runtime skill foundation work
+- classpath discovery of packaged skills from `resources/skills/`
 
 Not available yet:
 
@@ -286,6 +288,12 @@ For discovered tools and execution policy:
 1. explicit builder calls such as `toolQualifiers(...)`, `useDiscoveredTools(...)`, and `toolExecutionMode(...)`
 2. `arachne.strands.agents.<name>.tool-qualifiers`, `use-discovered-tools`, and `tool-execution-mode`
 3. shared defaults of all discovered tools enabled with parallel execution
+
+For skills:
+
+1. explicit builder calls through `skills(...)`
+2. Spring classpath-discovered skills from `resources/skills/*/SKILL.md`
+3. no skills when neither source is present
 
 ## Retry Strategy
 
@@ -808,6 +816,73 @@ class AuditHook implements HookProvider {
 
 Spring Boot also publishes observation-only lifecycle notifications as `ArachneLifecycleApplicationEvent`. These events carry immutable snapshots for listeners; subscribing to them does not change the agent control flow.
 
+## Skills Foundation
+
+Current Phase 5 work adds AgentSkills.io-style skill ingestion primitives. A skill is a `SKILL.md` document with YAML frontmatter and a markdown body.
+
+For direct Java usage, attach skills on the builder:
+
+```java
+import io.arachne.strands.skills.Skill;
+
+Agent agent = factory.builder()
+  .skills(new Skill(
+      "release-checklist",
+      "Use this skill when preparing a release.",
+      "Run mvn test before merging and summarize the remaining risk."))
+  .build();
+```
+
+If you already have a `SKILL.md` document, parse it first and reuse the parsed `Skill` object:
+
+```java
+import io.arachne.strands.skills.Skill;
+import io.arachne.strands.skills.SkillParser;
+
+SkillParser parser = new SkillParser();
+Skill skill = parser.parse("""
+    ---
+    name: release-checklist
+    description: Use this skill when preparing a release.
+    ---
+    Run mvn test before merging and summarize the remaining risk.
+    """);
+
+Agent agent = factory.builder()
+  .skills(skill)
+  .build();
+```
+
+In Spring Boot applications, packaged skills are discovered automatically from `src/main/resources/skills/<skill-name>/SKILL.md`.
+
+Example layout:
+
+```text
+src/main/resources/
+  skills/
+    release-checklist/
+      SKILL.md
+```
+
+Example `SKILL.md`:
+
+```md
+---
+name: release-checklist
+description: Use this skill when preparing a release.
+allowed-tools:
+  - git_status
+  - git_log
+compatibility: java-21
+---
+Run mvn test before merging.
+Summarize the highest remaining risk before recommending release.
+```
+
+Current behavior is eager injection: all configured skills for the runtime are appended to the system prompt before each model call. This keeps the implementation provider-independent and reuses the Phase 4 hook/plugin boundary, but it is not the final skills design.
+
+The missing piece is a dedicated activation path. In the intended design, the model should first see only a compact available-skill catalog, then load the full instructions for a specific skill on demand through a dedicated activation tool. That delayed loading path is not implemented yet, so the current branch should be treated as Phase 5 foundation work rather than full skills completion.
+
 ## Current Constraints
 
 The current implementation is intentionally narrow.
@@ -817,6 +892,7 @@ The current implementation is intentionally narrow.
 - responses are non-streaming
 - interrupt/resume currently feeds human responses back into the conversation as tool results rather than re-entering the original tool invocation automatically
 - sliding-window trimming is property-driven, but summary compaction still requires an explicit `SummarizingConversationManager` on the builder
+- skills are injected eagerly per runtime; progressive disclosure, model-driven activation, and loaded-skill deduplication are not implemented yet
 - structured output currently targets simple JSON-shaped Java types rather than arbitrary object graphs
 
 ## Verification

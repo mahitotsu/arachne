@@ -40,6 +40,7 @@ import io.arachne.strands.model.retry.ModelRetryStrategy;
 import io.arachne.strands.session.FileSessionManager;
 import io.arachne.strands.session.SessionManager;
 import io.arachne.strands.session.SpringSessionManager;
+import io.arachne.strands.skills.Skill;
 import io.arachne.strands.tool.annotation.StrandsTool;
 import io.arachne.strands.tool.annotation.ToolParam;
 import io.arachne.strands.types.Message;
@@ -96,6 +97,20 @@ class ArachneAutoConfigurationTest {
 
                     assertThat(agent.run("hello").text()).isEqualTo("ok-hooked");
                     assertThat(agent.getState().get("hooked")).isEqualTo(Boolean.TRUE);
+                });
+    }
+
+    @Test
+    void autoConfigurationWiresDiscoveredSkillsIntoBuiltAgents() {
+        contextRunner
+                .withUserConfiguration(RecordingSystemPromptModelConfiguration.class, DiscoveredSkillsConfiguration.class)
+                .run(context -> {
+                    Agent agent = context.getBean(AgentFactory.class).builder().build();
+                    RecordingSystemPromptModel model = context.getBean(RecordingSystemPromptModel.class);
+
+                    assertThat(agent.run("hello").text()).isEqualTo("ok");
+                    assertThat(model.systemPrompt()).contains("release-checklist");
+                    assertThat(model.systemPrompt()).contains("Run mvn test before merging.");
                 });
     }
 
@@ -375,6 +390,18 @@ class ArachneAutoConfigurationTest {
     }
 
     @Configuration(proxyBeanMethods = false)
+    static class DiscoveredSkillsConfiguration {
+        @Bean(name = "arachneDiscoveredSkills")
+        @SuppressWarnings("unused")
+        List<Skill> arachneDiscoveredSkills() {
+            return List.of(new Skill(
+                    "release-checklist",
+                    "Use this skill when preparing a release.",
+                    "Run mvn test before merging."));
+        }
+    }
+
+    @Configuration(proxyBeanMethods = false)
     static class AnnotatedHookConfiguration {
         @Bean
         @SuppressWarnings("unused")
@@ -465,6 +492,36 @@ class ArachneAutoConfigurationTest {
             return List.of(
                     new ModelEvent.TextDelta("ok after retry"),
                     new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
+        }
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    static class RecordingSystemPromptModelConfiguration {
+        @Bean
+        @SuppressWarnings("unused")
+        RecordingSystemPromptModel customModel() {
+            return new RecordingSystemPromptModel();
+        }
+    }
+
+    static class RecordingSystemPromptModel implements Model {
+        private String systemPrompt;
+
+        @Override
+        public Iterable<ModelEvent> converse(List<Message> messages, List<ToolSpec> tools) {
+            throw new AssertionError("Expected the system-prompt-aware overload");
+        }
+
+        @Override
+        public Iterable<ModelEvent> converse(List<Message> messages, List<ToolSpec> tools, String systemPrompt) {
+            this.systemPrompt = systemPrompt;
+            return List.of(
+                    new ModelEvent.TextDelta("ok"),
+                    new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
+        }
+
+        String systemPrompt() {
+            return systemPrompt;
         }
     }
 

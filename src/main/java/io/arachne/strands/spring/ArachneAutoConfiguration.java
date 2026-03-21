@@ -29,6 +29,8 @@ import io.arachne.strands.model.retry.ModelRetryStrategy;
 import io.arachne.strands.session.FileSessionManager;
 import io.arachne.strands.session.SessionManager;
 import io.arachne.strands.session.SpringSessionManager;
+import io.arachne.strands.skills.Skill;
+import io.arachne.strands.skills.SkillParser;
 import io.arachne.strands.tool.BeanValidationSupport;
 import io.arachne.strands.tool.annotation.DiscoveredTool;
 import jakarta.validation.Validator;
@@ -90,6 +92,18 @@ public class ArachneAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    public SkillParser skillParser() {
+        return new SkillParser();
+    }
+
+    @Bean(name = "arachneDiscoveredSkills")
+    @ConditionalOnMissingBean(name = "arachneDiscoveredSkills")
+    public List<Skill> arachneDiscoveredSkills(SkillParser skillParser) {
+        return new ClasspathSkillDiscoverer(skillParser).discover();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
     public ApplicationEventPublishingHookProvider arachneApplicationEventHookProvider(
             ApplicationEventPublisher applicationEventPublisher) {
         return new ApplicationEventPublishingHookProvider(applicationEventPublisher);
@@ -136,6 +150,7 @@ public class ArachneAutoConfiguration {
             Model model,
             List<DiscoveredTool> arachneDiscoveredTools,
             @Qualifier("arachneDiscoveredHooks") List<HookProvider> arachneDiscoveredHooks,
+            @Qualifier("arachneDiscoveredSkills") List<Skill> arachneDiscoveredSkills,
             Validator validator,
             SessionManager sessionManager,
             ObjectProvider<ModelRetryStrategy> modelRetryStrategyProvider,
@@ -146,6 +161,7 @@ public class ArachneAutoConfiguration {
                 model,
                 arachneDiscoveredTools,
                 arachneDiscoveredHooks,
+                arachneDiscoveredSkills,
                 validator,
                 sessionManager,
                 modelRetryStrategyProvider.getIfAvailable(),

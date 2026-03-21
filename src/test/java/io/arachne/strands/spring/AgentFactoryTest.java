@@ -17,6 +17,7 @@ import io.arachne.strands.model.ModelThrottledException;
 import io.arachne.strands.model.bedrock.BedrockModel;
 import io.arachne.strands.model.retry.ExponentialBackoffRetryStrategy;
 import io.arachne.strands.session.SpringSessionManager;
+import io.arachne.strands.skills.Skill;
 import io.arachne.strands.tool.Tool;
 import io.arachne.strands.tool.ToolResult;
 import io.arachne.strands.tool.annotation.DiscoveredTool;
@@ -101,6 +102,37 @@ class AgentFactoryTest {
 
         assertThat(agent.getTools()).extracting(tool -> tool.spec().name()).contains("pluginTool");
         assertThat(agent.getState().get("source")).isEqualTo("plugin");
+    }
+
+    @Test
+    void buildIncludesDiscoveredSkillsInSystemPrompt() {
+        ArachneProperties properties = new ArachneProperties();
+        properties.getAgent().setSystemPrompt("Base system prompt");
+        RecordingSystemPromptModel model = new RecordingSystemPromptModel();
+        Skill discoveredSkill = new Skill(
+                "release-checklist",
+                "Use this skill when preparing a release.",
+                "Run mvn test before merging.");
+
+        Agent agent = new AgentFactory(
+                properties,
+                model,
+                List.of(),
+                List.of(),
+                List.of(discoveredSkill),
+                io.arachne.strands.tool.BeanValidationSupport.defaultValidator(),
+                null,
+                null,
+                new com.fasterxml.jackson.databind.ObjectMapper(),
+                null)
+                .builder()
+                .build();
+
+        agent.run("prepare release");
+
+        assertThat(model.systemPrompt()).contains("Base system prompt");
+        assertThat(model.systemPrompt()).contains("release-checklist");
+        assertThat(model.systemPrompt()).contains("Run mvn test before merging.");
     }
 
         @Test
@@ -363,5 +395,30 @@ class AgentFactoryTest {
                     new ModelEvent.TextDelta("Echo: " + prompt),
                     new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
         };
+    }
+
+    private static final class RecordingSystemPromptModel implements Model {
+
+        private String systemPrompt;
+
+        @Override
+        public Iterable<ModelEvent> converse(List<io.arachne.strands.types.Message> messages, List<io.arachne.strands.model.ToolSpec> tools) {
+            throw new AssertionError("Expected the system-prompt-aware overload");
+        }
+
+        @Override
+        public Iterable<ModelEvent> converse(
+                List<io.arachne.strands.types.Message> messages,
+                List<io.arachne.strands.model.ToolSpec> tools,
+                String systemPrompt) {
+            this.systemPrompt = systemPrompt;
+            return List.of(
+                    new ModelEvent.TextDelta("ok"),
+                    new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
+        }
+
+        String systemPrompt() {
+            return systemPrompt;
+        }
     }
 }

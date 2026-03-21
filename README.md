@@ -2,7 +2,7 @@
 
 Arachne is a Java port of the Strands Agents SDK with Spring Boot integration.
 
-Phase 1 through Phase 4 are complete on the current main branch. You can already:
+Phase 1 through Phase 4 are complete on the current main branch. Phase 5 は foundation 実装の途中です。現時点で次を利用できます:
 
 - auto-configure a Bedrock-backed `Model` in Spring Boot
 - create an `Agent` from `AgentFactory`
@@ -21,6 +21,9 @@ Phase 1 through Phase 4 are complete on the current main branch. You can already
 - auto-discover Spring hook beans with `@ArachneHook`
 - observe hook activity through the Spring `ApplicationEvent` bridge
 - pause tool execution with interrupts and continue through `AgentResult.resume(...)`
+- parse AgentSkills.io-style `SKILL.md` files into runtime skills
+- attach skills per runtime with `AgentFactory.builder().skills(...)`
+- auto-discover classpath skills from `src/main/resources/skills/*/SKILL.md`
 
 Not available yet:
 
@@ -54,7 +57,7 @@ Quality evaluation workflow:
 
 ## Current Status
 
-Phase 1 covers the synchronous Bedrock event loop. Phase 2 adds annotation-driven tools and structured output as first-class APIs. Phase 3 completes conversation management, session persistence backends, retry, and multi-agent configuration. Phase 3.5 completes the Spring integration review: the standard idiom is now factory-owned runtimes, shared application-facing `ObjectMapper` reuse, and a pluggable tool-execution backend. Phase 4 completes typed hook dispatch, plugin bundling, Spring hook discovery, the observation-only Spring event bridge, and interrupt/resume control flow before tool execution.
+Phase 1 covers the synchronous Bedrock event loop. Phase 2 adds annotation-driven tools and structured output as first-class APIs. Phase 3 completes conversation management, session persistence backends, retry, and multi-agent configuration. Phase 3.5 completes the Spring integration review: the standard idiom is now factory-owned runtimes, shared application-facing `ObjectMapper` reuse, and a pluggable tool-execution backend. Phase 4 completes typed hook dispatch, plugin bundling, Spring hook discovery, the observation-only Spring event bridge, and interrupt/resume control flow before tool execution. Phase 5 is only partially implemented: `SKILL.md` parsing, runtime skill wiring, and Spring classpath discovery are in place, but dedicated skill activation and progressive disclosure are not complete yet.
 
 Available now on the Phase 2 path:
 
@@ -86,6 +89,13 @@ Available now on the Phase 4 path:
 - Spring hook auto-discovery with `@ArachneHook`
 - observation-only lifecycle publication through Spring `ApplicationEvent`
 - `AgentResult.interrupts()` and `AgentResult.resume(...)` for human-in-the-loop pauses before tool execution
+
+Available now on the Phase 5 foundation path:
+
+- `Skill` and `SkillParser` for AgentSkills.io-style `SKILL.md` documents
+- eager skill instruction injection through `AgentSkillsPlugin`
+- `AgentFactory.builder().skills(...)` for runtime-local skill attachment
+- Spring classpath discovery from `src/main/resources/skills/*/SKILL.md`
 
 ## Quick Start
 
@@ -199,6 +209,21 @@ Retry is disabled unless you enable it explicitly. When enabled, it applies only
 For multi-agent applications, define shared defaults under `arachne.strands.agent.*` and named defaults under `arachne.strands.agents.<name>.*`. Then build the agent with `factory.builder("name")` from the service, runner, or provider that owns that conversation scope.
 
 Spring Boot auto-configuration also reuses the application `ObjectMapper` for annotation-tool binding, structured output coercion, and Spring Session payloads. Parallel tool execution is still the default, but the backend is no longer fixed: you can override the `arachneToolExecutionExecutor` bean if your application needs a different `Executor` / `TaskExecutor`.
+
+Phase 5 foundation work is also available on the current branch. You can attach parsed skills directly per runtime:
+
+```java
+import io.arachne.strands.skills.Skill;
+
+Agent agent = factory.builder()
+    .skills(new Skill(
+        "release-checklist",
+        "Use this skill when preparing a release.",
+        "Run mvn test before merging and summarize the risk before shipping."))
+    .build();
+```
+
+For Spring Boot discovery, place AgentSkills.io-style files under `src/main/resources/skills/<skill-name>/SKILL.md`. Arachne loads them automatically and can wire them into the runtime, but the current behavior is still eager prompt injection rather than true on-demand skill activation.
 
 If you need LLM-backed compaction instead of a fixed sliding window, pass `SummarizingConversationManager` explicitly through the builder:
 
