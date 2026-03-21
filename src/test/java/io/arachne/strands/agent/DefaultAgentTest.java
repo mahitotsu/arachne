@@ -15,9 +15,14 @@ import io.arachne.strands.hooks.HookProvider;
 import io.arachne.strands.hooks.NoOpHookRegistry;
 import io.arachne.strands.model.Model;
 import io.arachne.strands.model.ModelEvent;
+import io.arachne.strands.model.StreamingModel;
 import io.arachne.strands.model.ToolSelection;
 import io.arachne.strands.model.ToolSpec;
 import io.arachne.strands.session.InMemorySessionManager;
+import io.arachne.strands.steering.Guide;
+import io.arachne.strands.steering.ModelSteeringAction;
+import io.arachne.strands.steering.Proceed;
+import io.arachne.strands.steering.SteeringHandler;
 import io.arachne.strands.tool.StructuredOutputException;
 import io.arachne.strands.tool.Tool;
 import io.arachne.strands.tool.ToolResult;
@@ -270,6 +275,100 @@ class DefaultAgentTest {
                 .hasMessageContaining("answer");
     }
 
+    @Test
+    void streamEmitsEventsInDeterministicOrder() {
+        NoOpHookRegistry hooks = new NoOpHookRegistry();
+        EventLoop eventLoop = new EventLoop(hooks);
+        Tool tool = new Tool() {
+            @Override
+            public ToolSpec spec() {
+                return new ToolSpec("echo", "echo", null);
+            }
+
+            @Override
+            public ToolResult invoke(Object input) {
+                return ToolResult.success("tool-1", "tool:" + ((java.util.Map<?, ?>) input).get("value"));
+            }
+        };
+        DefaultAgent agent = new DefaultAgent(streamingToolModel(), List.of(tool), eventLoop, hooks);
+        List<String> events = new java.util.ArrayList<>();
+
+        AgentResult result = agent.stream("hello", event -> {
+            switch (event) {
+                case AgentStreamEvent.TextDelta textDelta -> events.add("text:" + textDelta.delta());
+                case AgentStreamEvent.ToolUseRequested toolUseRequested -> events.add("toolUse:" + toolUseRequested.toolName());
+                case AgentStreamEvent.ToolResultObserved toolResultObserved ->
+                        events.add("toolResult:" + toolResultObserved.result().status().name().toLowerCase());
+                case AgentStreamEvent.Retry retry -> events.add("retry:" + retry.guidance());
+                case AgentStreamEvent.Complete complete -> events.add("complete:" + complete.result().stopReason());
+            }
+        });
+
+        assertThat(result.text()).isEqualTo("done");
+        assertThat(events).containsExactly(
+                "text:thinking",
+                "toolUse:echo",
+                "toolResult:success",
+                "text:done",
+                "complete:end_turn");
+    }
+
+    @Test
+    void streamEmitsRetryEventWhenModelSteeringGuidesRetry() {
+        DispatchingHookRegistry hooks = DispatchingHookRegistry.fromProviders(List.of(new SteeringHandler() {
+            private int calls;
+
+            @Override
+            protected ModelSteeringAction steerAfterModel(io.arachne.strands.hooks.AfterModelCallEvent event) {
+                calls++;
+                if (calls == 1) {
+                    return new Guide("Try again with a concrete answer.");
+                }
+                return new Proceed("accept");
+            }
+        }));
+        EventLoop eventLoop = new EventLoop(hooks);
+        DefaultAgent agent = new DefaultAgent(streamingRetryModel(), List.of(), eventLoop, hooks);
+        List<String> events = new java.util.ArrayList<>();
+
+        AgentResult result = agent.stream("hello", event -> {
+            switch (event) {
+                case AgentStreamEvent.TextDelta textDelta -> events.add("text:" + textDelta.delta());
+                case AgentStreamEvent.ToolUseRequested toolUseRequested -> toolUseRequested.toolName();
+                case AgentStreamEvent.ToolResultObserved toolResultObserved -> toolResultObserved.result();
+                case AgentStreamEvent.Retry retry -> events.add("retry:" + retry.guidance());
+                case AgentStreamEvent.Complete complete -> events.add("complete:" + complete.result().text());
+            }
+        });
+
+        assertThat(result.text()).isEqualTo("final");
+        assertThat(events).containsExactly(
+                "text:draft",
+                "retry:Try again with a concrete answer.",
+                "text:final",
+                "complete:final");
+        assertThat(agent.getMessages()).hasSize(3);
+        assertThat(agent.getMessages().get(1)).isEqualTo(Message.user("Try again with a concrete answer."));
+        assertThat(agent.getMessages().get(2)).isEqualTo(Message.assistant("final"));
+    }
+
+    @Test
+    void streamPropagatesStreamingModelFailure() {
+        NoOpHookRegistry hooks = new NoOpHookRegistry();
+        EventLoop eventLoop = new EventLoop(hooks);
+        DefaultAgent agent = new DefaultAgent(failingStreamingModel(), List.of(), eventLoop, hooks);
+        List<String> events = new java.util.ArrayList<>();
+
+        assertThatThrownBy(() -> agent.stream("hello", event -> {
+            if (event instanceof AgentStreamEvent.TextDelta textDelta) {
+                events.add(textDelta.delta());
+            }
+        }))
+                .isInstanceOf(io.arachne.strands.model.ModelException.class)
+                .hasMessageContaining("boom");
+        assertThat(events).containsExactly("partial");
+    }
+
             @Test
             void runAppliesConversationManagementAfterInvocation() {
             NoOpHookRegistry hooks = new NoOpHookRegistry();
@@ -407,6 +506,83 @@ class DefaultAgentTest {
             @Override
             public ToolResult invoke(Object input) {
                 return ToolResult.success("tool-1", input);
+            }
+        };
+    }
+
+    private static StreamingModel streamingToolModel() {
+        return new StreamingModel() {
+            private int calls;
+
+            @Override
+            public Iterable<ModelEvent> converse(List<Message> messages, List<ToolSpec> tools) {
+                throw new AssertionError("Expected streaming path");
+            }
+
+            @Override
+            public void converseStream(
+                    List<Message> messages,
+                    List<ToolSpec> tools,
+                    String systemPrompt,
+                    ToolSelection toolSelection,
+                    java.util.function.Consumer<ModelEvent> eventConsumer) {
+                calls++;
+                if (calls == 1) {
+                    eventConsumer.accept(new ModelEvent.TextDelta("thinking"));
+                    eventConsumer.accept(new ModelEvent.ToolUse("tool-1", "echo", java.util.Map.of("value", "a")));
+                    eventConsumer.accept(new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
+                    return;
+                }
+                eventConsumer.accept(new ModelEvent.TextDelta("done"));
+                eventConsumer.accept(new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
+            }
+        };
+    }
+
+    private static StreamingModel streamingRetryModel() {
+        return new StreamingModel() {
+            private int calls;
+
+            @Override
+            public Iterable<ModelEvent> converse(List<Message> messages, List<ToolSpec> tools) {
+                throw new AssertionError("Expected streaming path");
+            }
+
+            @Override
+            public void converseStream(
+                    List<Message> messages,
+                    List<ToolSpec> tools,
+                    String systemPrompt,
+                    ToolSelection toolSelection,
+                    java.util.function.Consumer<ModelEvent> eventConsumer) {
+                calls++;
+                if (calls == 1) {
+                    eventConsumer.accept(new ModelEvent.TextDelta("draft"));
+                    eventConsumer.accept(new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
+                    return;
+                }
+                eventConsumer.accept(new ModelEvent.TextDelta("final"));
+                eventConsumer.accept(new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
+            }
+        };
+    }
+
+    private static StreamingModel failingStreamingModel() {
+        return new StreamingModel() {
+            @Override
+            public Iterable<ModelEvent> converse(List<Message> messages, List<ToolSpec> tools) {
+                throw new AssertionError("Expected streaming path");
+            }
+
+            @Override
+            public void converseStream(
+                    List<Message> messages,
+                    List<ToolSpec> tools,
+                    String systemPrompt,
+                    ToolSelection toolSelection,
+                    java.util.function.Consumer<ModelEvent> eventConsumer) {
+                eventConsumer.accept(new ModelEvent.TextDelta("partial"));
+                throw new io.arachne.strands.model.ModelException("boom");
             }
         };
     }

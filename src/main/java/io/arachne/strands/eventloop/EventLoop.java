@@ -2,14 +2,17 @@ package io.arachne.strands.eventloop;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
 import io.arachne.strands.agent.AgentState;
+import io.arachne.strands.agent.AgentStreamEvent;
 import io.arachne.strands.hooks.AfterModelCallEvent;
 import io.arachne.strands.hooks.BeforeModelCallEvent;
 import io.arachne.strands.hooks.HookRegistry;
 import io.arachne.strands.hooks.MessageAddedEvent;
 import io.arachne.strands.model.Model;
 import io.arachne.strands.model.ModelEvent;
+import io.arachne.strands.model.StreamingModel;
 import io.arachne.strands.model.ToolSelection;
 import io.arachne.strands.model.ToolSpec;
 import io.arachne.strands.tool.StructuredOutputException;
@@ -89,6 +92,17 @@ public class EventLoop {
         return run(model, messages, tools, systemPrompt, null, state, cycleCount);
     }
 
+    public EventLoopResult runStreaming(
+            Model model,
+            List<Message> messages,
+            List<Tool> tools,
+            String systemPrompt,
+            AgentState state,
+            int cycleCount,
+            Consumer<AgentStreamEvent> eventConsumer) {
+        return run(model, messages, tools, systemPrompt, null, state, cycleCount, eventConsumer);
+    }
+
     public EventLoopResult run(
             Model model,
             List<Message> messages,
@@ -97,6 +111,19 @@ public class EventLoop {
             StructuredOutputContext<?> structuredOutputContext,
             AgentState state,
             int cycleCount) {
+        return run(model, messages, tools, systemPrompt, structuredOutputContext, state, cycleCount, null);
+    }
+
+    private EventLoopResult run(
+            Model model,
+            List<Message> messages,
+            List<Tool> tools,
+            String systemPrompt,
+            StructuredOutputContext<?> structuredOutputContext,
+            AgentState state,
+            int cycleCount,
+            Consumer<AgentStreamEvent> eventConsumer) {
+        model = java.util.Objects.requireNonNull(model, "model must not be null");
         if (cycleCount >= MAX_CYCLES) {
             throw new EventLoopException("Max event-loop cycles exceeded: " + MAX_CYCLES);
         }
@@ -113,11 +140,7 @@ public class EventLoop {
         BeforeModelCallEvent beforeModelCallEvent = hooks.onBeforeModelCall(
             new BeforeModelCallEvent(messages, toolSpecs, systemPrompt, toolSelection, state));
 
-        Iterable<ModelEvent> events = model.converse(
-            beforeModelCallEvent.messages(),
-            beforeModelCallEvent.toolSpecs(),
-            beforeModelCallEvent.systemPrompt(),
-            beforeModelCallEvent.toolSelection());
+        List<ModelEvent> events = collectModelEvents(model, beforeModelCallEvent, eventConsumer);
 
         // Accumulate text deltas and tool-use requests from the model response
         StringBuilder textBuilder = new StringBuilder();
@@ -129,8 +152,7 @@ public class EventLoop {
         for (ModelEvent event : events) {
             switch (event) {
                 case ModelEvent.TextDelta td -> textBuilder.append(td.delta());
-                case ModelEvent.ToolUse tu ->
-                        toolUseBlocks.add(new ContentBlock.ToolUse(tu.toolUseId(), tu.name(), tu.input()));
+                case ModelEvent.ToolUse tu -> toolUseBlocks.add(new ContentBlock.ToolUse(tu.toolUseId(), tu.name(), tu.input()));
                 case ModelEvent.Metadata m -> {
                     stopReason = m.stopReason();
                     inputTokens = m.usage().inputTokens();
@@ -159,6 +181,25 @@ public class EventLoop {
             .map(ContentBlock.Text.class::cast)
             .map(ContentBlock.Text::text)
             .collect(java.util.stream.Collectors.joining());
+
+        if (afterModelCallEvent.retryRequested()) {
+            if (eventConsumer != null) {
+                eventConsumer.accept(new AgentStreamEvent.Retry(afterModelCallEvent.retryGuidance()));
+            }
+            Message guidanceMessage = Message.user(afterModelCallEvent.retryGuidance());
+            messages.add(guidanceMessage);
+            hooks.onMessageAdded(new MessageAddedEvent(guidanceMessage, messages, state));
+            return run(
+                    model,
+                    messages,
+                    tools,
+                    beforeModelCallEvent.systemPrompt(),
+                    structuredOutputContext,
+                    state,
+                    cycleCount + 1,
+                    eventConsumer);
+        }
+
         messages.add(assistantMessage);
         hooks.onMessageAdded(new MessageAddedEvent(assistantMessage, messages, state));
 
@@ -171,6 +212,9 @@ public class EventLoop {
 
             try {
                 for (ToolResult result : toolExecutor.execute(tools, requestedToolUseBlocks, hooks, state)) {
+                    if (eventConsumer != null) {
+                        eventConsumer.accept(new AgentStreamEvent.ToolResultObserved(result));
+                    }
                     toolResultBlocks.add(
                             new ContentBlock.ToolResult(
                                     result.toolUseId(),
@@ -197,7 +241,8 @@ public class EventLoop {
                     beforeModelCallEvent.systemPrompt(),
                     structuredOutputContext,
                     state,
-                    cycleCount + 1);
+                    cycleCount + 1,
+                    eventConsumer);
         }
 
         if (structuredOutputContext != null && !structuredOutputContext.isSatisfied()) {
@@ -216,9 +261,55 @@ public class EventLoop {
                     beforeModelCallEvent.systemPrompt(),
                     structuredOutputContext,
                     state,
-                    cycleCount + 1);
+                    cycleCount + 1,
+                    eventConsumer);
         }
 
         return new EventLoopResult(text, stopReason, inputTokens, outputTokens);
+    }
+
+    private List<ModelEvent> collectModelEvents(
+            Model model,
+            BeforeModelCallEvent beforeModelCallEvent,
+            Consumer<AgentStreamEvent> eventConsumer) {
+        List<ModelEvent> events = new ArrayList<>();
+        Consumer<ModelEvent> collector = event -> {
+            events.add(event);
+            emitModelEvent(event, eventConsumer);
+        };
+
+        if (eventConsumer != null && model instanceof StreamingModel streamingModel) {
+            streamingModel.converseStream(
+                    beforeModelCallEvent.messages(),
+                    beforeModelCallEvent.toolSpecs(),
+                    beforeModelCallEvent.systemPrompt(),
+                    beforeModelCallEvent.toolSelection(),
+                    collector);
+            return List.copyOf(events);
+        }
+
+        Iterable<ModelEvent> modelResponse = model.converse(
+            beforeModelCallEvent.messages(),
+            beforeModelCallEvent.toolSpecs(),
+            beforeModelCallEvent.systemPrompt(),
+            beforeModelCallEvent.toolSelection());
+        Iterable<ModelEvent> responseEvents = java.util.Objects.requireNonNull(modelResponse, "model events must not be null");
+        for (ModelEvent event : responseEvents) {
+            collector.accept(event);
+        }
+        return List.copyOf(events);
+    }
+
+    private static void emitModelEvent(ModelEvent event, Consumer<AgentStreamEvent> eventConsumer) {
+        if (eventConsumer == null) {
+            return;
+        }
+        if (event instanceof ModelEvent.TextDelta td) {
+            eventConsumer.accept(new AgentStreamEvent.TextDelta(td.delta()));
+            return;
+        }
+        if (event instanceof ModelEvent.ToolUse tu) {
+            eventConsumer.accept(new AgentStreamEvent.ToolUseRequested(tu.toolUseId(), tu.name(), tu.input()));
+        }
     }
 }

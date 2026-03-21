@@ -29,6 +29,7 @@ import io.arachne.strands.model.retry.RetryingModel;
 import io.arachne.strands.session.SessionManager;
 import io.arachne.strands.skills.AgentSkillsPlugin;
 import io.arachne.strands.skills.Skill;
+import io.arachne.strands.steering.SteeringHandler;
 import io.arachne.strands.tool.BeanValidationSupport;
 import io.arachne.strands.tool.Tool;
 import io.arachne.strands.tool.ToolExecutionMode;
@@ -413,6 +414,15 @@ public class AgentFactory {
 
         public Builder plugins(List<? extends Plugin> plugins) {
             this.plugins = Stream.concat(this.plugins.stream(), plugins.stream()).toList();
+            return this;
+        }
+
+        public Builder steeringHandlers(SteeringHandler... steeringHandlers) {
+            return steeringHandlers(List.of(steeringHandlers));
+        }
+
+        public Builder steeringHandlers(List<? extends SteeringHandler> steeringHandlers) {
+            this.plugins = Stream.concat(this.plugins.stream(), steeringHandlers.stream().map(Plugin.class::cast)).toList();
             return this;
         }
 

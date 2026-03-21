@@ -42,10 +42,11 @@
 - [0008-hook-registry-and-plugin-boundary.md](0008-hook-registry-and-plugin-boundary.md) — typed hook event、runtime-local registry、plugin bundling、Spring hook discovery の境界を定める
 - [0009-interrupt-resume-and-observation-bridge.md](0009-interrupt-resume-and-observation-bridge.md) — interrupt/resume API と observation-only Spring event bridge の境界を定める
 - [0010-skills-injection-and-discovery-boundary.md](0010-skills-injection-and-discovery-boundary.md) — `Skill` / `SkillParser`、delayed skill activation、context management、classpath discovery、`builder().skills(...)` の境界を定める
+- [0011-streaming-and-steering-boundary.md](0011-streaming-and-steering-boundary.md) — callback-based streaming、`StreamingModel`、`SteeringHandler`、guided retry、`builder().steeringHandlers(...)` の境界を定める
 
 ## 今後の候補
 
-- 将来の provider 拡張や streaming と、skills の注入タイミングをどう整合させるか
+- 将来の provider 拡張と、Phase 6 の callback-based streaming をどこまで非同期 API に広げるか
 
 ## Retrospective ADR の扱い
 

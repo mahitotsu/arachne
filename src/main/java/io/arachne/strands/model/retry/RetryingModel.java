@@ -2,9 +2,11 @@ package io.arachne.strands.model.retry;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 import io.arachne.strands.model.Model;
 import io.arachne.strands.model.ModelEvent;
+import io.arachne.strands.model.StreamingModel;
 import io.arachne.strands.model.ToolSelection;
 import io.arachne.strands.model.ToolSpec;
 import io.arachne.strands.types.Message;
@@ -12,7 +14,7 @@ import io.arachne.strands.types.Message;
 /**
  * Model decorator that applies a retry strategy to model invocation calls.
  */
-public class RetryingModel implements Model {
+public class RetryingModel implements StreamingModel {
 
     private final Model delegate;
     private final ModelRetryStrategy retryStrategy;
@@ -39,5 +41,19 @@ public class RetryingModel implements Model {
             String systemPrompt,
             ToolSelection toolSelection) {
         return retryStrategy.execute(() -> delegate.converse(messages, tools, systemPrompt, toolSelection));
+    }
+
+    @Override
+    public void converseStream(
+            List<Message> messages,
+            List<ToolSpec> tools,
+            String systemPrompt,
+            ToolSelection toolSelection,
+            Consumer<ModelEvent> eventConsumer) {
+        if (delegate instanceof StreamingModel streamingModel) {
+            streamingModel.converseStream(messages, tools, systemPrompt, toolSelection, eventConsumer);
+            return;
+        }
+        StreamingModel.super.converseStream(messages, tools, systemPrompt, toolSelection, eventConsumer);
     }
 }

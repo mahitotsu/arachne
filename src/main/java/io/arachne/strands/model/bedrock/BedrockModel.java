@@ -4,6 +4,12 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.logging.Logger;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -14,17 +20,27 @@ import io.arachne.strands.model.ModelEvent;
 import io.arachne.strands.model.ModelException;
 import io.arachne.strands.model.ModelRetryableException;
 import io.arachne.strands.model.ModelThrottledException;
+import io.arachne.strands.model.StreamingModel;
 import io.arachne.strands.model.ToolSelection;
 import io.arachne.strands.model.ToolSpec;
 import io.arachne.strands.types.ContentBlock;
 import io.arachne.strands.types.Message;
 import software.amazon.awssdk.core.document.Document;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeAsyncClient;
 import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeClient;
 import software.amazon.awssdk.services.bedrockruntime.model.ContentBlock.Type;
+import software.amazon.awssdk.services.bedrockruntime.model.ContentBlockDeltaEvent;
+import software.amazon.awssdk.services.bedrockruntime.model.ContentBlockStartEvent;
+import software.amazon.awssdk.services.bedrockruntime.model.ContentBlockStopEvent;
 import software.amazon.awssdk.services.bedrockruntime.model.ConversationRole;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseRequest;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseResponse;
+import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamMetadataEvent;
+import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamOutput;
+import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamRequest;
+import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamResponseHandler;
+import software.amazon.awssdk.services.bedrockruntime.model.MessageStopEvent;
 import software.amazon.awssdk.services.bedrockruntime.model.SpecificToolChoice;
 import software.amazon.awssdk.services.bedrockruntime.model.SystemContentBlock;
 import software.amazon.awssdk.services.bedrockruntime.model.Tool;
@@ -48,7 +64,7 @@ import software.amazon.awssdk.services.bedrockruntime.model.ToolUseBlock;
  * <p>AWS credentials are resolved via the standard SDK default-credentials chain
  * (environment variables, instance profile, ~/.aws/credentials, etc.).
  */
-public class BedrockModel implements Model {
+public class BedrockModel implements StreamingModel {
 
     /** Default model used when none is configured. */
     public static final String DEFAULT_MODEL_ID = "jp.amazon.nova-2-lite-v1:0";
@@ -61,6 +77,7 @@ public class BedrockModel implements Model {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final BedrockRuntimeClient client;
+    private final BedrockRuntimeAsyncClient asyncClient;
     private final String modelId;
     private final String region;
 
@@ -83,6 +100,9 @@ public class BedrockModel implements Model {
         this.client = BedrockRuntimeClient.builder()
                 .region(Region.of(this.region))
                 .build();
+        this.asyncClient = BedrockRuntimeAsyncClient.builder()
+            .region(Region.of(this.region))
+            .build();
     }
 
     /**
@@ -92,9 +112,22 @@ public class BedrockModel implements Model {
      * @param modelId Bedrock model ID
      */
     public BedrockModel(BedrockRuntimeClient client, String modelId) {
-        this.client = client;
-        this.modelId = modelId;
-        this.region = DEFAULT_REGION;
+        this(client, null, modelId, DEFAULT_REGION);
+    }
+
+    public BedrockModel(BedrockRuntimeClient client, BedrockRuntimeAsyncClient asyncClient, String modelId) {
+        this(client, asyncClient, modelId, DEFAULT_REGION);
+    }
+
+    private BedrockModel(
+            BedrockRuntimeClient client,
+            BedrockRuntimeAsyncClient asyncClient,
+            String modelId,
+            String region) {
+        this.client = Objects.requireNonNull(client, "client must not be null");
+        this.asyncClient = asyncClient;
+        this.modelId = Objects.requireNonNull(modelId, "modelId must not be null");
+        this.region = region == null || region.isBlank() ? DEFAULT_REGION : region;
     }
 
     /** The Bedrock model ID this instance is bound to. */
@@ -137,7 +170,60 @@ public class BedrockModel implements Model {
         return mapResponse(response);
     }
 
-    private RuntimeException translateException(RuntimeException exception) {
+    @Override
+    public void converseStream(
+            List<Message> messages,
+            List<ToolSpec> tools,
+            String systemPrompt,
+            ToolSelection toolSelection,
+            Consumer<ModelEvent> eventConsumer) {
+        Objects.requireNonNull(eventConsumer, "eventConsumer must not be null");
+        if (asyncClient == null) {
+            StreamingModel.super.converseStream(messages, tools, systemPrompt, toolSelection, eventConsumer);
+            return;
+        }
+
+        ConverseStreamRequest request = buildStreamRequest(messages, tools, systemPrompt, toolSelection);
+        LOG.fine(() -> "modelId=" + modelId + " | invoking Bedrock ConverseStream API");
+
+        AtomicReference<String> stopReason = new AtomicReference<>("end_turn");
+        AtomicBoolean metadataEmitted = new AtomicBoolean(false);
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        Map<Integer, StreamedToolUse> toolUses = new LinkedHashMap<>();
+
+        ConverseStreamResponseHandler handler = ConverseStreamResponseHandler.builder()
+                .subscriber(output -> handleStreamOutput(output, toolUses, stopReason, metadataEmitted, eventConsumer))
+                .onError(failure::set)
+                .build();
+
+        CompletableFuture<Void> future;
+        try {
+            future = asyncClient.converseStream(request, handler);
+            future.join();
+        } catch (RuntimeException exception) {
+            Throwable streamFailure = failure.get();
+            throw translateException(streamFailure != null ? streamFailure : exception);
+        }
+
+        Throwable streamFailure = failure.get();
+        if (streamFailure != null) {
+            throw translateException(streamFailure);
+        }
+        if (!metadataEmitted.get()) {
+            eventConsumer.accept(new ModelEvent.Metadata(stopReason.get(), new ModelEvent.Usage(0, 0)));
+        }
+    }
+
+    private RuntimeException translateException(Throwable throwable) {
+        Throwable exception = throwable;
+        if (exception == null) {
+            exception = new IllegalStateException("Bedrock model request failed without an exception cause");
+        } else {
+            exception = unwrap(exception);
+        }
+        if (exception instanceof ModelException modelException) {
+            return modelException;
+        }
         String exceptionName = exception.getClass().getSimpleName();
         String message = exception.getMessage() == null ? exceptionName : exception.getMessage();
 
@@ -152,6 +238,14 @@ public class BedrockModel implements Model {
         return new ModelException("Bedrock model request failed: " + message, exception);
     }
 
+    private Throwable unwrap(Throwable throwable) {
+        Throwable current = throwable;
+        while (current instanceof CompletionException && current.getCause() != null) {
+            current = current.getCause();
+        }
+        return current;
+    }
+
     // ── Request building ────────────────────────────────────────────────────
 
     ConverseRequest buildRequest(
@@ -163,6 +257,29 @@ public class BedrockModel implements Model {
                 messages.stream().map(this::toBedrockMessage).toList();
 
         ConverseRequest.Builder builder = ConverseRequest.builder()
+                .modelId(modelId)
+                .messages(bedrockMessages);
+
+        if (systemPrompt != null && !systemPrompt.isBlank()) {
+            builder.system(SystemContentBlock.builder().text(systemPrompt).build());
+        }
+
+        if (!tools.isEmpty()) {
+            builder.toolConfig(buildToolConfig(tools, toolSelection));
+        }
+
+        return builder.build();
+    }
+
+    private ConverseStreamRequest buildStreamRequest(
+            List<Message> messages,
+            List<ToolSpec> tools,
+            String systemPrompt,
+            ToolSelection toolSelection) {
+        List<software.amazon.awssdk.services.bedrockruntime.model.Message> bedrockMessages =
+                messages.stream().map(this::toBedrockMessage).toList();
+
+        ConverseStreamRequest.Builder builder = ConverseStreamRequest.builder()
                 .modelId(modelId)
                 .messages(bedrockMessages);
 
@@ -296,6 +413,107 @@ public class BedrockModel implements Model {
         events.add(new ModelEvent.Metadata(stopReasonStr, new ModelEvent.Usage(inputTokens, outputTokens)));
 
         return events;
+    }
+
+    private void handleStreamOutput(
+            ConverseStreamOutput output,
+            Map<Integer, StreamedToolUse> toolUses,
+            AtomicReference<String> stopReason,
+            AtomicBoolean metadataEmitted,
+            Consumer<ModelEvent> eventConsumer) {
+        if (output instanceof ContentBlockStartEvent startEvent) {
+            handleContentBlockStart(startEvent, toolUses);
+            return;
+        }
+        if (output instanceof ContentBlockDeltaEvent deltaEvent) {
+            handleContentBlockDelta(deltaEvent, toolUses, eventConsumer);
+            return;
+        }
+        if (output instanceof ContentBlockStopEvent stopEvent) {
+            handleContentBlockStop(stopEvent, toolUses, eventConsumer);
+            return;
+        }
+        if (output instanceof MessageStopEvent messageStopEvent) {
+            stopReason.set(messageStopEvent.stopReasonAsString() != null
+                    ? messageStopEvent.stopReasonAsString()
+                    : "end_turn");
+            return;
+        }
+        if (output instanceof ConverseStreamMetadataEvent metadataEvent) {
+            metadataEmitted.set(true);
+            software.amazon.awssdk.services.bedrockruntime.model.TokenUsage usage = metadataEvent.usage();
+            Integer inputTokenCount = usage != null ? usage.inputTokens() : null;
+            Integer outputTokenCount = usage != null ? usage.outputTokens() : null;
+            int inputTokens = inputTokenCount != null ? inputTokenCount : 0;
+            int outputTokens = outputTokenCount != null ? outputTokenCount : 0;
+            eventConsumer.accept(new ModelEvent.Metadata(
+                    stopReason.get(),
+                    new ModelEvent.Usage(inputTokens, outputTokens)));
+        }
+    }
+
+    private void handleContentBlockStart(ContentBlockStartEvent startEvent, Map<Integer, StreamedToolUse> toolUses) {
+        if (startEvent.start() == null || startEvent.start().toolUse() == null || startEvent.contentBlockIndex() == null) {
+            return;
+        }
+        toolUses.put(
+                startEvent.contentBlockIndex(),
+                new StreamedToolUse(
+                        startEvent.start().toolUse().toolUseId(),
+                        startEvent.start().toolUse().name()));
+    }
+
+    private void handleContentBlockDelta(
+            ContentBlockDeltaEvent deltaEvent,
+            Map<Integer, StreamedToolUse> toolUses,
+            Consumer<ModelEvent> eventConsumer) {
+        if (deltaEvent.delta() == null) {
+            return;
+        }
+        if (deltaEvent.delta().text() != null) {
+            eventConsumer.accept(new ModelEvent.TextDelta(deltaEvent.delta().text()));
+        }
+        if (deltaEvent.delta().toolUse() != null && deltaEvent.contentBlockIndex() != null) {
+            StreamedToolUse toolUse = toolUses.get(deltaEvent.contentBlockIndex());
+            if (toolUse != null && deltaEvent.delta().toolUse().input() != null) {
+                toolUse.input().append(deltaEvent.delta().toolUse().input());
+            }
+        }
+    }
+
+    private void handleContentBlockStop(
+            ContentBlockStopEvent stopEvent,
+            Map<Integer, StreamedToolUse> toolUses,
+            Consumer<ModelEvent> eventConsumer) {
+        if (stopEvent.contentBlockIndex() == null) {
+            return;
+        }
+        StreamedToolUse toolUse = toolUses.remove(stopEvent.contentBlockIndex());
+        if (toolUse == null) {
+            return;
+        }
+        eventConsumer.accept(new ModelEvent.ToolUse(
+                toolUse.toolUseId(),
+                toolUse.name(),
+                parseStreamedToolInput(toolUse.input().toString())));
+    }
+
+    private Object parseStreamedToolInput(String rawInput) {
+        if (rawInput == null || rawInput.isBlank()) {
+            return null;
+        }
+        try {
+            return OBJECT_MAPPER.readValue(rawInput, Object.class);
+        } catch (java.io.IOException | RuntimeException exception) {
+            throw new ModelException("Bedrock returned invalid streamed tool input JSON", exception);
+        }
+    }
+
+    private record StreamedToolUse(String toolUseId, String name, StringBuilder input) {
+
+        private StreamedToolUse(String toolUseId, String name) {
+            this(toolUseId, name, new StringBuilder());
+        }
     }
 
     // ── Document ↔ Java object conversion ──────────────────────────────────

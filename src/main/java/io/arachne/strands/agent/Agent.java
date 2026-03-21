@@ -1,6 +1,7 @@
 package io.arachne.strands.agent;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 import io.arachne.strands.model.Model;
 import io.arachne.strands.tool.Tool;
@@ -22,6 +23,11 @@ public interface Agent {
      * Send a prompt and require the final answer as structured output.
      */
     <T> T run(String prompt, Class<T> outputType);
+
+    /**
+     * Send a prompt and subscribe to incremental runtime events.
+     */
+    AgentResult stream(String prompt, Consumer<AgentStreamEvent> eventConsumer);
 
     /**
      * The model this agent is bound to.

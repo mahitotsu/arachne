@@ -53,6 +53,10 @@ public final class BeforeToolCallEvent {
         this.overrideResult = Objects.requireNonNull(overrideResult, "overrideResult must not be null");
     }
 
+    public void guide(String guidance) {
+        skipWith(ToolResult.error(toolUseId, Objects.requireNonNull(guidance, "guidance must not be null")));
+    }
+
     public AgentInterrupt interrupt() {
         return interrupt;
     }

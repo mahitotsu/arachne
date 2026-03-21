@@ -19,5 +19,6 @@
         <module>phase3-jdbc-session</module>
         <module>phase4-hooks-interrupts</module>
         <module>phase5-skills</module>
+        <module>phase6-streaming-steering</module>
     </modules>
 </project>

@@ -192,4 +192,72 @@ class EventLoopTest {
             return systemPrompt;
         }
     }
+
+    @Test
+    void beforeToolCallCanGuideWithoutRunningTheTool() {
+        List<Message> messages = new ArrayList<>();
+        messages.add(Message.user("pick the best path"));
+        List<String> invocations = new ArrayList<>();
+        Tool tool = new Tool() {
+            @Override
+            public ToolSpec spec() {
+                return new ToolSpec("planner", "planner", null);
+            }
+
+            @Override
+            public ToolResult invoke(Object input) {
+                invocations.add("planner");
+                return ToolResult.success("tool-1", "executed");
+            }
+        };
+        HookProvider hookProvider = registrar -> registrar.beforeToolCall(event -> event.guide("Use the existing itinerary instead."));
+        EventLoop guidedLoop = new EventLoop(DispatchingHookRegistry.fromProviders(List.of(hookProvider)));
+        Model model = toolThenTextModel("tool-1", "planner", java.util.Map.of("city", "Tokyo"), "Handled guidance");
+
+        EventLoopResult result = guidedLoop.run(model, messages, List.of(tool), new AgentState(), 0);
+
+        assertThat(result.text()).isEqualTo("Handled guidance");
+        assertThat(invocations).isEmpty();
+        Message toolResultMessage = messages.get(2);
+        ContentBlock.ToolResult toolResult = (ContentBlock.ToolResult) toolResultMessage.content().getFirst();
+        assertThat(toolResult.status()).isEqualTo("error");
+        assertThat(toolResult.content()).isEqualTo("Use the existing itinerary instead.");
+    }
+
+    @Test
+    void afterModelCallCanRetryWithGuidance() {
+        List<Message> messages = new ArrayList<>();
+        messages.add(Message.user("answer carefully"));
+        int[] calls = {0};
+        Model model = (conversation, tools) -> {
+            calls[0]++;
+            if (calls[0] == 1) {
+                return List.of(
+                        new ModelEvent.TextDelta("Draft"),
+                        new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
+            }
+            return List.of(
+                    new ModelEvent.TextDelta("Final"),
+                    new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
+        };
+        HookProvider hookProvider = registrar -> registrar.afterModelCall(new java.util.function.Consumer<>() {
+            private boolean guided;
+
+            @Override
+            public void accept(io.arachne.strands.hooks.AfterModelCallEvent event) {
+                if (!guided) {
+                    guided = true;
+                    event.retryWithGuidance("Be specific.");
+                }
+            }
+        });
+        EventLoop guidedLoop = new EventLoop(DispatchingHookRegistry.fromProviders(List.of(hookProvider)));
+
+        EventLoopResult result = guidedLoop.run(model, messages, List.of(), new AgentState(), 0);
+
+        assertThat(result.text()).isEqualTo("Final");
+        assertThat(messages).hasSize(3);
+        assertThat(messages.get(1)).isEqualTo(Message.user("Be specific."));
+        assertThat(messages.get(2)).isEqualTo(Message.assistant("Final"));
+    }
 }

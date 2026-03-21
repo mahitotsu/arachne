@@ -5,6 +5,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -233,6 +234,22 @@ public class DefaultAgent implements Agent {
     }
 
     @Override
+    public AgentResult stream(String prompt, Consumer<AgentStreamEvent> eventConsumer) {
+        Objects.requireNonNull(eventConsumer, "eventConsumer must not be null");
+        ensureNoPendingInterrupts();
+
+        BeforeInvocationEvent beforeInvocationEvent = hooks.onBeforeInvocation(
+                new BeforeInvocationEvent(prompt, messages, state));
+
+        addMessage(Message.user(beforeInvocationEvent.prompt()));
+
+        EventLoopResult loopResult = eventLoop.runStreaming(model, messages, tools, systemPrompt, state, 0, eventConsumer);
+        AgentResult result = completeInvocation(loopResult);
+        eventConsumer.accept(new AgentStreamEvent.Complete(result));
+        return result;
+    }
+
+    @Override
     public Model getModel() {
         return model;
     }
@@ -323,6 +340,30 @@ public class DefaultAgent implements Agent {
         conversationManager.applyManagement(messages);
         persistSession();
         return new AgentResult(loopResult.text(), List.copyOf(messages), loopResult.stopReason());
+    }
+
+    private AgentResult completeInvocation(EventLoopResult loopResult) {
+        if (loopResult.interrupted()) {
+            pendingInterrupts = loopResult.interrupts();
+            persistSession();
+        } else {
+            pendingInterrupts = List.of();
+            conversationManager.applyManagement(messages);
+            persistSession();
+        }
+
+        AfterInvocationEvent afterInvocationEvent = hooks.onAfterInvocation(new AfterInvocationEvent(
+                loopResult.text(),
+                messages,
+                loopResult.stopReason(),
+                state));
+
+        return new AgentResult(
+                afterInvocationEvent.text(),
+                List.copyOf(afterInvocationEvent.messages()),
+                afterInvocationEvent.stopReason(),
+                pendingInterrupts,
+                this::resume);
     }
 
     private void ensureNoPendingInterrupts() {

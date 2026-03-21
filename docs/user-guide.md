@@ -4,7 +4,7 @@ This guide documents the features that are available on the current main branch.
 
 ## Scope
 
-The current implementation gives you a synchronous, Bedrock-backed agent loop with the Phase 1 through Phase 5 feature set complete on the current main branch.
+The current implementation gives you a synchronous, Bedrock-backed agent loop with the Phase 1 through Phase 6 feature set complete on the current main branch.
 
 Available now:
 
@@ -30,10 +30,12 @@ Available now:
 - Spring `ApplicationEvent` bridge for lifecycle observation
 - AgentSkills.io-style `SKILL.md` parsing, delayed skill activation, and loaded-skill context management
 - classpath discovery of packaged skills from `resources/skills/`
+- callback-based streaming invocation through `Agent.stream(...)`
+- tool and model steering through runtime-local `SteeringHandler` plugins
 
 Not available yet:
 
-- streaming responses
+- bidirectional streaming (audio/realtime)
 
 If you want runnable examples instead of only reading the API docs, use these samples:
 
@@ -43,6 +45,7 @@ If you want runnable examples instead of only reading the API docs, use these sa
 - [samples/phase3-jdbc-session/README.md](samples/phase3-jdbc-session/README.md)
 - [samples/phase4-hooks-interrupts/README.md](samples/phase4-hooks-interrupts/README.md)
 - [samples/phase5-skills/README.md](samples/phase5-skills/README.md)
+- [samples/phase6-streaming-steering/README.md](samples/phase6-streaming-steering/README.md)
 
 ## Prerequisites
 
@@ -818,6 +821,72 @@ class AuditHook implements HookProvider {
 
 Spring Boot also publishes observation-only lifecycle notifications as `ArachneLifecycleApplicationEvent`. These events carry immutable snapshots for listeners; subscribing to them does not change the agent control flow.
 
+## Streaming And Steering
+
+Phase 6 keeps the existing blocking `Agent.run(...)` path and adds opt-in streaming plus runtime-local steering.
+
+For streaming, call `Agent.stream(...)` and subscribe to `AgentStreamEvent` values as they arrive:
+
+```java
+import io.arachne.strands.agent.AgentStreamEvent;
+
+Agent agent = factory.builder().build();
+
+AgentResult result = agent.stream("Summarize this incident", event -> {
+  switch (event) {
+    case AgentStreamEvent.TextDelta textDelta -> System.out.print(textDelta.delta());
+    case AgentStreamEvent.ToolUseRequested toolUseRequested ->
+        System.out.println("\n[tool] " + toolUseRequested.toolName());
+    case AgentStreamEvent.ToolResultObserved toolResultObserved ->
+        System.out.println("\n[result] " + toolResultObserved.result().status());
+    case AgentStreamEvent.Retry retry ->
+        System.out.println("\n[retry] " + retry.guidance());
+    case AgentStreamEvent.Complete complete ->
+        System.out.println("\n[done] " + complete.result().text());
+  }
+});
+```
+
+`Retry` is emitted when model steering discards the provisional response and asks the model to try again with added guidance. In the normal non-streaming `run(...)` path, that provisional response never reaches the caller.
+
+Provider support is optional. Models that implement `StreamingModel` can push `ModelEvent` values as they arrive. `BedrockModel` uses Bedrock `converseStream` for this path. Models without provider streaming support still work through the same API by replaying their ordinary `converse(...)` events through the callback.
+
+For steering, register a `SteeringHandler` on the builder. Steering handlers are plugins, so they stay runtime-local like other Phase 4 and Phase 5 extensions:
+
+```java
+import io.arachne.strands.steering.Guide;
+import io.arachne.strands.steering.ModelSteeringAction;
+import io.arachne.strands.steering.Proceed;
+import io.arachne.strands.steering.SteeringHandler;
+import io.arachne.strands.steering.ToolSteeringAction;
+
+Agent agent = factory.builder()
+  .steeringHandlers(new SteeringHandler() {
+    @Override
+    protected ToolSteeringAction steerBeforeTool(io.arachne.strands.hooks.BeforeToolCallEvent event) {
+      if ("delete_records".equals(event.toolName())) {
+        return new io.arachne.strands.steering.Interrupt("Operator approval required before deletion.");
+      }
+      return new Proceed("allow");
+    }
+
+    @Override
+    protected ModelSteeringAction steerAfterModel(io.arachne.strands.hooks.AfterModelCallEvent event) {
+      if (event.response().content().isEmpty()) {
+        return new Guide("Provide a concrete answer.");
+      }
+      return new Proceed("accept");
+    }
+  })
+  .build();
+```
+
+The steering contract is:
+
+- tool steering: `Proceed` allows execution, `Guide` skips the tool and returns guidance as a tool-result error payload, `Interrupt` reuses the existing interrupt/resume path
+- model steering: `Proceed` accepts the response, `Guide` discards the response, appends a guidance user message, and retries the next model turn
+- Spring integration: use `AgentFactory.builder().steeringHandlers(...)` for explicit opt-in; the built runtime still supports `run(...)` and `stream(...)`
+
 ## Skills
 
 Phase 5 adds AgentSkills.io-style skill ingestion and delayed activation. A skill is a `SKILL.md` document with YAML frontmatter and a markdown body.
@@ -891,17 +960,21 @@ If you want a runnable, Bedrock-free example of this flow, use:
 
 - [samples/phase5-skills/README.md](samples/phase5-skills/README.md)
 
+If you want a runnable, Bedrock-free example of the combined Phase 6 streaming and steering flow, use:
+
+- [samples/phase6-streaming-steering/README.md](samples/phase6-streaming-steering/README.md)
+
 ## Current Constraints
 
 The current implementation is intentionally narrow.
 
 - only AWS Bedrock is supported as a built-in provider
 - the loop is synchronous and blocking
-- responses are non-streaming
 - interrupt/resume currently feeds human responses back into the conversation as tool results rather than re-entering the original tool invocation automatically
 - sliding-window trimming is property-driven, but summary compaction still requires an explicit `SummarizingConversationManager` on the builder
 - skills currently come from builder-supplied values or classpath-discovered `SKILL.md` files; remote registries and hot reload are not implemented
 - structured output currently targets simple JSON-shaped Java types rather than arbitrary object graphs
+- callback-based streaming is one-way output only; bidirectional realtime/audio streaming is not implemented
 
 ## Verification
 

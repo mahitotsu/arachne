@@ -12,6 +12,8 @@ public final class AfterModelCallEvent {
     private String stopReason;
     private final List<Message> messages;
     private final AgentState state;
+    private boolean retryRequested;
+    private String retryGuidance;
 
     public AfterModelCallEvent(Message response, String stopReason, List<Message> messages, AgentState state) {
         this.response = Objects.requireNonNull(response, "response must not be null");
@@ -42,5 +44,18 @@ public final class AfterModelCallEvent {
 
     public AgentState state() {
         return state;
+    }
+
+    public boolean retryRequested() {
+        return retryRequested;
+    }
+
+    public String retryGuidance() {
+        return retryGuidance;
+    }
+
+    public void retryWithGuidance(String guidance) {
+        this.retryRequested = true;
+        this.retryGuidance = Objects.requireNonNull(guidance, "guidance must not be null");
     }
 }

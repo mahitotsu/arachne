@@ -2,7 +2,7 @@
 
 Arachne is a Java port of the Strands Agents SDK with Spring Boot integration.
 
-Phase 1 through Phase 5 are complete on the current main branch. 現時点で次を利用できます:
+Phase 1 through Phase 6 are complete on the current main branch. 現時点で次を利用できます:
 
 - auto-configure a Bedrock-backed `Model` in Spring Boot
 - create an `Agent` from `AgentFactory`
@@ -26,10 +26,13 @@ Phase 1 through Phase 5 are complete on the current main branch. 現時点で次
 - auto-discover classpath skills from `src/main/resources/skills/*/SKILL.md`
 - expose a dedicated `activate_skill` tool with a compact available-skill catalog
 - delay-load full skill instructions and keep loaded skills active without duplicate injection
+- stream incremental runtime events with `agent.stream("...", event -> ...)`
+- register steering plugins with `AgentFactory.builder().steeringHandlers(...)`
+- guide, interrupt, or retry runtime decisions through the Phase 6 steering contract
 
 Not available yet:
 
-- streaming responses
+- bidirectional streaming (audio/realtime)
 
 The current user-facing guide is here:
 
@@ -43,6 +46,7 @@ The runnable sample app is here:
 - [samples/phase3-jdbc-session/README.md](samples/phase3-jdbc-session/README.md)
 - [samples/phase4-hooks-interrupts/README.md](samples/phase4-hooks-interrupts/README.md)
 - [samples/phase5-skills/README.md](samples/phase5-skills/README.md)
+- [samples/phase6-streaming-steering/README.md](samples/phase6-streaming-steering/README.md)
 
 The implementation plan and remaining work are tracked in:
 
@@ -60,7 +64,7 @@ Quality evaluation workflow:
 
 ## Current Status
 
-Phase 1 covers the synchronous Bedrock event loop. Phase 2 adds annotation-driven tools and structured output as first-class APIs. Phase 3 completes conversation management, session persistence backends, retry, and multi-agent configuration. Phase 3.5 completes the Spring integration review: the standard idiom is now factory-owned runtimes, shared application-facing `ObjectMapper` reuse, and a pluggable tool-execution backend. Phase 4 completes typed hook dispatch, plugin bundling, Spring hook discovery, the observation-only Spring event bridge, and interrupt/resume control flow before tool execution. Phase 5 completes AgentSkills.io-style skills with classpath discovery, compact catalog injection, dedicated delayed activation, and loaded-skill context management on top of the Phase 4 plugin boundary.
+Phase 1 covers the synchronous Bedrock event loop. Phase 2 adds annotation-driven tools and structured output as first-class APIs. Phase 3 completes conversation management, session persistence backends, retry, and multi-agent configuration. Phase 3.5 completes the Spring integration review: the standard idiom is now factory-owned runtimes, shared application-facing `ObjectMapper` reuse, and a pluggable tool-execution backend. Phase 4 completes typed hook dispatch, plugin bundling, Spring hook discovery, the observation-only Spring event bridge, and interrupt/resume control flow before tool execution. Phase 5 completes AgentSkills.io-style skills with classpath discovery, compact catalog injection, dedicated delayed activation, and loaded-skill context management on top of the Phase 4 plugin boundary. Phase 6 adds callback-based streaming invocation, Bedrock streaming support through `StreamingModel`, and steering handlers for tool guidance, interrupts, and model retry.
 
 Available now on the Phase 2 path:
 
@@ -101,6 +105,14 @@ Available now on the Phase 5 path:
 - loaded-skill tracking in `AgentState`, including duplicate-load suppression across the conversation
 - `AgentFactory.builder().skills(...)` for runtime-local skill attachment
 - Spring classpath discovery from `src/main/resources/skills/*/SKILL.md`
+
+Available now on the Phase 6 path:
+
+- `Agent.stream(String, Consumer<AgentStreamEvent>)` for incremental runtime events
+- `AgentStreamEvent.TextDelta`, `ToolUseRequested`, `ToolResultObserved`, `Retry`, and `Complete`
+- `StreamingModel` as an optional provider capability with Bedrock `converseStream` support
+- `SteeringHandler` plus `Proceed`, `Guide`, and `Interrupt` steering decisions
+- `AgentFactory.builder().steeringHandlers(...)` for runtime-local steering opt-in
 
 ## Quick Start
 
@@ -231,6 +243,40 @@ Agent agent = factory.builder()
 For Spring Boot discovery, place AgentSkills.io-style files under `src/main/resources/skills/<skill-name>/SKILL.md`. Arachne loads them automatically, exposes a compact skill catalog to the model, and lets the model load only the relevant skill body through the dedicated `activate_skill` tool.
 
 Loaded skill names are tracked in `AgentState`, so once a skill has been activated it stays active for later turns in that conversation. Arachne also avoids re-injecting the same skill body twice in the same prompt and skips redundant re-loading for already active skills.
+
+Phase 6 streaming is also available on the current branch. The simplest direct-Java usage is:
+
+```java
+import io.arachne.strands.agent.AgentStreamEvent;
+
+Agent agent = factory.builder().build();
+
+AgentResult result = agent.stream("Plan a day trip to Kyoto", event -> {
+    if (event instanceof AgentStreamEvent.TextDelta textDelta) {
+        System.out.print(textDelta.delta());
+    }
+});
+```
+
+For runtime-local steering, attach a `SteeringHandler` on the builder:
+
+```java
+import io.arachne.strands.steering.Guide;
+import io.arachne.strands.steering.SteeringHandler;
+import io.arachne.strands.steering.ToolSteeringAction;
+
+Agent agent = factory.builder()
+    .steeringHandlers(new SteeringHandler() {
+        @Override
+        protected ToolSteeringAction steerBeforeTool(io.arachne.strands.hooks.BeforeToolCallEvent event) {
+            if ("dangerousTool".equals(event.toolName())) {
+                return new Guide("Use the safer cached path instead.");
+            }
+            return new io.arachne.strands.steering.Proceed("allow");
+        }
+    })
+    .build();
+```
 
 If you need LLM-backed compaction instead of a fixed sliding window, pass `SummarizingConversationManager` explicitly through the builder:
 
