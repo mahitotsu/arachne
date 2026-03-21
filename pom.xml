@@ -193,6 +193,7 @@
                             <failOnError>false</failOnError>
                             <xmlOutput>true</xmlOutput>
                             <htmlOutput>true</htmlOutput>
+                            <excludeFilterFile>${project.basedir}/spotbugs-exclude.xml</excludeFilterFile>
                         </configuration>
                         <executions>
                             <execution>
@@ -237,7 +238,6 @@
                     <plugin>
                         <groupId>org.cyclonedx</groupId>
                         <artifactId>cyclonedx-maven-plugin</artifactId>
-                        <version>${cyclonedx.maven.plugin.version}</version>
                         <configuration>
                             <outputDirectory>${project.build.directory}</outputDirectory>
                             <outputName>dependency-bom</outputName>

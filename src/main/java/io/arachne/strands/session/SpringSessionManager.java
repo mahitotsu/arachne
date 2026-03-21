@@ -205,7 +205,7 @@ public class SpringSessionManager implements SessionManager {
     private String writeJson(Object value) {
         try {
             return objectMapper.writeValueAsString(value);
-        } catch (IOException e) {
+        } catch (IOException | RuntimeException e) {
             throw new IllegalStateException("Failed to serialize Spring Session payload", e);
         }
     }
@@ -213,7 +213,7 @@ public class SpringSessionManager implements SessionManager {
     private <T> T readJson(String json, TypeReference<T> typeReference, String attributeName) {
         try {
             return objectMapper.readValue(json, typeReference);
-        } catch (IOException e) {
+        } catch (IOException | RuntimeException e) {
             throw new IllegalStateException(
                     "Failed to deserialize Spring Session attribute: " + attributeName,
                     e);

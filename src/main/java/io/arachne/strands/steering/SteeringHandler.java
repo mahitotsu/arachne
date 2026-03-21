@@ -53,18 +53,17 @@ public abstract class SteeringHandler implements Plugin {
 
     private void handleBeforeToolCall(BeforeToolCallEvent event) {
         ToolSteeringAction action = Objects.requireNonNull(steerBeforeTool(event), "tool steering action must not be null");
-        switch (action) {
-            case Proceed proceed -> proceed.reason();
-            case Guide guide -> event.guide(guide.reason());
-            case Interrupt interrupt -> event.interrupt("steering_input_" + event.toolName(), java.util.Map.of("message", interrupt.reason()));
+        if (action instanceof Guide guide) {
+            event.guide(guide.reason());
+        } else if (action instanceof Interrupt interrupt) {
+            event.interrupt("steering_input_" + event.toolName(), java.util.Map.of("message", interrupt.reason()));
         }
     }
 
     private void handleAfterModelCall(AfterModelCallEvent event) {
         ModelSteeringAction action = Objects.requireNonNull(steerAfterModel(event), "model steering action must not be null");
-        switch (action) {
-            case Proceed proceed -> proceed.reason();
-            case Guide guide -> event.retryWithGuidance(guide.reason());
+        if (action instanceof Guide guide) {
+            event.retryWithGuidance(guide.reason());
         }
     }
 }
