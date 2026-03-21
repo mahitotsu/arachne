@@ -1,28 +1,28 @@
 # ADRs
 
-このディレクトリには、Arachne の重要なアーキテクチャ判断を ADR (Architectural Decision Record) として保存する。
+This directory stores Arachne's important architectural decisions as ADRs (Architectural Decision Records).
 
-## 目的
+## Purpose
 
-- Phase をまたいで効く判断を、実装や issue の文脈から独立して参照できるようにする。
-- 採用しなかった案や保留した理由も残し、後続フェーズで同じ議論をやり直さないようにする。
-- Spring 統合、agent lifecycle、tool binding、session、hook/plugin などの横断的な設計判断を追跡可能にする。
-- すでに実装済みの判断も retrospective ADR として棚卸しし、暗黙の前提を明文化する。
+- Keep cross-cutting decisions independently referenceable outside the context of a specific implementation or issue thread.
+- Record rejected alternatives and deferrals so the same discussions do not have to be rediscovered later.
+- Make major design decisions around Spring integration, agent lifecycle, tool binding, session handling, hooks, and plugins traceable.
+- Capture already-implemented decisions retrospectively when they remain part of the project's implicit contract.
 
-## 対象
+## When To Write An ADR
 
-次のいずれかに当てはまる変更・判断は ADR を作る。
+Create an ADR when a change or decision does any of the following:
 
-- public API や標準的な利用パターンを変える
-- Spring wiring や bean lifecycle の前提を変える
-- 複数フェーズに影響する core 境界を決める
-- 採用案と却下案の比較が必要な論点を閉じる
-- 今回は見送るが、明示的に保留として残したい論点を記録する
-- すでに採用済みで、今後の設計や互換性の前提になる判断を後追いで記録する
+- changes a public API or the standard usage pattern
+- changes Spring wiring or bean-lifecycle assumptions
+- fixes a core boundary that affects multiple capability areas
+- closes a tradeoff that needs an explicit comparison between accepted and rejected options
+- records an explicit deferral that should remain visible
+- captures an already adopted decision that still matters for future design or compatibility
 
-## 最低限の書式
+## Minimum Format
 
-各 ADR は `docs/adr/NNNN-title.md` とし、最低限次を含める。
+Each ADR lives at `docs/adr/NNNN-title.md` and must include at least:
 
 - Status
 - Context
@@ -32,35 +32,40 @@
 
 ## Current ADRs
 
-- [0001-agent-runtime-lifecycle.md](0001-agent-runtime-lifecycle.md) — stateful な agent runtime を shared singleton bean として標準化しない
-- [0002-session-manager-explicit-session-id.md](0002-session-manager-explicit-session-id.md) — `SessionManager` 境界と explicit `sessionId` 維持を session 永続化の標準方針とする
-- [0003-spring-integration-entrypoint.md](0003-spring-integration-entrypoint.md) — Spring Boot auto-configuration と `AgentFactory` を標準統合入口として扱う
-- [0004-agent-definition-runtime-split.md](0004-agent-definition-runtime-split.md) — definition/runtime の別型導入は保留し、当面は `AgentFactory` 主導で扱う
-- [0005-binding-validation-boundaries.md](0005-binding-validation-boundaries.md) — binding と validation を別段階として扱い、Spring bean 再利用範囲を定める
-- [0006-tool-execution-backend.md](0006-tool-execution-backend.md) — `ToolExecutor` の execution backend は固定実装にせず Spring から差し替え可能とする
-- [0007-phase2-tool-contracts.md](0007-phase2-tool-contracts.md) — annotation-driven tools、qualifier ベースの tool scope、structured output を Phase 2 の公開契約として扱う
-- [0008-hook-registry-and-plugin-boundary.md](0008-hook-registry-and-plugin-boundary.md) — typed hook event、runtime-local registry、plugin bundling、Spring hook discovery の境界を定める
-- [0009-interrupt-resume-and-observation-bridge.md](0009-interrupt-resume-and-observation-bridge.md) — interrupt/resume API と observation-only Spring event bridge の境界を定める
-- [0010-skills-injection-and-discovery-boundary.md](0010-skills-injection-and-discovery-boundary.md) — `Skill` / `SkillParser`、delayed skill activation、context management、classpath discovery、`builder().skills(...)` の境界を定める
-- [0011-streaming-and-steering-boundary.md](0011-streaming-and-steering-boundary.md) — callback-based streaming、`StreamingModel`、`SteeringHandler`、guided retry、`builder().steeringHandlers(...)` の境界を定める
+- [0001-agent-runtime-lifecycle.md](0001-agent-runtime-lifecycle.md) - do not standardize stateful agent runtimes as shared singleton beans
+- [0002-session-manager-explicit-session-id.md](0002-session-manager-explicit-session-id.md) - keep `SessionManager` and explicit `sessionId` as the standard session-persistence boundary
+- [0003-spring-integration-entrypoint.md](0003-spring-integration-entrypoint.md) - treat Spring Boot auto-configuration and `AgentFactory` as the standard integration entrypoint
+- [0004-agent-definition-runtime-split.md](0004-agent-definition-runtime-split.md) - defer introducing separate definition/runtime public types and continue with `AgentFactory` as the assembly entrypoint
+- [0005-binding-validation-boundaries.md](0005-binding-validation-boundaries.md) - separate binding from validation and define the scope of Spring bean reuse
+- [0006-tool-execution-backend.md](0006-tool-execution-backend.md) - keep the tool-execution backend pluggable rather than fixed
+- [0007-phase2-tool-contracts.md](0007-phase2-tool-contracts.md) - preserve annotation-driven tools, qualifier-based scope, and structured output as the Phase 2 public contract
+- [0008-hook-registry-and-plugin-boundary.md](0008-hook-registry-and-plugin-boundary.md) - define the boundary for typed hook events, runtime-local registries, plugin bundling, and Spring hook discovery
+- [0009-interrupt-resume-and-observation-bridge.md](0009-interrupt-resume-and-observation-bridge.md) - define the interrupt/resume API and the observation-only Spring event bridge boundary
+- [0010-skills-injection-and-discovery-boundary.md](0010-skills-injection-and-discovery-boundary.md) - define the boundary for `Skill` / `SkillParser`, delayed skill activation, context management, classpath discovery, and `builder().skills(...)`
+- [0011-streaming-and-steering-boundary.md](0011-streaming-and-steering-boundary.md) - define the boundary for callback-based streaming, `StreamingModel`, `SteeringHandler`, guided retry, and `builder().steeringHandlers(...)`
+- [0012-post-mvp-product-boundary.md](0012-post-mvp-product-boundary.md) - define the shipped contract, deferred features, and ADR-first future extension policy after removing `ROADMAP.md`
 
-## 今後の候補
+## Future ADR Candidates
 
-- 将来の provider 拡張と、Phase 6 の callback-based streaming をどこまで非同期 API に広げるか
+- provider expansion and how far the current callback-based streaming model should grow into asynchronous APIs
+- where external protocol integrations such as MCP or A2A should sit in the architecture
+- whether multi-agent Swarm or Graph orchestration belongs in the core or in a plugin/separate module
+- how Guardrails and policy enforcement should fit with steering and hooks
+- how remote skill registries and hot reload should integrate with the current skills contract
 
-## Retrospective ADR の扱い
+## Retrospective ADRs
 
-後追いで作る ADR も有効であり、むしろ必要である。対象は次のような「すでにコードに入っているが、今後も前提として参照される判断」である。
+Retrospective ADRs are valid and often necessary. They are meant for decisions that are already present in the codebase but still need to remain explicit assumptions going forward, such as:
 
-- `SessionManager` 抽象と `InMemorySessionManager` / `FileSessionManager` / Spring Session adapter を採用した判断
-- Redis / JDBC backend でも explicit `sessionId` を維持する判断
-- Spring Boot auto-configuration と `AgentFactory` を標準の統合入口にした判断
-- Phase 2 の annotation tool discovery、tool scope、structured output をどこまで後方互換対象として固定するか
+- adopting the `SessionManager` abstraction plus `InMemorySessionManager`, `FileSessionManager`, and Spring Session adapters
+- preserving explicit `sessionId` even for Redis and JDBC backends
+- treating Spring Boot auto-configuration and `AgentFactory` as the standard integration entrypoint
+- deciding how strongly Phase 2 annotation tool discovery, tool scoping, and structured output are part of the backward-compatibility contract
 
-retrospective ADR では、当時の背景を後から補ってよいが、少なくとも「現在のコードベースが何を採用しているか」「代替案は何だったか」「今後どこまで固定したいか」を明示する。
+In a retrospective ADR, it is fine to reconstruct the background after the fact, but it should still state at least what the current codebase has adopted, which alternatives existed, and how strongly the project intends to preserve that decision.
 
-## 運用ルール
+## Maintenance Rules
 
-- 実装前に判断を閉じる必要がある論点は、実装着手前に ADR を追加または更新する。
-- 実装の途中で判断が変わった場合は、コードだけでなく ADR も同じターンで更新する。
-- 廃止した判断は削除せず superseded として残す。
+- When a design question must be settled before implementation, add or update the ADR before the implementation starts.
+- If a decision changes during implementation, update the ADR in the same turn as the code.
+- Do not delete obsolete decisions. Keep them as superseded records.

@@ -2,11 +2,11 @@
 
 Use this checklist for both `/phase-closeout` and `/phase-audit`.
 
-## 1. Reconfirm the phase target
+## 1. Reconfirm the target area
 
-- Read the target phase section in ROADMAP.md.
-- Capture the stated goal and every task row for that phase.
-- Treat unchecked roadmap rows as incomplete until code, docs, and tests prove otherwise.
+- Read `docs/project-status.md`, `docs/user-guide.md`, and relevant ADRs for the target area.
+- Capture the shipped behavior, current constraints, and any explicitly deferred items that border the target area.
+- Treat undocumented or unverified behavior as incomplete until code, docs, and tests prove otherwise.
 
 ## 2. Confirm implementation coverage
 
@@ -27,7 +27,7 @@ Always check whether each of these needs an update:
 
 - README.md
 - docs/user-guide.md
-- ROADMAP.md
+- docs/project-status.md
 - `.github/instructions/*.instructions.md`
 - docs/adr/README.md and relevant ADR files
 - sample READMEs under samples/
@@ -36,7 +36,7 @@ Typical triggers:
 
 - README.md: branch-wide current status, feature list, quick start, verification instructions, contributor workflow entry points
 - docs/user-guide.md: user-facing API, configuration, lifecycle, sample references, limitations, usage notes
-- ROADMAP.md: checkbox completion, wording that has become stale, newly split or deferred work
+- docs/project-status.md: shipped scope, wording that has become stale, newly deferred work, current constraints
 - instructions: current phase focus, obsolete constraints, next-phase entry criteria, test emphasis
 - ADRs: decisions that affect public API, Spring wiring, lifecycle, session persistence, tool binding and validation, execution backend, hooks/plugins/interrupts, or other cross-phase boundaries
 - sample READMEs: runnable examples, new standard idioms, changed configuration, changed operator steps
@@ -49,7 +49,7 @@ At minimum, check these repo-specific invariants:
 - AgentFactory remains the standard Spring integration entry point
 - stateful Agent runtimes are not pushed back toward shared singleton-bean usage
 - provider-independent logic stays out of Bedrock-specific areas unless the task is explicitly Bedrock-specific
-- prior phases keep their published behavior unless the roadmap explicitly changed it
+- previously shipped behavior keeps working unless there is an explicit contract change documented in the status docs and ADRs
 
 ## 6. ADR decision gate
 
@@ -65,16 +65,16 @@ Create or update an ADR when the work:
 
 If no ADR change is needed, say why.
 
-## 7. Next-phase readiness gate
+## 7. Next-theme readiness gate
 
-If the team is about to start the next roadmap phase:
+If the team is about to start the next implementation theme:
 
-- review the next phase implementation instruction file
-- review the next phase test-strategy instruction file
+- review the next implementation instruction file
+- review the next test-strategy instruction file
 - remove stale constraints from the old phase
-- align both files with the roadmap goal, completion conditions, and test emphasis of the next phase
+- align both files with `docs/project-status.md`, relevant ADRs, completion conditions, and the test emphasis of the next theme
 
-If next-phase work is not starting yet, state that no instruction switch was made.
+If no new implementation theme is starting yet, state that no instruction switch was made.
 
 ## 8. Residual work classification
 

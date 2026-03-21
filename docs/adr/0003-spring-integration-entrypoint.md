@@ -6,48 +6,48 @@ Accepted (retrospective)
 
 ## Context
 
-Arachne は Spring Boot integration を主要な提供価値の 1 つとしており、MVP の時点から「Spring アプリに `@Bean` でエージェントを定義し、文字列を渡すだけで tool-use loop が動く」ことを目標にしてきた。そのため、利用者が最低限の配線で model、tool discovery、validation、session、retry を利用できる標準入口が必要だった。
+Arachne treats Spring Boot integration as one of its primary sources of value. From the MVP stage onward, the goal has been that a Spring application can wire an agent and run the tool-use loop by passing in a string. That requires a standard entrypoint that lets users consume model wiring, tool discovery, validation, session handling, and retry with minimal manual setup.
 
-現行実装では `ArachneAutoConfiguration` が `Model`、`Validator`、annotation tool scanner、discovered tools、`SessionManager`、retry strategy、`AgentFactory` を組み立てる。利用者はこの `AgentFactory` を通じて named agent defaults や builder overrides を使いながら runtime instance を構築する。
+In the current implementation, `ArachneAutoConfiguration` assembles `Model`, `Validator`, annotation tool scanning, discovered tools, `SessionManager`, retry strategy, and `AgentFactory`. Users then build runtime instances through `AgentFactory`, applying named-agent defaults and builder overrides as needed.
 
-Phase 3 までの実装で、設定の集約点は `ArachneProperties`、runtime の組み立て点は `AgentFactory.Builder` という形に収束している。Phase 3.5 で 0001 が `Agent` shared singleton を標準利用にしないと定めたため、Spring integration では「何を bean として共有するか」をさらに明確にする必要がある。
+By the end of Phase 3, configuration had converged on `ArachneProperties` and runtime assembly had converged on `AgentFactory.Builder`. Once ADR 0001 established in Phase 3.5 that shared singleton `Agent` usage is not the standard pattern, Spring integration also needed a clear statement of which objects are intended to be shared as beans.
 
-また、Arachne には Spring を使わない direct constructor も残っているが、それらは後方互換や限定的利用のための低レベル API であり、Spring 環境における標準 wiring を代表させるには不十分である。
+Arachne still exposes direct constructors for non-Spring usage, but those are lower-level APIs kept for backward compatibility or narrow cases. They are not a sufficient representation of the standard wiring model in Spring environments.
 
 ## Decision
 
-Arachne は Spring Boot における標準統合入口として `ArachneAutoConfiguration` と `AgentFactory` を採用し、この 2 つを中心に model/tool/session/retry の wiring を構成する。
+Arachne adopts `ArachneAutoConfiguration` and `AgentFactory` as the standard Spring Boot integration entrypoint, and organizes model/tool/session/retry wiring around those two components.
 
-標準方針は次のとおりとする。
+The standard policy is:
 
-- Spring 利用時の第一選択は starter-style な auto-configuration であり、利用者は必要な bean を override することで既定動作を差し替える。
-- `AgentFactory` は Arachne runtime を構築する標準 API であり、named agent defaults、tool selection、conversation manager、session、retry を 1 か所で解決する。
-- shared bean として長寿命に扱う対象は `AgentFactory`、`Model`、`Validator`、discovered tools、`SessionManager` などの definition / infrastructure 側であり、`Agent` runtime 自体ではない。
-- Spring integration のドキュメント、sample、test は、原則として `AgentFactory` または provider 経由の利用を基準に説明する。
-- `DefaultAgent` や `EventLoop` の direct constructor は維持してよいが、Spring 標準利用パターンの代表としては扱わない。
+- in Spring usage, the first choice is starter-style auto-configuration, with explicit bean overrides when users need to replace defaults
+- `AgentFactory` is the standard API for building Arachne runtimes and resolves named-agent defaults, tool selection, conversation management, session handling, and retry in one place
+- the long-lived shared beans are definition and infrastructure objects such as `AgentFactory`, `Model`, `Validator`, discovered tools, and `SessionManager`, not `Agent` runtimes themselves
+- Spring integration documentation, samples, and tests should describe `AgentFactory` or provider-based usage as the default path
+- direct constructors such as `DefaultAgent` or `EventLoop` may remain available, but they are not treated as the representative Spring integration pattern
 
 ## Consequences
 
-- Spring Boot application では、Arachne の標準配線を `ArachneAutoConfiguration` と `AgentFactory` の 2 段構成として理解できる。
-- named agent settings、tool discovery、session backend、retry policy などの拡張点が `AgentFactory` 周辺に集約され、利用者が低レベル wiring を繰り返さずに済む。
-- 0001 の lifecycle 方針と整合し、`Agent` runtime の生成を factory/provider に寄せる方向が明確になる。
-- 将来 `Executor`、`ObjectMapper`、`ConversionService`、hook registry などの Spring 標準 bean 再利用範囲を整理する際も、まず auto-configuration と factory の責務境界を基準に検討できる。
-- direct constructor を使う non-Spring 利用は引き続き可能だが、Spring 利用時のサポート対象や sample は `AgentFactory` 中心に寄るため、低レベル API の露出は相対的に下がる。
+- Spring Boot applications can understand Arachne's standard wiring as a two-part structure built from `ArachneAutoConfiguration` and `AgentFactory`.
+- Extension points such as named-agent settings, tool discovery, session backends, and retry policy remain concentrated around `AgentFactory`, so users do not have to repeat low-level wiring.
+- This aligns with ADR 0001 and makes it explicit that runtime creation should move through factory/provider-based patterns.
+- Future cleanup around reuse of Spring standard beans such as `Executor`, `ObjectMapper`, `ConversionService`, or hook registries can use the auto-configuration/factory boundary as the first reference point.
+- Non-Spring direct-constructor usage remains possible, but support expectations and samples for Spring will center on `AgentFactory`, reducing the prominence of low-level APIs.
 
 ## Alternatives Considered
 
-### 1. `Agent` bean を標準統合入口とみなす
+### 1. Treat an `Agent` bean as the standard integration entrypoint
 
-採用しない。0001 で `Agent` は stateful runtime であり shared singleton を標準化しないと決めたため、統合入口としては不適切である。
+Rejected. ADR 0001 already established that `Agent` is a stateful runtime and that shared singleton usage is not the standard pattern, so it is not an appropriate integration entrypoint.
 
-### 2. 利用者に `DefaultAgent` / `EventLoop` / `ToolExecutor` の手動配線を求める
+### 2. Require users to wire `DefaultAgent`, `EventLoop`, and `ToolExecutor` manually
 
-採用しない。Spring Boot integration の価値を大きく下げ、named defaults や discovered tools のような Arachne 固有の設定 UX も分散してしまう。
+Rejected. It would sharply reduce the value of Spring Boot integration and scatter Arachne-specific configuration UX such as named defaults and discovered tools.
 
-### 3. Spring Boot starter は提供するが `AgentFactory` を持たず、設定 bean を個別組み合わせさせる
+### 3. Ship a Spring Boot starter but no `AgentFactory`, and ask users to combine configuration beans manually
 
-採用しない。拡張点は増えるが、標準利用パターンが散らばり、どこで agent runtime を完成させるべきかが不明瞭になる。
+Rejected. It would add extension points, but also scatter the standard usage pattern and make the completion point for an agent runtime unclear.
 
-### 4. Spring integration を薄い convenience layer にとどめ、core API をそのまま使わせる
+### 4. Keep Spring integration as a thin convenience layer and expose the core API directly
 
-採用しない。Arachne の roadmap は Spring Boot integration を主要機能として扱っており、tool discovery、named agent、session backend の配線は convenience の範囲を超えて標準 UX の一部である。
+Rejected. Arachne treats Spring Boot integration as a primary feature, so wiring for tool discovery, named agents, and session backends is part of the standard UX rather than a thin convenience layer.

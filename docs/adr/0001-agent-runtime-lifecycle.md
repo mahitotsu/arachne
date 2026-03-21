@@ -6,48 +6,48 @@ Accepted (retrospective)
 
 ## Context
 
-Arachne の `DefaultAgent` は、単なる definition ではなく実行時状態を抱えた runtime object である。`messages` をインスタンス内で保持し、`run(...)` のたびに会話履歴を更新する。session が有効な場合は constructor 時に復元し、各 invocation の後に保存も行う。
+In Arachne, `DefaultAgent` is not a pure definition object. It is a runtime object that holds execution state. It keeps `messages` inside the instance, updates conversation history on every `run(...)`, restores session state during construction when sessions are enabled, and persists state after each invocation.
 
-Phase 2 と Phase 3 では、Spring から `Agent` を `@Bean` として公開し、そのまま他の singleton bean に注入する sample を用意してきた。これは簡潔ではあるが、Web や multi-thread 環境では 1 つの runtime instance に複数リクエストが流れ込みやすく、会話履歴や `AgentState` が意図せず共有される。
+In Phase 2 and Phase 3, the repository included samples that exposed `Agent` as a Spring `@Bean` and injected it directly into other singleton beans. That was concise, but in web and multi-threaded environments it makes it easy for multiple requests to flow into the same runtime instance and accidentally share conversation history and `AgentState`.
 
-Phase 3 で `SessionManager` と restore/save が導入されたことで、この性質はさらに明確になった。Arachne では session backend に履歴を退避できるため、agent を長寿命 singleton として共有しなくても multi-turn を成立させられる。Phase 4 では hook、plugin、interrupt が runtime state と制御フローへ介入するため、runtime の共有前提を残したまま進むと誤用しやすさが増える。
+Phase 3 made this property even clearer by introducing `SessionManager` plus restore/save support. Because Arachne can persist history to a session backend, multi-turn behavior no longer requires a long-lived singleton agent. Phase 4 adds hooks, plugins, and interrupts that can mutate runtime state and control flow, so keeping the shared-runtime assumption would make misuse even easier.
 
-このため、Spring integration の標準利用パターンとして何を shared bean にしてよく、何を per-use runtime にすべきかを明文化する必要がある。
+For that reason, the project needs to state clearly which objects are safe to share as Spring beans and which should be treated as per-use runtime instances.
 
 ## Decision
 
-Arachne は `Agent` を stateful な runtime object として扱い、shared singleton Spring bean として共有する利用を標準パターンにしない。
+Arachne treats `Agent` as a stateful runtime object and does not standardize shared singleton Spring bean usage as the recommended pattern.
 
-標準方針は次のとおりとする。
+The standard policy is:
 
-- shared してよい標準入口は `AgentFactory` とその builder defaults である。
-- 各 invocation、または各 session / conversation 単位で短命の `Agent` runtime instance を構築する利用を標準化する。
-- Spring integration では `AgentFactory`、`ObjectProvider`、またはそれに準ずる provider 経由で runtime を取得するパターンを優先する。
-- `DefaultAgent` は definition と execution state を同時に持つ現行 runtime として扱い続ける。definition/runtime を別型に分けるかは後続 ADR で改めて判断する。
-- 既存の sample や guide にある `Agent` の直接注入例は、標準推奨ではなく簡易サンプルまたは今後見直す対象として扱う。
+- the standard shared entrypoint is `AgentFactory` and its builder defaults
+- construct short-lived `Agent` runtime instances per invocation or per session/conversation scope
+- in Spring integration, prefer patterns that obtain runtimes through `AgentFactory`, `ObjectProvider`, or an equivalent provider abstraction
+- continue to treat `DefaultAgent` as the current runtime that holds both definition-like configuration and execution state; whether to split definition and runtime into separate types will be decided in a later ADR
+- treat existing samples or guides that inject `Agent` directly as simplified examples or review candidates, not as the standard recommendation
 
 ## Consequences
 
-- Spring Boot auto-configuration と `AgentFactory` は、runtime instance を毎回安全に組み立てる標準統合入口として位置づけられる。
-- Web や multi-thread 環境では、conversation state の accidental sharing を避けやすくなる。
-- sample、user guide、wiring test は、`Agent` bean の直接共有ではなく factory/provider ベースの利用例へ段階的に寄せる必要がある。
-- `DefaultAgent` の mutable state を前提とした現在の実装は維持できるため、Phase 3.5 では大きな抽象追加を強制しない。
-- runtime と definition の分離要否、scope 制御、resume API の表現は後続判断として残る。
+- Spring Boot auto-configuration and `AgentFactory` become the standard integration entrypoint for safely assembling runtime instances each time.
+- Web and multi-threaded environments can avoid accidental conversation-state sharing more easily.
+- Samples, the user guide, and wiring tests need to move gradually toward factory/provider-based usage instead of directly sharing an `Agent` bean.
+- The current implementation can keep `DefaultAgent` as a mutable runtime, so Phase 3.5 does not have to force a large new abstraction.
+- Whether runtime and definition should be split, how scope should be controlled, and how resume APIs should be modeled remain later decisions.
 
 ## Alternatives Considered
 
-### 1. `Agent` を shared singleton bean のまま標準化する
+### 1. Standardize `Agent` as a shared singleton bean
 
-採用しない。現在の `DefaultAgent` は会話履歴と state をインスタンス内に保持するため、同期化や利用者側 discipline に依存しやすい。Spring では「inject できるなら共有してよい」と誤解されやすく、標準 API としては危険である。
+Rejected. The current `DefaultAgent` keeps conversation history and state inside the instance, so this approach depends too heavily on synchronization and caller discipline. In Spring, it also encourages the mistaken assumption that anything injectable is safe to share.
 
-### 2. 共有 singleton のまま内部同期で安全化する
+### 2. Keep a shared singleton and make it safe with internal synchronization
 
-採用しない。排他制御を入れても conversation 単位の分離は表現できず、性能劣化と API の分かりにくさを増やす。session restore/save の意味論も曖昧になる。
+Rejected. Internal locking would still not express conversation-level isolation, and it would add both performance costs and API ambiguity. It would also make session restore/save semantics less clear.
 
-### 3. Spring の prototype scope に委ねる
+### 3. Rely on Spring prototype scope
 
-採用しない。prototype scope は一部の誤用を減らすが、Arachne 側の標準利用パターンを十分には表現しない。session 単位での生成、tool からの nested invocation、non-Spring 環境での意味論も説明しにくい。
+Rejected. Prototype scope reduces some misuse, but it does not fully express Arachne's standard usage model. It is also harder to explain session-scoped creation, nested invocation from tools, and non-Spring semantics through that mechanism alone.
 
-### 4. 先に definition/runtime を別型へ全面分離する
+### 4. Split definition and runtime into separate types first
 
-今回は採用しない。方向性としては有力だが、Phase 3.5 の目的はまず誤用しにくい標準方針を固めることであり、直ちに新しい public abstraction を追加する段階ではない。
+Not adopted at this stage. It is a plausible long-term direction, but Phase 3.5 is about stabilizing a misuse-resistant standard pattern first, not immediately introducing a new public abstraction.

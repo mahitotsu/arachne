@@ -1,6 +1,6 @@
 # Phase 1 Chat Sample
 
-This is a minimal Spring Boot application that demonstrates the Phase 1-style chat loop on the current main branch.
+This is a minimal Spring Boot application that demonstrates the baseline chat loop on the current main branch.
 
 It exists to make the current implementation concrete:
 
@@ -50,16 +50,16 @@ Available commands:
 Example interaction:
 
 ```text
-you> 私の名前は明日香です。覚えてください。
-agent> 承知しました。明日香さんですね。
+you> My name is Asuka. Please remember it.
+agent> Understood. Your name is Asuka.
 
-you> 私の名前は何ですか？
-agent> 明日香です。
+you> What is my name?
+agent> Your name is Asuka.
 ```
 
 Because this sample creates one `Agent` runtime inside the runner and keeps it alive across turns, it demonstrates the baseline in-memory multi-turn behavior directly without publishing `Agent` as a shared Spring bean.
 
-If you want restore across restarts or external session storage, use the Phase 3 session samples instead.
+If you want restore across restarts or external session storage, use the session samples instead.
 
 ## Configuration
 

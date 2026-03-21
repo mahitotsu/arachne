@@ -6,50 +6,50 @@ Accepted (retrospective)
 
 ## Context
 
-Phase 2 で Arachne は `@StrandsTool` / `@ToolParam` による annotation-driven tools、qualifier ベースの discovered tool scope、`Agent.run(String, Class<T>)` による structured output を public API として導入した。これにより、利用者は JSON schema や tool spec を手書きせず、Spring bean のメソッドと Java 型をそのまま agent runtime の入出力契約として使えるようになった。
+Phase 2 introduced three public APIs in Arachne: annotation-driven tools through `@StrandsTool` and `@ToolParam`, qualifier-based scoping for discovered tools, and structured output through `Agent.run(String, Class<T>)`. This lets users describe the runtime input/output contract directly with Spring bean methods and Java types instead of hand-writing JSON schema or tool specs.
 
-現行実装では `AnnotationToolScanner` が Spring context から `@StrandsTool` メソッドを発見し、`JsonSchemaGenerator` と `MethodTool` を使って tool spec と invocation binding を組み立てる。さらに `AgentFactory.Builder` は discovered tools を既定で runtime に取り込みつつ、`toolQualifiers(...)` と `useDiscoveredTools(false)` で agent ごとに公開する tool surface を制御できる。
+In the current implementation, `AnnotationToolScanner` discovers `@StrandsTool` methods from the Spring context and uses `JsonSchemaGenerator` plus `MethodTool` to build tool specs and invocation binding. `AgentFactory.Builder` also includes discovered tools by default while allowing each agent to control its visible tool surface through `toolQualifiers(...)` and `useDiscoveredTools(false)`.
 
-structured output では `DefaultAgent` が呼び出しごとに final structured-output tool を追加し、`EventLoop` は model がその tool を使わなかった場合に強制リトライして型付き出力を回収する。この方式は Bedrock 固有 API ではなく、既存の tool loop の上に public contract を載せる実装である。
+For structured output, `DefaultAgent` adds a final structured-output tool per invocation, and `EventLoop` forces a retry if the model did not call that tool so it can still recover a typed result. This is not a Bedrock-specific API. It is a public contract layered on top of the existing tool loop.
 
-Phase 3 と Phase 3.5 では named agent defaults、binding/validation 境界、Spring `ObjectMapper` 再利用、pluggable tool executor などの整理が入ったが、Phase 2 の利用者向け契約そのものは継続している。closeout にあたって、この契約を retrospective ADR として固定しておく必要がある。
+Phase 3 and Phase 3.5 added named-agent defaults, binding/validation cleanup, Spring `ObjectMapper` reuse, and a pluggable tool executor, but the user-facing Phase 2 contract itself remains in place. Closeout therefore needs to preserve that contract explicitly as a retrospective ADR.
 
 ## Decision
 
-Arachne は Phase 2 の public contract として、annotation-driven tool discovery、qualifier ベースの tool scope、structured output via final tool を採用し、今後も後方互換の基準として扱う。
+Arachne adopts annotation-driven tool discovery, qualifier-based tool scoping, and structured output via a final tool as part of the Phase 2 public contract, and treats them as a backward-compatibility baseline going forward.
 
-標準方針は次のとおりとする。
+The standard policy is:
 
-- `@StrandsTool` を付けた Spring bean メソッドは、Arachne が自動検出する標準 tool 定義方法として扱う。
-- `@ToolParam` は parameter 名、description、required などの schema-facing metadata を与える軽量な public annotation として維持する。
-- discovered tools は既定で `AgentFactory.Builder` から見えるが、agent ごとの tool surface は `toolQualifiers(...)` と `useDiscoveredTools(false)` で絞り込めるようにする。
-- Spring `@Qualifier` は Arachne の qualifier set に bridge され、`@StrandsTool(qualifiers = ...)` と同じスコープ制御に参加できるようにする。
-- structured output は `Agent.run(String, Class<T>)` の public API で要求し、内部的には final structured-output tool を使って型付き結果を回収する方式を標準とする。
-- model が structured-output tool を自発的に呼ばない場合、event loop が最終リトライでその tool の使用を強制できることを contract の一部として扱う。
-- Bean Validation は Phase 2 の公開挙動に含めるが、制約を generated JSON schema に投影することまでは Phase 2 の契約に含めない。
+- a Spring bean method annotated with `@StrandsTool` is the standard auto-discovered tool definition mechanism
+- `@ToolParam` remains the lightweight public annotation for schema-facing metadata such as parameter name, description, and requiredness
+- discovered tools are visible through `AgentFactory.Builder` by default, but each agent can narrow its tool surface through `toolQualifiers(...)` and `useDiscoveredTools(false)`
+- Spring `@Qualifier` is bridged into Arachne's qualifier set and participates in the same scope-control mechanism as `@StrandsTool(qualifiers = ...)`
+- structured output is requested through the public API `Agent.run(String, Class<T>)`, with the standard implementation using a final structured-output tool to recover the typed result
+- if the model does not call the structured-output tool on its own, the event loop may force its use via a final retry, and that behavior is part of the contract
+- Bean Validation is part of the public behavior introduced in Phase 2, but projecting constraints into generated JSON schema is not part of that contract
 
 ## Consequences
 
-- 利用者は tool contract と structured output contract を Java の annotation と型で記述でき、JSON schema の手書きや provider 固有 API への依存を避けられる。
-- Spring integration では、tool discovery と agent-scoped tool selection の標準説明を `AgentFactory` 起点で統一できる。
-- structured output は既存の tool loop の上に載るため、provider 非依存の core flow を維持しやすい。
-- named agent、binding/validation 整理、executor backend 差し替えなどの後続変更は、この Phase 2 public contract を壊さない前提で進める必要がある。
-- 一方で、generated schema は intentionally narrow なままであり、複雑な object graph、validation-to-schema 投影、provider native structured output などは後続フェーズの検討余地として残る。
+- Users can express the tool contract and structured-output contract through Java annotations and types, without hand-written JSON schema or provider-specific APIs.
+- In Spring integration, the standard explanation for tool discovery and agent-scoped tool selection can remain centered on `AgentFactory`.
+- Because structured output rides on top of the existing tool loop, it preserves the provider-independent core flow.
+- Later changes such as named agents, binding/validation cleanup, or executor backend replacement need to preserve this Phase 2 public contract.
+- Generated schema intentionally remains narrow, leaving room for later work on complex object graphs, validation-to-schema projection, or provider-native structured output.
 
 ## Alternatives Considered
 
-### 1. annotation-driven tools を convenience API とみなし、手書き `Tool` 実装を唯一の標準契約にする
+### 1. Treat annotation-driven tools as a convenience API and make handwritten `Tool` implementations the only standard contract
 
-採用しない。Phase 2 の価値は Spring / Java 利用者が annotation と型で tool surface を定義できる点にあり、convenience 扱いにすると sample、docs、wiring test の前提とずれる。
+Rejected. The value of Phase 2 is precisely that Spring and Java users can define the tool surface through annotations and types. Treating that as mere convenience would diverge from the assumptions in samples, docs, and wiring tests.
 
-### 2. discovered tools を application-global に固定し、agent ごとの scope 制御を持たない
+### 2. Make discovered tools application-global and provide no per-agent scope control
 
-採用しない。複数 agent が共存する Spring application では、tool surface を runtime ごとに絞れないと意図しない tool exposure を避けにくい。
+Rejected. In Spring applications with multiple agents, it is hard to avoid unintended tool exposure unless the tool surface can be narrowed per runtime.
 
-### 3. structured output を provider native API にのみ依存させる
+### 3. Make structured output depend only on provider-native APIs
 
-採用しない。Phase 2 の時点では Bedrock 以外も見据えて provider 非依存の contract が必要であり、tool loop ベースの実装の方が core flow と整合する。
+Rejected. Even at the Phase 2 stage, Arachne needed a provider-independent contract that did not assume Bedrock-specific capabilities, and the tool-loop-based approach fits that core flow better.
 
-### 4. Bean Validation 制約を generated schema にも必須で投影する
+### 4. Require Bean Validation constraints to be projected into generated schema
 
-採用しない。制約投影は有益だが、当時の Phase 2 では runtime validation を先に public behavior として成立させることを優先し、schema projection までを完了条件には含めなかった。
+Rejected. Constraint projection would be useful, but Phase 2 prioritized establishing runtime validation as public behavior first and did not make schema projection part of the completion condition.

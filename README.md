@@ -2,43 +2,15 @@
 
 Arachne is a Java port of the Strands Agents SDK with Spring Boot integration.
 
-Phase 1 through Phase 6 are complete on the current main branch. 現時点で次を利用できます:
+Arachne ships a Bedrock-backed agent runtime with Spring Boot integration, annotation-driven tools, structured output, retry, conversation/session management, hooks/plugins, interrupts, skills, and opt-in streaming plus steering.
 
-- auto-configure a Bedrock-backed `Model` in Spring Boot
-- create an `Agent` from `AgentFactory`
-- call `agent.run("...")` and receive a text response
-- expose Spring bean methods as tools with `@StrandsTool`
-- auto-discover those tools from the Spring context
-- request typed structured output with `agent.run("...", MyType.class)`
-- set a system prompt from configuration or per agent
-- keep multi-turn conversation state in a single `Agent` instance
-- bound conversation history with a sliding window manager
-- summarize older conversation turns with a model-backed conversation manager
-- retry retryable model calls with exponential backoff at the model boundary
-- persist conversation history and agent state with in-memory, file-backed, Redis-backed, or JDBC-backed session storage
-- declare named-agent defaults in `application.yml` and build them with `AgentFactory.builder("name")`
-- register runtime hooks and plugins through `AgentFactory.Builder`
-- auto-discover Spring hook beans with `@ArachneHook`
-- observe hook activity through the Spring `ApplicationEvent` bridge
-- pause tool execution with interrupts and continue through `AgentResult.resume(...)`
-- parse AgentSkills.io-style `SKILL.md` files into runtime skills
-- attach skills per runtime with `AgentFactory.builder().skills(...)`
-- auto-discover classpath skills from `src/main/resources/skills/*/SKILL.md`
-- expose a dedicated `activate_skill` tool with a compact available-skill catalog
-- delay-load full skill instructions and keep loaded skills active without duplicate injection
-- stream incremental runtime events with `agent.stream("...", event -> ...)`
-- register steering plugins with `AgentFactory.builder().steeringHandlers(...)`
-- guide, interrupt, or retry runtime decisions through the Phase 6 steering contract
+## Documentation
 
-Not available yet:
+- [docs/user-guide.md](docs/user-guide.md) for user-facing API, configuration, lifecycle, and examples
+- [docs/project-status.md](docs/project-status.md) for the shipped scope, current constraints, and deliberately deferred features
+- [docs/adr/README.md](docs/adr/README.md) for accepted design decisions and future ADR candidates
 
-- bidirectional streaming (audio/realtime)
-
-The current user-facing guide is here:
-
-- [docs/user-guide.md](docs/user-guide.md)
-
-The runnable sample app is here:
+Runnable samples:
 
 - [samples/phase1-chat/README.md](samples/phase1-chat/README.md)
 - [samples/phase2-tools/README.md](samples/phase2-tools/README.md)
@@ -48,71 +20,7 @@ The runnable sample app is here:
 - [samples/phase5-skills/README.md](samples/phase5-skills/README.md)
 - [samples/phase6-streaming-steering/README.md](samples/phase6-streaming-steering/README.md)
 
-The implementation plan and remaining work are tracked in:
-
-- [ROADMAP.md](ROADMAP.md)
-
-Contributor workflow helpers for roadmap phases:
-
-- `/phase-audit <phase>` checks whether a phase is actually ready to close, with explicit findings for roadmap gaps, stale docs, missing ADR work, sample drift, instruction drift, and regression risk.
-- `/phase-closeout <phase>` runs the same repository-specific checklist, makes the required updates when they are clearly supported by the current repo state, and finishes with a completion report.
-
-Quality evaluation workflow:
-
-- `/quality-audit` runs the quality Maven profiles, refreshes the artifacts, and then produces a Japanese quality evaluation report from the fresh repository evidence.
-- `.github/dependabot.yml` keeps repository-side dependency updates and advisory-backed remediation visible without making the local Maven loop heavy.
-
-## Current Status
-
-Phase 1 covers the synchronous Bedrock event loop. Phase 2 adds annotation-driven tools and structured output as first-class APIs. Phase 3 completes conversation management, session persistence backends, retry, and multi-agent configuration. Phase 3.5 completes the Spring integration review: the standard idiom is now factory-owned runtimes, shared application-facing `ObjectMapper` reuse, and a pluggable tool-execution backend. Phase 4 completes typed hook dispatch, plugin bundling, Spring hook discovery, the observation-only Spring event bridge, and interrupt/resume control flow before tool execution. Phase 5 completes AgentSkills.io-style skills with classpath discovery, compact catalog injection, dedicated delayed activation, and loaded-skill context management on top of the Phase 4 plugin boundary. Phase 6 adds callback-based streaming invocation, Bedrock streaming support through `StreamingModel`, and steering handlers for tool guidance, interrupts, and model retry.
-
-Available now on the Phase 2 path:
-
-- `@StrandsTool` and `@ToolParam`
-- Spring bean scanning for annotated tools
-- JSON schema generation from Java signatures and Java types
-- structured output via `agent.run("...", MyType.class)`
-- the Spring agent-as-tool pattern, where a `@Service` can expose a method as a tool and delegate to another `Agent`
-
-Available now on the Phase 3 path:
-
-- `SlidingWindowConversationManager` as the default `AgentFactory` conversation manager
-- `SummarizingConversationManager` for explicit builder-based summary compaction
-- opt-in model retry with exponential backoff and `MAX_ATTEMPTS=6`-style defaults
-- `AgentState` for session-scoped key-value state
-- `SessionManager`, `InMemorySessionManager`, and `FileSessionManager`
-- Spring Session adapter for `MapSessionRepository`, Redis-backed repositories, and JDBC-backed repositories while preserving explicit Arachne session ids
-- named-agent defaults under `arachne.strands.agents.<name>.*`
-- dedicated configuration and conversation exceptions for Phase 3 boundaries
-- `application.yml` defaults for session id, file session storage, and conversation window size
-- a runnable Redis session sample backed by Docker Compose
-- a runnable JDBC session sample backed by a local H2 database
-
-Available now on the Phase 4 path:
-
-- typed lifecycle hook events for invocation, model calls, tool calls, and message additions
-- runtime hook registration with `HookProvider` and `builder().hooks(...)`
-- tool-and-hook bundling with `Plugin` and `builder().plugins(...)`
-- Spring hook auto-discovery with `@ArachneHook`
-- observation-only lifecycle publication through Spring `ApplicationEvent`
-- `AgentResult.interrupts()` and `AgentResult.resume(...)` for human-in-the-loop pauses before tool execution
-
-Available now on the Phase 5 path:
-
-- `Skill` and `SkillParser` for AgentSkills.io-style `SKILL.md` documents
-- `AgentSkillsPlugin` with compact available-skill catalog injection
-- dedicated `activate_skill` tool for delayed loading of full instructions
-- loaded-skill tracking in `AgentState`, including duplicate-load suppression across the conversation
-- `AgentFactory.builder().skills(...)` for runtime-local skill attachment
-- Spring classpath discovery from `src/main/resources/skills/*/SKILL.md`
-
-Available now on the Phase 6 path:
-
-- `Agent.stream(String, Consumer<AgentStreamEvent>)` for incremental runtime events
-- `AgentStreamEvent.TextDelta`, `ToolUseRequested`, `ToolResultObserved`, `Retry`, and `Complete`
-- `StreamingModel` as an optional provider capability with Bedrock `converseStream` support
-- `SteeringHandler` plus `Proceed`, `Guide`, and `Interrupt` steering decisions
-- `AgentFactory.builder().steeringHandlers(...)` for runtime-local steering opt-in
+Deliberately deferred features include provider expansion beyond Bedrock, bidirectional realtime/audio streaming, MCP, multi-agent protocols, Guardrails, Agent Config, Evals SDK, and remote skill registries. The current deferral boundary is documented in [docs/project-status.md](docs/project-status.md) and [docs/adr/0012-post-mvp-product-boundary.md](docs/adr/0012-post-mvp-product-boundary.md).
 
 ## Quick Start
 
@@ -149,17 +57,17 @@ import io.arachne.strands.tool.annotation.StrandsTool;
 @Service
 class ChatService {
 
-        private final AgentFactory factory;
+    private final AgentFactory factory;
 
-        ChatService(AgentFactory factory) {
-                this.factory = factory;
-        }
+    ChatService(AgentFactory factory) {
+        this.factory = factory;
+    }
 
-        String reply(String prompt) {
-                return factory.builder()
-                                .build()
-                                .run(prompt)
-                                .text();
+    String reply(String prompt) {
+        return factory.builder()
+            .build()
+            .run(prompt)
+            .text();
     }
 }
 
@@ -196,7 +104,7 @@ Agent agent = factory.builder()
 agent.getState().put("lastTopic", "refund");
 ```
 
-Retry is available as an opt-in Phase 3 feature. The default Spring Boot properties are:
+Retry is available as an opt-in feature. The default Spring Boot properties are:
 
 ```yaml
 arachne:
@@ -217,8 +125,8 @@ import java.time.Duration;
 import io.arachne.strands.model.retry.ExponentialBackoffRetryStrategy;
 
 Agent agent = factory.builder()
-        .retryStrategy(new ExponentialBackoffRetryStrategy(6, Duration.ofSeconds(4), Duration.ofSeconds(240)))
-        .build();
+    .retryStrategy(new ExponentialBackoffRetryStrategy(6, Duration.ofSeconds(4), Duration.ofSeconds(240)))
+    .build();
 ```
 
 Retry is disabled unless you enable it explicitly. When enabled, it applies only to the model invocation boundary and does not retry tool execution or structured-output validation.
@@ -227,7 +135,7 @@ For multi-agent applications, define shared defaults under `arachne.strands.agen
 
 Spring Boot auto-configuration also reuses the application `ObjectMapper` for annotation-tool binding, structured output coercion, and Spring Session payloads. Parallel tool execution is still the default, but the backend is no longer fixed: you can override the `arachneToolExecutionExecutor` bean if your application needs a different `Executor` / `TaskExecutor`.
 
-Phase 5 skills are also available on the current branch. You can attach parsed skills directly per runtime:
+Skills are also available on the current branch. You can attach parsed skills directly per runtime:
 
 ```java
 import io.arachne.strands.skills.Skill;
@@ -244,7 +152,7 @@ For Spring Boot discovery, place AgentSkills.io-style files under `src/main/reso
 
 Loaded skill names are tracked in `AgentState`, so once a skill has been activated it stays active for later turns in that conversation. Arachne also avoids re-injecting the same skill body twice in the same prompt and skips redundant re-loading for already active skills.
 
-Phase 6 streaming is also available on the current branch. The simplest direct-Java usage is:
+Streaming is also available on the current branch. The simplest direct-Java usage is:
 
 ```java
 import io.arachne.strands.agent.AgentStreamEvent;
@@ -293,6 +201,13 @@ This keeps summarization in the conversation-management layer. It does not route
 If you want a Spring-managed shared backend, provide a `SessionRepository<?>` bean and Arachne will wrap it with its `SessionManager` adapter. Redis-backed and JDBC-backed Spring Session repositories are supported on the current branch.
 
 If you configure `arachne.strands.agent.session.file.directory`, Arachne uses file-backed persistence explicitly. Without that file setting, it falls back to in-memory session storage unless a Spring Session repository bean is present.
+
+## Contributor Workflows
+
+- `/phase-audit <area>` audits a capability area or historical phase for documentation drift, ADR gaps, sample drift, and regression risk.
+- `/phase-closeout <area>` runs the same checklist and applies no-regret updates when the repository state clearly supports them.
+- `/quality-audit` refreshes the Maven quality artifacts and produces a Japanese evidence-based report.
+- `.github/dependabot.yml` keeps repository-side dependency updates and advisory-backed remediation visible without making the local Maven loop heavy.
 
 ## Build And Verify
 

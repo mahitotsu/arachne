@@ -1,27 +1,27 @@
 ---
-description: "Arachne の Phase 6 テスト追加・変更時に使う。streaming と steering を扱う場合のテスト方針。"
+description: "Test strategy guidance for Phase 6 maintenance work around streaming and steering."
 applyTo: "src/test/java/**/*.java"
 ---
-# Phase 6 テスト方針ガイド
+# Phase 6 Test Strategy Guide
 
-## この repo のテスト分担
-- streaming は event ordering、completion、tool-use 境界、error propagation を deterministic test で担保する。
-- steering は tool steering と model steering を分けて、action ごとの制御フローを deterministic test で担保する。
+## Test Responsibilities In This Repo
+- Cover streaming with deterministic tests for event ordering, completion, tool-use boundaries, and error propagation.
+- Cover steering with deterministic tests that separate tool steering from model steering and verify each action's control flow.
 
-## Phase 6 の最低カバレッジ
-- 新しい public API ごとに最低 1 本の happy-path test を持つ。
-- validation failure、unsupported state、retry path など、新しく導入した failure mode ごとに最低 1 本の negative test を持つ。
-- 既存の同期 `Agent.run(...)` 経路が維持されることを、必要に応じて回帰 test で明示する。
-- streaming を導入する場合は、text delta、tool use、terminal event、error path の順序を固定して検証する。
-- tool steering を導入する場合は、proceed / guide / interrupt の各 action で tool 実行結果と会話履歴が期待どおりになることを検証する。
-- model steering を導入する場合は、guided retry 時に応答が破棄され、guidance が次の model turn に反映されることを検証する。
+## Minimum Coverage For Phase 6
+- Add at least one happy-path test for each new public API.
+- Add at least one negative test for each newly introduced failure mode, such as validation failure, unsupported state, or retry behavior.
+- Add regression coverage where needed to show that the existing synchronous `Agent.run(...)` path still holds.
+- When streaming is involved, verify a fixed ordering for text deltas, tool use, terminal events, and error paths.
+- When tool steering is involved, verify that `proceed`, `guide`, and `interrupt` each produce the expected tool execution result and conversation history.
+- When model steering is involved, verify that guided retry discards the previous response and carries the guidance into the next model turn.
 
-## テストの書き方
-- streaming test は timing 依存を避け、収集した event 列を明示的に assert する。
-- steering test は LLM の偶然性に依存せず、deterministic model / fake hook inputs で分岐を固定する。
-- 標準利用パターンが変わる機能では、`AgentFactory` と Spring wiring を通した lightweight integration test を最低 1 本持つ。
-- feature 未使用時の no-regression を重視し、Phase 1 から Phase 5 の既存挙動を壊していないことを必要に応じて明示する。
+## How To Write The Tests
+- Avoid timing-sensitive assertions in streaming tests. Collect the event sequence and assert it explicitly.
+- Avoid LLM randomness in steering tests. Fix each branch with deterministic models or fake hook inputs.
+- When a feature changes the standard usage pattern, add at least one lightweight integration test through `AgentFactory` and Spring wiring.
+- Emphasize no-regression coverage for the behavior that should remain unchanged when the new feature is unused.
 
-## Bedrock と live integration に関する方針
-- live Bedrock test は opt-in の smoke-level に保つ。
-- streaming や steering の品質担保を、AWS や外部ネットワークの偶然性に依存させない。
+## Bedrock And Live Integration Policy
+- Keep live Bedrock tests opt-in and smoke-level only.
+- Do not make streaming or steering quality depend on AWS behavior or external network conditions.

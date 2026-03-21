@@ -1,32 +1,32 @@
 ---
-description: "Arachne の Phase 6 実装時に使う。streaming と steering を扱うときの指針。"
+description: "Guidance for Phase 6 maintenance work around streaming and steering."
 applyTo: "src/main/java/**/*.java"
 ---
-# Phase 6 実装ガイド
+# Phase 6 Implementation Guide
 
-現在の重点は ROADMAP の Phase 6、すなわち streaming と steering である。
+Use this file when working on streaming and steering behavior.
 
-## 進め方
-- Phase 6 では streaming と steering 以外の論点を持ち込まない。provider 拡張、MCP、Swarm / Graph、A2A、Guardrails は今回の MVP から外れている前提で扱う。
-- 先に public API と標準利用パターンを固める。既存の `AgentFactory` / `Agent` / `Model` の使い方を壊さず、追加機能は opt-in で載せる。
-- 既存の Phase 1 から Phase 5 までの同期 API を維持したうえで、必要な拡張だけを追加する。
-- steering は最初から大きな policy engine にしない。まず tool steering と model steering を既存 hook 契約の延長として成立させる。
+## Working Rules
+- Do not bring in concerns beyond streaming and steering when touching this area. Provider expansion, MCP, Swarm/Graph, A2A, and Guardrails remain outside the MVP scope.
+- Stabilize the public API and standard usage pattern first. Preserve existing `AgentFactory`, `Agent`, and `Model` usage, and add new behavior only as opt-in functionality.
+- Keep the existing synchronous APIs intact and add only the extensions that are necessary.
+- Do not start with a large policy engine for steering. Establish tool steering and model steering first as minimal extensions of the existing hook contract.
 
-## 守るべき境界
-- core の流れは `Agent -> EventLoop -> Model / Tool` として読みやすく保つ。streaming や steering のために event loop 全体を分岐だらけにしない。
-- streaming は既存の blocking API の代替ではなく追加経路として扱う。non-streaming 利用者に reactive 前提を押し付けない。
-- steering は plugin / hook の上に載せ、skills と同様に runtime-local な拡張として扱う。session、conversation、tool 実行境界を不要に崩さない。
-- tool steering は `BeforeToolCallEvent` の既存 contract を優先して設計し、guide と interrupt の挙動を明示的にする。
-- model steering は `AfterModelCallEvent` の後処理だけで無理に表現せず、必要なら guidance 付き retry を event loop 側の最小変更で支える。
+## Boundaries To Preserve
+- Keep the core flow readable as `Agent -> EventLoop -> Model / Tool`. Do not turn the event loop into a branch-heavy implementation for streaming or steering.
+- Treat streaming as an additional path, not a replacement for the blocking API. Do not force non-streaming users into a reactive model.
+- Layer steering on top of plugins and hooks, and treat it as a runtime-local extension like skills. Do not blur session, conversation, or tool-execution boundaries unnecessarily.
+- Design tool steering around the existing `BeforeToolCallEvent` contract and make guide/interrupt behavior explicit.
+- Do not force model steering into an unnatural `AfterModelCallEvent` post-processing shape. If needed, support guidance-driven retry through minimal event-loop changes.
 
-## 互換性ルール
-- Phase 1 から Phase 5 の published behavior を、明示的な roadmap 変更なしに壊さない。
-- `AgentFactory` を Spring integration の標準入口として維持する。
-- `Agent.run(String)`、structured output、retry、session persistence、named agents、hooks / plugins / interrupts、skills は既定では従来どおり動くようにする。
-- streaming や steering が未設定のとき、既存の Bedrock 同期経路の挙動は維持する。
+## Compatibility Rules
+- Do not break the shipped behavior when streaming and steering are not in use.
+- Keep `AgentFactory` as the standard Spring integration entrypoint.
+- Ensure `Agent.run(String)`, structured output, retry, session persistence, named agents, hooks, plugins, interrupts, and skills keep their default behavior unless explicitly changed.
+- Preserve the existing synchronous Bedrock path when streaming and steering are not configured.
 
-## 判断ルール
-- public API、Spring wiring、lifecycle、streaming contract、steering contract に関わる判断は ADR を追加または更新する。
-- streaming と steering をまとめて抽象化しすぎない。現在の roadmap row を直接支える責務だけを導入する。
-- 将来の multi-agent / provider 拡張を先回りで広げすぎず、まず現行の roadmap task を閉じる最小構成を選ぶ。
-- README、user guide、samples に標準 idiom の変更が出る場合は、実装と同じターンで更新する。
+## Decision Rules
+- Add or update an ADR when a change affects public API, Spring wiring, lifecycle, the streaming contract, or the steering contract.
+- Do not over-abstract streaming and steering together. Introduce only the responsibilities that directly support the current public contract.
+- Avoid widening the design prematurely for future multi-agent or provider expansion. Choose the smallest structure that preserves the shipped scope.
+- If the standard idiom changes, update the README, user guide, and samples in the same turn.

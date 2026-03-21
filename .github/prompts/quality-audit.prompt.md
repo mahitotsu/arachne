@@ -1,5 +1,5 @@
 ---
-description: "Run Arachne's Maven quality profiles and generate a Japanese quality evaluation report from fresh repository evidence."
+description: "Run Arachne's Maven quality profiles and generate an English quality evaluation report from fresh repository evidence."
 name: "Quality Audit"
 argument-hint: "Optional scope, package focus, or notes"
 agent: "agent"
@@ -10,7 +10,7 @@ Use repository evidence first. Prefer measured artifacts over assumptions.
 
 Required procedure:
 
-1. Read `pom.xml`, `ROADMAP.md`, and `.github/copilot-instructions.md` before interpreting results.
+1. Read `pom.xml`, `docs/project-status.md`, and `.github/copilot-instructions.md` before interpreting results.
 2. Run the current workflow from the repository root unless the user explicitly limits the scope.
    - Run `mvn -Pquality-report verify` first so coverage, surefire, SpotBugs, PMD, and CPD evidence is regenerated for this review.
    - Run `mvn -Pquality-security verify` next so SBOM artifacts are regenerated for this review.
@@ -34,14 +34,14 @@ Required procedure:
    - dependency inventory evidence such as SBOM content
    - repository-side vulnerability or update signals such as Dependabot configuration or alerts
    Do not imply that SBOM alone provides advisory matching.
-10. In `補足`, include the commands you ran, whether they succeeded, and any missing or stale artifacts that limited confidence.
+10. In `Notes`, include the commands you ran, whether they succeeded, and any missing or stale artifacts that limited confidence.
 
 Focus on these repo-specific questions:
 
 - Which packages or files concentrate too much responsibility?
 - Which important paths have weak or missing test evidence?
 - Are the low-coverage areas concentrated in meaningful execution paths or mostly in small support types?
-- Do the findings suggest regression risk around completed roadmap phases?
+- Do the findings suggest regression risk around shipped capability areas?
 - Is provider-independent logic staying out of Bedrock-specific code?
 - Are Spring integration responsibilities staying centered on `AgentFactory` and related wiring?
 - Are static-analysis findings dominated by intentional mutable API surfaces, or do they point to likely correctness defects?
@@ -49,15 +49,15 @@ Focus on these repo-specific questions:
 - Are any dependency artifacts present that no longer belong to the active workflow, and if so, should they be treated as stale?
 - Do samples and docs appear aligned with the code paths under scrutiny?
 
-Respond in Japanese unless the user explicitly asks for another language.
+Respond in English unless the user explicitly asks for another language.
 
-End with these Japanese section headings in this order:
+End with these section headings in this order:
 
-- `総評`
-- `観測結果`
-- `主要なリスク`
-- `優先アクション`
-- `補足`
+- `Overall Assessment`
+- `Observed Evidence`
+- `Key Risks`
+- `Priority Actions`
+- `Notes`
 
-When evidence is missing, say so explicitly in `補足` instead of guessing.
-When stale artifacts exist, say so explicitly in `補足` and avoid using them as primary evidence.
+When evidence is missing, say so explicitly in `Notes` instead of guessing.
+When stale artifacts exist, say so explicitly in `Notes` and avoid using them as primary evidence.

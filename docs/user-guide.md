@@ -4,7 +4,9 @@ This guide documents the features that are available on the current main branch.
 
 ## Scope
 
-The current implementation gives you a synchronous, Bedrock-backed agent loop with the Phase 1 through Phase 6 feature set complete on the current main branch.
+The current implementation gives you a Bedrock-backed agent runtime with annotation-driven tools, structured output, retry, conversation/session management, hooks/plugins, interrupts, skills, and opt-in streaming plus steering.
+
+For the repository-level scope snapshot, deliberately deferred features, and current contract boundary, see [docs/project-status.md](docs/project-status.md).
 
 Available now:
 
@@ -33,9 +35,7 @@ Available now:
 - callback-based streaming invocation through `Agent.stream(...)`
 - tool and model steering through runtime-local `SteeringHandler` plugins
 
-Not available yet:
-
-- bidirectional streaming (audio/realtime)
+Deliberately deferred features such as additional providers, MCP, multi-agent protocols, Guardrails, and bidirectional realtime/audio streaming are tracked in [docs/project-status.md](docs/project-status.md).
 
 If you want runnable examples instead of only reading the API docs, use these samples:
 
@@ -138,7 +138,7 @@ Notes:
 - `agent.system-prompt` is the default prompt used when a builder does not override it
 - `agent.retry.*` enables exponential-backoff retry at the model invocation boundary
 - retry is disabled by default so unconfigured `agent.run("...")` keeps the prior failure behavior
-- the default retry values match the current Phase 3 target: `max-attempts=6`, `initial-delay=4s`, `max-delay=240s`
+- the default retry values are `max-attempts=6`, `initial-delay=4s`, `max-delay=240s`
 - retry applies only to provider-mapped retryable model failures; it does not retry tool execution or structured-output validation
 - `agent.conversation.window-size` is used by the default `SlidingWindowConversationManager`
 - `agent.session.id` enables automatic restore/persist across agents created by the builder
@@ -242,7 +242,7 @@ Named builder precedence is:
 3. the auto-configured shared `Model` bean if one exists
 4. the shared `arachne.strands.model.*` defaults
 
-For Phase 3 foundations, the current builder defaults are:
+The current builder defaults for retry are:
 
 1. `builder().retryStrategy(...)` if you set it explicitly
 2. the auto-configured retry strategy built from `arachne.strands.agent.retry.*`
@@ -302,14 +302,14 @@ For skills:
 
 ## Retry Strategy
 
-Phase 3 retry is intentionally scoped to the model invocation boundary.
+Retry is intentionally scoped to the model invocation boundary.
 That means Arachne retries provider-mapped retryable model failures before the event loop continues, but it does not implicitly retry:
 
 - tool execution
 - tool-result handling
 - structured-output validation failures
 
-The current built-in strategy is exponential backoff with Phase 3 defaults equivalent to the Python SDK target:
+The current built-in strategy is exponential backoff with these defaults:
 
 - `max-attempts=6`
 - `initial-delay=4s`
@@ -361,7 +361,7 @@ class SupportService {
 `Agent.run(String)` sends one user message into the event loop and returns an `AgentResult`.
 
 ```java
-AgentResult result = agent.run("東京の天気を一言で説明して");
+AgentResult result = agent.run("Describe today's weather in Tokyo in one sentence.");
 
 String text = result.text();
 List<Message> history = result.messages();
@@ -378,7 +378,7 @@ Object stopReason = result.stopReason();
 When `stopReason` is `interrupt`, resume the same runtime through the returned result:
 
 ```java
-AgentResult result = agent.run("予約を進めて");
+AgentResult result = agent.run("Continue with the reservation.");
 
 if (result.interrupted()) {
   AgentResult resumed = result.resume(
@@ -483,7 +483,7 @@ The runnable reference for this setup is [samples/phase3-jdbc-session/README.md]
 
 ## Annotation-Driven Tools
 
-Phase 2 lets you expose Spring bean methods directly as tools.
+Annotation-driven tools let you expose Spring bean methods directly as tools.
 
 ```java
 @Service
@@ -524,7 +524,7 @@ class PlannerService {
 
 Use `@ToolParam` when you want parameter descriptions, explicit parameter names, or optional fields in the generated schema.
 
-The generated tool schema is derived from the Java method signature, so Phase 2 keeps the public API on the Java side instead of asking you to hand-author JSON schema.
+The generated tool schema is derived from the Java method signature, so the public API stays on the Java side instead of asking you to hand-author JSON schema.
 
 By default, discovered annotation tools are visible to every `AgentFactory.builder().build()` call. When you need per-agent scoping, qualify the tool and filter it at builder time:
 
@@ -565,7 +565,7 @@ class PlannerService {
 }
 ```
 
-This gives Phase 2 a minimal agent-scoped binding model without introducing Phase 3 named-agent configuration early.
+This gives Arachne a minimal agent-scoped binding model without requiring named-agent configuration.
 
 Spring `@Qualifier` on the tool bean class or the annotated tool method is also bridged into the same qualifier set. That means these two styles are equivalent from Arachne's point of view:
 
@@ -653,7 +653,7 @@ The runnable version of this pattern is here:
 
 - [samples/phase2-tools/README.md](samples/phase2-tools/README.md)
 
-On the current main branch, that runnable sample uses named-agent defaults from Phase 3 to keep the Java wiring small. The core pattern it demonstrates is still the Phase 2 one: a `@StrandsTool`-annotated Spring service method delegates to another short-lived agent runtime, and the caller can still request structured output from the top-level agent.
+On the current main branch, that runnable sample uses named-agent defaults added later to keep the Java wiring small. The core pattern it demonstrates is the same one shown above: a `@StrandsTool`-annotated Spring service method delegates to another short-lived agent runtime, and the caller can still request structured output from the top-level agent.
 
 ## Structured Output
 
@@ -669,12 +669,12 @@ TripPlan plan = agent.run(
 
 Under the hood, Arachne exposes a final structured-output tool whose schema is generated from the requested Java type. If the model does not call that tool on its own, the event loop forces a final retry that requires the structured output tool.
 
-The current Phase 2 implementation is intentionally narrow:
+The current structured-output implementation is intentionally narrow:
 
 - output types should be simple Java records or POJOs with JSON-shaped fields
 - schema generation currently focuses on strings, booleans, numbers, enums, arrays, maps, records, and simple bean getters
 - Bean Validation is applied at runtime to tool invocation and structured output when you use Jakarta Validation annotations such as `@NotBlank`
-- Bean Validation is not projected back into generated JSON schema in Phase 2
+- Bean Validation is not projected back into generated JSON schema
 - validation failures surface as runtime errors rather than a dedicated recovery policy
 - when Spring manages an `ObjectMapper`, Arachne reuses it for annotation-tool binding, structured output coercion, and Spring Session payloads
 
@@ -687,13 +687,13 @@ That means the same `Agent` instance behaves as a multi-turn conversation.
 This is useful when you intentionally want memory across turns:
 
 ```java
-agent.run("私の名前は明日香です");
-AgentResult result = agent.run("私の名前を覚えていますか");
+agent.run("My name is Asuka.");
+AgentResult result = agent.run("Do you remember my name?");
 ```
 
 But it also means a shared `Agent` runtime will accumulate state across callers.
 
-Phase 3 adds two mechanisms that change how you should think about that lifecycle:
+Two features change how you should think about that lifecycle:
 
 - a conversation manager can trim or summarize old turns before they hit the model context window
 - a configured session id can restore persisted `Message` history, `AgentState`, and conversation-manager state into newly built agent instances
@@ -711,7 +711,7 @@ If you want to see this behavior in a runnable application, the sample app keeps
 
 - [samples/phase1-chat/README.md](samples/phase1-chat/README.md)
 
-For persisted session restore examples, see these Phase 3 samples:
+For persisted session restore examples, see these session samples:
 
 - [samples/phase3-redis-session/README.md](samples/phase3-redis-session/README.md)
 - [samples/phase3-jdbc-session/README.md](samples/phase3-jdbc-session/README.md)
@@ -769,7 +769,7 @@ When you need to align tool execution with application infrastructure, Spring Bo
 
 ## Hooks, Plugins, And Interrupts
 
-Phase 4 adds typed lifecycle hooks around invocation, model calls, tool calls, and message additions.
+Arachne provides typed lifecycle hooks around invocation, model calls, tool calls, and message additions.
 
 For direct Java usage, register hooks on the builder:
 
@@ -823,7 +823,7 @@ Spring Boot also publishes observation-only lifecycle notifications as `ArachneL
 
 ## Streaming And Steering
 
-Phase 6 keeps the existing blocking `Agent.run(...)` path and adds opt-in streaming plus runtime-local steering.
+Arachne keeps the existing blocking `Agent.run(...)` path and adds opt-in streaming plus runtime-local steering.
 
 For streaming, call `Agent.stream(...)` and subscribe to `AgentStreamEvent` values as they arrive:
 
@@ -851,7 +851,7 @@ AgentResult result = agent.stream("Summarize this incident", event -> {
 
 Provider support is optional. Models that implement `StreamingModel` can push `ModelEvent` values as they arrive. `BedrockModel` uses Bedrock `converseStream` for this path. Models without provider streaming support still work through the same API by replaying their ordinary `converse(...)` events through the callback.
 
-For steering, register a `SteeringHandler` on the builder. Steering handlers are plugins, so they stay runtime-local like other Phase 4 and Phase 5 extensions:
+For steering, register a `SteeringHandler` on the builder. Steering handlers are plugins, so they stay runtime-local like other hook/plugin-based extensions:
 
 ```java
 import io.arachne.strands.steering.Guide;
@@ -889,7 +889,7 @@ The steering contract is:
 
 ## Skills
 
-Phase 5 adds AgentSkills.io-style skill ingestion and delayed activation. A skill is a `SKILL.md` document with YAML frontmatter and a markdown body.
+Arachne supports AgentSkills.io-style skill ingestion and delayed activation. A skill is a `SKILL.md` document with YAML frontmatter and a markdown body.
 
 For direct Java usage, attach skills on the builder:
 
@@ -975,6 +975,8 @@ The current implementation is intentionally narrow.
 - skills currently come from builder-supplied values or classpath-discovered `SKILL.md` files; remote registries and hot reload are not implemented
 - structured output currently targets simple JSON-shaped Java types rather than arbitrary object graphs
 - callback-based streaming is one-way output only; bidirectional realtime/audio streaming is not implemented
+
+Larger deferred feature areas are summarized in [docs/project-status.md](docs/project-status.md) and [docs/adr/0012-post-mvp-product-boundary.md](docs/adr/0012-post-mvp-product-boundary.md).
 
 ## Verification
 

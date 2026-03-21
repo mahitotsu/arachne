@@ -1,30 +1,30 @@
 ---
 name: phase-closeout
-description: 'Phase closeout and phase audit workflow for Arachne. Use when finishing a roadmap phase or checking whether a phase is truly complete. Covers ROADMAP review, README and user guide updates, instruction review, ADR review, sample drift, regression checks, and test evidence.'
-argument-hint: 'Phase number or name, plus optional notes'
+description: 'Capability closeout and audit workflow for Arachne. Use when finishing a capability area or checking whether a historical phase or current feature area is truly documented and closed. Covers status docs, README and user guide updates, instruction review, ADR review, sample drift, regression checks, and test evidence.'
+argument-hint: 'Capability area or historical phase name, plus optional notes'
 user-invocable: false
 disable-model-invocation: false
 ---
 
 # Phase Closeout
 
-Use this skill when a roadmap phase is believed to be complete and needs a disciplined closeout, or when you need a pre-closeout audit.
+Use this skill when a capability area is believed to be complete and needs a disciplined closeout, or when you need a pre-closeout audit.
 
 Load and follow the repository checklist in [closeout-checklist](./references/closeout-checklist.md).
 
 ## Inputs
 
 - The slash-command arguments identify the target phase.
-- If the phase is ambiguous, resolve it from ROADMAP.md before making edits.
+- If the scope is ambiguous, resolve it from `docs/project-status.md`, `docs/user-guide.md`, and the relevant ADRs before making edits.
 - If the user asked for an audit rather than closeout, keep edits narrow and prioritize findings.
 - Unless the user explicitly asks for another language, produce the report in Japanese.
 
 ## Required Procedure
 
-1. Read ROADMAP.md and identify the exact phase goal and task list.
+1. Read `docs/project-status.md` and identify the exact shipped scope, current constraints, and deferred items relevant to the target area.
 2. Read the repo instructions that govern the phase, especially `.github/copilot-instructions.md` and any active `.github/instructions/*.instructions.md` files relevant to the touched code or tests.
 3. Review the implementation, tests, and samples that claim to cover the target phase.
-4. Decide whether each documentation and workflow surface needs updates. At minimum, consider README.md, docs/user-guide.md, sample READMEs, ROADMAP.md, `.github/instructions/`, and docs/adr/.
+4. Decide whether each documentation and workflow surface needs updates. At minimum, consider README.md, docs/user-guide.md, docs/project-status.md, sample READMEs, `.github/instructions/`, and docs/adr/.
 5. Apply required updates in the same turn when the repository state gives enough evidence to do so safely.
 6. Verify architectural invariants and prior-phase behavior have not drifted.
 7. Run verification. Default to `mvn test` when code or behavior changed.
@@ -32,11 +32,11 @@ Load and follow the repository checklist in [closeout-checklist](./references/cl
 
 ## Guardrails
 
-- Do not mark a phase complete just because most code exists. Check the roadmap tasks and stated goal directly.
+- Do not mark an area complete just because most code exists. Check the shipped behavior, docs, tests, and any explicit task conditions directly.
 - Do not skip the ADR decision gate when the change affects public API, Spring integration, lifecycle assumptions, session behavior, tool binding, hooks/plugins/interrupts, or other cross-phase boundaries.
 - Do not skip sample review when the phase changes how users are expected to wire or run the library.
 - Do not paper over missing tests. If behavior changed, add or update tests or explicitly report the gap.
-- If next-phase work is about to begin, review and update the next phase implementation and test-strategy instruction files before implementation starts.
+- If a new implementation theme is about to begin, review and update the next implementation and test-strategy instruction files before implementation starts.
 
 ## Expected Output
 
