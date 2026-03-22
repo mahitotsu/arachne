@@ -1,0 +1,22 @@
+spring:
+  application:
+    name: arachne-session-jdbc
+  main:
+    web-application-type: none
+  datasource:
+    url: jdbc:h2:file:./.arachne/jdbc/session-demo;AUTO_SERVER=TRUE
+    username: sa
+    password:
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+
+arachne:
+  strands:
+    agent:
+      system-prompt: "Remember the latest destination across application restarts."
+      conversation:
+        window-size: 8
+      session:
+        id: session-jdbc-demo

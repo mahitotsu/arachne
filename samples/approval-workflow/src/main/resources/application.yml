@@ -1,0 +1,6 @@
+spring:
+  application:
+    name: arachne-approval-workflow
+  main:
+    banner-mode: off
+    web-application-type: none

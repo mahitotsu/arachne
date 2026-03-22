@@ -41,14 +41,15 @@ Deliberately deferred features such as additional providers, MCP, multi-agent pr
 
 If you want runnable examples instead of only reading the API docs, use these samples:
 
-- [samples/phase1-chat/README.md](samples/phase1-chat/README.md)
-- [samples/phase2-tools/README.md](samples/phase2-tools/README.md)
-- [samples/tool-context/README.md](samples/tool-context/README.md)
-- [samples/phase3-redis-session/README.md](samples/phase3-redis-session/README.md)
-- [samples/phase3-jdbc-session/README.md](samples/phase3-jdbc-session/README.md)
-- [samples/phase4-hooks-interrupts/README.md](samples/phase4-hooks-interrupts/README.md)
-- [samples/phase5-skills/README.md](samples/phase5-skills/README.md)
-- [samples/phase6-streaming-steering/README.md](samples/phase6-streaming-steering/README.md)
+- [samples/README.md](samples/README.md)
+- [samples/conversation-basics/README.md](samples/conversation-basics/README.md)
+- [samples/tool-delegation/README.md](samples/tool-delegation/README.md)
+- [samples/tool-execution-context/README.md](samples/tool-execution-context/README.md)
+- [samples/session-redis/README.md](samples/session-redis/README.md)
+- [samples/session-jdbc/README.md](samples/session-jdbc/README.md)
+- [samples/approval-workflow/README.md](samples/approval-workflow/README.md)
+- [samples/skill-activation/README.md](samples/skill-activation/README.md)
+- [samples/streaming-steering/README.md](samples/streaming-steering/README.md)
 
 ## Contributor Workflows
 
@@ -462,7 +463,7 @@ class SupportApplication {
 
 This keeps session persistence in Spring Session while Arachne continues to load and save `Message` history, `AgentState`, and conversation-manager state through its own `SessionManager` abstraction.
 
-The runnable reference for this setup is [samples/phase3-redis-session/README.md](samples/phase3-redis-session/README.md).
+The runnable reference for this setup is [samples/session-redis/README.md](samples/session-redis/README.md).
 
 For JDBC, the intended setup is:
 
@@ -493,7 +494,7 @@ class SupportApplication {
 
 This keeps session persistence in Spring Session while Arachne continues to load and save `Message` history, `AgentState`, and conversation-manager state through its own `SessionManager` abstraction.
 
-The runnable reference for this setup is [samples/phase3-jdbc-session/README.md](samples/phase3-jdbc-session/README.md).
+The runnable reference for this setup is [samples/session-jdbc/README.md](samples/session-jdbc/README.md).
 
 ## Annotation-Driven Tools
 
@@ -708,7 +709,7 @@ This keeps the tool contract narrow and Spring-native:
 
 The runnable version of this pattern is here:
 
-- [samples/phase2-tools/README.md](samples/phase2-tools/README.md)
+- [samples/tool-delegation/README.md](samples/tool-delegation/README.md)
 
 On the current main branch, that runnable sample uses named-agent defaults added later to keep the Java wiring small. The core pattern it demonstrates is the same one shown above: a `@StrandsTool`-annotated Spring service method delegates to another short-lived agent runtime, and the caller can still request structured output from the top-level agent.
 
@@ -766,12 +767,12 @@ Without a configured session id, conversation state still lives only inside the 
 
 If you want to see this behavior in a runnable application, the sample app keeps one runner-owned `Agent` runtime alive and exposes both a fixed two-turn demo and an interactive REPL:
 
-- [samples/phase1-chat/README.md](samples/phase1-chat/README.md)
+- [samples/conversation-basics/README.md](samples/conversation-basics/README.md)
 
 For persisted session restore examples, see these session samples:
 
-- [samples/phase3-redis-session/README.md](samples/phase3-redis-session/README.md)
-- [samples/phase3-jdbc-session/README.md](samples/phase3-jdbc-session/README.md)
+- [samples/session-redis/README.md](samples/session-redis/README.md)
+- [samples/session-jdbc/README.md](samples/session-jdbc/README.md)
 
 ## Customizing The Model
 
@@ -1049,11 +1050,11 @@ Redundant activation is also suppressed. If the model tries to activate a skill 
 
 If you want a runnable, Bedrock-free example of this flow, use:
 
-- [samples/phase5-skills/README.md](samples/phase5-skills/README.md)
+- [samples/skill-activation/README.md](samples/skill-activation/README.md)
 
-If you want a runnable, Bedrock-free example of the combined Phase 6 streaming and steering flow, use:
+If you want a runnable, Bedrock-free example of the combined streaming and steering flow, use:
 
-- [samples/phase6-streaming-steering/README.md](samples/phase6-streaming-steering/README.md)
+- [samples/streaming-steering/README.md](samples/streaming-steering/README.md)
 
 ## Current Constraints
 

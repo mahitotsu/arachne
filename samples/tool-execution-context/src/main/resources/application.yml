@@ -1,0 +1,6 @@
+spring:
+  application:
+    name: arachne-tool-execution-context-sample
+  main:
+    banner-mode: off
+    web-application-type: none

@@ -13,13 +13,13 @@
     <description>Maven aggregator for the runnable Arachne samples</description>
 
     <modules>
-        <module>phase1-chat</module>
-        <module>phase2-tools</module>
-        <module>tool-context</module>
-        <module>phase3-redis-session</module>
-        <module>phase3-jdbc-session</module>
-        <module>phase4-hooks-interrupts</module>
-        <module>phase5-skills</module>
-        <module>phase6-streaming-steering</module>
+        <module>conversation-basics</module>
+        <module>tool-delegation</module>
+        <module>tool-execution-context</module>
+        <module>session-redis</module>
+        <module>session-jdbc</module>
+        <module>approval-workflow</module>
+        <module>skill-activation</module>
+        <module>streaming-steering</module>
     </modules>
 </project>

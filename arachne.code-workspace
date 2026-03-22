@@ -5,36 +5,36 @@
             "path": "."
         },
         {
-            "name": "phase1-chat",
-            "path": "samples/phase1-chat"
+            "name": "conversation-basics",
+            "path": "samples/conversation-basics"
         },
         {
-            "name": "phase2-tools",
-            "path": "samples/phase2-tools"
+            "name": "tool-delegation",
+            "path": "samples/tool-delegation"
         },
         {
-            "name": "tool-context",
-            "path": "samples/tool-context"
+            "name": "tool-execution-context",
+            "path": "samples/tool-execution-context"
         },
         {
-            "name": "phase3-redis-session",
-            "path": "samples/phase3-redis-session"
+            "name": "session-redis",
+            "path": "samples/session-redis"
         },
         {
-            "name": "phase3-jdbc-session",
-            "path": "samples/phase3-jdbc-session"
+            "name": "session-jdbc",
+            "path": "samples/session-jdbc"
         },
         {
-            "name": "phase4-hooks-interrupts",
-            "path": "samples/phase4-hooks-interrupts"
+            "name": "approval-workflow",
+            "path": "samples/approval-workflow"
         },
         {
-            "name": "phase5-skills",
-            "path": "samples/phase5-skills"
+            "name": "skill-activation",
+            "path": "samples/skill-activation"
         },
         {
-            "name": "phase6-streaming-steering",
-            "path": "samples/phase6-streaming-steering"
+            "name": "streaming-steering",
+            "path": "samples/streaming-steering"
         }
     ],
     "settings": {

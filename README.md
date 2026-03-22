@@ -12,13 +12,15 @@ Arachne ships a Bedrock-backed agent runtime with Spring Boot integration, annot
 
 Runnable samples:
 
-- [samples/phase1-chat/README.md](samples/phase1-chat/README.md)
-- [samples/phase2-tools/README.md](samples/phase2-tools/README.md)
-- [samples/phase3-redis-session/README.md](samples/phase3-redis-session/README.md)
-- [samples/phase3-jdbc-session/README.md](samples/phase3-jdbc-session/README.md)
-- [samples/phase4-hooks-interrupts/README.md](samples/phase4-hooks-interrupts/README.md)
-- [samples/phase5-skills/README.md](samples/phase5-skills/README.md)
-- [samples/phase6-streaming-steering/README.md](samples/phase6-streaming-steering/README.md)
+- [samples/README.md](samples/README.md)
+- [samples/conversation-basics/README.md](samples/conversation-basics/README.md)
+- [samples/tool-delegation/README.md](samples/tool-delegation/README.md)
+- [samples/tool-execution-context/README.md](samples/tool-execution-context/README.md)
+- [samples/session-redis/README.md](samples/session-redis/README.md)
+- [samples/session-jdbc/README.md](samples/session-jdbc/README.md)
+- [samples/approval-workflow/README.md](samples/approval-workflow/README.md)
+- [samples/skill-activation/README.md](samples/skill-activation/README.md)
+- [samples/streaming-steering/README.md](samples/streaming-steering/README.md)
 
 Deliberately deferred features include provider expansion beyond Bedrock, bidirectional realtime/audio streaming, MCP, multi-agent protocols, Guardrails, Agent Config, Evals SDK, and remote skill registries. The current deferral boundary is documented in [docs/project-status.md](docs/project-status.md) and [docs/adr/0012-post-mvp-product-boundary.md](docs/adr/0012-post-mvp-product-boundary.md).
 

@@ -1,0 +1,21 @@
+spring:
+  application:
+    name: arachne-session-redis
+  main:
+    web-application-type: none
+  data:
+    redis:
+      host: localhost
+      port: 6379
+  session:
+    redis:
+      namespace: arachne:session-redis:sample
+
+arachne:
+  strands:
+    agent:
+      system-prompt: "Remember the latest destination across application restarts."
+      conversation:
+        window-size: 8
+      session:
+        id: session-redis-demo
