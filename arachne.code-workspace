@@ -13,6 +13,10 @@
             "path": "samples/phase2-tools"
         },
         {
+            "name": "tool-context",
+            "path": "samples/tool-context"
+        },
+        {
             "name": "phase3-redis-session",
             "path": "samples/phase3-redis-session"
         },

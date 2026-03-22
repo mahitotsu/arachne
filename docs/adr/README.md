@@ -44,6 +44,9 @@ Each ADR lives at `docs/adr/NNNN-title.md` and must include at least:
 - [0010-skills-injection-and-discovery-boundary.md](0010-skills-injection-and-discovery-boundary.md) - define the boundary for `Skill` / `SkillParser`, delayed skill activation, context management, classpath discovery, and `builder().skills(...)`
 - [0011-streaming-and-steering-boundary.md](0011-streaming-and-steering-boundary.md) - define the boundary for callback-based streaming, `StreamingModel`, `SteeringHandler`, guided retry, and `builder().steeringHandlers(...)`
 - [0012-post-mvp-product-boundary.md](0012-post-mvp-product-boundary.md) - define the shipped contract, deferred features, and ADR-first future extension policy after removing `ROADMAP.md`
+- [0013-proxy-preserving-spring-tool-discovery.md](0013-proxy-preserving-spring-tool-discovery.md) - preserve Spring proxy semantics during annotation-tool discovery and invocation
+- [0014-tool-invocation-context-contract.md](0014-tool-invocation-context-contract.md) - expose logical tool-call metadata to tool authors without folding in execution-context propagation
+- [0015-execution-context-propagation-boundary.md](0015-execution-context-propagation-boundary.md) - propagate executor-boundary execution context for tool execution without widening tool invocation metadata
 
 ## Future ADR Candidates
 

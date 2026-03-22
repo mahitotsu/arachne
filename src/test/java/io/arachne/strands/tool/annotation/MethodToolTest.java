@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 
 import io.arachne.strands.schema.JsonSchemaGenerator;
 import io.arachne.strands.tool.ToolDefinitionException;
+import io.arachne.strands.tool.ToolInvocationContext;
 
 class MethodToolTest {
 
@@ -46,6 +47,18 @@ class MethodToolTest {
                 .hasCauseInstanceOf(IOException.class);
     }
 
+    @Test
+    void invokeInjectsToolInvocationContextAndOmitsItFromSchema() throws Exception {
+        Method method = ContextAwareTools.class.getDeclaredMethod("lookup", String.class, ToolInvocationContext.class);
+        MethodTool tool = new MethodTool(new ContextAwareTools(), method, schemaGenerator);
+
+        ToolInvocationContext context = new ToolInvocationContext("context_lookup", "tool-9", Map.of("city", "Tokyo"), new io.arachne.strands.agent.AgentState());
+
+        assertThat(tool.spec().inputSchema().get("properties").has("city")).isTrue();
+        assertThat(tool.spec().inputSchema().get("properties").has("context")).isFalse();
+        assertThat(tool.invoke(Map.of("city", "Tokyo"), context).content()).isEqualTo("context_lookup:tool-9:Tokyo");
+    }
+
     static class OptionalTools {
 
         @StrandsTool(name = "optional_lookup")
@@ -67,6 +80,14 @@ class MethodToolTest {
         @StrandsTool(name = "checked_lookup")
         public String lookup(@ToolParam(name = "city") String city) throws IOException {
             throw new IOException(city);
+        }
+    }
+
+    static class ContextAwareTools {
+
+        @StrandsTool(name = "context_lookup")
+        public String lookup(@ToolParam(name = "city") String city, ToolInvocationContext context) {
+            return context.toolName() + ":" + context.toolUseId() + ":" + city;
         }
     }
 }

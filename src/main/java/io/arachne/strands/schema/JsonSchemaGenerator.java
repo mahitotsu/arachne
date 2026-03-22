@@ -20,6 +20,7 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import io.arachne.strands.tool.ToolDefinitionException;
+import io.arachne.strands.tool.ToolInvocationContext;
 import io.arachne.strands.tool.annotation.ToolParam;
 
 /**
@@ -49,6 +50,9 @@ public class JsonSchemaGenerator {
         ArrayNode required = JSON.arrayNode();
 
         for (Parameter parameter : method.getParameters()) {
+            if (isInvocationContextParameter(parameter)) {
+                continue;
+            }
             String name = parameterName(parameter);
             ToolParam toolParam = parameter.getAnnotation(ToolParam.class);
             JsonNode schema = schemaForType(parameterType(parameter), Map.of());
@@ -214,6 +218,10 @@ public class JsonSchemaGenerator {
             return false;
         }
         return toolParam == null || toolParam.required();
+    }
+
+    private static boolean isInvocationContextParameter(Parameter parameter) {
+        return ToolInvocationContext.class.isAssignableFrom(parameter.getType());
     }
 
     private static Class<?> parameterType(Parameter parameter) {

@@ -23,4 +23,18 @@ public interface Tool {
      * @return result content (text, structured data, etc.)
      */
     ToolResult invoke(Object input);
+
+    /**
+     * Execute the tool with logical invocation metadata.
+     *
+     * <p>The default implementation preserves the original contract for tools that do not
+     * care about invocation metadata.
+     *
+     * @param input parsed input matching the tool's JSON schema
+     * @param context logical tool invocation metadata
+     * @return result content (text, structured data, etc.)
+     */
+    default ToolResult invoke(Object input, ToolInvocationContext context) {
+        return invoke(input);
+    }
 }

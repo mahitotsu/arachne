@@ -41,6 +41,7 @@ import io.arachne.strands.session.FileSessionManager;
 import io.arachne.strands.session.SessionManager;
 import io.arachne.strands.session.SpringSessionManager;
 import io.arachne.strands.skills.Skill;
+import io.arachne.strands.tool.ExecutionContextPropagation;
 import io.arachne.strands.tool.annotation.StrandsTool;
 import io.arachne.strands.tool.annotation.ToolParam;
 import io.arachne.strands.types.Message;
@@ -293,6 +294,27 @@ class ArachneAutoConfigurationTest {
 
                     assertThat(agent.run("hello").text()).isEqualTo("done");
                     assertThat(context.getBean(RecordingExecutor.class).count()).isEqualTo(2);
+                });
+    }
+
+    @Test
+    void autoConfigurationAppliesExecutionContextPropagationBeans() {
+        contextRunner
+                .withUserConfiguration(
+                        ContextPropagationToolConfiguration.class,
+                        ToolUseModelConfiguration.class,
+                        ExecutionContextPropagationConfiguration.class)
+                .run(context -> {
+                    ContextTrackingSupport support = context.getBean(ContextTrackingSupport.class);
+                    support.setCurrent("request-7");
+                    try {
+                        Agent agent = context.getBean(AgentFactory.class).builder().build();
+
+                        assertThat(agent.run("hello").text()).isEqualTo("done");
+                        assertThat(support.observedValues()).containsExactlyInAnyOrder("request-7", "request-7");
+                    } finally {
+                        support.clear();
+                    }
                 });
     }
 
@@ -674,6 +696,89 @@ class ArachneAutoConfigurationTest {
             return List.of(
                     new ModelEvent.TextDelta("done"),
                     new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
+        }
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    static class ContextPropagationToolConfiguration {
+        @Bean
+        @SuppressWarnings("unused")
+        ContextTrackingSupport contextTrackingSupport() {
+            return new ContextTrackingSupport();
+        }
+
+        @Bean
+        @SuppressWarnings("unused")
+        ContextAwareEchoToolBean contextAwareEchoToolBean(ContextTrackingSupport support) {
+            return new ContextAwareEchoToolBean(support);
+        }
+    }
+
+    static class ContextAwareEchoToolBean {
+        private final ContextTrackingSupport support;
+
+        ContextAwareEchoToolBean(ContextTrackingSupport support) {
+            this.support = support;
+        }
+
+        @StrandsTool(name = "echo")
+        public String echo(@ToolParam String value) {
+            support.recordCurrent();
+            return value;
+        }
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    static class ExecutionContextPropagationConfiguration {
+        @Bean
+        @SuppressWarnings("unused")
+        ExecutionContextPropagation executionContextPropagation(ContextTrackingSupport support) {
+            return task -> {
+                String captured = support.current();
+                return () -> {
+                    String previous = support.current();
+                    support.setCurrent(captured);
+                    try {
+                        task.run();
+                    } finally {
+                        support.restore(previous);
+                    }
+                };
+            };
+        }
+    }
+
+    static class ContextTrackingSupport {
+        private final ThreadLocal<String> current = new ThreadLocal<>();
+        private final CopyOnWriteArrayList<String> observedValues = new CopyOnWriteArrayList<>();
+
+        void setCurrent(String value) {
+            current.set(value);
+        }
+
+        String current() {
+            return current.get();
+        }
+
+        void restore(String value) {
+            if (value == null) {
+                current.remove();
+            } else {
+                current.set(value);
+            }
+        }
+
+        void recordCurrent() {
+            observedValues.add(current.get());
+        }
+
+        List<String> observedValues() {
+            return List.copyOf(observedValues);
+        }
+
+        void clear() {
+            current.remove();
+            observedValues.clear();
         }
     }
 

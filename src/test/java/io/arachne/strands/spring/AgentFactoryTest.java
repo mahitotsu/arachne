@@ -22,6 +22,7 @@ import io.arachne.strands.steering.Guide;
 import io.arachne.strands.steering.Interrupt;
 import io.arachne.strands.steering.Proceed;
 import io.arachne.strands.steering.SteeringHandler;
+import io.arachne.strands.tool.ExecutionContextPropagation;
 import io.arachne.strands.tool.Tool;
 import io.arachne.strands.tool.ToolResult;
 import io.arachne.strands.tool.annotation.DiscoveredTool;
@@ -541,6 +542,77 @@ class AgentFactoryTest {
         assertThatThrownBy(() -> factory.builder("missing"))
                 .isInstanceOf(NamedAgentNotFoundException.class)
                 .hasMessageContaining("missing");
+    }
+
+    @Test
+    void buildCanApplyExecutionContextPropagation() {
+        ArachneProperties properties = new ArachneProperties();
+        ThreadLocal<String> context = new ThreadLocal<>();
+        context.set("factory-context");
+
+        try (java.util.concurrent.ExecutorService executor = java.util.concurrent.Executors.newFixedThreadPool(1)) {
+            Tool tool = new Tool() {
+                @Override
+                public io.arachne.strands.model.ToolSpec spec() {
+                    return new io.arachne.strands.model.ToolSpec(
+                            "echo",
+                            "echo",
+                            com.fasterxml.jackson.databind.node.JsonNodeFactory.instance.objectNode());
+                }
+
+                @Override
+                public ToolResult invoke(Object input) {
+                    return ToolResult.success(null, context.get());
+                }
+            };
+
+            Model model = new Model() {
+                private boolean firstCall = true;
+
+                @Override
+                public Iterable<ModelEvent> converse(
+                        List<io.arachne.strands.types.Message> messages,
+                        List<io.arachne.strands.model.ToolSpec> tools) {
+                    if (firstCall) {
+                        firstCall = false;
+                        return List.of(
+                                new ModelEvent.ToolUse("tool-1", "echo", java.util.Map.of()),
+                                new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
+                    }
+                    return List.of(
+                            new ModelEvent.TextDelta("done"),
+                            new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
+                }
+            };
+
+            ExecutionContextPropagation propagation = task -> {
+                String captured = context.get();
+                return () -> {
+                    String previous = context.get();
+                    context.set(captured);
+                    try {
+                        task.run();
+                    } finally {
+                        if (previous == null) {
+                            context.remove();
+                        } else {
+                            context.set(previous);
+                        }
+                    }
+                };
+            };
+
+            Agent agent = new AgentFactory(properties, model)
+                    .builder()
+                    .tools(tool)
+                    .toolExecutionExecutor(executor)
+                    .executionContextPropagation(propagation)
+                    .build();
+
+            assertThat(agent.run("hello").text()).isEqualTo("done");
+        } finally {
+            context.remove();
+        }
     }
 
     static class ToolBean {

@@ -16,6 +16,8 @@ Available now:
 - `Agent.run(String)` returning an `AgentResult`
 - opt-in retry strategy for retryable model failures
 - `@StrandsTool` and `@ToolParam` for annotation-driven tools
+- `ToolInvocationContext` for logical tool-call metadata inside tool implementations
+- `ExecutionContextPropagation` for opt-in executor-boundary context propagation during tool execution
 - automatic tool discovery from Spring beans
 - structured output with typed return values through `Agent.run(String, Class<T>)`
 - Bedrock model ID and region configuration
@@ -41,6 +43,7 @@ If you want runnable examples instead of only reading the API docs, use these sa
 
 - [samples/phase1-chat/README.md](samples/phase1-chat/README.md)
 - [samples/phase2-tools/README.md](samples/phase2-tools/README.md)
+- [samples/tool-context/README.md](samples/tool-context/README.md)
 - [samples/phase3-redis-session/README.md](samples/phase3-redis-session/README.md)
 - [samples/phase3-jdbc-session/README.md](samples/phase3-jdbc-session/README.md)
 - [samples/phase4-hooks-interrupts/README.md](samples/phase4-hooks-interrupts/README.md)
@@ -537,6 +540,49 @@ Use `@ToolParam` when you want parameter descriptions, explicit parameter names,
 
 The generated tool schema is derived from the Java method signature, so the public API stays on the Java side instead of asking you to hand-author JSON schema.
 
+If a tool implementation needs logical invocation metadata, you can opt into `ToolInvocationContext`.
+
+For annotation-driven tools, declare it as a method parameter. Arachne injects it at runtime and does not expose it in the model-visible JSON schema.
+
+```java
+@Service
+class WeatherToolService {
+
+  @StrandsTool(description = "Look up weather facts for a city")
+  String weather(
+      @ToolParam(description = "City name to research") String city,
+      ToolInvocationContext context) {
+    context.state().put("lastWeatherCity", city);
+    return context.toolUseId() + ": " + city + " is mild today.";
+  }
+}
+```
+
+For handwritten `Tool` implementations, override the context-aware overload when you need the same metadata:
+
+```java
+class AuditTool implements Tool {
+
+  @Override
+  public ToolSpec spec() {
+    return new ToolSpec("audit", "Record an audit entry", JsonNodeFactory.instance.objectNode());
+  }
+
+  @Override
+  public ToolResult invoke(Object input) {
+    return ToolResult.success(null, "ok");
+  }
+
+  @Override
+  public ToolResult invoke(Object input, ToolInvocationContext context) {
+    context.state().put("lastAuditToolUseId", context.toolUseId());
+    return ToolResult.success(null, "ok");
+  }
+}
+```
+
+`ToolInvocationContext` is intentionally narrow. It carries logical tool-call metadata and `AgentState`, but it does not carry Spring Security, MDC, tracing, transaction, or other execution-context concerns.
+
 By default, discovered annotation tools are visible to every `AgentFactory.builder().build()` call. When you need per-agent scoping, qualify the tool and filter it at builder time:
 
 ```java
@@ -777,6 +823,40 @@ Agent agent = factory.builder()
 The default is parallel tool execution. Switch to sequential execution only when your tools depend on ordered side effects.
 
 When you need to align tool execution with application infrastructure, Spring Boot auto-configuration exposes the parallel backend through the `arachneToolExecutionExecutor` bean. Override that bean with an `Executor` or `TaskExecutor` if you do not want the default virtual-thread executor.
+
+If your tools depend on execution-scoped thread-local state such as security context, MDC, or tracing state, opt into `ExecutionContextPropagation` as a separate concern from `ToolInvocationContext`.
+
+For direct Java usage, set it on the builder:
+
+```java
+ExecutionContextPropagation propagation = task -> {
+  String requestId = RequestContext.currentRequestId();
+  return () -> RequestContext.withRequestId(requestId, task);
+};
+
+Agent agent = factory.builder()
+  .toolExecutionExecutor(appExecutor)
+  .executionContextPropagation(propagation)
+  .build();
+```
+
+For Spring Boot usage, register one or more `ExecutionContextPropagation` beans. Arachne composes them and applies them to submitted parallel tool tasks:
+
+```java
+@Configuration
+class ToolExecutionContextConfiguration {
+
+  @Bean
+  ExecutionContextPropagation requestIdPropagation() {
+    return task -> {
+      String requestId = RequestContext.currentRequestId();
+      return () -> RequestContext.withRequestId(requestId, task);
+    };
+  }
+}
+```
+
+This SPI is intentionally narrow. It wraps executor-boundary task submission only, and it stays separate from `ToolInvocationContext`, which carries tool name, tool use id, raw input, and `AgentState`.
 
 ## Hooks, Plugins, And Interrupts
 

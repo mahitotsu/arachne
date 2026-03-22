@@ -26,18 +26,29 @@ public class ToolExecutor {
 
     private final ToolExecutionMode executionMode;
     private final Executor parallelExecutor;
+    private final ExecutionContextPropagation executionContextPropagation;
 
     public ToolExecutor() {
-        this(ToolExecutionMode.PARALLEL, null);
+        this(ToolExecutionMode.PARALLEL, null, ExecutionContextPropagation.noop());
     }
 
     public ToolExecutor(ToolExecutionMode executionMode) {
-        this(executionMode, null);
+        this(executionMode, null, ExecutionContextPropagation.noop());
     }
 
     public ToolExecutor(ToolExecutionMode executionMode, Executor parallelExecutor) {
+        this(executionMode, parallelExecutor, ExecutionContextPropagation.noop());
+    }
+
+    public ToolExecutor(
+            ToolExecutionMode executionMode,
+            Executor parallelExecutor,
+            ExecutionContextPropagation executionContextPropagation) {
         this.executionMode = executionMode;
         this.parallelExecutor = parallelExecutor;
+        this.executionContextPropagation = executionContextPropagation == null
+                ? ExecutionContextPropagation.noop()
+                : executionContextPropagation;
     }
 
     public List<ToolResult> execute(
@@ -105,7 +116,7 @@ public class ToolExecutor {
             AgentState state,
             Executor executor) {
         List<CompletableFuture<ToolResult>> futures = requests.stream()
-                .map(request -> CompletableFuture.supplyAsync(() -> executeOne(tools, request, hooks, state), executor))
+            .map(request -> submit(executor, () -> executeOne(tools, request, hooks, state)))
                 .toList();
 
         List<ToolResult> results = new ArrayList<>(futures.size());
@@ -130,6 +141,19 @@ public class ToolExecutor {
         }
     }
 
+    private CompletableFuture<ToolResult> submit(Executor executor, java.util.function.Supplier<ToolResult> supplier) {
+        CompletableFuture<ToolResult> future = new CompletableFuture<>();
+        Runnable task = () -> {
+            try {
+                future.complete(supplier.get());
+            } catch (Throwable throwable) {
+                future.completeExceptionally(throwable);
+            }
+        };
+        executor.execute(executionContextPropagation.wrap(task));
+        return future;
+    }
+
     private ToolResult executeOne(
             List<Tool> tools,
             BeforeToolCallEvent request,
@@ -141,7 +165,9 @@ public class ToolExecutor {
                 result = request.overrideResult();
             } else {
                 Tool tool = findTool(tools, request.toolName());
-                result = tool.invoke(request.input());
+                result = tool.invoke(
+                        request.input(),
+                        new ToolInvocationContext(request.toolName(), request.toolUseId(), request.input(), state));
             }
         } catch (StructuredOutputException e) {
             LOG.log(Level.FINE, () -> "Tool invocation failed: " + request.toolName() + ": " + e.getMessage());

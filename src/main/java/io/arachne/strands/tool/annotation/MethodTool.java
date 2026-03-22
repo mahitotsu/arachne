@@ -14,6 +14,7 @@ import io.arachne.strands.schema.JsonSchemaGenerator;
 import io.arachne.strands.tool.BeanValidationSupport;
 import io.arachne.strands.tool.Tool;
 import io.arachne.strands.tool.ToolDefinitionException;
+import io.arachne.strands.tool.ToolInvocationContext;
 import io.arachne.strands.tool.ToolResult;
 import jakarta.validation.Validator;
 
@@ -75,8 +76,13 @@ public class MethodTool implements Tool {
 
     @Override
     public ToolResult invoke(Object input) {
+        return invoke(input, ToolInvocationContext.direct(spec.name(), input));
+    }
+
+    @Override
+    public ToolResult invoke(Object input, ToolInvocationContext context) {
         try {
-            Object[] arguments = resolveArguments(input);
+            Object[] arguments = resolveArguments(input, context);
             BeanValidationSupport.validateToolArguments(validator, target, invocationMethod, arguments);
 
             Object result = invocationMethod.invoke(target, arguments);
@@ -95,13 +101,17 @@ public class MethodTool implements Tool {
         }
     }
 
-    private Object[] resolveArguments(Object input) {
+    private Object[] resolveArguments(Object input, ToolInvocationContext context) {
         Map<String, Object> values = inputAsMap(input);
         Parameter[] parameters = bindingMethod.getParameters();
         Object[] args = new Object[parameters.length];
 
         for (int index = 0; index < parameters.length; index++) {
             Parameter parameter = parameters[index];
+            if (ToolInvocationContext.class.isAssignableFrom(parameter.getType())) {
+                args[index] = context;
+                continue;
+            }
             String name = parameterName(parameter);
             Object value = values.get(name);
             if (value == null && Optional.class.isAssignableFrom(parameter.getType())) {

@@ -15,6 +15,8 @@ This document replaces `ROADMAP.md` as the repository-level snapshot of what Ara
 ### Tools And Structured Output
 
 - annotation-driven tools through `@StrandsTool` and `@ToolParam`
+- logical tool invocation metadata through `ToolInvocationContext`
+- opt-in execution-context propagation through `ExecutionContextPropagation`
 - Spring-context tool discovery with qualifier-based scoping and opt-out control
 - manual `Tool` registration and configurable parallel or sequential execution
 - generated JSON schema from Java signatures and Java output types
@@ -44,7 +46,7 @@ This document replaces `ROADMAP.md` as the repository-level snapshot of what Ara
 
 - repository verification with `mvn test`
 - opt-in Bedrock smoke verification with `mvn -Dtest=BedrockModelIntegrationTest -Darachne.integration.bedrock=true test`
-- runnable samples for chat, tools, Redis session, JDBC session, hooks/interrupts, skills, and streaming/steering under `samples/`
+ - runnable samples for chat, tools, tool context, Redis session, JDBC session, hooks/interrupts, skills, and streaming/steering under `samples/`
 
 ## Current Constraints
 

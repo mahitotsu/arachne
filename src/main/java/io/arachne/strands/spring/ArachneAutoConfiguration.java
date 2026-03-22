@@ -32,6 +32,7 @@ import io.arachne.strands.session.SpringSessionManager;
 import io.arachne.strands.skills.Skill;
 import io.arachne.strands.skills.SkillParser;
 import io.arachne.strands.tool.BeanValidationSupport;
+import io.arachne.strands.tool.ExecutionContextPropagation;
 import io.arachne.strands.tool.annotation.DiscoveredTool;
 import jakarta.validation.Validator;
 
@@ -154,6 +155,7 @@ public class ArachneAutoConfiguration {
             Validator validator,
             SessionManager sessionManager,
             ObjectProvider<ModelRetryStrategy> modelRetryStrategyProvider,
+            ObjectProvider<ExecutionContextPropagation> executionContextPropagationProvider,
             ObjectMapper objectMapper,
             @Qualifier("arachneToolExecutionExecutor") Executor toolExecutionExecutor) {
         return new AgentFactory(
@@ -166,7 +168,8 @@ public class ArachneAutoConfiguration {
                 sessionManager,
                 modelRetryStrategyProvider.getIfAvailable(),
                 objectMapper,
-                toolExecutionExecutor);
+                toolExecutionExecutor,
+                ExecutionContextPropagation.compose(executionContextPropagationProvider.orderedStream().toList()));
     }
 
     private static SessionRepository<? extends Session> asSessionRepository(SessionRepository<?> sessionRepository) {

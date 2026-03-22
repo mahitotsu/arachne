@@ -31,6 +31,7 @@ import io.arachne.strands.skills.AgentSkillsPlugin;
 import io.arachne.strands.skills.Skill;
 import io.arachne.strands.steering.SteeringHandler;
 import io.arachne.strands.tool.BeanValidationSupport;
+import io.arachne.strands.tool.ExecutionContextPropagation;
 import io.arachne.strands.tool.Tool;
 import io.arachne.strands.tool.ToolExecutionMode;
 import io.arachne.strands.tool.ToolExecutor;
@@ -65,17 +66,18 @@ public class AgentFactory {
     private final ModelRetryStrategy defaultRetryStrategy;
     private final ObjectMapper objectMapper;
     private final Executor defaultToolExecutionExecutor;
+    private final ExecutionContextPropagation defaultExecutionContextPropagation;
 
     public AgentFactory(ArachneProperties properties) {
-        this(properties, null, List.of(), List.of(), List.of(), BeanValidationSupport.defaultValidator(), null, null, new ObjectMapper(), null);
+        this(properties, null, List.of(), List.of(), List.of(), BeanValidationSupport.defaultValidator(), null, null, new ObjectMapper(), null, ExecutionContextPropagation.noop());
     }
 
     public AgentFactory(ArachneProperties properties, Model defaultModel) {
-        this(properties, defaultModel, List.of(), List.of(), List.of(), BeanValidationSupport.defaultValidator(), null, null, new ObjectMapper(), null);
+        this(properties, defaultModel, List.of(), List.of(), List.of(), BeanValidationSupport.defaultValidator(), null, null, new ObjectMapper(), null, ExecutionContextPropagation.noop());
     }
 
     public AgentFactory(ArachneProperties properties, Model defaultModel, List<DiscoveredTool> discoveredTools) {
-        this(properties, defaultModel, discoveredTools, List.of(), List.of(), BeanValidationSupport.defaultValidator(), null, null, new ObjectMapper(), null);
+        this(properties, defaultModel, discoveredTools, List.of(), List.of(), BeanValidationSupport.defaultValidator(), null, null, new ObjectMapper(), null, ExecutionContextPropagation.noop());
     }
 
     public AgentFactory(
@@ -83,7 +85,7 @@ public class AgentFactory {
             Model defaultModel,
             List<DiscoveredTool> discoveredTools,
             List<HookProvider> discoveredHooks) {
-        this(properties, defaultModel, discoveredTools, discoveredHooks, List.of(), BeanValidationSupport.defaultValidator(), null, null, new ObjectMapper(), null);
+        this(properties, defaultModel, discoveredTools, discoveredHooks, List.of(), BeanValidationSupport.defaultValidator(), null, null, new ObjectMapper(), null, ExecutionContextPropagation.noop());
     }
 
     public AgentFactory(
@@ -91,7 +93,7 @@ public class AgentFactory {
             Model defaultModel,
             List<DiscoveredTool> discoveredTools,
             Validator validator) {
-        this(properties, defaultModel, discoveredTools, List.of(), List.of(), validator, null, null, new ObjectMapper(), null);
+        this(properties, defaultModel, discoveredTools, List.of(), List.of(), validator, null, null, new ObjectMapper(), null, ExecutionContextPropagation.noop());
     }
 
     public AgentFactory(
@@ -100,7 +102,7 @@ public class AgentFactory {
             List<DiscoveredTool> discoveredTools,
             Validator validator,
             SessionManager defaultSessionManager) {
-        this(properties, defaultModel, discoveredTools, List.of(), List.of(), validator, defaultSessionManager, null, new ObjectMapper(), null);
+        this(properties, defaultModel, discoveredTools, List.of(), List.of(), validator, defaultSessionManager, null, new ObjectMapper(), null, ExecutionContextPropagation.noop());
     }
 
     public AgentFactory(
@@ -110,7 +112,7 @@ public class AgentFactory {
             Validator validator,
             SessionManager defaultSessionManager,
             ModelRetryStrategy defaultRetryStrategy) {
-        this(properties, defaultModel, discoveredTools, List.of(), List.of(), validator, defaultSessionManager, defaultRetryStrategy, new ObjectMapper(), null);
+        this(properties, defaultModel, discoveredTools, List.of(), List.of(), validator, defaultSessionManager, defaultRetryStrategy, new ObjectMapper(), null, ExecutionContextPropagation.noop());
     }
 
     public AgentFactory(
@@ -133,7 +135,33 @@ public class AgentFactory {
                 defaultSessionManager,
                 defaultRetryStrategy,
                 objectMapper,
-                defaultToolExecutionExecutor);
+                defaultToolExecutionExecutor,
+                ExecutionContextPropagation.noop());
+            }
+
+            public AgentFactory(
+                ArachneProperties properties,
+                Model defaultModel,
+                List<DiscoveredTool> discoveredTools,
+                List<HookProvider> discoveredHooks,
+                Validator validator,
+                SessionManager defaultSessionManager,
+                ModelRetryStrategy defaultRetryStrategy,
+                ObjectMapper objectMapper,
+                Executor defaultToolExecutionExecutor,
+                ExecutionContextPropagation defaultExecutionContextPropagation) {
+            this(
+                properties,
+                defaultModel,
+                discoveredTools,
+                discoveredHooks,
+                List.of(),
+                validator,
+                defaultSessionManager,
+                defaultRetryStrategy,
+                objectMapper,
+                defaultToolExecutionExecutor,
+                defaultExecutionContextPropagation);
     }
 
     public AgentFactory(
@@ -147,6 +175,32 @@ public class AgentFactory {
             ModelRetryStrategy defaultRetryStrategy,
             ObjectMapper objectMapper,
             Executor defaultToolExecutionExecutor) {
+        this(
+            properties,
+            defaultModel,
+            discoveredTools,
+            discoveredHooks,
+            discoveredSkills,
+            validator,
+            defaultSessionManager,
+            defaultRetryStrategy,
+            objectMapper,
+            defaultToolExecutionExecutor,
+            ExecutionContextPropagation.noop());
+        }
+
+        public AgentFactory(
+            ArachneProperties properties,
+            Model defaultModel,
+            List<DiscoveredTool> discoveredTools,
+            List<HookProvider> discoveredHooks,
+            List<Skill> discoveredSkills,
+            Validator validator,
+            SessionManager defaultSessionManager,
+            ModelRetryStrategy defaultRetryStrategy,
+            ObjectMapper objectMapper,
+            Executor defaultToolExecutionExecutor,
+            ExecutionContextPropagation defaultExecutionContextPropagation) {
         this.properties = properties;
         this.defaultModel = defaultModel;
         this.discoveredTools = List.copyOf(discoveredTools);
@@ -157,14 +211,35 @@ public class AgentFactory {
         this.defaultRetryStrategy = defaultRetryStrategy;
         this.objectMapper = objectMapper;
         this.defaultToolExecutionExecutor = defaultToolExecutionExecutor;
+        this.defaultExecutionContextPropagation = defaultExecutionContextPropagation == null
+            ? ExecutionContextPropagation.noop()
+            : defaultExecutionContextPropagation;
     }
 
     public Builder builder() {
-        return new Builder(resolveBuilderDefaults(null), discoveredTools, discoveredHooks, discoveredSkills, validator, defaultSessionManager, objectMapper, defaultToolExecutionExecutor);
+        return new Builder(
+            resolveBuilderDefaults(null),
+            discoveredTools,
+            discoveredHooks,
+            discoveredSkills,
+            validator,
+            defaultSessionManager,
+            objectMapper,
+            defaultToolExecutionExecutor,
+            defaultExecutionContextPropagation);
     }
 
     public Builder builder(String name) {
-        return new Builder(resolveBuilderDefaults(name), discoveredTools, discoveredHooks, discoveredSkills, validator, defaultSessionManager, objectMapper, defaultToolExecutionExecutor);
+        return new Builder(
+            resolveBuilderDefaults(name),
+            discoveredTools,
+            discoveredHooks,
+            discoveredSkills,
+            validator,
+            defaultSessionManager,
+            objectMapper,
+            defaultToolExecutionExecutor,
+            defaultExecutionContextPropagation);
     }
 
     static Model createDefaultModel(ArachneProperties properties) {
@@ -340,6 +415,7 @@ public class AgentFactory {
         private final SessionManager defaultSessionManager;
         private final ObjectMapper objectMapper;
         private final Executor defaultToolExecutionExecutor;
+        private final ExecutionContextPropagation defaultExecutionContextPropagation;
         private Model model;
         private List<Tool> tools = List.of();
         private String systemPrompt;
@@ -351,6 +427,7 @@ public class AgentFactory {
         private ModelRetryStrategy retryStrategy;
         private String sessionId;
         private Executor toolExecutionExecutor;
+        private ExecutionContextPropagation executionContextPropagation;
         private AgentState state = new AgentState();
         private List<HookProvider> hookProviders = List.of();
         private List<Plugin> plugins = List.of();
@@ -364,7 +441,8 @@ public class AgentFactory {
                 Validator validator,
                 SessionManager defaultSessionManager,
                 ObjectMapper objectMapper,
-                Executor defaultToolExecutionExecutor) {
+                Executor defaultToolExecutionExecutor,
+                ExecutionContextPropagation defaultExecutionContextPropagation) {
             this.defaults = Objects.requireNonNull(defaults, "defaults must not be null");
             this.defaultModel = defaults.defaultModel();
             this.discoveredTools = List.copyOf(discoveredTools);
@@ -374,12 +452,14 @@ public class AgentFactory {
             this.defaultSessionManager = defaultSessionManager;
             this.objectMapper = objectMapper;
             this.defaultToolExecutionExecutor = defaultToolExecutionExecutor;
+            this.defaultExecutionContextPropagation = defaultExecutionContextPropagation;
             this.systemPrompt = defaults.systemPrompt();
             this.toolExecutionMode = defaults.toolExecutionMode();
             this.useDiscoveredTools = defaults.useDiscoveredTools();
             this.toolQualifiers = defaults.toolQualifiers();
             this.retryStrategy = defaults.retryStrategy();
             this.sessionId = defaults.sessionId();
+            this.executionContextPropagation = defaultExecutionContextPropagation;
         }
 
         public Builder model(Model model) {
@@ -446,6 +526,13 @@ public class AgentFactory {
             return this;
         }
 
+        public Builder executionContextPropagation(ExecutionContextPropagation executionContextPropagation) {
+            this.executionContextPropagation = executionContextPropagation == null
+                    ? ExecutionContextPropagation.noop()
+                    : executionContextPropagation;
+            return this;
+        }
+
         public Builder useDiscoveredTools(boolean useDiscoveredTools) {
             this.useDiscoveredTools = useDiscoveredTools;
             return this;
@@ -501,7 +588,12 @@ public class AgentFactory {
             Model resolvedModel = resolveModel();
             List<Plugin> resolvedPlugins = resolvePlugins();
             HookRegistry hooks = resolveHooks(resolvedPlugins);
-            EventLoop eventLoop = new EventLoop(hooks, new ToolExecutor(toolExecutionMode, resolveToolExecutionExecutor()));
+            EventLoop eventLoop = new EventLoop(
+                hooks,
+                new ToolExecutor(
+                    toolExecutionMode,
+                    resolveToolExecutionExecutor(),
+                    resolveExecutionContextPropagation()));
             List<Tool> resolvedTools = Stream.concat(
                     Stream.concat(resolveDiscoveredTools().stream(), resolvePluginTools(resolvedPlugins).stream()),
                     tools.stream()).toList();
@@ -609,6 +701,15 @@ public class AgentFactory {
                 return toolExecutionExecutor;
             }
             return defaultToolExecutionExecutor;
+        }
+
+        private ExecutionContextPropagation resolveExecutionContextPropagation() {
+            if (executionContextPropagation != null) {
+                return executionContextPropagation;
+            }
+            return defaultExecutionContextPropagation == null
+                    ? ExecutionContextPropagation.noop()
+                    : defaultExecutionContextPropagation;
         }
     }
 }
