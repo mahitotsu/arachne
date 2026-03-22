@@ -204,9 +204,10 @@ If you configure `arachne.strands.agent.session.file.directory`, Arachne uses fi
 
 ## Contributor Workflows
 
-- `/phase-audit <area>` audits a capability area or historical phase for documentation drift, ADR gaps, sample drift, and regression risk.
-- `/phase-closeout <area>` runs the same checklist and applies no-regret updates when the repository state clearly supports them.
-- `/quality-audit` refreshes the Maven quality artifacts and produces a Japanese evidence-based report.
+- `/compat-audit <area>` audits Arachne's compatibility with Strands Agents for a target capability area and reports implemented, partial, deferred, and MVP-missing items.
+- `/implementation-candidates <scope>` detects unported or deferred Strands capabilities that are plausible next implementation candidates for Arachne and compares their priority.
+- `/alignment-audit <area>` audits whether Arachne's implementation, tests, docs, ADRs, instructions, and samples stay aligned for a target capability area.
+- `/quality-audit` refreshes the Maven quality artifacts and produces a Japanese evidence-based quality report for the current repository state.
 - `.github/dependabot.yml` keeps repository-side dependency updates and advisory-backed remediation visible without making the local Maven loop heavy.
 
 ## Build And Verify

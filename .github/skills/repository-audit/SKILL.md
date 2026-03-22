@@ -1,20 +1,20 @@
 ---
-name: phase-closeout
-description: 'Capability closeout and audit workflow for Arachne. Use when finishing a capability area or checking whether a historical phase or current feature area is truly documented and closed. Covers status docs, README and user guide updates, instruction review, ADR review, sample drift, regression checks, and test evidence.'
-argument-hint: 'Capability area or historical phase name, plus optional notes'
+name: repository-audit
+description: 'Repository-side audit workflow for Arachne. Use when checking whether a capability area is implemented, documented, tested, and aligned across code, docs, ADRs, instructions, and samples.'
+argument-hint: 'Capability area name, repository surface, or optional notes'
 user-invocable: false
 disable-model-invocation: false
 ---
 
-# Phase Closeout
+# Repository Audit
 
-Use this skill when a capability area is believed to be complete and needs a disciplined closeout, or when you need a pre-closeout audit.
+Use this skill when a capability area needs a disciplined repository audit for alignment, evidence, and closeout readiness.
 
-Load and follow the repository checklist in [closeout-checklist](./references/closeout-checklist.md).
+Load and follow the repository checklist in [repository-audit-checklist](./references/repository-audit-checklist.md).
 
 ## Inputs
 
-- The slash-command arguments identify the target phase.
+- The slash-command arguments identify the target capability area or repository surface.
 - If the scope is ambiguous, resolve it from `docs/project-status.md`, `docs/user-guide.md`, and the relevant ADRs before making edits.
 - If the user asked for an audit rather than closeout, keep edits narrow and prioritize findings.
 - Unless the user explicitly asks for another language, produce the report in Japanese.
@@ -22,17 +22,17 @@ Load and follow the repository checklist in [closeout-checklist](./references/cl
 ## Required Procedure
 
 1. Read `docs/project-status.md` and identify the exact shipped scope, current constraints, and deferred items relevant to the target area.
-2. Read the repo instructions that govern the phase, especially `.github/copilot-instructions.md` and any active `.github/instructions/*.instructions.md` files relevant to the touched code or tests.
-3. Review the implementation, tests, and samples that claim to cover the target phase.
+2. Read the repo instructions that govern the area, especially `.github/copilot-instructions.md` and any active `.github/instructions/*.instructions.md` files relevant to the touched code or tests.
+3. Review the implementation, tests, and samples that claim to cover the target area.
 4. Decide whether each documentation and workflow surface needs updates. At minimum, consider README.md, docs/user-guide.md, docs/project-status.md, sample READMEs, `.github/instructions/`, and docs/adr/.
 5. Apply required updates in the same turn when the repository state gives enough evidence to do so safely.
 6. Verify architectural invariants and prior-phase behavior have not drifted.
 7. Run verification. Default to `mvn test` when code or behavior changed.
-8. Produce a closeout report with explicit status: complete, incomplete, or blocked.
+8. Produce an audit report with explicit status: aligned, misaligned, incomplete, or blocked.
 
 ## Guardrails
 
-- Do not mark an area complete just because most code exists. Check the shipped behavior, docs, tests, and any explicit task conditions directly.
+- Do not mark an area aligned just because most code exists. Check the shipped behavior, docs, tests, and any explicit task conditions directly.
 - Do not skip the ADR decision gate when the change affects public API, Spring integration, lifecycle assumptions, session behavior, tool binding, hooks/plugins/interrupts, or other cross-phase boundaries.
 - Do not skip sample review when the phase changes how users are expected to wire or run the library.
 - Do not paper over missing tests. If behavior changed, add or update tests or explicitly report the gap.
@@ -42,7 +42,7 @@ Load and follow the repository checklist in [closeout-checklist](./references/cl
 
 Return a concise report in Japanese with these sections when relevant:
 
-- Phase status
+- Audit status
 - Updates made
 - Checks performed
 - Open items or risks

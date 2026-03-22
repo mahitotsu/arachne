@@ -47,6 +47,17 @@ If you want runnable examples instead of only reading the API docs, use these sa
 - [samples/phase5-skills/README.md](samples/phase5-skills/README.md)
 - [samples/phase6-streaming-steering/README.md](samples/phase6-streaming-steering/README.md)
 
+## Contributor Workflows
+
+The repository ships four audit-oriented slash commands for recurring maintenance work:
+
+- `/compat-audit <area>` checks Arachne's compatibility with Strands Agents for a target capability area and separates implemented, partial, deferred, and MVP-missing items.
+- `/implementation-candidates <scope>` detects unported or deferred Strands capabilities that are plausible next implementation candidates for Arachne, compares them, and recommends an execution order.
+- `/alignment-audit <area>` checks whether implementation, tests, docs, ADRs, instructions, and samples stay aligned for a target capability area.
+- `/quality-audit` refreshes the current Maven quality evidence and produces a repository-specific quality report.
+
+Use `/compat-audit` when the external comparison baseline is Strands Agents. Use `/implementation-candidates` when the goal is to turn unported or deferred features into a ranked next-work proposal. Use `/alignment-audit` when the question is whether Arachne's own repository surfaces still match each other. Use `/quality-audit` when the focus is test, coverage, static analysis, dependency, and architecture quality evidence.
+
 ## Prerequisites
 
 - Java 21

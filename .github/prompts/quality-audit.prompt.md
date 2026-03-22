@@ -1,10 +1,10 @@
 ---
-description: "Run Arachne's Maven quality profiles and generate an English quality evaluation report from fresh repository evidence."
+description: "Evaluate Arachne's implementation quality from fresh repository evidence and produce a focused report."
 name: "Quality Audit"
 argument-hint: "Optional scope, package focus, or notes"
 agent: "agent"
 ---
-Refresh the quality evidence for the current Arachne repository state and then generate a quality evaluation report.
+Refresh the quality evidence for the current Arachne repository state and then generate a focused quality evaluation report.
 
 Use repository evidence first. Prefer measured artifacts over assumptions.
 
@@ -49,15 +49,15 @@ Focus on these repo-specific questions:
 - Are any dependency artifacts present that no longer belong to the active workflow, and if so, should they be treated as stale?
 - Do samples and docs appear aligned with the code paths under scrutiny?
 
-Respond in English unless the user explicitly asks for another language.
+Respond in Japanese unless the user explicitly asks for another language.
 
 End with these section headings in this order:
 
-- `Overall Assessment`
-- `Observed Evidence`
-- `Key Risks`
-- `Priority Actions`
-- `Notes`
+- `総合評価`
+- `観測した証拠`
+- `主要リスク`
+- `優先アクション`
+- `備考`
 
-When evidence is missing, say so explicitly in `Notes` instead of guessing.
-When stale artifacts exist, say so explicitly in `Notes` and avoid using them as primary evidence.
+When evidence is missing, say so explicitly in `備考` instead of guessing.
+When stale artifacts exist, say so explicitly in `備考` and avoid using them as primary evidence.

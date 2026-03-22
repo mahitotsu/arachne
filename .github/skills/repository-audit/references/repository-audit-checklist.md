@@ -1,6 +1,6 @@
-# Closeout Checklist
+# Repository Audit Checklist
 
-Use this checklist for both `/phase-closeout` and `/phase-audit`.
+Use this checklist as the shared repository audit procedure behind `/alignment-audit` and, when useful for repository-side evidence gathering, `/compat-audit`.
 
 ## 1. Reconfirm the target area
 
@@ -10,16 +10,16 @@ Use this checklist for both `/phase-closeout` and `/phase-audit`.
 
 ## 2. Confirm implementation coverage
 
-- Find the code paths that implement the target phase.
-- Check whether the implementation still matches the active phase instructions.
-- Confirm that the phase goal is satisfied from the public API and runtime behavior, not only from internal scaffolding.
+- Find the code paths that implement the target area.
+- Check whether the implementation still matches the active instructions for that area.
+- Confirm that the target goal is satisfied from the public API and runtime behavior, not only from internal scaffolding.
 
 ## 3. Confirm test coverage and evidence
 
-- Identify the tests that cover the phase.
+- Identify the tests that cover the target area.
 - Check whether changed behavior has matching test additions or updates.
 - Use the repo default verification command `mvn test` when code or behavior changed.
-- If only an audit was requested and no edits were made, state what verification would be required for closeout.
+- If only an audit was requested and no edits were made, state what verification would be required for a full closeout.
 
 ## 4. Review documentation surfaces
 
@@ -53,7 +53,7 @@ At minimum, check these repo-specific invariants:
 
 ## 6. ADR decision gate
 
-Ask explicitly whether the phase finished with a design decision that should be recorded.
+Ask explicitly whether the target area finished with a design decision that should be recorded.
 
 Create or update an ADR when the work:
 
@@ -90,11 +90,11 @@ Any leftover work must be classified instead of left implicit:
 
 Use a compact report in Japanese by default with these fields:
 
-- Phase: target phase and goal
-- Status: complete, incomplete, or blocked
+- Area: target area and goal
+- Status: aligned, misaligned, incomplete, or blocked
 - Evidence checked: code, tests, docs, samples, ADRs, instructions
 - Updates made: exact files changed and why
 - Remaining work: only if anything is still open
-- Recommendation: mark complete, continue implementation, run closeout later, or prepare next phase
+- Recommendation: keep aligned, continue implementation, run closeout later, or prepare the next implementation theme
 
 If the invoking prompt requires a different final section set or heading wording, follow the prompt while keeping the prose in Japanese.

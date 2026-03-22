@@ -15,16 +15,28 @@ Treat `refs/sdk-python` as behavioral reference material and do not edit it unle
 - The default verification command is `mvn test`.
 - Use dedicated integration tests for Bedrock smoke validation instead of ad hoc code.
 - When a change affects behavior, add or update tests in the same turn.
+- Prefer deterministic tests over timing-sensitive or model-randomness-dependent assertions.
+- For shipped opt-in capabilities, add regression coverage that proves the default path still behaves the same when the feature is unused.
 
 ## Architecture
 - Keep the core flow readable as `Agent -> EventLoop -> Model / Tool`.
 - Keep Spring wiring easy to follow from auto-configuration through `AgentFactory`.
 - Keep AWS Bedrock-specific handling inside `BedrockModel` or its immediate vicinity.
 
+## Shipped Capability Rules
+- Preserve shipped behavior unless the current task explicitly changes the contract and updates the docs and ADRs accordingly.
+- Keep opt-in capabilities opt-in. Do not force synchronous users into streaming, reactive, or policy-heavy paths.
+- When touching streaming, preserve fixed event ordering and keep streaming as an additional path layered on top of the existing blocking runtime.
+- When touching steering, keep it as a minimal extension of the existing hook/plugin boundary. Avoid widening it into a general policy engine unless the task explicitly requires that change.
+- When touching tool or model steering, keep boundaries explicit: tool steering should stay centered on the tool-call boundary, and model steering should not be forced into unnatural post-processing shapes.
+- When touching runtime-local extensions such as skills, hooks, interrupts, plugins, streaming, or steering, avoid blurring session, conversation, and tool-execution boundaries.
+
 ## Implementation Theme Workflow
-- Keep exactly one implementation-instruction file and one test-strategy instruction file in `.github/instructions/` for the currently active implementation theme.
-- Before starting a new implementation theme, review and update both files.
-- During that review, check consistency with `docs/project-status.md`, relevant ADRs, removal of stale constraints, test emphasis, and completion conditions.
+- Keep durable repository-wide rules in this file.
+- Use `.github/instructions/` only when there is an active implementation theme that needs temporary, focused guidance beyond the stable repository rules.
+- When such theme-specific files are needed, keep at most one implementation instruction file and one test-strategy instruction file for that theme, and give them narrow `applyTo` scopes.
+- Before starting a new implementation theme, review whether `.github/instructions/` is needed at all. If it is, update those files for the new theme and remove stale constraints from the previous one.
+- During that review, check consistency with `docs/project-status.md`, relevant ADRs, test emphasis, and completion conditions.
 
 ## ADR Workflow
 - Record important architectural decisions as ADRs under `docs/adr/`. This includes both new decisions and already adopted decisions that remain important assumptions.
