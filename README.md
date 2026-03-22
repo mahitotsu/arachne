@@ -34,20 +34,20 @@ arachne:
     model:
       provider: bedrock
       id: jp.amazon.nova-2-lite-v1:0
-            region: ap-northeast-1
-        agent:
-            system-prompt: "You are a concise assistant."
-            retry:
-                enabled: true
-                max-attempts: 6
-                initial-delay: 4s
-                max-delay: 240s
-            conversation:
-                window-size: 40
-            session:
-                id: support-demo
-                file:
-                    directory: .arachne/sessions
+      region: ap-northeast-1
+    agent:
+      system-prompt: "You are a concise assistant."
+      retry:
+        enabled: true
+        max-attempts: 6
+        initial-delay: 4s
+        max-delay: 240s
+      conversation:
+        window-size: 40
+      session:
+        id: support-demo
+        file:
+          directory: .arachne/sessions
 ```
 
 ```java
