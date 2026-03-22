@@ -168,6 +168,8 @@ AgentResult result = agent.stream("Plan a day trip to Kyoto", event -> {
 });
 ```
 
+This streaming path is callback-based and one-way output only. If model steering later discards a provisional streamed response and retries with guidance, subscribers receive `AgentStreamEvent.Retry` to mark that boundary.
+
 For runtime-local steering, attach a `SteeringHandler` on the builder:
 
 ```java

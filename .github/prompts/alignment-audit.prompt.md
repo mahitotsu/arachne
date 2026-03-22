@@ -11,6 +11,7 @@ Use the workspace `repository-audit` skill and its checklist as the repository-s
 Requirements:
 
 - Respond in Japanese unless the user explicitly asks for another language.
+- If the slash-command arguments do not identify a target capability area and the user request does not narrow the scope another way, stop and report the audit as blocked by missing scope instead of silently choosing an area.
 - Start from `docs/project-status.md`, `docs/user-guide.md`, `.github/copilot-instructions.md`, and the relevant instruction files.
 - Compare implementation, tests, README.md, docs/user-guide.md, docs/project-status.md, `.github/instructions/`, relevant ADRs, and sample READMEs for the target area.
 - Identify both under-documentation and overstatement. A stale or overly broad claim is a defect in alignment, not a minor wording issue.
