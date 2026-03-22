@@ -24,12 +24,13 @@ public class MethodTool implements Tool {
 
     private final ObjectMapper objectMapper;
     private final Object target;
-    private final Method method;
+    private final Method bindingMethod;
+    private final Method invocationMethod;
     private final Validator validator;
     private final ToolSpec spec;
 
     public MethodTool(Object target, Method method, JsonSchemaGenerator schemaGenerator) {
-        this(target, method, schemaGenerator, new ObjectMapper(), BeanValidationSupport.defaultValidator());
+        this(target, method, method, method, schemaGenerator, new ObjectMapper(), BeanValidationSupport.defaultValidator());
     }
 
     public MethodTool(
@@ -38,20 +39,33 @@ public class MethodTool implements Tool {
             JsonSchemaGenerator schemaGenerator,
             ObjectMapper objectMapper,
             Validator validator) {
+        this(target, method, method, method, schemaGenerator, objectMapper, validator);
+    }
+
+    public MethodTool(
+            Object target,
+            Method annotatedMethod,
+            Method bindingMethod,
+            Method invocationMethod,
+            JsonSchemaGenerator schemaGenerator,
+            ObjectMapper objectMapper,
+            Validator validator) {
         this.target = target;
-        this.method = method;
+        this.bindingMethod = bindingMethod;
+        this.invocationMethod = invocationMethod;
         this.objectMapper = objectMapper;
         this.validator = validator;
-        this.method.setAccessible(true);
+        this.bindingMethod.setAccessible(true);
+        this.invocationMethod.setAccessible(true);
 
-        StrandsTool annotation = method.getAnnotation(StrandsTool.class);
+        StrandsTool annotation = annotatedMethod.getAnnotation(StrandsTool.class);
         if (annotation == null) {
-            throw new ToolDefinitionException("Method is not annotated with @StrandsTool: " + method);
+            throw new ToolDefinitionException("Method is not annotated with @StrandsTool: " + annotatedMethod);
         }
 
-        String name = annotation.name().isBlank() ? method.getName() : annotation.name();
+        String name = annotation.name().isBlank() ? annotatedMethod.getName() : annotation.name();
         String description = annotation.description().isBlank() ? name : annotation.description();
-        this.spec = new ToolSpec(name, description, schemaGenerator.schemaForMethod(method));
+        this.spec = new ToolSpec(name, description, schemaGenerator.schemaForMethod(bindingMethod));
     }
 
     @Override
@@ -63,9 +77,9 @@ public class MethodTool implements Tool {
     public ToolResult invoke(Object input) {
         try {
             Object[] arguments = resolveArguments(input);
-            BeanValidationSupport.validateToolArguments(validator, target, method, arguments);
+            BeanValidationSupport.validateToolArguments(validator, target, invocationMethod, arguments);
 
-            Object result = method.invoke(target, arguments);
+            Object result = invocationMethod.invoke(target, arguments);
             if (result instanceof ToolResult toolResult) {
                 return toolResult;
             }
@@ -75,15 +89,15 @@ public class MethodTool implements Tool {
             if (targetException instanceof RuntimeException runtimeException) {
                 throw runtimeException;
             }
-            throw new ToolDefinitionException("Tool method threw checked exception: " + method, targetException);
+            throw new ToolDefinitionException("Tool method threw checked exception: " + invocationMethod, targetException);
         } catch (IllegalAccessException e) {
-            throw new ToolDefinitionException("Failed to access tool method: " + method, e);
+            throw new ToolDefinitionException("Failed to access tool method: " + invocationMethod, e);
         }
     }
 
     private Object[] resolveArguments(Object input) {
         Map<String, Object> values = inputAsMap(input);
-        Parameter[] parameters = method.getParameters();
+        Parameter[] parameters = bindingMethod.getParameters();
         Object[] args = new Object[parameters.length];
 
         for (int index = 0; index < parameters.length; index++) {

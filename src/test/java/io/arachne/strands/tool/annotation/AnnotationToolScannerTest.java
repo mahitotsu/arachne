@@ -2,10 +2,12 @@ package io.arachne.strands.tool.annotation;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import org.junit.jupiter.api.Test;
+import org.springframework.aop.framework.ProxyFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -67,8 +69,60 @@ class AnnotationToolScannerTest {
                 .hasMessageContaining("city");
     }
 
-        @Test
-        void usesConfiguredObjectMapperForNestedBinding() {
+    @Test
+    void scansAndInvokesInterfaceAnnotatedJdkProxyToolsThroughTheProxy() {
+        AtomicInteger proxyInvocations = new AtomicInteger();
+        ProxyFactory proxyFactory = new ProxyFactory(new ProxiedWeatherService());
+        proxyFactory.setInterfaces(ProxiedWeatherContract.class);
+        proxyFactory.addAdvice((org.aopalliance.intercept.MethodInterceptor) invocation -> {
+            proxyInvocations.incrementAndGet();
+            return invocation.proceed();
+        });
+        ProxiedWeatherContract proxy = (ProxiedWeatherContract) proxyFactory.getProxy();
+
+        Tool tool = scanner.scan(List.of(proxy)).getFirst();
+
+        assertThat(tool.spec().name()).isEqualTo("proxy_weather");
+        assertThat(tool.invoke(Map.of("city", "Tokyo")).content()).isEqualTo("Tokyo");
+        assertThat(proxyInvocations).hasValue(1);
+    }
+
+    @Test
+    void scansAndInvokesClassBasedProxyToolsThroughTheProxy() {
+        AtomicInteger proxyInvocations = new AtomicInteger();
+        ProxyFactory proxyFactory = new ProxyFactory(new ClassBasedWeatherTools());
+        proxyFactory.setProxyTargetClass(true);
+        proxyFactory.addAdvice((org.aopalliance.intercept.MethodInterceptor) invocation -> {
+            proxyInvocations.incrementAndGet();
+            return invocation.proceed();
+        });
+
+        Tool tool = scanner.scan(List.of(proxyFactory.getProxy())).getFirst();
+
+        assertThat(tool.spec().name()).isEqualTo("class_proxy_weather");
+        assertThat(tool.invoke(Map.of("city", "Osaka")).content()).isEqualTo("Osaka");
+        assertThat(proxyInvocations).hasValue(1);
+    }
+
+    @Test
+    void scansAndInvokesImplementationAnnotatedJdkProxyToolsThroughTheProxy() {
+        AtomicInteger proxyInvocations = new AtomicInteger();
+        ProxyFactory proxyFactory = new ProxyFactory(new ImplementationOnlyWeatherService());
+        proxyFactory.setInterfaces(ImplementationOnlyWeatherContract.class);
+        proxyFactory.addAdvice((org.aopalliance.intercept.MethodInterceptor) invocation -> {
+            proxyInvocations.incrementAndGet();
+            return invocation.proceed();
+        });
+
+        Tool tool = scanner.scan(List.of(proxyFactory.getProxy())).getFirst();
+
+        assertThat(tool.spec().name()).isEqualTo("hidden_proxy_weather");
+        assertThat(tool.invoke(Map.of("city", "Nagoya")).content()).isEqualTo("Nagoya");
+        assertThat(proxyInvocations).hasValue(1);
+    }
+
+    @Test
+    void usesConfiguredObjectMapperForNestedBinding() {
         ObjectMapper objectMapper = new ObjectMapper().setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
         AnnotationToolScanner customScanner = new AnnotationToolScanner(
             new JsonSchemaGenerator(objectMapper),
@@ -134,5 +188,41 @@ class AnnotationToolScannerTest {
     }
 
     record NestedRequest(String cityName) {
+    }
+
+    interface ProxiedWeatherContract {
+
+        @StrandsTool(name = "proxy_weather")
+        String weather(@ToolParam String city);
+    }
+
+    static class ProxiedWeatherService implements ProxiedWeatherContract {
+
+        @Override
+        public String weather(String city) {
+            return city;
+        }
+    }
+
+    static class ClassBasedWeatherTools {
+
+        @StrandsTool(name = "class_proxy_weather")
+        public String weather(@ToolParam String city) {
+            return city;
+        }
+    }
+
+    interface ImplementationOnlyWeatherContract {
+
+        String weather(String city);
+    }
+
+    static class ImplementationOnlyWeatherService implements ImplementationOnlyWeatherContract {
+
+        @Override
+        @StrandsTool(name = "hidden_proxy_weather")
+        public String weather(@ToolParam String city) {
+            return city;
+        }
     }
 }
