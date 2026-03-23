@@ -7,17 +7,18 @@ It is the reference sample for evaluating two design questions together:
 - when a Python-side Strands design should be carried forward as a provider-neutral core pattern
 - when Arachne should evolve in a Spring-specific direction because that is the natural fit for backend applications
 
-This README focuses on the sample's purpose and eventual usage. Temporary implementation planning is tracked separately in `ROADMAP.md` while the sample is under construction.
+This README now serves as the durable user-facing reference for the sample.
 
 ## Status
 
-This sample is not runnable yet. The runnable Spring Boot application has not been added yet.
+This sample now has two runnable paths:
 
-Until implementation starts, this README should be treated as the user-facing overview for the intended sample, and `ROADMAP.md` should be treated as the temporary build plan.
+- a deterministic default mode for repeatable local verification without AWS credentials
+- an opt-in Bedrock mode for a real model-backed agent demo with the same runtime shape
 
-The first implementation target is an approval-oriented backend workflow.
+The current implementation target is a local account-unlock workflow that exercises coordinator-to-executor delegation, approval pause/resume, and coordinator-owned workflow state restore.
 
-The business procedure side of that workflow is intended to be carried by packaged skills rather than by hard-coded prompt logic.
+The business procedure side of that workflow is now carried by packaged skills rather than by hard-coded prompt logic.
 
 ## Purpose
 
@@ -94,16 +95,113 @@ This gives the sample one concrete domain while still keeping the design questio
 - whether skill-packaged business procedures are enough to expand supported workflows without turning the runtime layer into a workflow-specific prompt bundle
 - whether capability-oriented tools are a better boundary than workflow-specific tools when skills are expected to grow
 
-## How To Use This Sample
+## Prerequisites
 
-The runnable instructions will be added once the application exists.
+- Java 21
+- Maven
+
+For the real Bedrock-backed demo path you also need:
+
+- AWS credentials resolvable by the AWS SDK default credentials chain
+- access to the configured Bedrock model in the target AWS region
+
+The sample depends on the local snapshot of this repository, so install the root project first:
+
+```bash
+mvn install
+```
+
+## Run The Demo
+
+### Deterministic Mode
+
+```bash
+cd samples/domain-separation
+mvn spring-boot:run
+```
+
+Expected shape of the output:
+
+```text
+Arachne domain separation sample
+phase> approval-backed session workflow
+workflow.id> account-unlock-approval-001
+initial.status> PENDING_APPROVAL
+initial.approval.status> PENDING
+summary.operationType> ACCOUNT_UNLOCK
+summary.accountId> acct-007
+summary.preparation.status> LOCKED
+session.restored.messages.beforeResume> 6
+final.status> COMPLETED
+final.approval.status> APPROVED
+summary.execution.outcome> UNLOCKED
+summary.execution.authorizedOperator> operator-7
+```
+
+The sample also emits three kinds of INFO lines during the run:
+
+- `demo.trace>` for visible workflow transitions such as skill activation, coordinator tool calls, delegation into the executor runtime, concrete executor tool execution, and approval pause/resume
+- `system.trace>` from the Spring-managed account directory service so the demo shows that concrete system reads and mutations actually happened
+- `llm.trace>` for model responses, including tool decisions and any assistant text that explains or closes the workflow
+
+### Bedrock Mode
+
+If you want the sample to be persuasive as an AI-agent demo rather than only as a deterministic structural reference, run the Bedrock profile:
+
+```bash
+cd samples/domain-separation
+mvn spring-boot:run -Dspring-boot.run.profiles=bedrock
+```
+
+Optional overrides:
+
+```bash
+cd samples/domain-separation
+mvn spring-boot:run \
+   -Dspring-boot.run.profiles=bedrock \
+   -Darachne.integration.bedrock.region=ap-northeast-1 \
+   -Darachne.integration.bedrock.model-id=jp.amazon.nova-2-lite-v1:0
+```
+
+In Bedrock mode the exact message count and free-form assistant text can vary, but the demo should still show the same visible control-flow checkpoints:
+
+- `demo.trace> coordinator requests skill activation: account-unlock`
+- `demo.trace> delegating prepare request to operations-executor`
+- `demo.trace> executor runs find_account`
+- `demo.trace> approval required before execute_account_operation can run`
+- `demo.trace> workflow resumed with external approval`
+- `demo.trace> delegating execution request to operations-executor`
+- `demo.trace> executor runs unlock_account`
+
+Depending on the model's summarization, the preparation status in Bedrock mode may appear as `LOCKED` or a semantically equivalent executable label such as `READY`. The important behavior is that the workflow reaches `PENDING_APPROVAL` after preparation and `COMPLETED` after approved resume.
+
+## How To Use This Sample
 
 The intended usage pattern is:
 
 1. build and run the Spring Boot sample application
-2. trigger one backend-oriented workflow scenario
+2. trigger the account unlock workflow scenario
 3. inspect how coordinating and specialist responsibilities are separated
 4. compare the design to the narrower feature samples under `samples/`
+
+## What To Look For
+
+The current Phase 5 implementation is centered on these Spring-managed pieces:
+
+- `DomainSeparationRunner`: starts the workflow, shows the pending approval boundary, and then resumes the same workflow with external approval input
+- `DomainSeparationWorkflowService`: rebuilds the coordinator runtime per workflow turn with a stable `sessionId` so coordinator state and messages survive the approval boundary
+- `DomainSeparationApprovalHook`: stores request and tool results in coordinator state, interrupts the execution tool at the approval boundary, and accepts later approval input on resume
+- `AccountOperationDelegationTool`: exposes the coordinator-facing capability tools and delegates each call to the executor runtime
+- `AccountSystemTool`: exposes the executor-facing concrete system tools, keeps authorization failures deterministic, and delegates state-changing work into a transaction-aware service
+- `AccountDirectoryService`: owns the deterministic account state and the sample-local transaction boundary for unlock mutations
+- `domainSeparationCoordinatorSkills`: registers the packaged workflow skills explicitly for the coordinator runtime
+- `OperatorAuthorizationContextPropagationConfiguration`: restores the current operator context around tool-execution threads
+
+The sample chooses the minimal session shape first: the default Spring-backed session manager with an explicit workflow `sessionId` per coordinator runtime. That keeps coordinator messages and state across the approval pause without requiring JDBC or Redis in the first cut.
+
+The deterministic mode remains valuable because it gives a repeatable local baseline for the runtime shape: named agents, coordinator-only packaged skills, agent-scoped discovered tools, local agent-to-agent delegation, approval interrupts, session-backed workflow restore, deterministic authorization outcomes, and request-scoped authorization propagation.
+
+The Bedrock mode is the persuasive path for demonstrating that the same runtime shape still works when a real model chooses skills and tools at run time.
 
 ## What This Sample Should Not Demonstrate
 
@@ -135,6 +233,16 @@ The sample should be considered successful only if it gives clear evidence for a
    - Spring-specific integration improvement
    - application-level responsibility
    - deliberately deferred feature
+
+## Surfaced Gaps And Classification
+
+The current sample implementation surfaced these outcomes.
+
+- application-level responsibility: choosing the approval transport boundary and external request shape remains application code rather than Arachne core behavior
+- application-level responsibility: choosing whether the coordinator session should stay in-memory, file-backed, JDBC-backed, or Redis-backed is an application deployment decision
+- Spring-specific integration improvement: if users want a more controller-oriented pause/resume sample, that would be a sample or Spring-integration refinement rather than a core runtime gap
+- deliberately deferred feature: cross-process or cross-service approval orchestration remains out of scope until A2A, orchestration, or a different ADR-backed direction is intentionally taken
+- no new Python-compatible core blocker was required to complete this sample's current scope
 
 ## Relationship To Existing Samples
 

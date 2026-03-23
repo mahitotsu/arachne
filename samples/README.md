@@ -23,6 +23,10 @@ These two samples intentionally stay separate because the operational setup diff
 - `skill-activation`: packaged `SKILL.md` discovery, delayed activation, and persisted loaded-skill state
 - `streaming-steering`: callback-based streaming plus runtime-local tool and model steering
 
+## Composed Backend Patterns
+
+- `domain-separation`: a higher-level backend sample that composes named agents, capability-oriented delegation, packaged skills, approval pause/resume, session continuity, and deterministic executor-side mutations
+
 ## Recommended Reading Order
 
 1. `conversation-basics`
@@ -31,5 +35,8 @@ These two samples intentionally stay separate because the operational setup diff
 4. `approval-workflow`
 5. `skill-activation`
 6. `streaming-steering`
+7. `domain-separation`
 
 `tool-execution-context` is intentionally orthogonal. Read it whenever you need to understand executor-boundary propagation or tool-call metadata.
+
+`domain-separation` is intentionally later in the reading order because it composes several narrower patterns into one backend-oriented reference sample.

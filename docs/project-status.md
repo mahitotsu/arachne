@@ -46,7 +46,7 @@ This document replaces `ROADMAP.md` as the repository-level snapshot of what Ara
 
 - repository verification with `mvn test`
 - opt-in Bedrock smoke verification with `mvn -Dtest=BedrockModelIntegrationTest -Darachne.integration.bedrock=true test`
- - runnable samples for chat, tools, tool context, Redis session, JDBC session, hooks/interrupts, skills, and streaming/steering under `samples/`
+ - runnable samples for chat, tools, tool context, Redis session, JDBC session, hooks/interrupts, skills, streaming/steering, and the higher-level domain-separation backend reference under `samples/`
 
 ## Current Constraints
 

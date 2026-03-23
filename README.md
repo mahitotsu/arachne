@@ -21,6 +21,7 @@ Runnable samples:
 - [samples/approval-workflow/README.md](samples/approval-workflow/README.md)
 - [samples/skill-activation/README.md](samples/skill-activation/README.md)
 - [samples/streaming-steering/README.md](samples/streaming-steering/README.md)
+- [samples/domain-separation/README.md](samples/domain-separation/README.md)
 
 Deliberately deferred features include provider expansion beyond Bedrock, bidirectional realtime/audio streaming, MCP, multi-agent protocols, Guardrails, Agent Config, Evals SDK, and remote skill registries. The current deferral boundary is documented in [docs/project-status.md](docs/project-status.md) and [docs/adr/0012-post-mvp-product-boundary.md](docs/adr/0012-post-mvp-product-boundary.md).
 

@@ -4,13 +4,12 @@ This file records the concrete design decisions for the `domain-separation` samp
 
 Use this file for the sample-specific design that becomes true as Phase 1 decisions are made.
 Use `README.md` for user-facing purpose and usage.
-Use `ROADMAP.md` for temporary task and progress tracking.
 
 ## Status
 
-This specification is being introduced before the runnable sample exists.
+This specification now reflects the runnable deterministic Phase 6 closeout state.
 
-At this stage, it should be treated as the design record for Phase 1: skill and role design.
+At this stage, it should be treated as the design record for the current skill-driven local workflow sample and the later phases that still remain.
 
 ## Scope
 
@@ -226,6 +225,8 @@ Initial rule:
 
 ### Planned Skills
 
+The initial Phase 4 sample packages all four workflow skills, while only the account-unlock path is executed end-to-end in the deterministic flow.
+
 #### `account-creation`
 
 Responsibility:
@@ -275,6 +276,10 @@ Expected trigger:
 
 - the incoming request asks to unlock an account
 
+Phase 4 implementation note:
+
+- this is the skill activated by the deterministic sample flow when `operationType=ACCOUNT_UNLOCK`
+
 #### `account-deletion`
 
 Responsibility:
@@ -312,6 +317,25 @@ Spring-specific infrastructure concerns that should remain explicit:
 - access-token-backed authorization extraction at the entry boundary
 - authorization context propagation configuration
 - transaction annotations or service-layer transaction configuration
+
+## Phase 5 Implementation Notes
+
+The first session shape is the default Spring-backed session manager already provided by Arachne auto-configuration. The sample now uses an explicit workflow id as the coordinator runtime session id so that coordinator messages and state survive the approval boundary.
+
+The current phase keeps approval ownership entirely on the coordinator side:
+
+- `execute_account_operation` remains the stable capability tool name
+- a coordinator hook interrupts that tool before execution when approval has not yet been supplied
+- the external approval decision is passed back through a later `resume` workflow turn rather than by adding a workflow-specific tool
+
+The current deterministic implementation stores these workflow artifacts in coordinator session state:
+
+- original request fields
+- latest preparation result
+- approval requirement and decision state
+- final execution result when present
+
+This lets the sample rebuild the coordinator runtime for later turns while keeping the workflow summary coherent without exposing executor internals to the coordinator.
 
 The coordinator still owns the end-to-end workflow shape. The executor owns system-operation behavior behind the stable capability-oriented tools.
 

@@ -1,0 +1,11 @@
+sample:
+  domain-separation:
+    model:
+      mode: bedrock
+
+arachne:
+  strands:
+    model:
+      provider: bedrock
+      id: ${arachne.integration.bedrock.model-id:jp.amazon.nova-2-lite-v1:0}
+      region: ${arachne.integration.bedrock.region:ap-northeast-1}

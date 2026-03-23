@@ -50,6 +50,7 @@ If you want runnable examples instead of only reading the API docs, use these sa
 - [samples/approval-workflow/README.md](samples/approval-workflow/README.md)
 - [samples/skill-activation/README.md](samples/skill-activation/README.md)
 - [samples/streaming-steering/README.md](samples/streaming-steering/README.md)
+- [samples/domain-separation/README.md](samples/domain-separation/README.md)
 
 ## Contributor Workflows
 

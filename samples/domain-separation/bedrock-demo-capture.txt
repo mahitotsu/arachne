@@ -1,0 +1,88 @@
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] ----------------< io.arachne.samples:domain-separation >----------------
+[INFO] Building Arachne Domain Separation Sample 0.1.0-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] >>> spring-boot:3.5.12:run (default-cli) > test-compile @ domain-separation >>>
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ domain-separation ---
+[INFO] Copying 2 resources from src/main/resources to target/classes
+[INFO] Copying 4 resources from src/main/resources to target/classes
+[INFO] 
+[INFO] --- compiler:3.14.1:compile (default-compile) @ domain-separation ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- resources:3.3.1:testResources (default-testResources) @ domain-separation ---
+[INFO] skip non existing resourceDirectory /home/akring/arachne/samples/domain-separation/src/test/resources
+[INFO] 
+[INFO] --- compiler:3.14.1:testCompile (default-testCompile) @ domain-separation ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] <<< spring-boot:3.5.12:run (default-cli) < test-compile @ domain-separation <<<
+[INFO] 
+[INFO] 
+[INFO] --- spring-boot:3.5.12:run (default-cli) @ domain-separation ---
+[INFO] Attaching agents: []
+2026-03-24T01:09:41.804+09:00  INFO 755087 --- [arachne-domain-separation-sample] [           main] i.a.s.d.DomainSeparationApplication      : Starting DomainSeparationApplication using Java 21.0.10 with PID 755087 (/home/akring/arachne/samples/domain-separation/target/classes started by akring in /home/akring/arachne/samples/domain-separation)
+2026-03-24T01:09:41.806+09:00  INFO 755087 --- [arachne-domain-separation-sample] [           main] i.a.s.d.DomainSeparationApplication      : The following 1 profile is active: "bedrock"
+2026-03-24T01:09:43.257+09:00  INFO 755087 --- [arachne-domain-separation-sample] [           main] i.a.s.d.service.AccountDirectoryService  : system.trace> account directory demo state reset: acct-007=LOCKED
+2026-03-24T01:09:43.451+09:00  INFO 755087 --- [arachne-domain-separation-sample] [           main] i.a.s.d.DomainSeparationApplication      : Started DomainSeparationApplication in 2.201 seconds (process running for 2.565)
+2026-03-24T01:09:43.454+09:00  INFO 755087 --- [arachne-domain-separation-sample] [           main] i.a.s.d.service.AccountDirectoryService  : system.trace> account directory demo state reset: acct-007=LOCKED
+2026-03-24T01:09:43.454+09:00  INFO 755087 --- [arachne-domain-separation-sample] [           main] i.a.s.d.runner.DomainSeparationRunner    : Arachne domain separation sample
+2026-03-24T01:09:43.454+09:00  INFO 755087 --- [arachne-domain-separation-sample] [           main] i.a.s.d.runner.DomainSeparationRunner    : phase> approval-backed session workflow
+2026-03-24T01:09:43.454+09:00  INFO 755087 --- [arachne-domain-separation-sample] [           main] i.a.s.d.runner.DomainSeparationRunner    : supported.operations> [ACCOUNT_CREATION, PASSWORD_RESET_SUPPORT, ACCOUNT_UNLOCK, ACCOUNT_DELETION]
+2026-03-24T01:09:43.455+09:00  INFO 755087 --- [arachne-domain-separation-sample] [           main] i.a.s.d.runner.DomainSeparationRunner    : workflow.id> account-unlock-approval-001
+2026-03-24T01:09:45.930+09:00  INFO 755087 --- [arachne-domain-separation-sample] [           main] .d.o.DomainSeparationDemoLoggingListener : llm.trace> assistant requested tools: activate_skill
+2026-03-24T01:09:45.944+09:00  INFO 755087 --- [arachne-domain-separation-sample] [           main] .d.o.DomainSeparationDemoLoggingListener : demo.trace> coordinator requests skill activation: account-unlock
+2026-03-24T01:09:45.968+09:00  INFO 755087 --- [arachne-domain-separation-sample] [     virtual-36] .d.o.DomainSeparationDemoLoggingListener : demo.trace> skill activated: account-unlock
+2026-03-24T01:09:46.617+09:00  INFO 755087 --- [arachne-domain-separation-sample] [           main] .d.o.DomainSeparationDemoLoggingListener : llm.trace> assistant requested tools: prepare_account_operation
+2026-03-24T01:09:46.618+09:00  INFO 755087 --- [arachne-domain-separation-sample] [           main] .d.o.DomainSeparationDemoLoggingListener : demo.trace> coordinator calls prepare_account_operation for ACCOUNT_UNLOCK acct-007
+2026-03-24T01:09:46.946+09:00  INFO 755087 --- [arachne-domain-separation-sample] [     virtual-41] i.a.s.d.t.AccountOperationDelegationTool : demo.trace> delegating prepare request to operations-executor for ACCOUNT_UNLOCK acct-007
+2026-03-24T01:09:47.549+09:00  INFO 755087 --- [arachne-domain-separation-sample] [     virtual-41] .d.o.DomainSeparationDemoLoggingListener : llm.trace> assistant requested tools: find_account
+2026-03-24T01:09:47.550+09:00  INFO 755087 --- [arachne-domain-separation-sample] [     virtual-41] .d.o.DomainSeparationDemoLoggingListener : demo.trace> executor runs find_account for acct-007
+2026-03-24T01:09:47.592+09:00  INFO 755087 --- [arachne-domain-separation-sample] [     virtual-49] i.a.s.d.service.AccountDirectoryService  : system.trace> account directory lookup accountId=acct-007 observedStatus=LOCKED operatorId=operator-7
+2026-03-24T01:09:47.638+09:00  INFO 755087 --- [arachne-domain-separation-sample] [     virtual-49] .d.o.DomainSeparationDemoLoggingListener : demo.trace> executor observed account status LOCKED
+2026-03-24T01:09:48.488+09:00  INFO 755087 --- [arachne-domain-separation-sample] [     virtual-41] .d.o.DomainSeparationDemoLoggingListener : llm.trace> assistant requested tools: structured_output
+2026-03-24T01:09:48.544+09:00  INFO 755087 --- [arachne-domain-separation-sample] [     virtual-41] .d.o.DomainSeparationDemoLoggingListener : demo.trace> preparation returned status READY
+2026-03-24T01:09:49.140+09:00  INFO 755087 --- [arachne-domain-separation-sample] [           main] .d.o.DomainSeparationDemoLoggingListener : llm.trace> assistant requested tools: execute_account_operation
+2026-03-24T01:09:49.141+09:00  INFO 755087 --- [arachne-domain-separation-sample] [           main] i.a.s.d.w.DomainSeparationApprovalHook   : demo.trace> approval required before execute_account_operation can run; workflow interrupted
+2026-03-24T01:09:49.142+09:00  INFO 755087 --- [arachne-domain-separation-sample] [           main] .d.o.DomainSeparationDemoLoggingListener : demo.trace> coordinator calls execute_account_operation for ACCOUNT_UNLOCK acct-007
+2026-03-24T01:09:49.195+09:00  INFO 755087 --- [arachne-domain-separation-sample] [           main] i.a.s.d.runner.DomainSeparationRunner    : initial.status> PENDING_APPROVAL
+2026-03-24T01:09:49.195+09:00  INFO 755087 --- [arachne-domain-separation-sample] [           main] i.a.s.d.runner.DomainSeparationRunner    : initial.approval.status> PENDING
+2026-03-24T01:09:49.195+09:00  INFO 755087 --- [arachne-domain-separation-sample] [           main] i.a.s.d.runner.DomainSeparationRunner    : summary.operationType> ACCOUNT_UNLOCK
+2026-03-24T01:09:49.196+09:00  INFO 755087 --- [arachne-domain-separation-sample] [           main] i.a.s.d.runner.DomainSeparationRunner    : summary.accountId> acct-007
+2026-03-24T01:09:49.196+09:00  INFO 755087 --- [arachne-domain-separation-sample] [           main] i.a.s.d.runner.DomainSeparationRunner    : summary.preparation.status> READY
+2026-03-24T01:09:49.210+09:00  INFO 755087 --- [arachne-domain-separation-sample] [           main] i.a.s.d.runner.DomainSeparationRunner    : session.restored.messages.beforeResume> 6
+2026-03-24T01:09:49.213+09:00  INFO 755087 --- [arachne-domain-separation-sample] [           main] i.a.s.d.w.DomainSeparationApprovalHook   : demo.trace> workflow resumed with external approval: approved=true approverId=operator-approver-2
+2026-03-24T01:09:49.782+09:00  INFO 755087 --- [arachne-domain-separation-sample] [           main] .d.o.DomainSeparationDemoLoggingListener : llm.trace> assistant requested tools: execute_account_operation
+2026-03-24T01:09:49.783+09:00  INFO 755087 --- [arachne-domain-separation-sample] [           main] .d.o.DomainSeparationDemoLoggingListener : demo.trace> coordinator calls execute_account_operation for ACCOUNT_UNLOCK acct-007
+2026-03-24T01:09:49.788+09:00  INFO 755087 --- [arachne-domain-separation-sample] [     virtual-51] i.a.s.d.t.AccountOperationDelegationTool : demo.trace> delegating execution request to operations-executor for ACCOUNT_UNLOCK acct-007
+2026-03-24T01:09:50.376+09:00  INFO 755087 --- [arachne-domain-separation-sample] [     virtual-51] .d.o.DomainSeparationDemoLoggingListener : llm.trace> assistant requested tools: unlock_account
+2026-03-24T01:09:50.376+09:00  INFO 755087 --- [arachne-domain-separation-sample] [     virtual-51] .d.o.DomainSeparationDemoLoggingListener : demo.trace> executor runs unlock_account for acct-007
+2026-03-24T01:09:50.383+09:00  INFO 755087 --- [arachne-domain-separation-sample] [     virtual-52] i.a.s.d.service.AccountDirectoryService  : system.trace> account directory unlock applied accountId=acct-007 fromStatus=LOCKED toStatus=UNLOCKED operatorId=operator-7 reason=Manual review completed
+2026-03-24T01:09:50.388+09:00  INFO 755087 --- [arachne-domain-separation-sample] [     virtual-52] .d.o.DomainSeparationDemoLoggingListener : demo.trace> executor mutation outcome UNLOCKED
+2026-03-24T01:09:51.072+09:00  INFO 755087 --- [arachne-domain-separation-sample] [     virtual-51] .d.o.DomainSeparationDemoLoggingListener : llm.trace> assistant requested tools: structured_output
+2026-03-24T01:09:51.086+09:00  INFO 755087 --- [arachne-domain-separation-sample] [     virtual-51] .d.o.DomainSeparationDemoLoggingListener : demo.trace> execution returned outcome UNLOCKED
+2026-03-24T01:09:51.788+09:00  INFO 755087 --- [arachne-domain-separation-sample] [           main] .d.o.DomainSeparationDemoLoggingListener : llm.trace> assistant text begin
+2026-03-24T01:09:51.788+09:00  INFO 755087 --- [arachne-domain-separation-sample] [           main] .d.o.DomainSeparationDemoLoggingListener : llm.trace> | Workflow Summary:
+2026-03-24T01:09:51.789+09:00  INFO 755087 --- [arachne-domain-separation-sample] [           main] .d.o.DomainSeparationDemoLoggingListener : llm.trace> | - Preparation: Account acct-007 is currently LOCKED. Unlock operation is approved for operator-7.
+2026-03-24T01:09:51.789+09:00  INFO 755087 --- [arachne-domain-separation-sample] [           main] .d.o.DomainSeparationDemoLoggingListener : llm.trace> | - Execution: Account acct-007 was successfully UNLOCKED.
+2026-03-24T01:09:51.789+09:00  INFO 755087 --- [arachne-domain-separation-sample] [           main] .d.o.DomainSeparationDemoLoggingListener : llm.trace> | - Audit: audit: account unlocked for acct-007 because Manual review completed
+2026-03-24T01:09:51.789+09:00  INFO 755087 --- [arachne-domain-separation-sample] [           main] .d.o.DomainSeparationDemoLoggingListener : llm.trace> | 
+2026-03-24T01:09:51.789+09:00  INFO 755087 --- [arachne-domain-separation-sample] [           main] .d.o.DomainSeparationDemoLoggingListener : llm.trace> | ✅ Account unlock request for acct-007 completed successfully.
+2026-03-24T01:09:51.789+09:00  INFO 755087 --- [arachne-domain-separation-sample] [           main] .d.o.DomainSeparationDemoLoggingListener : llm.trace> assistant text end
+2026-03-24T01:09:51.792+09:00  INFO 755087 --- [arachne-domain-separation-sample] [           main] i.a.s.d.runner.DomainSeparationRunner    : final.status> COMPLETED
+2026-03-24T01:09:51.793+09:00  INFO 755087 --- [arachne-domain-separation-sample] [           main] i.a.s.d.runner.DomainSeparationRunner    : final.approval.status> APPROVED
+2026-03-24T01:09:51.793+09:00  INFO 755087 --- [arachne-domain-separation-sample] [           main] i.a.s.d.runner.DomainSeparationRunner    : summary.operationType> ACCOUNT_UNLOCK
+2026-03-24T01:09:51.793+09:00  INFO 755087 --- [arachne-domain-separation-sample] [           main] i.a.s.d.runner.DomainSeparationRunner    : summary.accountId> acct-007
+2026-03-24T01:09:51.793+09:00  INFO 755087 --- [arachne-domain-separation-sample] [           main] i.a.s.d.runner.DomainSeparationRunner    : summary.preparation.status> READY
+2026-03-24T01:09:51.793+09:00  INFO 755087 --- [arachne-domain-separation-sample] [           main] i.a.s.d.runner.DomainSeparationRunner    : summary.execution.outcome> UNLOCKED
+2026-03-24T01:09:51.793+09:00  INFO 755087 --- [arachne-domain-separation-sample] [           main] i.a.s.d.runner.DomainSeparationRunner    : summary.execution.authorizedOperator> operator-7
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  13.021 s
+[INFO] Finished at: 2026-03-24T01:09:52+09:00
+[INFO] ------------------------------------------------------------------------

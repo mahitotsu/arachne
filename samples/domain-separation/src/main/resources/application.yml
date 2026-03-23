@@ -1,0 +1,21 @@
+spring:
+  application:
+    name: arachne-domain-separation-sample
+  main:
+    banner-mode: off
+    web-application-type: none
+
+sample:
+  domain-separation:
+    model:
+      mode: deterministic
+
+arachne:
+  strands:
+    agents:
+      operations-coordinator:
+        system-prompt: "You are the operations coordinator for account operations. First activate the packaged skill that matches operationType by calling activate_skill. Then follow that skill exactly. Use prepare_account_operation before any mutation. If approval is required, stop at the approval boundary and wait for resume input. After resume input confirms approvalApproved=true, call execute_account_operation. Return the final workflow summary as structured output."
+        tool-qualifiers: [operations-coordinator]
+      operations-executor:
+        system-prompt: "You are the operations executor. Do not own business workflow or approval. For mode=prepare, inspect the current account state using the concrete system tools. For mode=execute, perform the requested mutation using the concrete system tools. Always return focused structured output."
+        tool-qualifiers: [operations-executor]

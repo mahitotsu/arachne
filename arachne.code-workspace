@@ -9,6 +9,10 @@
             "path": "samples/conversation-basics"
         },
         {
+            "name": "domain-separation",
+            "path": "samples/domain-separation"
+        },
+        {
             "name": "tool-delegation",
             "path": "samples/tool-delegation"
         },
@@ -41,7 +45,7 @@
         "java.configuration.updateBuildConfiguration": "automatic",
         "java.compile.nullAnalysis.mode": "automatic",
         "java.import.exclusions": [
-            "samples/**"
+            "**/target/**"
         ]
     }
 }
