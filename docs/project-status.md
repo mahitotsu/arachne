@@ -55,7 +55,7 @@ This document replaces `ROADMAP.md` as the repository-level snapshot of what Ara
 - callback-based streaming is output-only; it is not bidirectional realtime or audio streaming
 - summary compaction requires explicit `SummarizingConversationManager` wiring rather than property-only enablement
 - structured output currently targets simple JSON-shaped Java records or POJOs rather than arbitrary object graphs
-- skills currently come from builder-supplied values or classpath-discovered `SKILL.md` files
+- skills currently come from builder-supplied values or classpath-discovered `SKILL.md` files, with optional `scripts/`, `references/`, and `assets/` path listing for packaged skills
 - interrupt/resume feeds human responses back through the existing tool-result path; interrupted structured-output runs must currently resume through the string-returning path first
 
 ## Deliberately Deferred Features

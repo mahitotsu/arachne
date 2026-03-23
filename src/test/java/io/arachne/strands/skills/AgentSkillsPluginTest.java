@@ -38,12 +38,13 @@ class AgentSkillsPluginTest {
                 .build();
 
         assertThat(agent.run("prepare release").text()).isEqualTo("ok");
-        assertThat(agent.getTools()).extracting(tool -> tool.spec().name()).contains("activate_skill");
+        assertThat(agent.getTools()).extracting(tool -> tool.spec().name()).contains("activate_skill", "read_skill_resource");
         assertThat(model.systemPrompt()).contains("Base system prompt");
         assertThat(model.systemPrompt()).contains("<available_skills>");
         assertThat(model.systemPrompt()).contains("<name>release-checklist</name>");
         assertThat(model.systemPrompt()).doesNotContain("Run mvn test before merging.");
         assertThat(model.systemPrompt()).contains("<tool>git_status</tool>");
+        assertThat(model.systemPrompt()).contains("read_skill_resource");
     }
 
     @Test
@@ -56,7 +57,11 @@ class AgentSkillsPluginTest {
                 Map.of(),
                 null,
                 null,
-                null);
+                null,
+                List.of(
+                    "scripts/release-check.sh",
+                    "references/release-template.md",
+                    "assets/release-banner.txt"));
         DelayedSkillModel model = new DelayedSkillModel();
         ArachneProperties properties = new ArachneProperties();
         properties.getAgent().setSystemPrompt("Base system prompt");
@@ -78,6 +83,10 @@ class AgentSkillsPluginTest {
         assertThat(model.systemPrompts().get(1)).doesNotContain("<active_skills>");
         assertThat(model.systemPrompts().get(2)).contains("<active_skills>");
         assertThat(model.systemPrompts().get(2)).contains("Run mvn test before merging.");
+        assertThat(model.systemPrompts().get(2)).contains("<resource>scripts/release-check.sh</resource>");
+        assertThat(model.systemPrompts().get(2)).contains("<resource>references/release-template.md</resource>");
+        assertThat(model.systemPrompts().get(2)).contains("<resource>assets/release-banner.txt</resource>");
+        assertThat(model.systemPrompts().get(2)).contains("read_skill_resource");
     }
 
     @Test

@@ -1025,6 +1025,12 @@ src/main/resources/
   skills/
     release-checklist/
       SKILL.md
+      scripts/
+        release-check.sh
+      references/
+        release-template.md
+      assets/
+        release-banner.txt
 ```
 
 Example `SKILL.md`:
@@ -1044,7 +1050,7 @@ Summarize the highest remaining risk before recommending release.
 
 At runtime, Arachne injects a compact available-skill catalog into the system prompt and exposes a dedicated `activate_skill` tool. The model sees only the catalog up front, then requests the full body for a specific skill by exact name when that skill becomes relevant.
 
-The activation result returns the full skill content to the model. After a skill has been activated, Arachne records the loaded skill name in `AgentState` and keeps that skill active for later turns by re-injecting its instructions into the system prompt. The immediate post-activation model turn does not re-inject the same body again, because the tool result already contains that content.
+The activation result returns the full skill content to the model together with any packaged `scripts/`, `references/`, and `assets/` file paths that were discovered under the skill directory. If the model needs the contents of one of those listed files, it can call `read_skill_resource` with the exact skill name and relative path. After a skill has been activated, Arachne records the loaded skill name in `AgentState` and keeps that skill active for later turns by re-injecting its instructions plus the discovered resource list into the system prompt. The immediate post-activation model turn does not re-inject the same body again, because the tool result already contains that content.
 
 Redundant activation is also suppressed. If the model tries to activate a skill that is already active in the same conversation, Arachne short-circuits the request and returns the existing skill payload without adding another duplicate active-skill injection block.
 

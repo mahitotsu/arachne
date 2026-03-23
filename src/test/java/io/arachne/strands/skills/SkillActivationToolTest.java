@@ -21,7 +21,11 @@ class SkillActivationToolTest {
                         Map.of(),
                         "java-21",
                         "Apache-2.0",
-                        "/skills/release-checklist/SKILL.md")));
+                    "/skills/release-checklist/SKILL.md",
+                        List.of(
+                            "scripts/release-check.sh",
+                            "references/release-template.md",
+                            "assets/release-banner.txt"))));
 
         Object content = tool.invoke(Map.of("name", "release-checklist")).content();
 
@@ -31,6 +35,12 @@ class SkillActivationToolTest {
                 .containsEntry("type", "skill_activation")
                 .containsEntry("name", "release-checklist")
                 .containsEntry("instructions", "Run mvn test before merging.")
+                .containsEntry(
+                    "resourceFiles",
+                    List.of(
+                        "scripts/release-check.sh",
+                        "references/release-template.md",
+                        "assets/release-banner.txt"))
                 .containsEntry("alreadyLoaded", Boolean.FALSE);
     }
 

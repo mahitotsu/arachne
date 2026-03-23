@@ -152,6 +152,8 @@ Agent agent = factory.builder()
 
 For Spring Boot discovery, place AgentSkills.io-style files under `src/main/resources/skills/<skill-name>/SKILL.md`. Arachne loads them automatically, exposes a compact skill catalog to the model, and lets the model load only the relevant skill body through the dedicated `activate_skill` tool.
 
+If a packaged skill also includes optional `scripts/`, `references/`, or `assets/` subdirectories, Arachne lists those relative resource paths in the activation payload and in the later active-skill prompt block so the model can decide when to read or use them. The dedicated `read_skill_resource` tool then reads the contents of one listed resource on demand by exact skill name and relative path.
+
 Loaded skill names are tracked in `AgentState`, so once a skill has been activated it stays active for later turns in that conversation. Arachne also avoids re-injecting the same skill body twice in the same prompt and skips redundant re-loading for already active skills.
 
 Streaming is also available on the current branch. The simplest direct-Java usage is:

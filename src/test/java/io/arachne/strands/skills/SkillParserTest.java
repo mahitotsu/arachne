@@ -40,6 +40,7 @@ class SkillParserTest {
         assertThat(skill.metadata()).containsEntry("owner", "platform");
         assertThat(skill.metadata().get("tags")).isEqualTo(List.of("release", "qa"));
         assertThat(skill.instructions()).contains("# Release checklist");
+        assertThat(skill.resourceFiles()).isEmpty();
     }
 
     @Test
@@ -135,11 +136,23 @@ class SkillParserTest {
     void skillModelCopiesCollectionsDefensively() {
         Map<String, Object> metadata = new java.util.LinkedHashMap<>();
         metadata.put("owner", "platform");
-        Skill skill = new Skill("release-checklist", "Release guidance", "Run tests", List.of("git_status"), metadata, null, null, null);
+        Skill skill = new Skill(
+            "release-checklist",
+            "Release guidance",
+            "Run tests",
+            List.of("git_status"),
+            metadata,
+            null,
+            null,
+            null,
+            List.of(" references/checklist.md ", "references/checklist.md"));
         metadata.put("owner", "mutated");
 
         assertThat(skill.metadata()).containsEntry("owner", "platform");
         assertThatThrownBy(() -> skill.allowedTools().add("other"))
                 .isInstanceOf(UnsupportedOperationException.class);
+        assertThat(skill.resourceFiles()).containsExactly("references/checklist.md");
+        assertThatThrownBy(() -> skill.resourceFiles().add("other"))
+            .isInstanceOf(UnsupportedOperationException.class);
     }
 }

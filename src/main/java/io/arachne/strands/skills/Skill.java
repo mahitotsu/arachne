@@ -19,7 +19,8 @@ public record Skill(
         Map<String, Object> metadata,
         String compatibility,
         String license,
-        String location) {
+    String location,
+    List<String> resourceFiles) {
 
     private static final Pattern NAME_PATTERN = Pattern.compile("^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$");
 
@@ -43,10 +44,23 @@ public record Skill(
         compatibility = normalizeBlank(compatibility);
         license = normalizeBlank(license);
         location = normalizeBlank(location);
+        resourceFiles = copyResourceFiles(resourceFiles);
     }
 
     public Skill(String name, String description, String instructions) {
-        this(name, description, instructions, List.of(), Map.of(), null, null, null);
+        this(name, description, instructions, List.of(), Map.of(), null, null, null, List.of());
+    }
+
+    public Skill(
+            String name,
+            String description,
+            String instructions,
+            List<String> allowedTools,
+            Map<String, Object> metadata,
+            String compatibility,
+            String license,
+            String location) {
+        this(name, description, instructions, allowedTools, metadata, compatibility, license, location, List.of());
     }
 
     private static List<String> copyAllowedTools(List<String> allowedTools) {
@@ -88,6 +102,24 @@ public record Skill(
             return List.copyOf(copied);
         }
         return value;
+    }
+
+    private static List<String> copyResourceFiles(List<String> resourceFiles) {
+        if (resourceFiles == null || resourceFiles.isEmpty()) {
+            return List.of();
+        }
+        LinkedHashMap<String, String> unique = new LinkedHashMap<>();
+        for (String resourceFile : resourceFiles) {
+            if (resourceFile == null) {
+                continue;
+            }
+            String normalized = resourceFile.trim().replace('\\', '/');
+            if (normalized.isEmpty()) {
+                continue;
+            }
+            unique.put(normalized, normalized);
+        }
+        return List.copyOf(unique.values());
     }
 
     private static String normalizeBlank(String value) {

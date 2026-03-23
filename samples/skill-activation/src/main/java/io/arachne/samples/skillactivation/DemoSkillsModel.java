@@ -39,10 +39,20 @@ final class DemoSkillsModel implements Model {
                     new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
         }
 
+        if (!hasSkillResource(messages)) {
+            return List.of(
+                new ModelEvent.ToolUse(
+                    "resource-1",
+                    "read_skill_resource",
+                    Map.of("name", "release-checklist", "path", "references/release-template.md")),
+                new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
+        }
+
         String latestUserText = latestUserText(messages);
+        String referenceSummary = latestSkillResourceContent(messages);
         String text = "What should I do next?".equals(latestUserText)
-                ? "Reusing loaded release-checklist. Run mvn test before merging and summarize the remaining risk."
-                : "Loaded release-checklist. Run mvn test before merging and summarize the remaining risk.";
+            ? "Reusing loaded release-checklist. Run mvn test before merging and summarize the remaining risk. Reference says: " + referenceSummary
+            : "Loaded release-checklist. Run mvn test before merging and summarize the remaining risk. Reference says: " + referenceSummary;
         return List.of(
                 new ModelEvent.TextDelta(text),
                 new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
@@ -63,6 +73,34 @@ final class DemoSkillsModel implements Model {
             }
         }
         return false;
+    }
+
+    private boolean hasSkillResource(List<Message> messages) {
+        for (Message message : messages) {
+            for (ContentBlock block : message.content()) {
+                if (block instanceof ContentBlock.ToolResult toolResult
+                        && toolResult.content() instanceof Map<?, ?> content
+                        && "skill_resource".equals(content.get("type"))) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private String latestSkillResourceContent(List<Message> messages) {
+        for (int index = messages.size() - 1; index >= 0; index--) {
+            Message message = messages.get(index);
+            for (ContentBlock block : message.content()) {
+                if (block instanceof ContentBlock.ToolResult toolResult
+                        && toolResult.content() instanceof Map<?, ?> content
+                        && "skill_resource".equals(content.get("type"))
+                        && content.get("content") instanceof String body) {
+                    return body.replace('\n', ' ').trim();
+                }
+            }
+        }
+        return "(no resource loaded)";
     }
 
     private String latestUserText(List<Message> messages) {

@@ -19,6 +19,7 @@ Arachne adopts the following boundary for Phase 5 skills.
 - `Skill` and `SkillParser` live in `io.arachne.strands.skills` as core APIs. YAML frontmatter parsing and Markdown body extraction from `SKILL.md` remain reusable without Spring.
 - `AgentSkillsPlugin` is implemented as a `Plugin` and injects a compact available-skill catalog plus loaded-skill instructions into the system prompt from `BeforeModelCallEvent`. It does not add hidden middleware or provider-specific branching.
 - `AgentSkillsPlugin` exposes a dedicated `activate_skill` tool as a plugin tool so the model can lazy-load only the required skill body by exact skill name.
+- Optional packaged skill resources under `scripts/`, `references/`, and `assets/` are discovered alongside `SKILL.md`, surfaced in activation payloads, and kept visible in the active-skill prompt block after activation.
 - Loaded skill names are stored in `AgentState` and reused within the conversation scope. Activation of an already loaded skill short-circuits, and turns that already contain the same body in the immediately preceding activation tool result avoid re-injection.
 - `AgentFactory.Builder#skills(...)` is the runtime-local API for adding skills explicitly, and builder-supplied skills apply only to that runtime.
 - Packaged skill discovery in Spring Boot is confined to `ClasspathSkillDiscoverer`, with `resources/skills/<skill-name>/SKILL.md` as the standard search location.
@@ -29,6 +30,7 @@ Arachne adopts the following boundary for Phase 5 skills.
 - Skill parsing remains usable outside Spring, so CLI flows, tests, and future non-Spring integrations can all reuse the same `Skill` API.
 - Skill activation and prompt shaping ride on the existing hook and plugin boundary, which keeps them aligned with the runtime-local registry established in Phase 4.
 - Spring Boot users can place `SKILL.md` files under `src/main/resources/skills/` and have the skill catalog wired into the runtime automatically.
+- Packaged skills can include `scripts/`, `references/`, and `assets/` folders without introducing a second registration path or a separate resource manifest.
 - Skill bodies are disclosed to the model only when needed, and loaded skills remain active for later turns in the same conversation.
 - Because loaded-skill tracking is based on `AgentState`, it fits naturally with the existing session-persistence model.
 

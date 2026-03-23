@@ -16,6 +16,9 @@ class ClasspathSkillDiscovererTest {
     @Test
     void discoversSkillsFromResourcePattern(@TempDir Path tempDir) throws IOException {
         Path skillDir = Files.createDirectories(tempDir.resolve("skills/release-checklist"));
+                Files.createDirectories(skillDir.resolve("scripts"));
+                Files.createDirectories(skillDir.resolve("references"));
+                Files.createDirectories(skillDir.resolve("assets"));
         Files.writeString(
                 skillDir.resolve("SKILL.md"),
                 """
@@ -25,6 +28,9 @@ class ClasspathSkillDiscovererTest {
                         ---
                         Run mvn test before merging.
                         """);
+        Files.writeString(skillDir.resolve("scripts/release-check.sh"), "#!/usr/bin/env bash");
+        Files.writeString(skillDir.resolve("references/release-template.md"), "# release template");
+        Files.writeString(skillDir.resolve("assets/release-banner.txt"), "banner");
 
         ClasspathSkillDiscoverer discoverer = new ClasspathSkillDiscoverer(
                 new PathMatchingResourcePatternResolver(),
@@ -32,8 +38,15 @@ class ClasspathSkillDiscovererTest {
                 tempDir.toUri() + "skills/*/SKILL.md");
 
         assertThat(discoverer.discover())
-                .extracting(io.arachne.strands.skills.Skill::name)
-                .containsExactly("release-checklist");
+                .singleElement()
+                .satisfies(skill -> {
+                    assertThat(skill.name()).isEqualTo("release-checklist");
+                    assertThat(skill.resourceFiles())
+                            .containsExactly(
+                                    "scripts/release-check.sh",
+                                    "references/release-template.md",
+                                    "assets/release-banner.txt");
+                });
     }
 
     @Test

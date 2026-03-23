@@ -28,6 +28,7 @@ public final class AgentSkillsPlugin implements Plugin {
     private final List<Skill> skills;
     private final Map<String, Skill> skillsByName;
     private final Tool activationTool;
+    private final Tool resourceTool;
 
     public AgentSkillsPlugin(Skill... skills) {
         this(List.of(skills));
@@ -42,6 +43,7 @@ public final class AgentSkillsPlugin implements Plugin {
         }
         this.skillsByName = Map.copyOf(ordered);
         this.activationTool = new SkillActivationTool(this.skills);
+        this.resourceTool = new SkillResourceTool(this.skills);
     }
 
     public List<Skill> availableSkills() {
@@ -53,7 +55,7 @@ public final class AgentSkillsPlugin implements Plugin {
         if (skills.isEmpty()) {
             return List.of();
         }
-        return List.of(activationTool);
+        return List.of(activationTool, resourceTool);
     }
 
     @Override
@@ -194,7 +196,7 @@ public final class AgentSkillsPlugin implements Plugin {
         }
 
         StringBuilder builder = new StringBuilder();
-        builder.append("The following skill catalog is available for this agent. Skills in <available_skills> are not active until you load them with the activate_skill tool using the exact skill name. Load only the skills that are relevant to the user's task, and avoid loading a skill that is already active.")
+        builder.append("The following skill catalog is available for this agent. Skills in <available_skills> are not active until you load them with the activate_skill tool using the exact skill name. After activation, use read_skill_resource with the exact relative path only when you need the contents of a listed script, reference, or asset. Load only the skills that are relevant to the user's task, and avoid loading a skill that is already active.")
                 .append("\n\n<available_skills>");
 
         for (Skill skill : skills) {
@@ -230,7 +232,7 @@ public final class AgentSkillsPlugin implements Plugin {
         }
 
         StringBuilder builder = new StringBuilder();
-        builder.append("The following skills are already loaded for this conversation. Apply these instructions until the conversation ends.")
+        builder.append("The following skills are already loaded for this conversation. Apply these instructions until the conversation ends. If you need the contents of a listed resource, call read_skill_resource with the exact skill name and resource path.")
                 .append("\n\n<active_skills>");
 
         for (Skill skill : activeSkills) {
@@ -244,6 +246,7 @@ public final class AgentSkillsPlugin implements Plugin {
                 }
                 builder.append("\n</allowed_tools>");
             }
+            appendResourceBlock(builder, skill.resourceFiles());
             builder.append("\n<instructions><![CDATA[")
                     .append(escapeCdata(skill.instructions()))
                     .append("]]></instructions>")
@@ -263,5 +266,17 @@ public final class AgentSkillsPlugin implements Plugin {
 
     private String escapeCdata(String value) {
         return value.replace("]]>", "]]]]><![CDATA[>");
+    }
+
+    private void appendResourceBlock(StringBuilder builder, List<String> resourceFiles) {
+        if (resourceFiles.isEmpty()) {
+            return;
+        }
+
+        builder.append("\n<resources>");
+        for (String resourceFile : resourceFiles) {
+            builder.append("\n<resource>").append(escape(resourceFile)).append("</resource>");
+        }
+        builder.append("\n</resources>");
     }
 }

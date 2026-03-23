@@ -96,6 +96,9 @@ final class SkillActivationTool implements Tool {
         if (skill.location() != null) {
             payload.put("location", skill.location());
         }
+        if (!skill.resourceFiles().isEmpty()) {
+            payload.put("resourceFiles", skill.resourceFiles());
+        }
         payload.put("alreadyLoaded", alreadyLoaded);
         return Map.copyOf(payload);
     }
