@@ -1,13 +1,17 @@
 package io.arachne.strands.schema;
 
 import java.lang.reflect.Method;
+import java.net.URI;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import org.junit.jupiter.api.Test;
 
+import io.arachne.strands.tool.ToolDefinitionException;
+import io.arachne.strands.tool.ToolInvocationContext;
 import io.arachne.strands.tool.annotation.ToolParam;
 
 class JsonSchemaGeneratorTest {
@@ -48,7 +52,43 @@ class JsonSchemaGeneratorTest {
         assertThat(schema.get("properties").get("next").get("type").asText()).isEqualTo("object");
     }
 
+    @Test
+    void generatesEnumSchemaForRecordComponents() {
+        var schema = generator.schemaForType(Ticket.class);
+
+        assertThat(schema.get("properties").get("priority").get("type").asText()).isEqualTo("string");
+        assertThat(schema.get("properties").get("priority").get("enum"))
+                .extracting(node -> node.asText())
+                .containsExactly("LOW", "HIGH");
+    }
+
+    @Test
+    void schemaForMethodSkipsInvocationContextParameters() throws Exception {
+        Method method = ForecastTools.class.getDeclaredMethod("execute", ToolInvocationContext.class, String.class);
+
+        var schema = generator.schemaForMethod(method);
+
+        assertThat(schema.get("properties").has("city")).isTrue();
+        assertThat(schema.get("properties").has("context")).isFalse();
+        assertThat(schema.get("required").toString()).contains("city");
+    }
+
+    @Test
+    void schemaForTypeRejectsUnsupportedJavaPlatformTypes() {
+        assertThatThrownBy(() -> generator.schemaForType(URI.class))
+                .isInstanceOf(ToolDefinitionException.class)
+                .hasMessageContaining("Unsupported Java type for schema generation");
+    }
+
     record Forecast(String city, List<Integer> temperatures, boolean raining) {
+    }
+
+    record Ticket(Priority priority) {
+    }
+
+    enum Priority {
+        LOW,
+        HIGH
     }
 
     static class ForecastTools {
@@ -58,6 +98,10 @@ class JsonSchemaGeneratorTest {
                 @ToolParam(name = "forecast") Optional<Forecast> forecast,
                 @ToolParam Map<String, Integer> tags,
                 @ToolParam(name = "city_name", description = "City name") String city) {
+        }
+
+        @SuppressWarnings("unused")
+        void execute(ToolInvocationContext context, @ToolParam String city) {
         }
     }
 

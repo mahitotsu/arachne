@@ -15,6 +15,8 @@ import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.session.MapSession;
 import org.springframework.session.MapSessionRepository;
+import org.springframework.session.Session;
+import org.springframework.session.SessionRepository;
 import org.springframework.session.jdbc.JdbcIndexedSessionRepository;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -124,6 +126,133 @@ class SpringSessionManagerTest {
             assertThat(restored.conversationManagerState()).containsEntry("windowSize", 4);
         } finally {
             database.shutdown();
+        }
+    }
+
+    @Test
+    void loadReturnsEmptyStructuresWhenSessionPayloadsAreMissing() {
+        MapSessionRepository repository = new MapSessionRepository(new ConcurrentHashMap<>());
+        repository.save(new MapSession("empty-session"));
+
+        SpringSessionManager manager = new SpringSessionManager(repository);
+        AgentSession restored = manager.load("empty-session");
+
+        assertThat(restored).isNotNull();
+        assertThat(restored.messages()).isEmpty();
+        assertThat(restored.state()).isEmpty();
+        assertThat(restored.conversationManagerState()).isEmpty();
+    }
+
+    @Test
+    void loadWrapsDeserializationFailuresWithAttributeName() {
+        MapSessionRepository repository = new MapSessionRepository(new ConcurrentHashMap<>());
+        MapSession session = new MapSession("broken-session");
+        session.setAttribute(SpringSessionManager.STATE_ATTRIBUTE, "{not-json}");
+        repository.save(session);
+
+        SpringSessionManager manager = new SpringSessionManager(repository);
+
+        assertThatThrownBy(() -> manager.load("broken-session"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining(SpringSessionManager.STATE_ATTRIBUTE);
+    }
+
+    @Test
+    void saveRejectsRepositoriesThatCannotHonorExplicitSessionIds() {
+        SessionRepository<Session> repository = new SessionRepository<>() {
+            @Override
+            public Session createSession() {
+                return new NonMapSession("generated-id");
+            }
+
+            @Override
+            public void save(Session session) {
+            }
+
+            @Override
+            public Session findById(String id) {
+                return null;
+            }
+
+            @Override
+            public void deleteById(String id) {
+            }
+        };
+
+        SpringSessionManager manager = new SpringSessionManager(repository);
+
+        assertThatThrownBy(() -> manager.save("explicit-id", new AgentSession(List.of(), Map.of(), Map.of())))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Unsupported Spring Session repository");
+    }
+
+    private static final class NonMapSession implements Session {
+
+        private final Map<String, Object> attributes = new ConcurrentHashMap<>();
+        private final java.time.Instant creationTime = java.time.Instant.now();
+        private final String id;
+
+        private NonMapSession(String id) {
+            this.id = id;
+        }
+
+        @Override
+        public java.time.Instant getCreationTime() {
+            return creationTime;
+        }
+
+        @Override
+        public void setLastAccessedTime(java.time.Instant lastAccessedTime) {
+        }
+
+        @Override
+        public java.time.Instant getLastAccessedTime() {
+            return java.time.Instant.EPOCH;
+        }
+
+        @Override
+        public void setMaxInactiveInterval(java.time.Duration interval) {
+        }
+
+        @Override
+        public java.time.Duration getMaxInactiveInterval() {
+            return java.time.Duration.ZERO;
+        }
+
+        @Override
+        public boolean isExpired() {
+            return false;
+        }
+
+        @Override
+        public String getId() {
+            return id;
+        }
+
+        @Override
+        public String changeSessionId() {
+            return id;
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public <T> T getAttribute(String attributeName) {
+            return (T) attributes.get(attributeName);
+        }
+
+        @Override
+        public java.util.Set<String> getAttributeNames() {
+            return attributes.keySet();
+        }
+
+        @Override
+        public void setAttribute(String attributeName, Object attributeValue) {
+            attributes.put(attributeName, attributeValue);
+        }
+
+        @Override
+        public void removeAttribute(String attributeName) {
+            attributes.remove(attributeName);
         }
     }
 }

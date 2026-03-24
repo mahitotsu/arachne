@@ -316,6 +316,30 @@ class AgentFactoryTest {
     }
 
     @Test
+    void buildCombinesDiscoveredPluginAndExplicitTools() {
+        ArachneProperties properties = new ArachneProperties();
+        Model model = echoModel();
+        DiscoveredTool discoveredTool = new io.arachne.strands.tool.annotation.AnnotationToolScanner()
+                .scanDiscoveredTools(List.of(new PlannerToolBean()))
+                .getFirst();
+        Plugin plugin = new Plugin() {
+            @Override
+            public List<Tool> tools() {
+                return List.of(namedTool("pluginTool"));
+            }
+        };
+
+        Agent agent = new AgentFactory(properties, model, List.of(discoveredTool))
+                .builder()
+                .plugins(plugin)
+                .tools(namedTool("runtimeTool"))
+                .build();
+
+        assertThat(agent.getTools()).extracting(tool -> tool.spec().name())
+                .containsExactly("plannerTool", "pluginTool", "runtimeTool");
+    }
+
+    @Test
     void buildUsesConfiguredSessionIdAndRestoresAcrossAgents() {
         ArachneProperties properties = new ArachneProperties();
         properties.getAgent().getSession().setId("shared-session");
@@ -474,6 +498,48 @@ class AgentFactoryTest {
         assertThat(restored.getTools()).extracting(tool -> tool.spec().name()).containsExactly("plannerTool");
         assertThat(restored.getMessages()).hasSize(2);
         assertThat(restored.getState().get("topic")).isEqualTo("travel");
+    }
+
+    @Test
+    void buildNamedAgentKeepsInjectedDefaultModelWithoutModelOverride() {
+        ArachneProperties properties = new ArachneProperties();
+        ArachneProperties.NamedAgentProperties analyst = new ArachneProperties.NamedAgentProperties();
+        analyst.getSession().setId("analyst-session");
+        properties.getAgents().put("analyst", analyst);
+
+        Model sharedModel = (messages, tools) -> List.of(
+                new ModelEvent.TextDelta("shared"),
+                new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
+
+        Agent agent = new AgentFactory(properties, sharedModel).builder("analyst").build();
+
+        assertThat(agent.getModel()).isSameAs(sharedModel);
+    }
+
+    @Test
+    void buildNamedAgentCanOverrideBedrockCacheWithoutReplacingInheritedModelCoordinates() {
+        ArachneProperties properties = new ArachneProperties();
+        properties.getModel().setId("jp.amazon.nova-2-lite-v1:0");
+        properties.getModel().setRegion("ap-northeast-1");
+
+        ArachneProperties.NamedAgentProperties cached = new ArachneProperties.NamedAgentProperties();
+        cached.getModel().getBedrock().getCache().setSystemPrompt(true);
+        cached.getModel().getBedrock().getCache().setTools(true);
+        properties.getAgents().put("cached", cached);
+
+        Model sharedModel = (messages, tools) -> List.of(
+                new ModelEvent.TextDelta("shared"),
+                new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
+
+        Agent agent = new AgentFactory(properties, sharedModel).builder("cached").build();
+
+        assertThat(agent.getModel()).isInstanceOf(BedrockModel.class);
+        assertThat(agent.getModel()).isNotSameAs(sharedModel);
+        BedrockModel bedrockModel = (BedrockModel) agent.getModel();
+        assertThat(bedrockModel.getModelId()).isEqualTo("jp.amazon.nova-2-lite-v1:0");
+        assertThat(bedrockModel.getRegion()).isEqualTo("ap-northeast-1");
+        assertThat(bedrockModel.getPromptCaching().systemPrompt()).isTrue();
+        assertThat(bedrockModel.getPromptCaching().tools()).isTrue();
     }
 
     @Test
@@ -650,6 +716,20 @@ class AgentFactoryTest {
             return List.of(
                     new ModelEvent.TextDelta("Echo: " + prompt),
                     new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
+        };
+    }
+
+    private static Tool namedTool(String name) {
+        return new Tool() {
+            @Override
+            public io.arachne.strands.model.ToolSpec spec() {
+                return new io.arachne.strands.model.ToolSpec(name, name, null);
+            }
+
+            @Override
+            public ToolResult invoke(Object input) {
+                return ToolResult.success(null, name);
+            }
         };
     }
 

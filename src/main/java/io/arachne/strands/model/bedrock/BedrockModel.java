@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -67,6 +68,8 @@ import software.amazon.awssdk.services.bedrockruntime.model.ToolUseBlock;
  */
 public class BedrockModel implements StreamingModel {
 
+    private static final String DEFAULT_STOP_REASON = "end_turn";
+
     public record PromptCaching(boolean systemPrompt, boolean tools) {
 
         public static final PromptCaching DISABLED = new PromptCaching(false, false);
@@ -81,15 +84,17 @@ public class BedrockModel implements StreamingModel {
     private static final Logger LOG = Logger.getLogger(BedrockModel.class.getName());
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-        private static final CachePointBlock DEFAULT_CACHE_POINT = CachePointBlock.builder()
+    private static final CachePointBlock DEFAULT_CACHE_POINT = CachePointBlock.builder()
             .type(CachePointType.DEFAULT)
             .build();
+    private static final FailureTranslator FAILURE_TRANSLATOR = new FailureTranslator();
+    private static final BedrockDocuments BEDROCK_DOCUMENTS = new BedrockDocuments();
 
     private final BedrockRuntimeClient client;
     private final BedrockRuntimeAsyncClient asyncClient;
     private final String modelId;
     private final String region;
-        private final PromptCaching promptCaching;
+    private final PromptCaching promptCaching;
 
     /**
      * Create a BedrockModel using the default region and model.
@@ -207,13 +212,11 @@ public class BedrockModel implements StreamingModel {
         ConverseStreamRequest request = buildStreamRequest(messages, tools, systemPrompt, toolSelection);
         LOG.fine(() -> "modelId=" + modelId + " | invoking Bedrock ConverseStream API");
 
-        AtomicReference<String> stopReason = new AtomicReference<>("end_turn");
-        AtomicBoolean metadataEmitted = new AtomicBoolean(false);
         AtomicReference<Throwable> failure = new AtomicReference<>();
-        Map<Integer, StreamedToolUse> toolUses = new LinkedHashMap<>();
+        StreamState streamState = new StreamState(eventConsumer);
 
         ConverseStreamResponseHandler handler = ConverseStreamResponseHandler.builder()
-                .subscriber(output -> handleStreamOutput(output, toolUses, stopReason, metadataEmitted, eventConsumer))
+            .subscriber(streamState::handleOutput)
                 .onError(failure::set)
                 .build();
 
@@ -230,39 +233,11 @@ public class BedrockModel implements StreamingModel {
         if (streamFailure != null) {
             throw translateException(streamFailure);
         }
-        if (!metadataEmitted.get()) {
-            eventConsumer.accept(new ModelEvent.Metadata(stopReason.get(), ModelEvent.ZERO_USAGE));
-        }
+        streamState.emitDefaultMetadataIfMissing();
     }
 
     private RuntimeException translateException(Throwable throwable) {
-        Throwable resolvedException = throwable == null ? null : unwrap(throwable);
-        if (resolvedException instanceof ModelException modelException) {
-            return modelException;
-        }
-        Throwable failure = resolvedException == null
-                ? new IllegalStateException("Bedrock model request failed without an exception cause")
-                : resolvedException;
-        String exceptionName = failure.getClass().getSimpleName();
-        String message = failure.getMessage() == null ? exceptionName : failure.getMessage();
-
-        if ("ThrottlingException".equals(exceptionName)) {
-            return new ModelThrottledException("Bedrock throttled the model request: " + message, failure);
-        }
-        if ("ServiceUnavailableException".equals(exceptionName)
-                || "ModelNotReadyException".equals(exceptionName)
-                || "InternalServerException".equals(exceptionName)) {
-            return new ModelRetryableException("Bedrock temporarily failed the model request: " + message, failure);
-        }
-        return new ModelException("Bedrock model request failed: " + message, failure);
-    }
-
-    private Throwable unwrap(Throwable throwable) {
-        Throwable current = throwable;
-        while (current instanceof CompletionException && current.getCause() != null) {
-            current = current.getCause();
-        }
-        return current;
+        return FAILURE_TRANSLATOR.translate(throwable);
     }
 
     // ── Request building ────────────────────────────────────────────────────
@@ -272,12 +247,9 @@ public class BedrockModel implements StreamingModel {
             List<ToolSpec> tools,
             String systemPrompt,
             ToolSelection toolSelection) {
-        List<software.amazon.awssdk.services.bedrockruntime.model.Message> bedrockMessages =
-                messages.stream().map(this::toBedrockMessage).toList();
-
         ConverseRequest.Builder builder = ConverseRequest.builder()
                 .modelId(modelId)
-                .messages(bedrockMessages);
+            .messages(toBedrockMessages(messages));
 
         if (systemPrompt != null && !systemPrompt.isBlank()) {
             builder.system(buildSystemPromptBlocks(systemPrompt));
@@ -295,12 +267,9 @@ public class BedrockModel implements StreamingModel {
             List<ToolSpec> tools,
             String systemPrompt,
             ToolSelection toolSelection) {
-        List<software.amazon.awssdk.services.bedrockruntime.model.Message> bedrockMessages =
-                messages.stream().map(this::toBedrockMessage).toList();
-
         ConverseStreamRequest.Builder builder = ConverseStreamRequest.builder()
                 .modelId(modelId)
-                .messages(bedrockMessages);
+            .messages(toBedrockMessages(messages));
 
         if (systemPrompt != null && !systemPrompt.isBlank()) {
             builder.system(buildSystemPromptBlocks(systemPrompt));
@@ -311,6 +280,10 @@ public class BedrockModel implements StreamingModel {
         }
 
         return builder.build();
+    }
+
+    private List<software.amazon.awssdk.services.bedrockruntime.model.Message> toBedrockMessages(List<Message> messages) {
+        return messages.stream().map(this::toBedrockMessage).toList();
     }
 
     private software.amazon.awssdk.services.bedrockruntime.model.Message toBedrockMessage(Message msg) {
@@ -433,38 +406,6 @@ public class BedrockModel implements StreamingModel {
         return events;
     }
 
-    private void handleStreamOutput(
-            ConverseStreamOutput output,
-            Map<Integer, StreamedToolUse> toolUses,
-            AtomicReference<String> stopReason,
-            AtomicBoolean metadataEmitted,
-            Consumer<ModelEvent> eventConsumer) {
-        if (output instanceof ContentBlockStartEvent startEvent) {
-            handleContentBlockStart(startEvent, toolUses);
-            return;
-        }
-        if (output instanceof ContentBlockDeltaEvent deltaEvent) {
-            handleContentBlockDelta(deltaEvent, toolUses, eventConsumer);
-            return;
-        }
-        if (output instanceof ContentBlockStopEvent stopEvent) {
-            handleContentBlockStop(stopEvent, toolUses, eventConsumer);
-            return;
-        }
-        if (output instanceof MessageStopEvent messageStopEvent) {
-            stopReason.set(messageStopEvent.stopReasonAsString() != null
-                    ? messageStopEvent.stopReasonAsString()
-                    : "end_turn");
-            return;
-        }
-        if (output instanceof ConverseStreamMetadataEvent metadataEvent) {
-            metadataEmitted.set(true);
-            eventConsumer.accept(new ModelEvent.Metadata(
-                    stopReason.get(),
-                    toUsage(metadataEvent.usage())));
-        }
-    }
-
     private List<SystemContentBlock> buildSystemPromptBlocks(String systemPrompt) {
         List<SystemContentBlock> systemBlocks = new ArrayList<>();
         systemBlocks.add(SystemContentBlock.fromText(systemPrompt));
@@ -489,61 +430,8 @@ public class BedrockModel implements StreamingModel {
                 cacheWriteTokenCount != null ? cacheWriteTokenCount : 0);
     }
 
-    private void handleContentBlockStart(ContentBlockStartEvent startEvent, Map<Integer, StreamedToolUse> toolUses) {
-        if (startEvent.start() == null || startEvent.start().toolUse() == null || startEvent.contentBlockIndex() == null) {
-            return;
-        }
-        toolUses.put(
-                startEvent.contentBlockIndex(),
-                new StreamedToolUse(
-                        startEvent.start().toolUse().toolUseId(),
-                        startEvent.start().toolUse().name()));
-    }
-
-    private void handleContentBlockDelta(
-            ContentBlockDeltaEvent deltaEvent,
-            Map<Integer, StreamedToolUse> toolUses,
-            Consumer<ModelEvent> eventConsumer) {
-        if (deltaEvent.delta() == null) {
-            return;
-        }
-        if (deltaEvent.delta().text() != null) {
-            eventConsumer.accept(new ModelEvent.TextDelta(deltaEvent.delta().text()));
-        }
-        if (deltaEvent.delta().toolUse() != null && deltaEvent.contentBlockIndex() != null) {
-            StreamedToolUse toolUse = toolUses.get(deltaEvent.contentBlockIndex());
-            if (toolUse != null && deltaEvent.delta().toolUse().input() != null) {
-                toolUse.input().append(deltaEvent.delta().toolUse().input());
-            }
-        }
-    }
-
-    private void handleContentBlockStop(
-            ContentBlockStopEvent stopEvent,
-            Map<Integer, StreamedToolUse> toolUses,
-            Consumer<ModelEvent> eventConsumer) {
-        if (stopEvent.contentBlockIndex() == null) {
-            return;
-        }
-        StreamedToolUse toolUse = toolUses.remove(stopEvent.contentBlockIndex());
-        if (toolUse == null) {
-            return;
-        }
-        eventConsumer.accept(new ModelEvent.ToolUse(
-                toolUse.toolUseId(),
-                toolUse.name(),
-                parseStreamedToolInput(toolUse.input().toString())));
-    }
-
     private Object parseStreamedToolInput(String rawInput) {
-        if (rawInput == null || rawInput.isBlank()) {
-            return null;
-        }
-        try {
-            return OBJECT_MAPPER.readValue(rawInput, Object.class);
-        } catch (java.io.IOException | RuntimeException exception) {
-            throw new ModelException("Bedrock returned invalid streamed tool input JSON", exception);
-        }
+        return BEDROCK_DOCUMENTS.parseStreamedToolInput(rawInput);
     }
 
     private record StreamedToolUse(String toolUseId, String name, StringBuilder input) {
@@ -553,57 +441,104 @@ public class BedrockModel implements StreamingModel {
         }
     }
 
+    private final class StreamState {
+
+        private final Consumer<ModelEvent> eventConsumer;
+        private final AtomicReference<String> stopReason = new AtomicReference<>(DEFAULT_STOP_REASON);
+        private final AtomicBoolean metadataEmitted = new AtomicBoolean(false);
+        private final Map<Integer, StreamedToolUse> toolUses = new LinkedHashMap<>();
+
+        private StreamState(Consumer<ModelEvent> eventConsumer) {
+            this.eventConsumer = eventConsumer;
+        }
+
+        private void handleOutput(ConverseStreamOutput output) {
+            if (output instanceof ContentBlockStartEvent startEvent) {
+                handleContentBlockStart(startEvent);
+                return;
+            }
+            if (output instanceof ContentBlockDeltaEvent deltaEvent) {
+                handleContentBlockDelta(deltaEvent);
+                return;
+            }
+            if (output instanceof ContentBlockStopEvent stopEvent) {
+                handleContentBlockStop(stopEvent);
+                return;
+            }
+            if (output instanceof MessageStopEvent messageStopEvent) {
+                stopReason.set(messageStopEvent.stopReasonAsString() != null
+                        ? messageStopEvent.stopReasonAsString()
+                        : DEFAULT_STOP_REASON);
+                return;
+            }
+            if (output instanceof ConverseStreamMetadataEvent metadataEvent) {
+                metadataEmitted.set(true);
+                eventConsumer.accept(new ModelEvent.Metadata(stopReason.get(), toUsage(metadataEvent.usage())));
+            }
+        }
+
+        private void emitDefaultMetadataIfMissing() {
+            if (!metadataEmitted.get()) {
+                eventConsumer.accept(new ModelEvent.Metadata(stopReason.get(), ModelEvent.ZERO_USAGE));
+            }
+        }
+
+        private void handleContentBlockStart(ContentBlockStartEvent startEvent) {
+            if (startEvent.start() == null || startEvent.start().toolUse() == null || startEvent.contentBlockIndex() == null) {
+                return;
+            }
+            toolUses.put(
+                    startEvent.contentBlockIndex(),
+                    new StreamedToolUse(
+                            startEvent.start().toolUse().toolUseId(),
+                            startEvent.start().toolUse().name()));
+        }
+
+        private void handleContentBlockDelta(ContentBlockDeltaEvent deltaEvent) {
+            if (deltaEvent.delta() == null) {
+                return;
+            }
+            if (deltaEvent.delta().text() != null) {
+                eventConsumer.accept(new ModelEvent.TextDelta(deltaEvent.delta().text()));
+            }
+            if (deltaEvent.delta().toolUse() != null && deltaEvent.contentBlockIndex() != null) {
+                StreamedToolUse toolUse = toolUses.get(deltaEvent.contentBlockIndex());
+                if (toolUse != null && deltaEvent.delta().toolUse().input() != null) {
+                    toolUse.input().append(deltaEvent.delta().toolUse().input());
+                }
+            }
+        }
+
+        private void handleContentBlockStop(ContentBlockStopEvent stopEvent) {
+            if (stopEvent.contentBlockIndex() == null) {
+                return;
+            }
+            StreamedToolUse toolUse = toolUses.remove(stopEvent.contentBlockIndex());
+            if (toolUse == null) {
+                return;
+            }
+            eventConsumer.accept(new ModelEvent.ToolUse(
+                    toolUse.toolUseId(),
+                    toolUse.name(),
+                    parseStreamedToolInput(toolUse.input().toString())));
+        }
+    }
+
     // ── Document ↔ Java object conversion ──────────────────────────────────
 
     /**
      * Convert a Jackson {@link JsonNode} (typically a JSON Schema) to an AWS SDK {@link Document}.
      */
     static Document jsonNodeToDocument(JsonNode node) {
-        if (node == null || node.isNull()) return Document.fromNull();
-        if (node.isBoolean()) return Document.fromBoolean(node.booleanValue());
-        if (node.isNumber()) return Document.fromNumber(node.decimalValue().toPlainString());
-        if (node.isTextual()) return Document.fromString(node.textValue());
-        if (node.isArray()) {
-            List<Document> list = new ArrayList<>();
-            node.forEach(child -> list.add(jsonNodeToDocument(child)));
-            return Document.fromList(list);
-        }
-        if (node.isObject()) {
-            Map<String, Document> map = new LinkedHashMap<>();
-            for (Map.Entry<String, JsonNode> entry : node.properties()) {
-                map.put(entry.getKey(), jsonNodeToDocument(entry.getValue()));
-            }
-            return Document.fromMap(map);
-        }
-        throw new IllegalArgumentException("Unsupported JsonNode type: " + node.getNodeType());
+        return BEDROCK_DOCUMENTS.jsonNodeToDocument(node);
     }
 
     /**
      * Convert a plain Java object (Map, List, String, Number, Boolean, null) to an AWS SDK Document.
      * Used when a tool's input was stored as a Java object.
      */
-    @SuppressWarnings("unchecked")
     static Document objectToDocument(Object obj) {
-        if (obj == null) return Document.fromNull();
-        if (obj instanceof Boolean b) return Document.fromBoolean(b);
-        if (obj instanceof Number n) return Document.fromNumber(n.toString());
-        if (obj instanceof String s) return Document.fromString(s);
-        if (obj instanceof List<?> list) {
-            List<Document> docs = list.stream().map(BedrockModel::objectToDocument).toList();
-            return Document.fromList(docs);
-        }
-        if (obj instanceof Map<?, ?> map) {
-            Map<String, Document> docs = new LinkedHashMap<>();
-            ((Map<String, Object>) map).forEach((k, v) -> docs.put(k, objectToDocument(v)));
-            return Document.fromMap(docs);
-        }
-        // Fallback: serialize arbitrary POJOs into a JSON-shaped Document.
-        try {
-            JsonNode node = OBJECT_MAPPER.valueToTree(obj);
-            return jsonNodeToDocument(node);
-        } catch (IllegalArgumentException e) {
-            return Document.fromString(obj.toString());
-        }
+        return BEDROCK_DOCUMENTS.objectToDocument(obj);
     }
 
     /**
@@ -611,28 +546,159 @@ public class BedrockModel implements StreamingModel {
      * that tools can consume.
      */
     static Object documentToObject(Document doc) {
-        if (doc == null || doc.isNull()) return null;
-        if (doc.isBoolean()) return doc.asBoolean();
-        if (doc.isNumber()) {
+        return BEDROCK_DOCUMENTS.documentToObject(doc);
+    }
+
+    private static final class FailureTranslator {
+
+        private RuntimeException translate(Throwable throwable) {
+            Throwable resolvedException = throwable == null ? null : unwrap(throwable);
+            if (resolvedException instanceof ModelException modelException) {
+                return modelException;
+            }
+            Throwable failure = resolvedException == null
+                    ? new IllegalStateException("Bedrock model request failed without an exception cause")
+                    : resolvedException;
+            return classifyFailure(failure);
+        }
+
+        private RuntimeException classifyFailure(Throwable failure) {
+            String exceptionName = failure.getClass().getSimpleName();
+            String message = failure.getMessage() == null ? exceptionName : failure.getMessage();
+
+            if (isThrottlingFailure(exceptionName)) {
+                return new ModelThrottledException("Bedrock throttled the model request: " + message, failure);
+            }
+            if (isRetryableFailure(exceptionName)) {
+                return new ModelRetryableException("Bedrock temporarily failed the model request: " + message, failure);
+            }
+            return new ModelException("Bedrock model request failed: " + message, failure);
+        }
+
+        private boolean isThrottlingFailure(String exceptionName) {
+            return "ThrottlingException".equals(exceptionName);
+        }
+
+        private boolean isRetryableFailure(String exceptionName) {
+            return "ServiceUnavailableException".equals(exceptionName)
+                    || "ModelNotReadyException".equals(exceptionName)
+                    || "InternalServerException".equals(exceptionName);
+        }
+
+        private Throwable unwrap(Throwable throwable) {
+            Throwable current = throwable;
+            while (current instanceof CompletionException && current.getCause() != null) {
+                current = current.getCause();
+            }
+            return current;
+        }
+    }
+
+    private static final class BedrockDocuments {
+
+        private Document jsonNodeToDocument(JsonNode node) {
+            if (node == null || node.isNull()) {
+                return Document.fromNull();
+            }
+            if (node.isBoolean()) {
+                return Document.fromBoolean(node.booleanValue());
+            }
+            if (node.isNumber()) {
+                return Document.fromNumber(node.decimalValue().toPlainString());
+            }
+            if (node.isTextual()) {
+                return Document.fromString(node.textValue());
+            }
+            if (node.isArray()) {
+                List<Document> list = new ArrayList<>();
+                node.forEach(child -> list.add(jsonNodeToDocument(child)));
+                return Document.fromList(list);
+            }
+            if (node.isObject()) {
+                Map<String, Document> map = new LinkedHashMap<>();
+                for (Map.Entry<String, JsonNode> entry : node.properties()) {
+                    map.put(entry.getKey(), jsonNodeToDocument(entry.getValue()));
+                }
+                return Document.fromMap(map);
+            }
+            throw new IllegalArgumentException("Unsupported JsonNode type: " + node.getNodeType());
+        }
+
+        private Document objectToDocument(Object obj) {
+            if (obj == null) {
+                return Document.fromNull();
+            }
+            if (obj instanceof Boolean b) {
+                return Document.fromBoolean(b);
+            }
+            if (obj instanceof Number n) {
+                return Document.fromNumber(n.toString());
+            }
+            if (obj instanceof String s) {
+                return Document.fromString(s);
+            }
+            if (obj instanceof List<?> list) {
+                List<Document> docs = list.stream().map(this::objectToDocument).toList();
+                return Document.fromList(docs);
+            }
+            if (obj instanceof Map<?, ?> map) {
+                Map<String, Document> docs = new LinkedHashMap<>();
+                map.forEach((key, value) -> docs.put(String.valueOf(key), objectToDocument(value)));
+                return Document.fromMap(docs);
+            }
+            try {
+                JsonNode node = OBJECT_MAPPER.valueToTree(obj);
+                return jsonNodeToDocument(node);
+            } catch (IllegalArgumentException exception) {
+                return Document.fromString(obj.toString());
+            }
+        }
+
+        private Object documentToObject(Document doc) {
+            if (doc == null || doc.isNull()) {
+                return null;
+            }
+            if (doc.isBoolean()) {
+                return doc.asBoolean();
+            }
+            if (doc.isNumber()) {
+                return numberValue(doc);
+            }
+            if (doc.isString()) {
+                return doc.asString();
+            }
+            if (doc.isList()) {
+                return doc.asList().stream().map(this::documentToObject).toList();
+            }
+            if (doc.isMap()) {
+                Map<String, Object> result = new LinkedHashMap<>();
+                doc.asMap().forEach((k, v) -> result.put(k, documentToObject(v)));
+                return result;
+            }
+            return doc.toString();
+        }
+
+        private Object parseStreamedToolInput(String rawInput) {
+            if (rawInput == null || rawInput.isBlank()) {
+                return null;
+            }
+            try {
+                return OBJECT_MAPPER.readValue(rawInput, Object.class);
+            } catch (java.io.IOException | RuntimeException exception) {
+                throw new ModelException("Bedrock returned invalid streamed tool input JSON", exception);
+            }
+        }
+
+        private Object numberValue(Document doc) {
             try {
                 return doc.asNumber().longValue();
-            } catch (NumberFormatException e) {
+            } catch (NumberFormatException longException) {
                 try {
                     return doc.asNumber().doubleValue();
-                } catch (NumberFormatException e2) {
+                } catch (NumberFormatException doubleException) {
                     return doc.asNumber().stringValue();
                 }
             }
         }
-        if (doc.isString()) return doc.asString();
-        if (doc.isList()) {
-            return doc.asList().stream().map(BedrockModel::documentToObject).toList();
-        }
-        if (doc.isMap()) {
-            Map<String, Object> result = new LinkedHashMap<>();
-            doc.asMap().forEach((k, v) -> result.put(k, documentToObject(v)));
-            return result;
-        }
-        return doc.toString();
     }
 }

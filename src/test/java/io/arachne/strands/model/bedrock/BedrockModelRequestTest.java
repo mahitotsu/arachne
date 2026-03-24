@@ -3,14 +3,11 @@ package io.arachne.strands.model.bedrock;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -207,91 +204,47 @@ class BedrockModelRequestTest {
 
     @Test
     void handleStreamOutputMapsTextToolUseAndMetadata() throws Exception {
-    BedrockModel model = new BedrockModel("test-model", "us-west-2");
-    Method handleStreamOutput = BedrockModel.class.getDeclaredMethod(
-        "handleStreamOutput",
-        ConverseStreamOutput.class,
-        Map.class,
-        AtomicReference.class,
-        AtomicBoolean.class,
-        Consumer.class);
-    handleStreamOutput.setAccessible(true);
-    Map<Integer, Object> toolUses = new LinkedHashMap<>();
-    AtomicReference<String> stopReason = new AtomicReference<>("end_turn");
-    AtomicBoolean metadataEmitted = new AtomicBoolean(false);
     List<ModelEvent> events = new ArrayList<>();
+    AtomicBoolean metadataEmitted = new AtomicBoolean(false);
+    BedrockModel model = new BedrockModel(
+        unusedClient(),
+        asyncClientStreaming(
+            List.of(
+                ContentBlockStartEvent.builder()
+                    .contentBlockIndex(1)
+                    .start(ContentBlockStart.fromToolUse(ToolUseBlockStart.builder()
+                        .toolUseId("tool-1")
+                        .name("weather")
+                        .build()))
+                    .build(),
+                ContentBlockDeltaEvent.builder()
+                    .contentBlockIndex(0)
+                    .delta(ContentBlockDelta.fromText("draft"))
+                    .build(),
+                ContentBlockDeltaEvent.builder()
+                    .contentBlockIndex(1)
+                    .delta(ContentBlockDelta.fromToolUse(ToolUseBlockDelta.builder()
+                        .input("{\"city\":\"Tokyo\"}")
+                        .build()))
+                    .build(),
+                ContentBlockStopEvent.builder()
+                    .contentBlockIndex(1)
+                    .build(),
+                MessageStopEvent.builder()
+                    .stopReason(StopReason.TOOL_USE)
+                    .build(),
+                ConverseStreamMetadataEvent.builder()
+                    .usage(TokenUsage.builder()
+                        .inputTokens(3)
+                        .outputTokens(5)
+                        .build())
+                    .build())),
+        "test-model");
 
-    invokeHandleStreamOutput(
-        handleStreamOutput,
-        model,
-        ContentBlockStartEvent.builder()
-            .contentBlockIndex(1)
-            .start(ContentBlockStart.fromToolUse(ToolUseBlockStart.builder()
-                .toolUseId("tool-1")
-                .name("weather")
-                .build()))
-            .build(),
-        toolUses,
-        stopReason,
-        metadataEmitted,
-        events);
-    invokeHandleStreamOutput(
-        handleStreamOutput,
-        model,
-        ContentBlockDeltaEvent.builder()
-            .contentBlockIndex(0)
-            .delta(ContentBlockDelta.fromText("draft"))
-            .build(),
-        toolUses,
-        stopReason,
-        metadataEmitted,
-        events);
-    invokeHandleStreamOutput(
-        handleStreamOutput,
-        model,
-        ContentBlockDeltaEvent.builder()
-            .contentBlockIndex(1)
-            .delta(ContentBlockDelta.fromToolUse(ToolUseBlockDelta.builder()
-                .input("{\"city\":\"Tokyo\"}")
-                .build()))
-            .build(),
-        toolUses,
-        stopReason,
-        metadataEmitted,
-        events);
-    invokeHandleStreamOutput(
-        handleStreamOutput,
-        model,
-        ContentBlockStopEvent.builder()
-            .contentBlockIndex(1)
-            .build(),
-        toolUses,
-        stopReason,
-        metadataEmitted,
-        events);
-    invokeHandleStreamOutput(
-        handleStreamOutput,
-        model,
-        MessageStopEvent.builder()
-            .stopReason(StopReason.TOOL_USE)
-            .build(),
-        toolUses,
-        stopReason,
-        metadataEmitted,
-        events);
-    invokeHandleStreamOutput(
-        handleStreamOutput,
-        model,
-        ConverseStreamMetadataEvent.builder()
-            .usage(TokenUsage.builder()
-                .inputTokens(3)
-                .outputTokens(5)
-                .build())
-            .build(),
-        toolUses,
-        stopReason,
-        metadataEmitted,
-        events);
+    model.converseStream(List.of(Message.user("hello")), List.of(), null, null, event -> {
+        metadataEmitted.set(event instanceof ModelEvent.Metadata);
+        events.add(event);
+    });
 
     assertThat(events).containsExactly(
         new ModelEvent.TextDelta("draft"),
@@ -302,78 +255,41 @@ class BedrockModelRequestTest {
 
     @Test
     void handleStreamOutputAccumulatesSplitToolInputAndDefaultsMetadataUsage() throws Exception {
-    BedrockModel model = new BedrockModel("test-model", "us-west-2");
-    Method handleStreamOutput = BedrockModel.class.getDeclaredMethod(
-        "handleStreamOutput",
-        ConverseStreamOutput.class,
-        Map.class,
-        AtomicReference.class,
-        AtomicBoolean.class,
-        Consumer.class);
-    handleStreamOutput.setAccessible(true);
-    Map<Integer, Object> toolUses = new LinkedHashMap<>();
-    AtomicReference<String> stopReason = new AtomicReference<>("end_turn");
-    AtomicBoolean metadataEmitted = new AtomicBoolean(false);
     List<ModelEvent> events = new ArrayList<>();
+    AtomicBoolean metadataEmitted = new AtomicBoolean(false);
+    BedrockModel model = new BedrockModel(
+        unusedClient(),
+        asyncClientStreaming(
+            List.of(
+                ContentBlockStartEvent.builder()
+                    .contentBlockIndex(0)
+                    .start(ContentBlockStart.fromToolUse(ToolUseBlockStart.builder()
+                        .toolUseId("tool-9")
+                        .name("lookup_weather")
+                        .build()))
+                    .build(),
+                ContentBlockDeltaEvent.builder()
+                    .contentBlockIndex(0)
+                    .delta(ContentBlockDelta.fromToolUse(ToolUseBlockDelta.builder()
+                        .input("{\"city\":\"To")
+                        .build()))
+                    .build(),
+                ContentBlockDeltaEvent.builder()
+                    .contentBlockIndex(0)
+                    .delta(ContentBlockDelta.fromToolUse(ToolUseBlockDelta.builder()
+                        .input("kyo\"}")
+                        .build()))
+                    .build(),
+                ContentBlockStopEvent.builder()
+                    .contentBlockIndex(0)
+                    .build(),
+                ConverseStreamMetadataEvent.builder().build())),
+        "test-model");
 
-    invokeHandleStreamOutput(
-        handleStreamOutput,
-        model,
-        ContentBlockStartEvent.builder()
-            .contentBlockIndex(0)
-            .start(ContentBlockStart.fromToolUse(ToolUseBlockStart.builder()
-                .toolUseId("tool-9")
-                .name("lookup_weather")
-                .build()))
-            .build(),
-        toolUses,
-        stopReason,
-        metadataEmitted,
-        events);
-    invokeHandleStreamOutput(
-        handleStreamOutput,
-        model,
-        ContentBlockDeltaEvent.builder()
-            .contentBlockIndex(0)
-            .delta(ContentBlockDelta.fromToolUse(ToolUseBlockDelta.builder()
-                .input("{\"city\":\"To")
-                .build()))
-            .build(),
-        toolUses,
-        stopReason,
-        metadataEmitted,
-        events);
-    invokeHandleStreamOutput(
-        handleStreamOutput,
-        model,
-        ContentBlockDeltaEvent.builder()
-            .contentBlockIndex(0)
-            .delta(ContentBlockDelta.fromToolUse(ToolUseBlockDelta.builder()
-                .input("kyo\"}")
-                .build()))
-            .build(),
-        toolUses,
-        stopReason,
-        metadataEmitted,
-        events);
-    invokeHandleStreamOutput(
-        handleStreamOutput,
-        model,
-        ContentBlockStopEvent.builder()
-            .contentBlockIndex(0)
-            .build(),
-        toolUses,
-        stopReason,
-        metadataEmitted,
-        events);
-    invokeHandleStreamOutput(
-        handleStreamOutput,
-        model,
-        ConverseStreamMetadataEvent.builder().build(),
-        toolUses,
-        stopReason,
-        metadataEmitted,
-        events);
+    model.converseStream(List.of(Message.user("hello")), List.of(), null, null, event -> {
+        metadataEmitted.set(event instanceof ModelEvent.Metadata);
+        events.add(event);
+    });
 
     assertThat(events).containsExactly(
         new ModelEvent.ToolUse("tool-9", "lookup_weather", Map.of("city", "Tokyo")),
@@ -383,35 +299,22 @@ class BedrockModelRequestTest {
 
     @Test
     void handleStreamOutputCapturesCacheUsageMetrics() throws Exception {
-    BedrockModel model = new BedrockModel("test-model", "us-west-2");
-    Method handleStreamOutput = BedrockModel.class.getDeclaredMethod(
-        "handleStreamOutput",
-        ConverseStreamOutput.class,
-        Map.class,
-        AtomicReference.class,
-        AtomicBoolean.class,
-        Consumer.class);
-    handleStreamOutput.setAccessible(true);
-    Map<Integer, Object> toolUses = new LinkedHashMap<>();
-    AtomicReference<String> stopReason = new AtomicReference<>("end_turn");
-    AtomicBoolean metadataEmitted = new AtomicBoolean(false);
     List<ModelEvent> events = new ArrayList<>();
+    BedrockModel model = new BedrockModel(
+        unusedClient(),
+        asyncClientStreaming(
+            List.of(
+                ConverseStreamMetadataEvent.builder()
+                    .usage(TokenUsage.builder()
+                        .inputTokens(11)
+                        .outputTokens(7)
+                        .cacheReadInputTokens(101)
+                        .cacheWriteInputTokens(202)
+                        .build())
+                    .build())),
+        "test-model");
 
-    invokeHandleStreamOutput(
-        handleStreamOutput,
-        model,
-        ConverseStreamMetadataEvent.builder()
-            .usage(TokenUsage.builder()
-                .inputTokens(11)
-                .outputTokens(7)
-                .cacheReadInputTokens(101)
-                .cacheWriteInputTokens(202)
-                .build())
-            .build(),
-        toolUses,
-        stopReason,
-        metadataEmitted,
-        events);
+    model.converseStream(List.of(Message.user("hello")), List.of(), null, null, events::add);
 
     assertThat(events).containsExactly(
         new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(11, 7, 101, 202)));
@@ -450,15 +353,41 @@ class BedrockModelRequestTest {
         .hasMessageContaining("Bedrock temporarily failed the model request");
     }
 
-    private static void invokeHandleStreamOutput(
-        Method handleStreamOutput,
-        BedrockModel model,
-        ConverseStreamOutput output,
-        Map<Integer, Object> toolUses,
-        AtomicReference<String> stopReason,
-        AtomicBoolean metadataEmitted,
-        List<ModelEvent> events) throws Exception {
-    handleStreamOutput.invoke(model, output, toolUses, stopReason, metadataEmitted, (Consumer<ModelEvent>) events::add);
+    @Test
+    void translateExceptionPassesThroughModelExceptionsAndHandlesMissingCause() throws Exception {
+    BedrockModel model = new BedrockModel("test-model", "us-west-2");
+    Method translateException = BedrockModel.class.getDeclaredMethod("translateException", Throwable.class);
+    translateException.setAccessible(true);
+
+    ModelException existing = new ModelException("already translated");
+    RuntimeException passthrough = (RuntimeException) translateException.invoke(model, existing);
+    RuntimeException missingCause = (RuntimeException) translateException.invoke(model, new Object[]{null});
+
+    assertThat(passthrough).isSameAs(existing);
+    assertThat(missingCause)
+        .isInstanceOf(ModelException.class)
+        .hasMessageContaining("failed without an exception cause");
+    }
+
+    @Test
+    void translateExceptionMapsAdditionalRetryableFailureTypes() throws Exception {
+    BedrockModel model = new BedrockModel("test-model", "us-west-2");
+    Method translateException = BedrockModel.class.getDeclaredMethod("translateException", Throwable.class);
+    translateException.setAccessible(true);
+
+    RuntimeException modelNotReady = (RuntimeException) translateException.invoke(
+        model,
+        new ModelNotReadyException("warming up"));
+    RuntimeException internalServer = (RuntimeException) translateException.invoke(
+        model,
+        new InternalServerException("temporary failure"));
+
+    assertThat(modelNotReady)
+        .isInstanceOf(ModelRetryableException.class)
+        .hasMessageContaining("Bedrock temporarily failed the model request");
+    assertThat(internalServer)
+        .isInstanceOf(ModelRetryableException.class)
+        .hasMessageContaining("Bedrock temporarily failed the model request");
     }
 
     private static BedrockRuntimeClient unusedClient() {
@@ -528,6 +457,18 @@ class BedrockModelRequestTest {
 
     private static final class ServiceUnavailableException extends RuntimeException {
         private ServiceUnavailableException(String message) {
+            super(message);
+        }
+    }
+
+    private static final class ModelNotReadyException extends RuntimeException {
+        private ModelNotReadyException(String message) {
+            super(message);
+        }
+    }
+
+    private static final class InternalServerException extends RuntimeException {
+        private InternalServerException(String message) {
             super(message);
         }
     }

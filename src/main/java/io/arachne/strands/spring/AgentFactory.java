@@ -269,42 +269,80 @@ public class AgentFactory {
 
     private BuilderDefaults resolveBuilderDefaults(String name) {
         if (name == null || name.isBlank()) {
-            return new BuilderDefaults(
-                    copyModelProperties(properties.getModel()),
-                    defaultModel,
-                    properties.getAgent().getSystemPrompt(),
-                    ToolExecutionMode.PARALLEL,
-                    true,
-                    Set.of(),
-                    properties.getAgent().getConversation().getWindowSize(),
-                    properties.getAgent().getSession().getId(),
-                    defaultRetryStrategy);
+            return resolveDefaultBuilderDefaults();
         }
 
+        return resolveNamedBuilderDefaults(requireNamedAgentProperties(name));
+    }
+
+    private BuilderDefaults resolveDefaultBuilderDefaults() {
+        return new BuilderDefaults(
+                copyModelProperties(properties.getModel()),
+                defaultModel,
+                properties.getAgent().getSystemPrompt(),
+                ToolExecutionMode.PARALLEL,
+                true,
+                Set.of(),
+                properties.getAgent().getConversation().getWindowSize(),
+                properties.getAgent().getSession().getId(),
+                defaultRetryStrategy);
+    }
+
+    private ArachneProperties.NamedAgentProperties requireNamedAgentProperties(String name) {
         ArachneProperties.NamedAgentProperties namedProperties = properties.getAgents().get(name);
         if (namedProperties == null) {
             throw new NamedAgentNotFoundException(name);
         }
+        return namedProperties;
+    }
 
+    private BuilderDefaults resolveNamedBuilderDefaults(ArachneProperties.NamedAgentProperties namedProperties) {
         ArachneProperties.ModelProperties mergedModel = mergeModelProperties(properties.getModel(), namedProperties.getModel());
-        Model namedDefaultModel = hasModelOverride(namedProperties.getModel())
-                ? createDefaultModel(mergedModel)
-                : defaultModel;
-        Integer namedWindowSize = namedProperties.getConversation().getWindowSize();
-        Boolean useDiscoveredTools = namedProperties.getUseDiscoveredTools();
         return new BuilderDefaults(
                 mergedModel,
-                namedDefaultModel,
+                resolveNamedDefaultModel(namedProperties, mergedModel),
                 firstNonBlank(namedProperties.getSystemPrompt(), properties.getAgent().getSystemPrompt()),
-                namedProperties.getToolExecutionMode() != null ? namedProperties.getToolExecutionMode() : ToolExecutionMode.PARALLEL,
-                useDiscoveredTools != null ? useDiscoveredTools : true,
+                resolveNamedToolExecutionMode(namedProperties),
+                resolveNamedUseDiscoveredTools(namedProperties),
                 normalizeQualifiers(namedProperties.getToolQualifiers()),
-                namedWindowSize != null
-                        ? namedWindowSize
-                        : properties.getAgent().getConversation().getWindowSize(),
-                firstNonBlank(namedProperties.getSession().getId(), properties.getAgent().getSession().getId()),
+                resolveNamedConversationWindowSize(namedProperties),
+                resolveNamedSessionId(namedProperties),
                 resolveNamedRetryStrategy(namedProperties.getRetry()));
+    }
+
+    private Model resolveNamedDefaultModel(
+            ArachneProperties.NamedAgentProperties namedProperties,
+            ArachneProperties.ModelProperties mergedModel) {
+        if (!hasModelOverride(namedProperties.getModel())) {
+            return defaultModel;
         }
+        return createDefaultModel(mergedModel);
+    }
+
+    private ToolExecutionMode resolveNamedToolExecutionMode(ArachneProperties.NamedAgentProperties namedProperties) {
+        return namedProperties.getToolExecutionMode() != null
+                ? namedProperties.getToolExecutionMode()
+                : ToolExecutionMode.PARALLEL;
+    }
+
+    private boolean resolveNamedUseDiscoveredTools(ArachneProperties.NamedAgentProperties namedProperties) {
+        Boolean useDiscoveredTools = namedProperties.getUseDiscoveredTools();
+        if (useDiscoveredTools == null) {
+            return true;
+        }
+        return useDiscoveredTools;
+    }
+
+    private int resolveNamedConversationWindowSize(ArachneProperties.NamedAgentProperties namedProperties) {
+        Integer namedWindowSize = namedProperties.getConversation().getWindowSize();
+        return namedWindowSize != null
+                ? namedWindowSize
+                : properties.getAgent().getConversation().getWindowSize();
+    }
+
+    private String resolveNamedSessionId(ArachneProperties.NamedAgentProperties namedProperties) {
+        return firstNonBlank(namedProperties.getSession().getId(), properties.getAgent().getSession().getId());
+    }
 
     private ModelRetryStrategy resolveNamedRetryStrategy(ArachneProperties.RetryOverrideProperties retryProperties) {
         if (!hasRetryOverride(retryProperties)) {
@@ -425,6 +463,15 @@ public class AgentFactory {
             String sessionId,
             ModelRetryStrategy retryStrategy) {
     }
+
+            private record BuilderRuntime(
+                Model model,
+                List<Tool> tools,
+                HookRegistry hooks,
+                ConversationManager conversationManager,
+                SessionManager sessionManager,
+                EventLoop eventLoop) {
+            }
 
     public static class Builder {
 
@@ -607,30 +654,50 @@ public class AgentFactory {
         }
 
         public Agent build() {
-            Model resolvedModel = resolveModel();
             List<Plugin> resolvedPlugins = resolvePlugins();
+            BuilderRuntime runtime = resolveRuntime(resolvedPlugins);
+            return createAgent(runtime);
+        }
+
+        private BuilderRuntime resolveRuntime(List<Plugin> resolvedPlugins) {
             HookRegistry hooks = resolveHooks(resolvedPlugins);
-            EventLoop eventLoop = new EventLoop(
-                hooks,
-                new ToolExecutor(
-                    toolExecutionMode,
-                    resolveToolExecutionExecutor(),
-                    resolveExecutionContextPropagation()));
-            List<Tool> resolvedTools = Stream.concat(
-                    Stream.concat(resolveDiscoveredTools().stream(), resolvePluginTools(resolvedPlugins).stream()),
-                    tools.stream()).toList();
-            return new DefaultAgent(
-                wrapWithRetryIfNeeded(resolvedModel),
-                    resolvedTools,
-                    eventLoop,
+            return new BuilderRuntime(
+                    wrapWithRetryIfNeeded(resolveModel()),
+                    resolveTools(resolvedPlugins),
                     hooks,
+                    resolveConversationManager(),
+                    resolveSessionManager(),
+                    createEventLoop(hooks));
+        }
+
+        private Agent createAgent(BuilderRuntime runtime) {
+            return new DefaultAgent(
+                    runtime.model(),
+                    runtime.tools(),
+                    runtime.eventLoop(),
+                    runtime.hooks(),
                     systemPrompt,
                     validator,
                     objectMapper,
-                    resolveConversationManager(),
-                    resolveSessionManager(),
+                    runtime.conversationManager(),
+                    runtime.sessionManager(),
                     sessionId,
                     state);
+        }
+
+        private EventLoop createEventLoop(HookRegistry hooks) {
+            return new EventLoop(
+                    hooks,
+                    new ToolExecutor(
+                            toolExecutionMode,
+                            resolveToolExecutionExecutor(),
+                            resolveExecutionContextPropagation()));
+        }
+
+        private List<Tool> resolveTools(List<? extends Plugin> resolvedPlugins) {
+            return Stream.concat(
+                    Stream.concat(resolveDiscoveredTools().stream(), resolvePluginTools(resolvedPlugins).stream()),
+                    tools.stream()).toList();
         }
 
         private List<Tool> resolveDiscoveredTools() {
