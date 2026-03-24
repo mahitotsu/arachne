@@ -167,22 +167,31 @@ class DomainSeparationIntegrationTest {
 
         assertThat(output).contains("demo.trace> coordinator requests skill activation: account-unlock");
         assertThat(output).contains("demo.trace> skill activated: account-unlock");
-                assertThat(output).contains("llm.trace> assistant requested tools: activate_skill");
-                assertThat(output).contains("llm.trace> assistant requested tools: prepare_account_operation");
+        assertThat(output).contains("llm.trace> assistant requested tools: activate_skill");
+        assertThat(output).contains("llm.trace> assistant requested tools: prepare_account_operation");
         assertThat(output).contains("demo.trace> coordinator calls prepare_account_operation for ACCOUNT_UNLOCK acct-007");
         assertThat(output).contains("demo.trace> delegating prepare request to operations-executor for ACCOUNT_UNLOCK acct-007");
+        assertThat(output).contains("demo.trace> executor prepare prompt begin");
+        assertThat(output).contains("demo.trace> executor prompt | mode=prepare");
+        assertThat(output).contains("demo.trace> executor prompt | operationType=ACCOUNT_UNLOCK");
+        assertThat(output).contains("demo.trace> executor prompt | accountId=acct-007");
+        assertThat(output).contains("demo.trace> executor prepare response phase=preparation preparedStatus=LOCKED authorizedOperatorId=operator-7");
         assertThat(output).contains("demo.trace> executor runs find_account for acct-007");
-                assertThat(output).contains("system.trace> account directory lookup accountId=acct-007 observedStatus=LOCKED operatorId=operator-7");
+        assertThat(output).contains("system.trace> account directory lookup accountId=acct-007 observedStatus=LOCKED operatorId=operator-7");
         assertThat(output).contains("demo.trace> approval required before execute_account_operation can run; workflow interrupted");
         assertThat(output).contains("demo.trace> workflow resumed with external approval: approved=true approverId=approver-2");
-                assertThat(output).contains("llm.trace> assistant requested tools: unlock_account");
+        assertThat(output).contains("llm.trace> assistant requested tools: unlock_account");
         assertThat(output).contains("demo.trace> delegating execution request to operations-executor for ACCOUNT_UNLOCK acct-007");
+        assertThat(output).contains("demo.trace> executor execute prompt begin");
+        assertThat(output).contains("demo.trace> executor prompt | mode=execute");
+        assertThat(output).contains("demo.trace> executor execute response phase=execution outcome=UNLOCKED authorizedOperatorId=operator-7");
         assertThat(output).contains("demo.trace> executor runs unlock_account for acct-007");
-                assertThat(output).contains("system.trace> account directory unlock applied accountId=acct-007 fromStatus=LOCKED toStatus=UNLOCKED operatorId=operator-7 reason=Manual review completed");
+        assertThat(output).contains("system.trace> account directory unlock applied accountId=acct-007 fromStatus=LOCKED toStatus=UNLOCKED operatorId=operator-7 reason=Manual review completed");
         assertThat(output).contains("demo.trace> execution returned outcome UNLOCKED");
-                assertThat(output).contains("llm.trace> assistant text begin");
-                assertThat(output).contains("llm.trace> | Workflow completed.");
-                assertThat(output).contains("llm.trace> assistant text end");
+        assertThat(output).doesNotContain("executor.llm.trace>");
+        assertThat(output).contains("llm.trace> assistant text begin");
+        assertThat(output).contains("llm.trace> | Workflow completed.");
+        assertThat(output).contains("llm.trace> assistant text end");
     }
 
     private Agent coordinator() {

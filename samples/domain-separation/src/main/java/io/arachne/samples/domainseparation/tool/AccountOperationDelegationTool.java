@@ -43,7 +43,15 @@ public class AccountOperationDelegationTool {
             String reason) {
         log.info("demo.trace> delegating prepare request to operations-executor for {} {}", operationType, accountId);
         Agent executorAgent = agentFactory().builder("operations-executor").build();
-        return executorAgent.run(executorPrompt("prepare", operationType, accountId, requestedBy, reason), AccountOperationPreparation.class);
+        String prompt = executorPrompt("prepare", operationType, accountId, requestedBy, reason);
+        logExecutorPrompt("prepare", prompt);
+        AccountOperationPreparation result = executorAgent.run(prompt, AccountOperationPreparation.class);
+        log.info(
+                "demo.trace> executor prepare response phase={} preparedStatus={} authorizedOperatorId={}",
+                result.phase(),
+                result.preparedStatus(),
+                result.authorizedOperatorId());
+        return result;
     }
 
     @StrandsTool(
@@ -61,7 +69,15 @@ public class AccountOperationDelegationTool {
             String reason) {
         log.info("demo.trace> delegating execution request to operations-executor for {} {}", operationType, accountId);
         Agent executorAgent = agentFactory().builder("operations-executor").build();
-        return executorAgent.run(executorPrompt("execute", operationType, accountId, requestedBy, reason), AccountOperationExecution.class);
+        String prompt = executorPrompt("execute", operationType, accountId, requestedBy, reason);
+        logExecutorPrompt("execute", prompt);
+        AccountOperationExecution result = executorAgent.run(prompt, AccountOperationExecution.class);
+        log.info(
+                "demo.trace> executor execute response phase={} outcome={} authorizedOperatorId={}",
+                result.phase(),
+                result.outcome(),
+                result.authorizedOperatorId());
+        return result;
     }
 
     private AgentFactory agentFactory() {
@@ -80,5 +96,13 @@ public class AccountOperationDelegationTool {
                 "accountId=" + accountId,
                 "requestedBy=" + requestedBy,
                 "reason=" + (reason == null ? "" : reason));
+    }
+
+    private void logExecutorPrompt(String phase, String prompt) {
+        log.info("demo.trace> executor {} prompt begin", phase);
+        for (String line : prompt.split("\\R", -1)) {
+            log.info("demo.trace> executor prompt | {}", line);
+        }
+        log.info("demo.trace> executor {} prompt end", phase);
     }
 }

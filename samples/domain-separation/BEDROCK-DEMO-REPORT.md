@@ -54,6 +54,10 @@ The demo emits three classes of logs.
 - `demo.trace>`: the visible workflow control flow
 - `system.trace>`: actual system reads and mutations performed by the Spring service layer
 
+The sample now also supports an optional deeper executor capture mode.
+
+- `executor.llm.trace>`: the executor-side model request and response, including the delegated prompt, the effective system prompt, the latest tool result fed back into the executor turn, and the assistant tool selection / text for that executor turn
+
 Relevant implementation files:
 
 - `src/main/java/io/arachne/samples/domainseparation/observation/DomainSeparationDemoLoggingListener.java`
@@ -75,6 +79,57 @@ Environment assumptions for this run:
 - Maven
 - AWS credentials resolvable by the AWS SDK default credentials chain
 - access to the configured Bedrock model in the target region
+
+## Flow Overview
+
+The main point of this demo is the control-flow separation across coordinator, executor, system layer, and approval boundary.
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor Operator as Runner / Operator
+  participant Coordinator as Coordinator Agent
+  participant Skill as Skill Runtime
+  participant Delegation as Delegation Tool
+  participant Executor as Executor Agent
+  participant System as AccountDirectoryService
+  participant Approval as Approval Hook
+
+  Operator->>Coordinator: Start workflow for ACCOUNT_UNLOCK acct-007
+  Coordinator->>Skill: activate_skill(account-unlock)
+  Skill-->>Coordinator: Skill body loaded
+
+  Coordinator->>Delegation: prepare_account_operation(ACCOUNT_UNLOCK, acct-007)
+  Delegation->>Executor: Build operations-executor and delegate prepare phase
+  Executor->>System: find_account(acct-007)
+  System-->>Executor: status=LOCKED
+  Executor-->>Delegation: preparation result
+  Delegation-->>Coordinator: status=READY
+
+  Coordinator->>Approval: execute_account_operation(...)
+  Approval-->>Coordinator: INTERRUPT, approval required
+  Coordinator-->>Operator: workflow.status = PENDING_APPROVAL
+
+  Operator->>Approval: Resume with approved=true, approverId=operator-approver-2
+  Approval-->>Coordinator: Resume execution allowed
+
+  Coordinator->>Delegation: execute_account_operation(ACCOUNT_UNLOCK, acct-007)
+  Delegation->>Executor: Build operations-executor and delegate execution phase
+  Executor->>System: unlock_account(acct-007)
+  System-->>Executor: outcome=UNLOCKED
+  Executor-->>Delegation: execution result
+  Delegation-->>Coordinator: outcome=UNLOCKED
+
+  Coordinator-->>Operator: final.status = COMPLETED
+  Coordinator-->>Operator: final summary text
+```
+
+How to read this against the captured logs:
+
+- `llm.trace>` shows the coordinator or executor deciding which tool to call next
+- `demo.trace>` shows the workflow boundary crossings, delegation steps, approval interrupt, and resume
+- `system.trace>` shows the actual read or mutation performed by the Spring-managed service layer
+- the approval pause splits the flow into two coordinator turns: preparation before approval, execution after resume
 
 ## Actual Execution Result
 
@@ -213,6 +268,50 @@ The log shows a real stop at the approval boundary.
 - only after external approval does the workflow continue to the final unlock mutation
 
 This supports the sample's claim that approval is a first-class control-flow boundary rather than a textual convention.
+
+### 4.5. Executor-side capture can now be enabled when you need to inspect the delegated LLM turn
+
+The sample now distinguishes two useful observation layers around delegation.
+
+- the stable delegation boundary: `demo.trace>` logs the exact prompt handed from the coordinator-facing delegation tool into the executor and the typed result returned from the executor call
+- the optional executor-model boundary: `executor.llm.trace>` logs the executor's effective system prompt, delegated user prompt, latest tool result fed into the current executor turn, and the executor assistant response
+
+Enable the deeper executor capture with:
+
+```bash
+mvn -Dstyle.color=never spring-boot:run \
+  -Dspring-boot.run.profiles=bedrock \
+  -Dspring-boot.run.arguments='--sample.domain-separation.demo-logging.verbose-executor=true'
+```
+
+When enabled, you will see logs in this shape:
+
+```text
+demo.trace> executor prepare prompt begin
+demo.trace> executor prompt | mode=prepare
+demo.trace> executor prompt | operationType=ACCOUNT_UNLOCK
+demo.trace> executor prompt | accountId=acct-007
+demo.trace> executor prompt | requestedBy=operator-7
+demo.trace> executor prompt | reason=Manual review completed
+demo.trace> executor prepare prompt end
+executor.llm.trace> request begin
+executor.llm.trace> system-prompt> You are the operations executor. Do not own business workflow or approval. ...
+executor.llm.trace> prompt | mode=prepare
+executor.llm.trace> prompt | operationType=ACCOUNT_UNLOCK
+executor.llm.trace> prompt | accountId=acct-007
+executor.llm.trace> prompt | requestedBy=operator-7
+executor.llm.trace> prompt | reason=Manual review completed
+executor.llm.trace> request end
+executor.llm.trace> response begin
+executor.llm.trace> tools> find_account
+executor.llm.trace> stop-reason> tool_use
+executor.llm.trace> response end
+```
+
+This split is deliberate.
+
+- `demo.trace>` is the better default for reports because it captures the contract boundary between coordinator and executor in a stable, Bedrock-variation-tolerant way
+- `executor.llm.trace>` is better for debugging because it captures what the executor-side LLM actually saw and decided inside that delegated turn
 
 ### 5. Bedrock output introduces natural variation while keeping the contract intact
 
