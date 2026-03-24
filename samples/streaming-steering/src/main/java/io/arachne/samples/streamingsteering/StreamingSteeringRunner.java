@@ -18,7 +18,8 @@ public class StreamingSteeringRunner implements ApplicationRunner {
     private final AgentFactory agentFactory;
     private final DemoStreamingSteeringModel demoModel;
 
-    public StreamingSteeringRunner(AgentFactory agentFactory, DemoStreamingSteeringModel demoModel) {
+    @SuppressWarnings("unused")
+    StreamingSteeringRunner(AgentFactory agentFactory, DemoStreamingSteeringModel demoModel) {
         this.agentFactory = agentFactory;
         this.demoModel = demoModel;
     }

@@ -40,6 +40,7 @@ class DomainSeparationIntegrationTest {
     @Qualifier("domainSeparationCoordinatorSkills")
     private List<Skill> coordinatorSkills;
 
+        @SuppressWarnings("unused")
     @BeforeEach
     void resetDemoState() {
         accountDirectoryService.resetDemoState();

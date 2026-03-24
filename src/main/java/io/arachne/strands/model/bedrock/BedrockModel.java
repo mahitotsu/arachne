@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -237,28 +236,25 @@ public class BedrockModel implements StreamingModel {
     }
 
     private RuntimeException translateException(Throwable throwable) {
-        Throwable exception = throwable;
-        if (exception == null) {
-            exception = new IllegalStateException("Bedrock model request failed without an exception cause");
-        } else {
-            exception = unwrap(exception);
-        }
-        Throwable resolvedException = Objects.requireNonNull(exception, "exception must not be null");
+        Throwable resolvedException = throwable == null ? null : unwrap(throwable);
         if (resolvedException instanceof ModelException modelException) {
             return modelException;
         }
-        String exceptionName = resolvedException.getClass().getSimpleName();
-        String message = resolvedException.getMessage() == null ? exceptionName : resolvedException.getMessage();
+        Throwable failure = resolvedException == null
+                ? new IllegalStateException("Bedrock model request failed without an exception cause")
+                : resolvedException;
+        String exceptionName = failure.getClass().getSimpleName();
+        String message = failure.getMessage() == null ? exceptionName : failure.getMessage();
 
         if ("ThrottlingException".equals(exceptionName)) {
-            return new ModelThrottledException("Bedrock throttled the model request: " + message, resolvedException);
+            return new ModelThrottledException("Bedrock throttled the model request: " + message, failure);
         }
         if ("ServiceUnavailableException".equals(exceptionName)
                 || "ModelNotReadyException".equals(exceptionName)
                 || "InternalServerException".equals(exceptionName)) {
-            return new ModelRetryableException("Bedrock temporarily failed the model request: " + message, resolvedException);
+            return new ModelRetryableException("Bedrock temporarily failed the model request: " + message, failure);
         }
-        return new ModelException("Bedrock model request failed: " + message, resolvedException);
+        return new ModelException("Bedrock model request failed: " + message, failure);
     }
 
     private Throwable unwrap(Throwable throwable) {

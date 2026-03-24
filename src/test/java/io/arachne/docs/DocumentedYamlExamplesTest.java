@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -56,7 +57,8 @@ class DocumentedYamlExamplesTest {
 
     private static void parseYaml(String yamlBlock) {
         YamlPropertiesFactoryBean factory = new YamlPropertiesFactoryBean();
-        factory.setResources(new ByteArrayResource(yamlBlock.getBytes(StandardCharsets.UTF_8)));
+        byte[] yamlBytes = Objects.requireNonNull(yamlBlock.getBytes(StandardCharsets.UTF_8));
+        factory.setResources(new ByteArrayResource(yamlBytes));
         assertThat(factory.getObject()).isNotNull();
     }
 

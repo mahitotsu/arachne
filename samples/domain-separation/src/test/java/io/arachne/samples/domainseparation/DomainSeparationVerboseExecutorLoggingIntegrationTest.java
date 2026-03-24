@@ -31,6 +31,7 @@ class DomainSeparationVerboseExecutorLoggingIntegrationTest {
     @Autowired
     private AccountDirectoryService accountDirectoryService;
 
+    @SuppressWarnings("unused")
     @BeforeEach
     void resetDemoState() {
         accountDirectoryService.resetDemoState();

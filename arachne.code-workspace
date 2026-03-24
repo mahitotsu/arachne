@@ -45,6 +45,7 @@
         "java.configuration.updateBuildConfiguration": "automatic",
         "java.compile.nullAnalysis.mode": "automatic",
         "java.import.exclusions": [
+            "samples/**",
             "**/target/**"
         ]
     }
