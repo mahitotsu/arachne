@@ -150,6 +150,7 @@ class DefaultAgentTest {
 
         assertThat(result.text()).isEqualTo("Hello!");
         assertThat(result.stopReason()).isEqualTo("end_turn");
+        assertThat(result.metrics().usage()).isEqualTo(new ModelEvent.Usage(10, 5, 0, 0));
     }
 
     @Test
@@ -407,8 +408,21 @@ class DefaultAgentTest {
         });
 
         assertThat(result.text()).isEqualTo("fallback");
+        assertThat(result.metrics().usage()).isEqualTo(new ModelEvent.Usage(2, 1, 0, 0));
         assertThat(events).containsExactly("text:fallback", "complete:fallback");
         assertThat(calls).containsExactly("fallback-system");
+    }
+
+    @Test
+    void runAggregatesUsageAcrossToolLoopAndExposesCacheMetrics() {
+        NoOpHookRegistry hooks = new NoOpHookRegistry();
+        EventLoop eventLoop = new EventLoop(hooks);
+        DefaultAgent agent = new DefaultAgent(toolUseWithCacheMetricsModel(), List.of(stubTool()), eventLoop, hooks);
+
+        AgentResult result = agent.run("book the trip");
+
+        assertThat(result.text()).isEqualTo("Approval result: {city=Tokyo}");
+        assertThat(result.metrics().usage()).isEqualTo(new ModelEvent.Usage(7, 4, 25, 14));
     }
 
             @Test
@@ -534,6 +548,27 @@ class DefaultAgentTest {
                 return List.of(
                         new ModelEvent.TextDelta("Approval result: " + toolResult.content()),
                         new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(4, 2)));
+            }
+        };
+    }
+
+    private static Model toolUseWithCacheMetricsModel() {
+        return new Model() {
+            private int calls;
+
+            @Override
+            public Iterable<ModelEvent> converse(List<Message> messages, List<ToolSpec> tools) {
+                calls++;
+                if (calls == 1) {
+                    return List.of(
+                            new ModelEvent.ToolUse("tool-1", "approvalTool", java.util.Map.of("city", "Tokyo")),
+                            new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(3, 2, 20, 10)));
+                }
+                Message lastMessage = messages.getLast();
+                ContentBlock.ToolResult toolResult = (ContentBlock.ToolResult) lastMessage.content().getFirst();
+                return List.of(
+                        new ModelEvent.TextDelta("Approval result: " + toolResult.content()),
+                        new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(4, 2, 5, 4)));
             }
         };
     }

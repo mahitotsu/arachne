@@ -29,6 +29,8 @@ import software.amazon.awssdk.core.document.Document;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeAsyncClient;
 import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeClient;
+import software.amazon.awssdk.services.bedrockruntime.model.CachePointBlock;
+import software.amazon.awssdk.services.bedrockruntime.model.CachePointType;
 import software.amazon.awssdk.services.bedrockruntime.model.ContentBlock.Type;
 import software.amazon.awssdk.services.bedrockruntime.model.ContentBlockDeltaEvent;
 import software.amazon.awssdk.services.bedrockruntime.model.ContentBlockStartEvent;
@@ -66,6 +68,11 @@ import software.amazon.awssdk.services.bedrockruntime.model.ToolUseBlock;
  */
 public class BedrockModel implements StreamingModel {
 
+    public record PromptCaching(boolean systemPrompt, boolean tools) {
+
+        public static final PromptCaching DISABLED = new PromptCaching(false, false);
+    }
+
     /** Default model used when none is configured. */
     public static final String DEFAULT_MODEL_ID = "jp.amazon.nova-2-lite-v1:0";
 
@@ -75,17 +82,21 @@ public class BedrockModel implements StreamingModel {
     private static final Logger LOG = Logger.getLogger(BedrockModel.class.getName());
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+        private static final CachePointBlock DEFAULT_CACHE_POINT = CachePointBlock.builder()
+            .type(CachePointType.DEFAULT)
+            .build();
 
     private final BedrockRuntimeClient client;
     private final BedrockRuntimeAsyncClient asyncClient;
     private final String modelId;
     private final String region;
+        private final PromptCaching promptCaching;
 
     /**
      * Create a BedrockModel using the default region and model.
      */
     public BedrockModel() {
-        this(DEFAULT_MODEL_ID, DEFAULT_REGION);
+        this(DEFAULT_MODEL_ID, DEFAULT_REGION, PromptCaching.DISABLED);
     }
 
     /**
@@ -95,8 +106,13 @@ public class BedrockModel implements StreamingModel {
      * @param region AWS region, e.g. {@code "ap-northeast-1"}
      */
     public BedrockModel(String modelId, String region) {
+        this(modelId, region, PromptCaching.DISABLED);
+    }
+
+    public BedrockModel(String modelId, String region, PromptCaching promptCaching) {
         this.modelId = modelId;
         this.region = region == null || region.isBlank() ? DEFAULT_REGION : region;
+        this.promptCaching = promptCaching == null ? PromptCaching.DISABLED : promptCaching;
         this.client = BedrockRuntimeClient.builder()
                 .region(Region.of(this.region))
                 .build();
@@ -112,22 +128,24 @@ public class BedrockModel implements StreamingModel {
      * @param modelId Bedrock model ID
      */
     public BedrockModel(BedrockRuntimeClient client, String modelId) {
-        this(client, null, modelId, DEFAULT_REGION);
+        this(client, null, modelId, DEFAULT_REGION, PromptCaching.DISABLED);
     }
 
     public BedrockModel(BedrockRuntimeClient client, BedrockRuntimeAsyncClient asyncClient, String modelId) {
-        this(client, asyncClient, modelId, DEFAULT_REGION);
+        this(client, asyncClient, modelId, DEFAULT_REGION, PromptCaching.DISABLED);
     }
 
-    private BedrockModel(
+    public BedrockModel(
             BedrockRuntimeClient client,
             BedrockRuntimeAsyncClient asyncClient,
             String modelId,
-            String region) {
+            String region,
+            PromptCaching promptCaching) {
         this.client = Objects.requireNonNull(client, "client must not be null");
         this.asyncClient = asyncClient;
         this.modelId = Objects.requireNonNull(modelId, "modelId must not be null");
         this.region = region == null || region.isBlank() ? DEFAULT_REGION : region;
+        this.promptCaching = promptCaching == null ? PromptCaching.DISABLED : promptCaching;
     }
 
     /** The Bedrock model ID this instance is bound to. */
@@ -138,6 +156,10 @@ public class BedrockModel implements StreamingModel {
     /** The AWS region this instance sends Bedrock requests to. */
     public String getRegion() {
         return region;
+    }
+
+    public PromptCaching getPromptCaching() {
+        return promptCaching;
     }
 
     // ── Model interface ──────────────────────────────────────────────────────
@@ -210,7 +232,7 @@ public class BedrockModel implements StreamingModel {
             throw translateException(streamFailure);
         }
         if (!metadataEmitted.get()) {
-            eventConsumer.accept(new ModelEvent.Metadata(stopReason.get(), new ModelEvent.Usage(0, 0)));
+            eventConsumer.accept(new ModelEvent.Metadata(stopReason.get(), ModelEvent.ZERO_USAGE));
         }
     }
 
@@ -221,21 +243,22 @@ public class BedrockModel implements StreamingModel {
         } else {
             exception = unwrap(exception);
         }
-        if (exception instanceof ModelException modelException) {
+        Throwable resolvedException = Objects.requireNonNull(exception, "exception must not be null");
+        if (resolvedException instanceof ModelException modelException) {
             return modelException;
         }
-        String exceptionName = exception.getClass().getSimpleName();
-        String message = exception.getMessage() == null ? exceptionName : exception.getMessage();
+        String exceptionName = resolvedException.getClass().getSimpleName();
+        String message = resolvedException.getMessage() == null ? exceptionName : resolvedException.getMessage();
 
         if ("ThrottlingException".equals(exceptionName)) {
-            return new ModelThrottledException("Bedrock throttled the model request: " + message, exception);
+            return new ModelThrottledException("Bedrock throttled the model request: " + message, resolvedException);
         }
         if ("ServiceUnavailableException".equals(exceptionName)
                 || "ModelNotReadyException".equals(exceptionName)
                 || "InternalServerException".equals(exceptionName)) {
-            return new ModelRetryableException("Bedrock temporarily failed the model request: " + message, exception);
+            return new ModelRetryableException("Bedrock temporarily failed the model request: " + message, resolvedException);
         }
-        return new ModelException("Bedrock model request failed: " + message, exception);
+        return new ModelException("Bedrock model request failed: " + message, resolvedException);
     }
 
     private Throwable unwrap(Throwable throwable) {
@@ -261,7 +284,7 @@ public class BedrockModel implements StreamingModel {
                 .messages(bedrockMessages);
 
         if (systemPrompt != null && !systemPrompt.isBlank()) {
-            builder.system(SystemContentBlock.builder().text(systemPrompt).build());
+            builder.system(buildSystemPromptBlocks(systemPrompt));
         }
 
         if (!tools.isEmpty()) {
@@ -284,7 +307,7 @@ public class BedrockModel implements StreamingModel {
                 .messages(bedrockMessages);
 
         if (systemPrompt != null && !systemPrompt.isBlank()) {
-            builder.system(SystemContentBlock.builder().text(systemPrompt).build());
+            builder.system(buildSystemPromptBlocks(systemPrompt));
         }
 
         if (!tools.isEmpty()) {
@@ -354,7 +377,7 @@ public class BedrockModel implements StreamingModel {
     }
 
     private ToolConfiguration buildToolConfig(List<ToolSpec> tools, ToolSelection toolSelection) {
-        List<Tool> bedrockTools = tools.stream().map(spec -> {
+        List<Tool> bedrockTools = new ArrayList<>(tools.stream().map(spec -> {
             Document schemaDoc = jsonNodeToDocument(spec.inputSchema());
             return Tool.builder()
                     .toolSpec(ToolSpecification.builder()
@@ -365,7 +388,11 @@ public class BedrockModel implements StreamingModel {
                                     .build())
                             .build())
                     .build();
-        }).toList();
+        }).toList());
+
+        if (promptCaching.tools() && !bedrockTools.isEmpty()) {
+            bedrockTools.add(Tool.fromCachePoint(DEFAULT_CACHE_POINT));
+        }
 
         ToolConfiguration.Builder builder = ToolConfiguration.builder().tools(bedrockTools);
         if (toolSelection != null) {
@@ -405,12 +432,7 @@ public class BedrockModel implements StreamingModel {
                 ? response.stopReasonAsString()
                 : "end_turn";
 
-        Integer inputTokenCount = response.usage() != null ? response.usage().inputTokens() : null;
-        Integer outputTokenCount = response.usage() != null ? response.usage().outputTokens() : null;
-        int inputTokens = inputTokenCount != null ? inputTokenCount : 0;
-        int outputTokens = outputTokenCount != null ? outputTokenCount : 0;
-
-        events.add(new ModelEvent.Metadata(stopReasonStr, new ModelEvent.Usage(inputTokens, outputTokens)));
+        events.add(new ModelEvent.Metadata(stopReasonStr, toUsage(response.usage())));
 
         return events;
     }
@@ -441,15 +463,34 @@ public class BedrockModel implements StreamingModel {
         }
         if (output instanceof ConverseStreamMetadataEvent metadataEvent) {
             metadataEmitted.set(true);
-            software.amazon.awssdk.services.bedrockruntime.model.TokenUsage usage = metadataEvent.usage();
-            Integer inputTokenCount = usage != null ? usage.inputTokens() : null;
-            Integer outputTokenCount = usage != null ? usage.outputTokens() : null;
-            int inputTokens = inputTokenCount != null ? inputTokenCount : 0;
-            int outputTokens = outputTokenCount != null ? outputTokenCount : 0;
             eventConsumer.accept(new ModelEvent.Metadata(
                     stopReason.get(),
-                    new ModelEvent.Usage(inputTokens, outputTokens)));
+                    toUsage(metadataEvent.usage())));
         }
+    }
+
+    private List<SystemContentBlock> buildSystemPromptBlocks(String systemPrompt) {
+        List<SystemContentBlock> systemBlocks = new ArrayList<>();
+        systemBlocks.add(SystemContentBlock.fromText(systemPrompt));
+        if (promptCaching.systemPrompt()) {
+            systemBlocks.add(SystemContentBlock.fromCachePoint(DEFAULT_CACHE_POINT));
+        }
+        return List.copyOf(systemBlocks);
+    }
+
+    private ModelEvent.Usage toUsage(software.amazon.awssdk.services.bedrockruntime.model.TokenUsage usage) {
+        if (usage == null) {
+            return ModelEvent.ZERO_USAGE;
+        }
+        Integer inputTokenCount = usage.inputTokens();
+        Integer outputTokenCount = usage.outputTokens();
+        Integer cacheReadTokenCount = usage.cacheReadInputTokens();
+        Integer cacheWriteTokenCount = usage.cacheWriteInputTokens();
+        return new ModelEvent.Usage(
+                inputTokenCount != null ? inputTokenCount : 0,
+                outputTokenCount != null ? outputTokenCount : 0,
+                cacheReadTokenCount != null ? cacheReadTokenCount : 0,
+                cacheWriteTokenCount != null ? cacheWriteTokenCount : 0);
     }
 
     private void handleContentBlockStart(ContentBlockStartEvent startEvent, Map<Integer, StreamedToolUse> toolUses) {

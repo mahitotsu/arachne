@@ -9,6 +9,7 @@ This document replaces `ROADMAP.md` as the repository-level snapshot of what Ara
 - Spring Boot auto-configuration for `Model` and `AgentFactory`
 - `AgentFactory.builder()` and `AgentFactory.builder("name")` for runtime-local agent creation
 - configuration-driven defaults for model id, region, system prompt, retry, conversation window, and session id
+- configuration-driven defaults for Bedrock system-prompt caching and tool caching
 - Bedrock-backed `Agent.run(String)` and `Agent.run(String, Class<T>)`
 - callback-based `Agent.stream(String, Consumer<AgentStreamEvent>)`
 
@@ -21,6 +22,7 @@ This document replaces `ROADMAP.md` as the repository-level snapshot of what Ara
 - manual `Tool` registration and configurable parallel or sequential execution
 - generated JSON schema from Java signatures and Java output types
 - runtime validation for tool input and structured output
+- `AgentResult.metrics()` for accumulated usage including Bedrock cache read/write token counts
 - agent-as-tool wiring through normal Spring services
 
 ### Conversation And Session Management
@@ -53,6 +55,7 @@ This document replaces `ROADMAP.md` as the repository-level snapshot of what Ara
 - the only built-in provider is AWS Bedrock
 - the main event loop remains blocking; streaming is an opt-in callback path layered on top of that runtime
 - callback-based streaming is output-only; it is not bidirectional realtime or audio streaming
+- Bedrock prompt caching currently covers system prompts and tool definitions only; message-level cache placement is still deferred
 - summary compaction requires explicit `SummarizingConversationManager` wiring rather than property-only enablement
 - structured output currently targets simple JSON-shaped Java records or POJOs rather than arbitrary object graphs
 - skills currently come from builder-supplied values or classpath-discovered `SKILL.md` files, with optional `scripts/`, `references/`, and `assets/` path listing for packaged skills

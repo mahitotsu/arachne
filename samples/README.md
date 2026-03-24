@@ -6,7 +6,7 @@ Use this catalog to choose the smallest runnable sample that matches your intend
 
 ## Conversation And Tooling
 
-- `conversation-basics`: one runner-owned `Agent` reused across turns for a CLI or batch-style multi-turn conversation
+- `conversation-basics`: one runner-owned `Agent` reused across turns for a CLI or batch-style multi-turn conversation, with an optional Bedrock prompt-caching metrics demo
 - `tool-delegation`: agent-scoped tools, named-agent defaults, agent-as-tool delegation, and typed structured output
 - `tool-execution-context`: the split between `ToolInvocationContext` and `ExecutionContextPropagation`
 

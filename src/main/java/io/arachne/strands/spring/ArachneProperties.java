@@ -58,6 +58,7 @@ public class ArachneProperties {
         private String provider = "bedrock";
         private String id;
         private String region;
+        private BedrockProperties bedrock = new BedrockProperties();
 
         public String getProvider() {
             return provider;
@@ -81,6 +82,14 @@ public class ArachneProperties {
 
         public void setRegion(String region) {
             this.region = region;
+        }
+
+        public BedrockProperties getBedrock() {
+            return bedrock;
+        }
+
+        public void setBedrock(BedrockProperties bedrock) {
+            this.bedrock = bedrock;
         }
     }
 
@@ -337,6 +346,7 @@ public class ArachneProperties {
         private String provider;
         private String id;
         private String region;
+        private BedrockOverrideProperties bedrock = new BedrockOverrideProperties();
 
         public String getProvider() {
             return provider;
@@ -360,6 +370,80 @@ public class ArachneProperties {
 
         public void setRegion(String region) {
             this.region = region;
+        }
+
+        public BedrockOverrideProperties getBedrock() {
+            return bedrock;
+        }
+
+        public void setBedrock(BedrockOverrideProperties bedrock) {
+            this.bedrock = bedrock;
+        }
+    }
+
+    public static class BedrockProperties {
+        private CacheProperties cache = new CacheProperties();
+
+        public CacheProperties getCache() {
+            return cache;
+        }
+
+        public void setCache(CacheProperties cache) {
+            this.cache = cache;
+        }
+    }
+
+    public static class BedrockOverrideProperties {
+        private CacheOverrideProperties cache = new CacheOverrideProperties();
+
+        public CacheOverrideProperties getCache() {
+            return cache;
+        }
+
+        public void setCache(CacheOverrideProperties cache) {
+            this.cache = cache;
+        }
+    }
+
+    public static class CacheProperties {
+        private boolean systemPrompt;
+        private boolean tools;
+
+        public boolean isSystemPrompt() {
+            return systemPrompt;
+        }
+
+        public void setSystemPrompt(boolean systemPrompt) {
+            this.systemPrompt = systemPrompt;
+        }
+
+        public boolean isTools() {
+            return tools;
+        }
+
+        public void setTools(boolean tools) {
+            this.tools = tools;
+        }
+    }
+
+    public static class CacheOverrideProperties {
+        private Boolean systemPrompt;
+        private Boolean tools;
+
+        public Boolean getSystemPrompt() {
+            return systemPrompt;
+        }
+
+        public void setSystemPrompt(Boolean systemPrompt) {
+            this.systemPrompt = systemPrompt;
+        }
+
+        public Boolean getTools() {
+            return tools;
+        }
+
+        public void setTools(Boolean tools) {
+            this.tools = tools;
         }
     }
 

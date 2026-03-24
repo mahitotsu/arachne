@@ -2,7 +2,7 @@
 
 Arachne is a Java port of the Strands Agents SDK with Spring Boot integration.
 
-Arachne ships a Bedrock-backed agent runtime with Spring Boot integration, annotation-driven tools, structured output, retry, conversation/session management, hooks/plugins, interrupts, skills, and opt-in streaming plus steering.
+Arachne ships a Bedrock-backed agent runtime with Spring Boot integration, annotation-driven tools, structured output, retry, conversation/session management, hooks/plugins, interrupts, skills, opt-in Bedrock system/tool prompt caching, and opt-in streaming plus steering.
 
 ## Documentation
 
@@ -32,24 +32,28 @@ Assuming Arachne is on your classpath, the minimum Spring Boot setup is:
 
 ```yaml
 arachne:
-  strands:
-    model:
-      provider: bedrock
-      id: jp.amazon.nova-2-lite-v1:0
-      region: ap-northeast-1
-    agent:
-      system-prompt: "You are a concise assistant."
-      retry:
-        enabled: true
-        max-attempts: 6
-        initial-delay: 4s
-        max-delay: 240s
-      conversation:
-        window-size: 40
-      session:
-        id: support-demo
-        file:
-          directory: .arachne/sessions
+    strands:
+        model:
+            provider: bedrock
+            id: jp.amazon.nova-2-lite-v1:0
+            region: ap-northeast-1
+            bedrock:
+                cache:
+                    system-prompt: true
+                    tools: true
+        agent:
+            system-prompt: "You are a concise assistant."
+            retry:
+                enabled: true
+                max-attempts: 6
+                initial-delay: 4s
+                max-delay: 240s
+            conversation:
+                window-size: 40
+            session:
+                id: support-demo
+                file:
+                    directory: .arachne/sessions
 ```
 
 ```java
@@ -134,6 +138,8 @@ Agent agent = factory.builder()
 ```
 
 Retry is disabled unless you enable it explicitly. When enabled, it applies only to the model invocation boundary and does not retry tool execution or structured-output validation.
+
+Bedrock prompt caching is also opt-in. `arachne.strands.model.bedrock.cache.system-prompt=true` adds a Bedrock cache point after the static system prompt, and `arachne.strands.model.bedrock.cache.tools=true` adds a cache point after the emitted tool definitions. Cache usage is exposed on `AgentResult.metrics().usage()` via `cacheReadInputTokens()` and `cacheWriteInputTokens()`.
 
 For multi-agent applications, define shared defaults under `arachne.strands.agent.*` and named defaults under `arachne.strands.agents.<name>.*`. Then build the agent with `factory.builder("name")` from the service, runner, or provider that owns that conversation scope.
 

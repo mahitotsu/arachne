@@ -69,6 +69,22 @@ class ArachneAutoConfigurationTest {
     }
 
     @Test
+    void autoConfigurationAppliesBedrockPromptCachingProperties() {
+        contextRunner
+                .withPropertyValues(
+                        "arachne.strands.model.id=jp.amazon.nova-2-lite-v1:0",
+                        "arachne.strands.model.bedrock.cache.system-prompt=true",
+                        "arachne.strands.model.bedrock.cache.tools=true")
+                .run(context -> {
+                    Agent agent = context.getBean(AgentFactory.class).builder().build();
+
+                    assertThat(agent.getModel()).isInstanceOf(BedrockModel.class);
+                    assertThat(((BedrockModel) agent.getModel()).getPromptCaching())
+                            .isEqualTo(new BedrockModel.PromptCaching(true, true));
+                });
+    }
+
+    @Test
     void userModelBeanOverridesAutoConfiguredBedrockModel() {
         contextRunner
                 .withUserConfiguration(CustomModelConfiguration.class)
@@ -347,7 +363,9 @@ class ArachneAutoConfigurationTest {
                         "arachne.strands.model.id=jp.amazon.nova-2-lite-v1:0",
                         "arachne.strands.model.region=ap-northeast-1",
                         "arachne.strands.agents.analyst.model.id=us.amazon.nova-pro-v1:0",
-                        "arachne.strands.agents.analyst.model.region=us-east-1")
+                        "arachne.strands.agents.analyst.model.region=us-east-1",
+                        "arachne.strands.agents.analyst.model.bedrock.cache.system-prompt=true",
+                        "arachne.strands.agents.analyst.model.bedrock.cache.tools=true")
                 .withUserConfiguration(CustomModelConfiguration.class)
                 .run(context -> {
                     Agent agent = context.getBean(AgentFactory.class).builder("analyst").build();
@@ -355,6 +373,8 @@ class ArachneAutoConfigurationTest {
                     assertThat(agent.getModel()).isInstanceOf(BedrockModel.class);
                     assertThat(((BedrockModel) agent.getModel()).getModelId()).isEqualTo("us.amazon.nova-pro-v1:0");
                     assertThat(((BedrockModel) agent.getModel()).getRegion()).isEqualTo("us-east-1");
+                    assertThat(((BedrockModel) agent.getModel()).getPromptCaching())
+                            .isEqualTo(new BedrockModel.PromptCaching(true, true));
                 });
     }
 

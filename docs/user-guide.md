@@ -4,7 +4,7 @@ This guide documents the features that are available on the current main branch.
 
 ## Scope
 
-The current implementation gives you a Bedrock-backed agent runtime with annotation-driven tools, structured output, retry, conversation/session management, hooks/plugins, interrupts, skills, and opt-in streaming plus steering.
+The current implementation gives you a Bedrock-backed agent runtime with annotation-driven tools, structured output, retry, conversation/session management, hooks/plugins, interrupts, skills, opt-in Bedrock prompt caching, and opt-in streaming plus steering.
 
 For the repository-level scope snapshot, deliberately deferred features, and current contract boundary, see [docs/project-status.md](docs/project-status.md).
 
@@ -23,6 +23,7 @@ Available now:
 - automatic tool discovery from Spring beans
 - structured output with typed return values through `Agent.run(String, Class<T>)`
 - Bedrock model ID and region configuration
+- Bedrock system-prompt caching and tool caching configuration
 - system prompt configuration
 - multi-turn conversation state inside a single `Agent` instance
 - sliding-window conversation management via `AgentFactory`
@@ -95,6 +96,10 @@ arachne:
       provider: bedrock
       id: jp.amazon.nova-2-lite-v1:0
       region: ap-northeast-1
+      bedrock:
+        cache:
+          system-prompt: true
+          tools: true
     agent:
       system-prompt: "You are a concise assistant."
       retry:
@@ -126,6 +131,8 @@ Configuration keys currently used on the current branch:
 - `arachne.strands.model.provider`
 - `arachne.strands.model.id`
 - `arachne.strands.model.region`
+- `arachne.strands.model.bedrock.cache.system-prompt`
+- `arachne.strands.model.bedrock.cache.tools`
 - `arachne.strands.agent.system-prompt`
 - `arachne.strands.agent.retry.enabled`
 - `arachne.strands.agent.retry.max-attempts`
@@ -137,6 +144,8 @@ Configuration keys currently used on the current branch:
 - `arachne.strands.agents.<name>.model.provider`
 - `arachne.strands.agents.<name>.model.id`
 - `arachne.strands.agents.<name>.model.region`
+- `arachne.strands.agents.<name>.model.bedrock.cache.system-prompt`
+- `arachne.strands.agents.<name>.model.bedrock.cache.tools`
 - `arachne.strands.agents.<name>.system-prompt`
 - `arachne.strands.agents.<name>.use-discovered-tools`
 - `arachne.strands.agents.<name>.tool-qualifiers`
@@ -153,6 +162,9 @@ Notes:
 - `provider` must currently be `bedrock`
 - if `id` is omitted, Arachne uses `jp.amazon.nova-2-lite-v1:0`
 - if `region` is omitted, Arachne uses `ap-northeast-1`
+- Bedrock prompt caching is opt-in and defaults to disabled for both system prompts and tool definitions
+- `model.bedrock.cache.system-prompt=true` inserts a Bedrock cache point after the emitted system prompt
+- `model.bedrock.cache.tools=true` inserts a Bedrock cache point after the emitted tool definitions
 - `agent.system-prompt` is the default prompt used when a builder does not override it
 - `agent.retry.*` enables exponential-backoff retry at the model invocation boundary
 - retry is disabled by default so unconfigured `agent.run("...")` keeps the prior failure behavior
@@ -167,6 +179,13 @@ Notes:
 - named-agent properties are override-only and do not replace the shared defaults unless you build that named agent explicitly
 - these properties are best treated as shared defaults, while `arachne.strands.agents.<name>.*` describes multi-agent applications
 - `SummarizingConversationManager` is currently an explicit builder-level feature, not a property-bound default
+
+When a Bedrock model reports prompt-cache usage, Arachne exposes the accumulated counters on `AgentResult.metrics().usage()`. The current public usage fields are:
+
+- `inputTokens()`
+- `outputTokens()`
+- `cacheReadInputTokens()`
+- `cacheWriteInputTokens()`
 
 ## Creating An Agent
 

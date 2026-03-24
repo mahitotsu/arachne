@@ -27,6 +27,7 @@ import io.arachne.strands.types.Message;
 import software.amazon.awssdk.core.async.SdkPublisher;
 import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeAsyncClient;
 import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeClient;
+import software.amazon.awssdk.services.bedrockruntime.model.CachePointType;
 import software.amazon.awssdk.services.bedrockruntime.model.ContentBlockDelta;
 import software.amazon.awssdk.services.bedrockruntime.model.ContentBlockDeltaEvent;
 import software.amazon.awssdk.services.bedrockruntime.model.ContentBlockStart;
@@ -52,6 +53,20 @@ class BedrockModelRequestTest {
 
         assertThat(request.system()).hasSize(1);
         assertThat(request.system().getFirst().text()).isEqualTo("Be concise.");
+    }
+
+    @Test
+    void buildRequestAppendsSystemPromptCachePointWhenEnabled() {
+        BedrockModel model = new BedrockModel(
+                "test-model",
+                "us-west-2",
+                new BedrockModel.PromptCaching(true, false));
+
+        var request = model.buildRequest(List.of(Message.user("hello")), List.of(), "Be concise.", null);
+
+        assertThat(request.system()).hasSize(2);
+        assertThat(request.system().getFirst().text()).isEqualTo("Be concise.");
+        assertThat(request.system().get(1).cachePoint().type()).isEqualTo(CachePointType.DEFAULT);
     }
 
     @Test
@@ -83,6 +98,24 @@ class BedrockModelRequestTest {
                 ToolSelection.force("structured_output"));
 
         assertThat(request.toolConfig().toolChoice().tool().name()).isEqualTo("structured_output");
+    }
+
+    @Test
+    void buildRequestAppendsToolCachePointWhenEnabled() {
+        BedrockModel model = new BedrockModel(
+                "test-model",
+                "us-west-2",
+                new BedrockModel.PromptCaching(false, true));
+
+        var request = model.buildRequest(
+                List.of(Message.user("hello")),
+                List.of(new ToolSpec("weather", "Weather lookup", null)),
+                null,
+                null);
+
+        assertThat(request.toolConfig().tools()).hasSize(2);
+        assertThat(request.toolConfig().tools().getFirst().toolSpec().name()).isEqualTo("weather");
+        assertThat(request.toolConfig().tools().get(1).cachePoint().type()).isEqualTo(CachePointType.DEFAULT);
     }
 
     @Test
@@ -346,6 +379,42 @@ class BedrockModelRequestTest {
         new ModelEvent.ToolUse("tool-9", "lookup_weather", Map.of("city", "Tokyo")),
         new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(0, 0)));
     assertThat(metadataEmitted).isTrue();
+    }
+
+    @Test
+    void handleStreamOutputCapturesCacheUsageMetrics() throws Exception {
+    BedrockModel model = new BedrockModel("test-model", "us-west-2");
+    Method handleStreamOutput = BedrockModel.class.getDeclaredMethod(
+        "handleStreamOutput",
+        ConverseStreamOutput.class,
+        Map.class,
+        AtomicReference.class,
+        AtomicBoolean.class,
+        Consumer.class);
+    handleStreamOutput.setAccessible(true);
+    Map<Integer, Object> toolUses = new LinkedHashMap<>();
+    AtomicReference<String> stopReason = new AtomicReference<>("end_turn");
+    AtomicBoolean metadataEmitted = new AtomicBoolean(false);
+    List<ModelEvent> events = new ArrayList<>();
+
+    invokeHandleStreamOutput(
+        handleStreamOutput,
+        model,
+        ConverseStreamMetadataEvent.builder()
+            .usage(TokenUsage.builder()
+                .inputTokens(11)
+                .outputTokens(7)
+                .cacheReadInputTokens(101)
+                .cacheWriteInputTokens(202)
+                .build())
+            .build(),
+        toolUses,
+        stopReason,
+        metadataEmitted,
+        events);
+
+    assertThat(events).containsExactly(
+        new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(11, 7, 101, 202)));
     }
 
     @Test

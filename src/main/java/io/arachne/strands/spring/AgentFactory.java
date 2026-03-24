@@ -252,15 +252,19 @@ public class AgentFactory {
             throw new UnsupportedModelProviderException(provider);
         }
 
+        BedrockModel.PromptCaching promptCaching = new BedrockModel.PromptCaching(
+                modelProperties.getBedrock().getCache().isSystemPrompt(),
+                modelProperties.getBedrock().getCache().isTools());
+
         String modelId = modelProperties.getId();
         String region = modelProperties.getRegion();
         if (modelId != null && !modelId.isBlank()) {
-            return new BedrockModel(modelId, region);
+            return new BedrockModel(modelId, region, promptCaching);
         }
         if (region != null && !region.isBlank()) {
-            return new BedrockModel(BedrockModel.DEFAULT_MODEL_ID, region);
+            return new BedrockModel(BedrockModel.DEFAULT_MODEL_ID, region, promptCaching);
         }
-        return new BedrockModel();
+        return new BedrockModel(BedrockModel.DEFAULT_MODEL_ID, BedrockModel.DEFAULT_REGION, promptCaching);
     }
 
     private BuilderDefaults resolveBuilderDefaults(String name) {
@@ -344,7 +348,15 @@ public class AgentFactory {
         return modelProperties != null
                 && (hasText(modelProperties.getProvider())
                 || hasText(modelProperties.getId())
-                || hasText(modelProperties.getRegion()));
+                || hasText(modelProperties.getRegion())
+                || hasBedrockOverride(modelProperties.getBedrock()));
+    }
+
+    private static boolean hasBedrockOverride(ArachneProperties.BedrockOverrideProperties bedrockProperties) {
+        return bedrockProperties != null
+                && bedrockProperties.getCache() != null
+                && (bedrockProperties.getCache().getSystemPrompt() != null
+                || bedrockProperties.getCache().getTools() != null);
     }
 
     private static ArachneProperties.ModelProperties mergeModelProperties(
@@ -363,6 +375,14 @@ public class AgentFactory {
         if (hasText(overrides.getRegion())) {
             merged.setRegion(overrides.getRegion());
         }
+        if (overrides.getBedrock() != null && overrides.getBedrock().getCache() != null) {
+            if (overrides.getBedrock().getCache().getSystemPrompt() != null) {
+                merged.getBedrock().getCache().setSystemPrompt(overrides.getBedrock().getCache().getSystemPrompt());
+            }
+            if (overrides.getBedrock().getCache().getTools() != null) {
+                merged.getBedrock().getCache().setTools(overrides.getBedrock().getCache().getTools());
+            }
+        }
         return merged;
     }
 
@@ -371,6 +391,8 @@ public class AgentFactory {
         copy.setProvider(source.getProvider());
         copy.setId(source.getId());
         copy.setRegion(source.getRegion());
+        copy.getBedrock().getCache().setSystemPrompt(source.getBedrock().getCache().isSystemPrompt());
+        copy.getBedrock().getCache().setTools(source.getBedrock().getCache().isTools());
         return copy;
     }
 

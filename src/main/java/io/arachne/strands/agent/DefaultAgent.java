@@ -177,6 +177,7 @@ public class DefaultAgent implements Agent {
             afterInvocationEvent.text(),
             List.copyOf(afterInvocationEvent.messages()),
             afterInvocationEvent.stopReason(),
+            new AgentResult.Metrics(loopResult.usage()),
             pendingInterrupts,
             this::resume);
     }
@@ -333,13 +334,18 @@ public class DefaultAgent implements Agent {
                     loopResult.text(),
                     List.copyOf(messages),
                     loopResult.stopReason(),
+                    new AgentResult.Metrics(loopResult.usage()),
                     pendingInterrupts,
                     this::resume);
         }
 
         conversationManager.applyManagement(messages);
         persistSession();
-        return new AgentResult(loopResult.text(), List.copyOf(messages), loopResult.stopReason());
+            return new AgentResult(
+                loopResult.text(),
+                List.copyOf(messages),
+                loopResult.stopReason(),
+                new AgentResult.Metrics(loopResult.usage()));
     }
 
     private AgentResult completeInvocation(EventLoopResult loopResult) {
@@ -362,6 +368,7 @@ public class DefaultAgent implements Agent {
                 afterInvocationEvent.text(),
                 List.copyOf(afterInvocationEvent.messages()),
                 afterInvocationEvent.stopReason(),
+            new AgentResult.Metrics(loopResult.usage()),
                 pendingInterrupts,
                 this::resume);
     }

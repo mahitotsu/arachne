@@ -147,8 +147,7 @@ public class EventLoop {
         StringBuilder textBuilder = new StringBuilder();
         List<ContentBlock.ToolUse> toolUseBlocks = new ArrayList<>();
         String stopReason = "end_turn";
-        int inputTokens = 0;
-        int outputTokens = 0;
+        ModelEvent.Usage usage = ModelEvent.ZERO_USAGE;
 
         for (ModelEvent event : events) {
             switch (event) {
@@ -156,8 +155,7 @@ public class EventLoop {
                 case ModelEvent.ToolUse tu -> toolUseBlocks.add(new ContentBlock.ToolUse(tu.toolUseId(), tu.name(), tu.input()));
                 case ModelEvent.Metadata m -> {
                     stopReason = m.stopReason();
-                    inputTokens = m.usage().inputTokens();
-                    outputTokens = m.usage().outputTokens();
+                    usage = m.usage();
                 }
             }
         }
@@ -190,7 +188,7 @@ public class EventLoop {
             Message guidanceMessage = Message.user(afterModelCallEvent.retryGuidance());
             messages.add(guidanceMessage);
             hooks.onMessageAdded(new MessageAddedEvent(guidanceMessage, messages, state));
-            return run(
+                EventLoopResult retried = run(
                     model,
                     messages,
                     tools,
@@ -199,6 +197,7 @@ public class EventLoop {
                     state,
                     cycleCount + 1,
                     eventConsumer);
+                return new EventLoopResult(retried.text(), retried.stopReason(), usage.plus(retried.usage()), retried.interrupts());
         }
 
         messages.add(assistantMessage);
@@ -223,7 +222,7 @@ public class EventLoop {
                                     result.status().name().toLowerCase()));
                 }
             } catch (ToolExecutionInterruptedException interruptedException) {
-                return new EventLoopResult(text, "interrupt", inputTokens, outputTokens, interruptedException.interrupts());
+                return new EventLoopResult(text, "interrupt", usage, interruptedException.interrupts());
             }
 
             Message toolResultMessage = new Message(Message.Role.USER, List.copyOf(toolResultBlocks));
@@ -231,11 +230,11 @@ public class EventLoop {
             hooks.onMessageAdded(new MessageAddedEvent(toolResultMessage, messages, state));
 
             if (structuredOutputContext != null && structuredOutputContext.isSatisfied()) {
-                return new EventLoopResult(text, stopReason, inputTokens, outputTokens);
+                return new EventLoopResult(text, stopReason, usage);
             }
 
             // Recurse for the next model turn
-                return run(
+                EventLoopResult next = run(
                     model,
                     messages,
                     tools,
@@ -244,6 +243,7 @@ public class EventLoop {
                     state,
                     cycleCount + 1,
                     eventConsumer);
+                return new EventLoopResult(next.text(), next.stopReason(), usage.plus(next.usage()), next.interrupts());
         }
 
         if (structuredOutputContext != null && !structuredOutputContext.isSatisfied()) {
@@ -255,7 +255,7 @@ public class EventLoop {
                 Message forcePromptMessage = Message.user(structuredOutputContext.forcePrompt());
                 messages.add(forcePromptMessage);
                 hooks.onMessageAdded(new MessageAddedEvent(forcePromptMessage, messages, state));
-                return run(
+                EventLoopResult forced = run(
                     model,
                     messages,
                     tools,
@@ -264,9 +264,10 @@ public class EventLoop {
                     state,
                     cycleCount + 1,
                     eventConsumer);
+                return new EventLoopResult(forced.text(), forced.stopReason(), usage.plus(forced.usage()), forced.interrupts());
         }
 
-        return new EventLoopResult(text, stopReason, inputTokens, outputTokens);
+        return new EventLoopResult(text, stopReason, usage);
     }
 
     private List<ModelEvent> collectModelEvents(
@@ -289,7 +290,7 @@ public class EventLoop {
             return List.copyOf(events);
         }
 
-        Iterable<ModelEvent> modelResponse = model.converse(
+        Iterable<ModelEvent> modelResponse = java.util.Objects.requireNonNull(model, "model must not be null").converse(
             beforeModelCallEvent.messages(),
             beforeModelCallEvent.toolSpecs(),
             beforeModelCallEvent.systemPrompt(),
