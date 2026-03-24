@@ -8,6 +8,7 @@ Arachne ships a Bedrock-backed agent runtime with Spring Boot integration, annot
 
 - [docs/user-guide.md](docs/user-guide.md) for user-facing API, configuration, lifecycle, and examples
 - [docs/project-status.md](docs/project-status.md) for the shipped scope, current constraints, and deliberately deferred features
+- [docs/tool-catalog.md](docs/tool-catalog.md) for the current tool authoring surface and the proposed first-party tool catalog direction
 - [docs/adr/README.md](docs/adr/README.md) for accepted design decisions and future ADR candidates
 
 Runnable samples:

@@ -8,6 +8,8 @@ The current implementation gives you a Bedrock-backed agent runtime with annotat
 
 For the repository-level scope snapshot, deliberately deferred features, and current contract boundary, see [docs/project-status.md](docs/project-status.md).
 
+For a tool-centered view of the current shipped surface and the proposed first-party tool directions, see [docs/tool-catalog.md](docs/tool-catalog.md).
+
 Available now:
 
 - Spring Boot auto-configuration for `Model` and `AgentFactory`

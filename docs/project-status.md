@@ -79,5 +79,6 @@ Future work in these areas should start with an ADR or ADR update before impleme
 
 - `README.md` for the top-level entry point and quick-start path
 - `docs/user-guide.md` for user-facing API, configuration, lifecycle, and sample guidance
+- `docs/tool-catalog.md` for the current tool authoring surface and the proposed first-party tool catalog direction
 - `docs/adr/README.md` for accepted architecture decisions and open ADR candidates
 - sample READMEs under `samples/` for runnable reference flows
