@@ -1,0 +1,25 @@
+spring:
+  application:
+    name: arachne-built-in-tools
+  main:
+    banner-mode: off
+    web-application-type: none
+
+arachne:
+  strands:
+    agent:
+      built-ins:
+        resources:
+          allowed-classpath-locations:
+            - classpath:/builtin/
+    agents:
+      reader:
+        system-prompt: "You are a resource-only reader."
+        built-ins:
+          inherit-defaults: false
+          tool-groups:
+            - resource
+      strict:
+        system-prompt: "You have no built-in tools."
+        built-ins:
+          inherit-defaults: false

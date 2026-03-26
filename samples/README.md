@@ -7,6 +7,7 @@ Use this catalog to choose the smallest runnable sample that matches your intend
 ## Conversation And Tooling
 
 - `conversation-basics`: one runner-owned `Agent` reused across turns for a CLI or batch-style multi-turn conversation, with an optional Bedrock prompt-caching metrics demo
+- `built-in-tools`: framework-provided built-in tool inheritance, named-agent filtering, and allowlisted resource access with a deterministic in-process model
 - `tool-delegation`: agent-scoped tools, named-agent defaults, agent-as-tool delegation, and typed structured output
 - `tool-execution-context`: the split between `ToolInvocationContext` and `ExecutionContextPropagation`
 
@@ -30,12 +31,13 @@ These two samples intentionally stay separate because the operational setup diff
 ## Recommended Reading Order
 
 1. `conversation-basics`
-2. `tool-delegation`
-3. `session-redis` or `session-jdbc`
-4. `approval-workflow`
-5. `skill-activation`
-6. `streaming-steering`
-7. `domain-separation`
+2. `built-in-tools`
+3. `tool-delegation`
+4. `session-redis` or `session-jdbc`
+5. `approval-workflow`
+6. `skill-activation`
+7. `streaming-steering`
+8. `domain-separation`
 
 `tool-execution-context` is intentionally orthogonal. Read it whenever you need to understand executor-boundary propagation or tool-call metadata.
 

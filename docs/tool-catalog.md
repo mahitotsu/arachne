@@ -27,10 +27,17 @@ For the underlying contract, see [docs/user-guide.md](docs/user-guide.md), [docs
 
 ## Available Today
 
-If you are evaluating whether Arachne is already usable for tools, the answer is yes, but the current model is "bring or build the tools you need" rather than "consume a large built-in tool pack".
+If you are evaluating whether Arachne is already usable for tools, the answer is yes. The current model is still intentionally small, but it now includes a default read-only built-in pack alongside application-defined and plugin-provided tools.
+
+The current built-in pack is:
+
+- `current_time`
+- `resource_reader`
+- `resource_list`
 
 The smallest current-main references are:
 
+- [samples/built-in-tools/README.md](samples/built-in-tools/README.md) for built-in inheritance, named-agent filtering, and allowlisted resource access
 - [samples/tool-delegation/README.md](samples/tool-delegation/README.md) for annotation-driven tools, named-agent scoping, and agent-as-tool delegation
 - [samples/tool-execution-context/README.md](samples/tool-execution-context/README.md) for the split between `ToolInvocationContext` and `ExecutionContextPropagation`
 - [samples/approval-workflow/README.md](samples/approval-workflow/README.md) for plugin-contributed tools and interrupt-aware execution
@@ -51,26 +58,28 @@ The working policy is:
 
 ## Recommended Tool Families
 
-This section separates three different questions that should not be mixed together.
+This section focuses on the strongest built-in candidates for Arachne-maintained support.
 
-- which tool families are good built-in candidates
-- which ones are better as first-party opt-in modules
-- which ones are better documented as custom-tool patterns rather than shipped tools
-
-It also distinguishes the tool contract from the likely Spring or Java implementation approach.
+It distinguishes the tool contract from the likely Spring or Java implementation approach.
 
 ### Priority 1: Built-In Candidates
 
 These are the strongest candidates for Arachne-maintained built-ins.
 
+Shipped now on the current main branch:
+
+- `current_time`
+- `resource_reader`
+- `resource_list`
+
 | Tool family | Typical user value | Suggested Arachne shape | Likely implementation options | Priority | Notes |
 | --- | --- | --- | --- | --- | --- |
-| `current_time` | high | small built-in Java tool | `java.time`, configurable default timezone | high | trivial portability, low regression risk |
+| `current_time` | high | small built-in Java tool | `java.time`, configurable default timezone | shipped | now part of the default read-only baseline |
 | `http_request` | high | small built-in Java tool | Spring `RestClient` first, `WebClient` optional for heavier async needs | high | natural fit for backend agents and API workflows |
 | `calculator` | high | built-in Java tool or small companion module | pure Java math libraries, possibly symbolic support in a companion module | high | strong reuse value and deterministic tests |
 | `batch` | high | built-in Java tool using the existing executor boundary | existing `ToolExecutor`, current sequential and parallel execution modes | high | aligns well with Arachne's current parallel/sequential execution model |
 | safe file operations | high | curated Java tools such as `file_read`, `file_write`, or `editor-lite` | `java.nio.file`, Spring `Resource`, explicit allowlists and path guards | high | should be narrower and safer than the Python kitchen-sink tools |
-| `resource_reader` / `resource_list` | medium to high | small built-in Spring-friendly tool family | Spring `ResourcePatternResolver`, classpath patterns, file resources, optional path allowlists | high | stronger fit than plain `ResourceLoader` because agents often need both lookup and listing |
+| `resource_reader` / `resource_list` | medium to high | small built-in Spring-friendly tool family | Spring `ResourcePatternResolver`, classpath patterns, file resources, optional path allowlists | shipped | now part of the default read-only baseline |
 | `message_lookup` | medium to high | small built-in Spring-friendly tool | Spring `MessageSource`, locale-aware lookup, optional code allowlists | high | strong fit for i18n, user-facing messages, and backend response assembly |
 | `config_lookup` | medium | small built-in Spring-friendly tool | Spring `Environment`, `PropertyResolver`, optional typed `@ConfigurationProperties` adapters | high | should stay read-only and allowlisted |
 | `validate_payload` | medium to high | small built-in Spring-friendly tool | Spring or Jakarta `Validator`, explicit DTO allowlists | high | strong fit for backend command validation and structured-input checks |
@@ -82,47 +91,6 @@ Why these first:
 - they do not require a Python runtime sidecar
 - they improve day-one usefulness for backend applications immediately
 - they can be documented and sampled without changing the deferred product boundary
-
-### Priority 2: First-Party Opt-In Modules
-
-These are useful, but better as separate opt-in modules than as core defaults.
-
-| Tool family | Suggested Arachne shape | Likely implementation options | Priority | Notes |
-| --- | --- | --- | --- | --- |
-| `use_aws` subset | separate module | AWS SDK v2 clients, explicit service allowlists | medium | useful for AWS-heavy applications, but less central than generic backend tools for the main Spring audience |
-| RSS | separate module | Rome or a similar Java feed library plus local persistence | medium | useful and testable, but narrower audience than core utilities |
-| Tavily / Exa search | separate module | provider-specific HTTP clients plus typed response mapping | medium | clear user value, but adds external API dependencies and configuration burden |
-| retrieval and memory helpers | separate module | Bedrock KB adapters, vector-store clients, explicit backend-specific configuration | medium | useful for applications already using Bedrock or vector backends |
-| diagram generation | separate module | Mermaid-first generation or selected Java diagram libraries | medium | useful, but not a core agent runtime need |
-
-### Priority 3: Custom Tool Patterns
-
-These can be valuable in Spring applications, but they are usually too application-specific to ship as generic built-ins.
-
-| Tool family | Recommended role | Likely implementation options | Priority | Notes |
-| --- | --- | --- | --- | --- |
-| approval or human handoff | sample pattern, helper SPI, or small reference module | existing interrupt and `resume(...)` boundary, DB persistence, controller endpoints, messaging | medium | valuable pattern, but usually business- and workflow-specific |
-| queue or command gateway dispatch | custom tool or integration sample | Spring messaging, Spring Integration, task queue clients, outbox patterns | medium | backend-relevant, but strongly dependent on application topology |
-| cached reference-data lookup | custom tool pattern first | Spring services, caches, repository facades, read-only projections | medium | good fit for business applications, but usually domain-specific |
-
-These patterns are still worth documenting because they fit Arachne's shipped surfaces well:
-
-- `ToolInvocationContext` for logical metadata and `AgentState`
-- `ExecutionContextPropagation` for request, MDC, tracing, or security propagation across executor boundaries
-- interrupt and `resume(...)` for approval-style workflows
-- Spring `ApplicationEvent` integration for observation today and explicit application-side publication when intentionally requested
-
-### Integration-Only Or MCP-Or-Later Candidates
-
-These should not be treated as straightforward Java ports.
-
-| Tool family | Recommended strategy | Likely implementation options | Priority | Notes |
-| --- | --- | --- | --- | --- |
-| dynamic `mcp_client` | wait for Arachne MCP ADR and static MCP boundary first | MCP transport adapters and tool wrappers only after the boundary is defined | low | the Python tool itself warns about significant security risk |
-| browser automation | integration-only or MCP later | Playwright-like adapter, remote browser service, or MCP tool bridge | low | heavy runtime assumptions, local state, and platform variance |
-| desktop automation | integration-only or MCP later | OS-specific automation bridge or remote tool boundary | low | similar risk profile to browser and shell-heavy tooling |
-| `python_repl` | integration-only | isolated external runtime or sandbox service | low | directly imports a Python execution boundary into a Java SDK |
-| shell-style tools | integration-only | explicit consent boundary, sandboxed process launch, or remote execution service | low | security, consent, and portability policy should be explicit first |
 
 ### Keep Deferred For Now
 
@@ -180,7 +148,7 @@ Those shapes make it too easy to blur application boundaries, widen the attack s
 
 ## Porting Strategy
 
-When a tool family is selected, prefer one of these strategies explicitly.
+For the current scope, prefer Java-native ports that fit the shipped Spring and backend runtime boundary.
 
 ### 1. Java-Native Port
 
@@ -199,46 +167,24 @@ Use this strategy for:
 - `validate_payload`
 - `convert_value`
 
-### 2. Separate Opt-In Module
-
-Use this when the tool is useful but adds vendor SDKs, heavier dependencies, or configuration that should not live in the core starter.
-
-Use this strategy for:
-
-- search integrations such as Tavily or Exa
-- retrieval or memory helpers
-- RSS or diagram support
-
-### 3. External Integration Boundary
-
-Use this when the tool depends on another runtime, untrusted code loading, system automation, or a deferred protocol.
-
-Use this strategy for:
-
-- Python execution tools
-- browser and desktop automation
-- dynamic MCP client behavior
-- shell-like tools with significant security surface
-
-This can later become an MCP-based integration path, but that should start with the MCP architecture decision rather than with ad hoc wrappers.
+Anything that depends on another runtime, system automation, or a deferred protocol should stay deferred and start with an ADR or ADR update before implementation.
 
 ## Proposed First Arachne-Maintained Pack
 
-If Arachne starts shipping a small built-in or first-party-maintained tool catalog, the best first pack is:
+The first shipped Arachne-maintained built-in pack is:
 
 1. `current_time`
-2. `http_request`
-3. `calculator`
-4. `batch`
-5. a curated file-operations surface
+2. `resource_reader`
+3. `resource_list`
 
-For a Spring-oriented expansion beyond that first utility pack, the strongest next additions are:
+The strongest next additions after that shipped baseline are:
 
-1. `resource_reader` / `resource_list`
-2. `message_lookup`
-3. `config_lookup`
-4. `validate_payload`
-5. `convert_value`
+1. `http_request`
+2. `calculator`
+3. `message_lookup`
+4. `config_lookup`
+5. `validate_payload`
+6. `convert_value`
 
 That pack would give users an immediately useful baseline for:
 

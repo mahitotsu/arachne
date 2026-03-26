@@ -11,6 +11,6 @@ arachne:
       bedrock:
         cache:
           system-prompt: true
-          tools: true
+          tools: false
     agent:
       system-prompt: "You are a concise assistant. Preserve facts stated earlier in the conversation."

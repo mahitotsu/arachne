@@ -12,6 +12,7 @@ For a tool-centered view of the current shipped surface and the proposed first-p
 
 Available now:
 
+- framework-provided built-in tools: `current_time`, `resource_reader`, and `resource_list`
 - Spring Boot auto-configuration for `Model` and `AgentFactory`
 - `AgentFactory.builder().build()` for creating an agent
 - `AgentFactory.builder("name").build()` for creating an agent from named defaults
@@ -46,6 +47,7 @@ If you want runnable examples instead of only reading the API docs, use these sa
 
 - [samples/README.md](samples/README.md)
 - [samples/conversation-basics/README.md](samples/conversation-basics/README.md)
+- [samples/built-in-tools/README.md](samples/built-in-tools/README.md)
 - [samples/tool-delegation/README.md](samples/tool-delegation/README.md)
 - [samples/tool-execution-context/README.md](samples/tool-execution-context/README.md)
 - [samples/session-redis/README.md](samples/session-redis/README.md)
@@ -141,6 +143,11 @@ Configuration keys currently used on the current branch:
 - `arachne.strands.agent.conversation.window-size`
 - `arachne.strands.agent.session.id`
 - `arachne.strands.agent.session.file.directory`
+- `arachne.strands.agent.built-ins.inherit-defaults`
+- `arachne.strands.agent.built-ins.tool-names`
+- `arachne.strands.agent.built-ins.tool-groups`
+- `arachne.strands.agent.built-ins.resources.allowed-classpath-locations`
+- `arachne.strands.agent.built-ins.resources.allowed-file-locations`
 - `arachne.strands.agents.<name>.model.provider`
 - `arachne.strands.agents.<name>.model.id`
 - `arachne.strands.agents.<name>.model.region`
@@ -150,6 +157,9 @@ Configuration keys currently used on the current branch:
 - `arachne.strands.agents.<name>.use-discovered-tools`
 - `arachne.strands.agents.<name>.tool-qualifiers`
 - `arachne.strands.agents.<name>.tool-execution-mode`
+- `arachne.strands.agents.<name>.built-ins.inherit-defaults`
+- `arachne.strands.agents.<name>.built-ins.tool-names`
+- `arachne.strands.agents.<name>.built-ins.tool-groups`
 - `arachne.strands.agents.<name>.conversation.window-size`
 - `arachne.strands.agents.<name>.session.id`
 - `arachne.strands.agents.<name>.retry.enabled`
@@ -165,6 +175,7 @@ Notes:
 - Bedrock prompt caching is opt-in and defaults to disabled for both system prompts and tool definitions
 - `model.bedrock.cache.system-prompt=true` inserts a Bedrock cache point after the emitted system prompt
 - `model.bedrock.cache.tools=true` inserts a Bedrock cache point after the emitted tool definitions
+- tool-definition cache points are emitted exactly when configured; whether a given Bedrock model accepts or benefits from them is model-dependent
 - `agent.system-prompt` is the default prompt used when a builder does not override it
 - `agent.retry.*` enables exponential-backoff retry at the model invocation boundary
 - retry is disabled by default so unconfigured `agent.run("...")` keeps the prior failure behavior
@@ -176,6 +187,13 @@ Notes:
 - without `agent.session.file.directory`, Arachne falls back to in-memory session storage by default
 - when a Spring Session `SessionRepository<?>` bean is present, Arachne uses it instead of the in-memory fallback
 - if both a file directory and a Spring Session repository are configured, file storage wins explicitly
+- built-in read-only tools are inherited by default even when you do not define any application-discovered tools
+- `agent.built-ins.inherit-defaults=false` disables that built-in baseline globally
+- `agent.built-ins.tool-names` and `agent.built-ins.tool-groups` add built-in-specific selections on top of the default baseline
+- named-agent built-in selections are merged with the shared built-in defaults, while `inherit-defaults=false` removes the default inherited baseline for that named agent
+- `use-discovered-tools=false` affects only annotation-discovered application tools; it does not disable built-in tools
+- `agent.built-ins.resources.allowed-classpath-locations` defaults to `classpath:/`
+- `agent.built-ins.resources.allowed-file-locations` is empty by default, so file-system access must be opted in explicitly
 - named-agent properties are override-only and do not replace the shared defaults unless you build that named agent explicitly
 - these properties are best treated as shared defaults, while `arachne.strands.agents.<name>.*` describes multi-agent applications
 - `SummarizingConversationManager` is currently an explicit builder-level feature, not a property-bound default
@@ -186,6 +204,79 @@ When a Bedrock model reports prompt-cache usage, Arachne exposes the accumulated
 - `outputTokens()`
 - `cacheReadInputTokens()`
 - `cacheWriteInputTokens()`
+
+## Built-In Tools
+
+The current main branch ships a small default built-in tool pack for baseline read-only utility work:
+
+- `current_time`
+- `resource_reader`
+- `resource_list`
+
+These tools are framework-provided infrastructure. They are resolved separately from annotation-discovered `@StrandsTool` methods and stay visible unless you disable built-in inheritance explicitly.
+
+The current built-in groups are:
+
+- `read-only`
+- `utility`
+- `resource`
+
+`current_time` belongs to `read-only` and `utility`.
+
+`resource_reader` and `resource_list` belong to `read-only` and `resource`.
+
+Use global properties when you want to change the shared default baseline:
+
+```yaml
+arachne:
+  strands:
+    agent:
+      built-ins:
+        inherit-defaults: true
+        tool-groups:
+          - resource
+        resources:
+          allowed-classpath-locations:
+            - classpath:/docs/
+          allowed-file-locations:
+            - /opt/app/reference-data
+```
+
+Use named-agent properties when you want one agent to see a narrower surface than the shared default:
+
+```yaml
+arachne:
+  strands:
+    agents:
+      reader:
+        system-prompt: "You are a resource-only reader."
+        built-ins:
+          inherit-defaults: false
+          tool-groups:
+            - resource
+      strict:
+        system-prompt: "You have no built-in tools."
+        built-ins:
+          inherit-defaults: false
+```
+
+Use builder overrides when you want runtime-local control instead of property-bound defaults:
+
+```java
+Agent defaultAgent = factory.builder()
+    .build();
+
+Agent resourceOnlyAgent = factory.builder()
+    .inheritBuiltInTools(false)
+    .builtInToolGroups("resource")
+    .build();
+
+Agent noBuiltInsAgent = factory.builder()
+    .inheritBuiltInTools(false)
+    .build();
+```
+
+The resource tools enforce the configured allowlists before reading or listing anything. Classpath access is allowed from `classpath:/` by default. File-system access is denied until you add explicit allowlisted roots.
 
 ## Creating An Agent
 

@@ -14,6 +14,7 @@
 
     <modules>
         <module>conversation-basics</module>
+        <module>built-in-tools</module>
         <module>domain-separation</module>
         <module>tool-delegation</module>
         <module>tool-execution-context</module>

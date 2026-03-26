@@ -8,7 +8,7 @@ It is here to make three usage rules concrete:
 - one runner-owned `Agent` runtime is reused across turns
 - multi-turn memory lives in that runtime and does not require publishing `Agent` as a shared Spring bean
 
-It also includes an optional Bedrock prompt-caching demo path that prints the usage metrics added in the current branch.
+It also includes an optional Bedrock system-prompt caching demo path that prints the usage metrics added in the current branch.
 
 ## Prerequisites
 
@@ -51,7 +51,7 @@ cd samples/conversation-basics
 mvn spring-boot:run -Dspring-boot.run.arguments=--cache-demo
 ```
 
-This mode keeps the same runner-owned `Agent` pattern, but overrides the system prompt with a long static prompt so Bedrock prompt caching has a realistic chance to activate. The sample also exposes one stable reference tool so the request includes cacheable tool definitions.
+This mode keeps the same runner-owned `Agent` pattern, but overrides the system prompt with a long static prompt so Bedrock prompt caching has a realistic chance to activate. The sample also exposes one stable reference tool so the request shape stays stable across turns.
 
 What to look for:
 
@@ -87,7 +87,7 @@ agent> Your name is Asuka.
 
 - `ConversationBasicsRunner`: creates one `Agent` from `AgentFactory` and keeps it inside the runner
 - `ConversationBasicsRunner`: creates one `Agent` from `AgentFactory`, supports the default conversation demo, and has a dedicated cache-demo path that prints usage metrics
-- `SampleReferenceTool`: provides a stable sample tool definition so the cache demo exercises Bedrock tool-definition caching as well as system-prompt caching
+- `SampleReferenceTool`: provides a stable sample tool definition so the cache demo keeps a repeatable request shape while the system prompt remains the cache target
 - `ConversationBasicsApplication`: minimal Spring Boot entrypoint with no extra wiring
 - `application.yml`: shared model defaults plus opt-in Bedrock cache settings, keeping the runtime lifecycle decision in Java
 
@@ -107,7 +107,7 @@ arachne:
       bedrock:
         cache:
           system-prompt: true
-          tools: true
+          tools: false
 ```
 
 Override any of those values with standard Spring Boot configuration mechanisms if needed.

@@ -98,6 +98,7 @@ public class ArachneProperties {
         private ConversationProperties conversation = new ConversationProperties();
         private SessionProperties session = new SessionProperties();
         private RetryProperties retry = new RetryProperties();
+        private BuiltInToolProperties builtIns = new BuiltInToolProperties();
 
         public String getSystemPrompt() {
             return systemPrompt;
@@ -130,6 +131,14 @@ public class ArachneProperties {
         public void setRetry(RetryProperties retry) {
             this.retry = retry;
         }
+
+        public BuiltInToolProperties getBuiltIns() {
+            return builtIns;
+        }
+
+        public void setBuiltIns(BuiltInToolProperties builtIns) {
+            this.builtIns = builtIns;
+        }
     }
 
     public static class NamedAgentProperties {
@@ -141,6 +150,7 @@ public class ArachneProperties {
         private Boolean useDiscoveredTools;
         private List<String> toolQualifiers = List.of();
         private ToolExecutionMode toolExecutionMode;
+        private BuiltInToolOverrideProperties builtIns = new BuiltInToolOverrideProperties();
 
         public ModelOverrideProperties getModel() {
             return model;
@@ -204,6 +214,104 @@ public class ArachneProperties {
 
         public void setToolExecutionMode(ToolExecutionMode toolExecutionMode) {
             this.toolExecutionMode = toolExecutionMode;
+        }
+
+        public BuiltInToolOverrideProperties getBuiltIns() {
+            return builtIns;
+        }
+
+        public void setBuiltIns(BuiltInToolOverrideProperties builtIns) {
+            this.builtIns = builtIns;
+        }
+    }
+
+    public static class BuiltInToolProperties {
+        private boolean inheritDefaults = true;
+        private List<String> toolNames = List.of();
+        private List<String> toolGroups = List.of();
+        private ResourceAccessProperties resources = new ResourceAccessProperties();
+
+        public boolean isInheritDefaults() {
+            return inheritDefaults;
+        }
+
+        public void setInheritDefaults(boolean inheritDefaults) {
+            this.inheritDefaults = inheritDefaults;
+        }
+
+        public List<String> getToolNames() {
+            return toolNames;
+        }
+
+        public void setToolNames(List<String> toolNames) {
+            this.toolNames = toolNames;
+        }
+
+        public List<String> getToolGroups() {
+            return toolGroups;
+        }
+
+        public void setToolGroups(List<String> toolGroups) {
+            this.toolGroups = toolGroups;
+        }
+
+        public ResourceAccessProperties getResources() {
+            return resources;
+        }
+
+        public void setResources(ResourceAccessProperties resources) {
+            this.resources = resources;
+        }
+    }
+
+    public static class BuiltInToolOverrideProperties {
+        private Boolean inheritDefaults;
+        private List<String> toolNames = List.of();
+        private List<String> toolGroups = List.of();
+
+        public Boolean getInheritDefaults() {
+            return inheritDefaults;
+        }
+
+        public void setInheritDefaults(Boolean inheritDefaults) {
+            this.inheritDefaults = inheritDefaults;
+        }
+
+        public List<String> getToolNames() {
+            return toolNames;
+        }
+
+        public void setToolNames(List<String> toolNames) {
+            this.toolNames = toolNames;
+        }
+
+        public List<String> getToolGroups() {
+            return toolGroups;
+        }
+
+        public void setToolGroups(List<String> toolGroups) {
+            this.toolGroups = toolGroups;
+        }
+    }
+
+    public static class ResourceAccessProperties {
+        private List<String> allowedClasspathLocations = List.of("classpath:/");
+        private List<String> allowedFileLocations = List.of();
+
+        public List<String> getAllowedClasspathLocations() {
+            return allowedClasspathLocations;
+        }
+
+        public void setAllowedClasspathLocations(List<String> allowedClasspathLocations) {
+            this.allowedClasspathLocations = allowedClasspathLocations;
+        }
+
+        public List<String> getAllowedFileLocations() {
+            return allowedFileLocations;
+        }
+
+        public void setAllowedFileLocations(List<String> allowedFileLocations) {
+            this.allowedFileLocations = allowedFileLocations;
         }
     }
 

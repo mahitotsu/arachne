@@ -2,6 +2,7 @@ package io.arachne.strands.spring;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -16,6 +17,8 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
+import org.springframework.core.io.support.ResourcePatternResolver;
 import org.springframework.session.MapSessionRepository;
 import org.springframework.session.Session;
 import org.springframework.session.SessionRepository;
@@ -33,6 +36,10 @@ import io.arachne.strands.skills.Skill;
 import io.arachne.strands.skills.SkillParser;
 import io.arachne.strands.tool.BeanValidationSupport;
 import io.arachne.strands.tool.ExecutionContextPropagation;
+import io.arachne.strands.tool.builtin.BuiltInResourceAccessPolicy;
+import io.arachne.strands.tool.builtin.CurrentTimeTool;
+import io.arachne.strands.tool.builtin.ResourceListTool;
+import io.arachne.strands.tool.builtin.ResourceReaderTool;
 import io.arachne.strands.tool.annotation.DiscoveredTool;
 import jakarta.validation.Validator;
 
@@ -97,6 +104,27 @@ public class ArachneAutoConfiguration {
         return new SkillParser();
     }
 
+    @Bean
+    @ConditionalOnMissingBean
+    public ResourcePatternResolver arachneResourcePatternResolver() {
+        return new PathMatchingResourcePatternResolver();
+    }
+
+    @Bean(name = "arachneBuiltInTools")
+    @ConditionalOnMissingBean(name = "arachneBuiltInTools")
+    public BuiltInToolRegistry arachneBuiltInTools(
+            ArachneProperties properties,
+            ResourcePatternResolver resourcePatternResolver) {
+        ArachneProperties.ResourceAccessProperties resourceAccess = properties.getAgent().getBuiltIns().getResources();
+        BuiltInResourceAccessPolicy accessPolicy = new BuiltInResourceAccessPolicy(
+                resourceAccess.getAllowedClasspathLocations(),
+                resourceAccess.getAllowedFileLocations());
+        return new BuiltInToolRegistry(List.of(
+                new BuiltInToolDefinition(new CurrentTimeTool(), true, Set.of("read-only", "utility")),
+                new BuiltInToolDefinition(new ResourceReaderTool(resourcePatternResolver, accessPolicy), true, Set.of("read-only", "resource")),
+            new BuiltInToolDefinition(new ResourceListTool(resourcePatternResolver, accessPolicy), true, Set.of("read-only", "resource"))));
+    }
+
     @Bean(name = "arachneDiscoveredSkills")
     @ConditionalOnMissingBean(name = "arachneDiscoveredSkills")
     public List<Skill> arachneDiscoveredSkills(SkillParser skillParser) {
@@ -149,6 +177,7 @@ public class ArachneAutoConfiguration {
     public AgentFactory agentFactory(
             ArachneProperties properties,
             Model model,
+            @Qualifier("arachneBuiltInTools") BuiltInToolRegistry arachneBuiltInTools,
             List<DiscoveredTool> arachneDiscoveredTools,
             @Qualifier("arachneDiscoveredHooks") List<HookProvider> arachneDiscoveredHooks,
             @Qualifier("arachneDiscoveredSkills") List<Skill> arachneDiscoveredSkills,
@@ -161,6 +190,7 @@ public class ArachneAutoConfiguration {
         return new AgentFactory(
                 properties,
                 model,
+                arachneBuiltInTools,
                 arachneDiscoveredTools,
                 arachneDiscoveredHooks,
                 arachneDiscoveredSkills,

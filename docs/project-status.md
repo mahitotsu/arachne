@@ -15,6 +15,8 @@ This document replaces `ROADMAP.md` as the repository-level snapshot of what Ara
 
 ### Tools And Structured Output
 
+- framework-provided built-in read-only tools: `current_time`, `resource_reader`, and `resource_list`
+- per-agent built-in inheritance and built-in name/group selection
 - annotation-driven tools through `@StrandsTool` and `@ToolParam`
 - logical tool invocation metadata through `ToolInvocationContext`
 - opt-in execution-context propagation through `ExecutionContextPropagation`
@@ -48,18 +50,19 @@ This document replaces `ROADMAP.md` as the repository-level snapshot of what Ara
 
 - repository verification with `mvn test`
 - opt-in Bedrock smoke verification with `mvn -Dtest=BedrockModelIntegrationTest -Darachne.integration.bedrock=true test`
- - runnable samples for chat, tools, tool context, Redis session, JDBC session, hooks/interrupts, skills, streaming/steering, and the higher-level domain-separation backend reference under `samples/`
+- runnable samples for chat, built-in tools, tools, tool context, Redis session, JDBC session, hooks/interrupts, skills, streaming/steering, and the higher-level domain-separation backend reference under `samples/`
 
 ## Current Constraints
 
 - the only built-in provider is AWS Bedrock
 - the main event loop remains blocking; streaming is an opt-in callback path layered on top of that runtime
 - callback-based streaming is output-only; it is not bidirectional realtime or audio streaming
-- Bedrock prompt caching currently covers system prompts and tool definitions only; message-level cache placement is still deferred
+- Bedrock prompt caching can emit cache points for system prompts and tool definitions; model compatibility remains provider- and model-dependent
 - summary compaction requires explicit `SummarizingConversationManager` wiring rather than property-only enablement
 - structured output currently targets simple JSON-shaped Java records or POJOs rather than arbitrary object graphs
 - skills currently come from builder-supplied values or classpath-discovered `SKILL.md` files, with optional `scripts/`, `references/`, and `assets/` path listing for packaged skills
 - interrupt/resume feeds human responses back through the existing tool-result path; interrupted structured-output runs must currently resume through the string-returning path first
+- built-in resource tools stay read-only and are limited to allowlisted `classpath:` and `file:` locations
 
 ## Deliberately Deferred Features
 

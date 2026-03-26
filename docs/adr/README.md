@@ -48,6 +48,7 @@ Each ADR lives at `docs/adr/NNNN-title.md` and must include at least:
 - [0014-tool-invocation-context-contract.md](0014-tool-invocation-context-contract.md) - expose logical tool-call metadata to tool authors without folding in execution-context propagation
 - [0015-execution-context-propagation-boundary.md](0015-execution-context-propagation-boundary.md) - propagate executor-boundary execution context for tool execution without widening tool invocation metadata
 - [0016-bedrock-prompt-caching-and-usage-metrics.md](0016-bedrock-prompt-caching-and-usage-metrics.md) - add opt-in Bedrock system/tool prompt caching while exposing accumulated usage through `AgentResult.metrics()`
+- [0017-built-in-tool-exposure-and-inheritance.md](0017-built-in-tool-exposure-and-inheritance.md) - define how framework-provided built-in tools are exposed, inherited, and kept separate from discovered tools
 
 ## Future ADR Candidates
 

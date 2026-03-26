@@ -36,6 +36,7 @@ The concrete API shape is:
 - Arachne gains a practical Bedrock optimization without widening the core content model to provider-specific cache-point blocks.
 - Bedrock-specific request construction remains localized to `BedrockModel`, which preserves the core `Agent -> EventLoop -> Model / Tool` flow.
 - Callers can inspect cache write/read token counts on ordinary agent results without depending on AWS SDK classes.
+- Tool-definition cache-point compatibility is model-dependent and remains a caller responsibility when enabling that Bedrock-specific optimization.
 - Message caching is still not available because the core `ContentBlock` model does not yet express cache-point placement in conversation history.
 
 ## Alternatives Considered

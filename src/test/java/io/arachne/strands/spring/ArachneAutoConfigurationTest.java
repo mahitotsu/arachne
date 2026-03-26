@@ -101,9 +101,39 @@ class ArachneAutoConfigurationTest {
                 .run(context -> {
                     Agent agent = context.getBean(AgentFactory.class).builder().build();
 
-                    assertThat(agent.getTools()).extracting(tool -> tool.spec().name()).contains("weather");
+                assertThat(agent.getTools()).extracting(tool -> tool.spec().name())
+                    .contains("weather", "current_time", "resource_reader", "resource_list");
                 });
     }
+
+        @Test
+        void autoConfigurationCanDisableBuiltInInheritancePerNamedAgent() {
+        contextRunner
+            .withPropertyValues("arachne.strands.agents.planner.built-ins.inherit-defaults=false")
+            .withUserConfiguration(CustomModelConfiguration.class)
+            .run(context -> {
+                Agent agent = context.getBean(AgentFactory.class).builder("planner").build();
+
+                assertThat(agent.getTools()).extracting(tool -> tool.spec().name())
+                    .doesNotContain("current_time", "resource_reader", "resource_list");
+            });
+        }
+
+        @Test
+        void autoConfigurationCanSelectBuiltInToolGroupsPerNamedAgent() {
+        contextRunner
+            .withPropertyValues(
+                "arachne.strands.agents.reader.built-ins.inherit-defaults=false",
+                "arachne.strands.agents.reader.built-ins.tool-groups[0]=resource")
+            .withUserConfiguration(CustomModelConfiguration.class)
+            .run(context -> {
+                Agent agent = context.getBean(AgentFactory.class).builder("reader").build();
+
+                assertThat(agent.getTools()).extracting(tool -> tool.spec().name())
+                    .contains("resource_reader", "resource_list")
+                    .doesNotContain("current_time");
+            });
+        }
 
     @Test
     void autoConfigurationDiscoversAnnotatedHookBeans() {

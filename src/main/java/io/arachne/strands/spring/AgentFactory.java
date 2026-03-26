@@ -58,6 +58,7 @@ public class AgentFactory {
 
     private final ArachneProperties properties;
     private final Model defaultModel;
+    private final List<BuiltInToolDefinition> builtInTools;
     private final List<DiscoveredTool> discoveredTools;
     private final List<HookProvider> discoveredHooks;
     private final List<Skill> discoveredSkills;
@@ -69,15 +70,15 @@ public class AgentFactory {
     private final ExecutionContextPropagation defaultExecutionContextPropagation;
 
     public AgentFactory(ArachneProperties properties) {
-        this(properties, null, List.of(), List.of(), List.of(), BeanValidationSupport.defaultValidator(), null, null, new ObjectMapper(), null, ExecutionContextPropagation.noop());
+        this(properties, null, BuiltInToolRegistry.empty(), List.of(), List.of(), List.of(), BeanValidationSupport.defaultValidator(), null, null, new ObjectMapper(), null, ExecutionContextPropagation.noop());
     }
 
     public AgentFactory(ArachneProperties properties, Model defaultModel) {
-        this(properties, defaultModel, List.of(), List.of(), List.of(), BeanValidationSupport.defaultValidator(), null, null, new ObjectMapper(), null, ExecutionContextPropagation.noop());
+        this(properties, defaultModel, BuiltInToolRegistry.empty(), List.of(), List.of(), List.of(), BeanValidationSupport.defaultValidator(), null, null, new ObjectMapper(), null, ExecutionContextPropagation.noop());
     }
 
     public AgentFactory(ArachneProperties properties, Model defaultModel, List<DiscoveredTool> discoveredTools) {
-        this(properties, defaultModel, discoveredTools, List.of(), List.of(), BeanValidationSupport.defaultValidator(), null, null, new ObjectMapper(), null, ExecutionContextPropagation.noop());
+        this(properties, defaultModel, BuiltInToolRegistry.empty(), discoveredTools, List.of(), List.of(), BeanValidationSupport.defaultValidator(), null, null, new ObjectMapper(), null, ExecutionContextPropagation.noop());
     }
 
     public AgentFactory(
@@ -85,7 +86,7 @@ public class AgentFactory {
             Model defaultModel,
             List<DiscoveredTool> discoveredTools,
             List<HookProvider> discoveredHooks) {
-        this(properties, defaultModel, discoveredTools, discoveredHooks, List.of(), BeanValidationSupport.defaultValidator(), null, null, new ObjectMapper(), null, ExecutionContextPropagation.noop());
+        this(properties, defaultModel, BuiltInToolRegistry.empty(), discoveredTools, discoveredHooks, List.of(), BeanValidationSupport.defaultValidator(), null, null, new ObjectMapper(), null, ExecutionContextPropagation.noop());
     }
 
     public AgentFactory(
@@ -93,7 +94,7 @@ public class AgentFactory {
             Model defaultModel,
             List<DiscoveredTool> discoveredTools,
             Validator validator) {
-        this(properties, defaultModel, discoveredTools, List.of(), List.of(), validator, null, null, new ObjectMapper(), null, ExecutionContextPropagation.noop());
+        this(properties, defaultModel, BuiltInToolRegistry.empty(), discoveredTools, List.of(), List.of(), validator, null, null, new ObjectMapper(), null, ExecutionContextPropagation.noop());
     }
 
     public AgentFactory(
@@ -102,7 +103,7 @@ public class AgentFactory {
             List<DiscoveredTool> discoveredTools,
             Validator validator,
             SessionManager defaultSessionManager) {
-        this(properties, defaultModel, discoveredTools, List.of(), List.of(), validator, defaultSessionManager, null, new ObjectMapper(), null, ExecutionContextPropagation.noop());
+        this(properties, defaultModel, BuiltInToolRegistry.empty(), discoveredTools, List.of(), List.of(), validator, defaultSessionManager, null, new ObjectMapper(), null, ExecutionContextPropagation.noop());
     }
 
     public AgentFactory(
@@ -112,7 +113,7 @@ public class AgentFactory {
             Validator validator,
             SessionManager defaultSessionManager,
             ModelRetryStrategy defaultRetryStrategy) {
-        this(properties, defaultModel, discoveredTools, List.of(), List.of(), validator, defaultSessionManager, defaultRetryStrategy, new ObjectMapper(), null, ExecutionContextPropagation.noop());
+        this(properties, defaultModel, BuiltInToolRegistry.empty(), discoveredTools, List.of(), List.of(), validator, defaultSessionManager, defaultRetryStrategy, new ObjectMapper(), null, ExecutionContextPropagation.noop());
     }
 
     public AgentFactory(
@@ -125,43 +126,21 @@ public class AgentFactory {
             ModelRetryStrategy defaultRetryStrategy,
             ObjectMapper objectMapper,
             Executor defaultToolExecutionExecutor) {
-        this(
-                properties,
-                defaultModel,
-                discoveredTools,
-                discoveredHooks,
-                List.of(),
-                validator,
-                defaultSessionManager,
-                defaultRetryStrategy,
-                objectMapper,
-                defaultToolExecutionExecutor,
-                ExecutionContextPropagation.noop());
-            }
+        this(properties, defaultModel, BuiltInToolRegistry.empty(), discoveredTools, discoveredHooks, List.of(), validator, defaultSessionManager, defaultRetryStrategy, objectMapper, defaultToolExecutionExecutor, ExecutionContextPropagation.noop());
+    }
 
-            public AgentFactory(
-                ArachneProperties properties,
-                Model defaultModel,
-                List<DiscoveredTool> discoveredTools,
-                List<HookProvider> discoveredHooks,
-                Validator validator,
-                SessionManager defaultSessionManager,
-                ModelRetryStrategy defaultRetryStrategy,
-                ObjectMapper objectMapper,
-                Executor defaultToolExecutionExecutor,
-                ExecutionContextPropagation defaultExecutionContextPropagation) {
-            this(
-                properties,
-                defaultModel,
-                discoveredTools,
-                discoveredHooks,
-                List.of(),
-                validator,
-                defaultSessionManager,
-                defaultRetryStrategy,
-                objectMapper,
-                defaultToolExecutionExecutor,
-                defaultExecutionContextPropagation);
+    public AgentFactory(
+            ArachneProperties properties,
+            Model defaultModel,
+            List<DiscoveredTool> discoveredTools,
+            List<HookProvider> discoveredHooks,
+            Validator validator,
+            SessionManager defaultSessionManager,
+            ModelRetryStrategy defaultRetryStrategy,
+            ObjectMapper objectMapper,
+            Executor defaultToolExecutionExecutor,
+            ExecutionContextPropagation defaultExecutionContextPropagation) {
+        this(properties, defaultModel, BuiltInToolRegistry.empty(), discoveredTools, discoveredHooks, List.of(), validator, defaultSessionManager, defaultRetryStrategy, objectMapper, defaultToolExecutionExecutor, defaultExecutionContextPropagation);
     }
 
     public AgentFactory(
@@ -175,21 +154,10 @@ public class AgentFactory {
             ModelRetryStrategy defaultRetryStrategy,
             ObjectMapper objectMapper,
             Executor defaultToolExecutionExecutor) {
-        this(
-            properties,
-            defaultModel,
-            discoveredTools,
-            discoveredHooks,
-            discoveredSkills,
-            validator,
-            defaultSessionManager,
-            defaultRetryStrategy,
-            objectMapper,
-            defaultToolExecutionExecutor,
-            ExecutionContextPropagation.noop());
-        }
+        this(properties, defaultModel, BuiltInToolRegistry.empty(), discoveredTools, discoveredHooks, discoveredSkills, validator, defaultSessionManager, defaultRetryStrategy, objectMapper, defaultToolExecutionExecutor, ExecutionContextPropagation.noop());
+    }
 
-        public AgentFactory(
+    public AgentFactory(
             ArachneProperties properties,
             Model defaultModel,
             List<DiscoveredTool> discoveredTools,
@@ -201,8 +169,69 @@ public class AgentFactory {
             ObjectMapper objectMapper,
             Executor defaultToolExecutionExecutor,
             ExecutionContextPropagation defaultExecutionContextPropagation) {
+        this(properties, defaultModel, BuiltInToolRegistry.empty(), discoveredTools, discoveredHooks, discoveredSkills, validator, defaultSessionManager, defaultRetryStrategy, objectMapper, defaultToolExecutionExecutor, defaultExecutionContextPropagation);
+    }
+
+    public AgentFactory(
+            ArachneProperties properties,
+            Model defaultModel,
+            BuiltInToolRegistry builtInToolRegistry,
+            List<DiscoveredTool> discoveredTools,
+            List<HookProvider> discoveredHooks,
+            Validator validator,
+            SessionManager defaultSessionManager,
+            ModelRetryStrategy defaultRetryStrategy,
+            ObjectMapper objectMapper,
+            Executor defaultToolExecutionExecutor) {
+        this(properties, defaultModel, builtInToolRegistry, discoveredTools, discoveredHooks, List.of(), validator, defaultSessionManager, defaultRetryStrategy, objectMapper, defaultToolExecutionExecutor, ExecutionContextPropagation.noop());
+    }
+
+    public AgentFactory(
+            ArachneProperties properties,
+            Model defaultModel,
+            BuiltInToolRegistry builtInToolRegistry,
+            List<DiscoveredTool> discoveredTools,
+            List<HookProvider> discoveredHooks,
+            Validator validator,
+            SessionManager defaultSessionManager,
+            ModelRetryStrategy defaultRetryStrategy,
+            ObjectMapper objectMapper,
+            Executor defaultToolExecutionExecutor,
+            ExecutionContextPropagation defaultExecutionContextPropagation) {
+        this(properties, defaultModel, builtInToolRegistry, discoveredTools, discoveredHooks, List.of(), validator, defaultSessionManager, defaultRetryStrategy, objectMapper, defaultToolExecutionExecutor, defaultExecutionContextPropagation);
+    }
+
+    public AgentFactory(
+            ArachneProperties properties,
+            Model defaultModel,
+            BuiltInToolRegistry builtInToolRegistry,
+            List<DiscoveredTool> discoveredTools,
+            List<HookProvider> discoveredHooks,
+            List<Skill> discoveredSkills,
+            Validator validator,
+            SessionManager defaultSessionManager,
+            ModelRetryStrategy defaultRetryStrategy,
+            ObjectMapper objectMapper,
+            Executor defaultToolExecutionExecutor) {
+        this(properties, defaultModel, builtInToolRegistry, discoveredTools, discoveredHooks, discoveredSkills, validator, defaultSessionManager, defaultRetryStrategy, objectMapper, defaultToolExecutionExecutor, ExecutionContextPropagation.noop());
+    }
+
+    public AgentFactory(
+            ArachneProperties properties,
+            Model defaultModel,
+            BuiltInToolRegistry builtInToolRegistry,
+            List<DiscoveredTool> discoveredTools,
+            List<HookProvider> discoveredHooks,
+            List<Skill> discoveredSkills,
+            Validator validator,
+            SessionManager defaultSessionManager,
+            ModelRetryStrategy defaultRetryStrategy,
+            ObjectMapper objectMapper,
+            Executor defaultToolExecutionExecutor,
+            ExecutionContextPropagation defaultExecutionContextPropagation) {
         this.properties = properties;
         this.defaultModel = defaultModel;
+        this.builtInTools = builtInToolRegistry == null ? List.of() : builtInToolRegistry.definitions();
         this.discoveredTools = List.copyOf(discoveredTools);
         this.discoveredHooks = List.copyOf(discoveredHooks);
         this.discoveredSkills = List.copyOf(discoveredSkills);
@@ -212,13 +241,14 @@ public class AgentFactory {
         this.objectMapper = objectMapper;
         this.defaultToolExecutionExecutor = defaultToolExecutionExecutor;
         this.defaultExecutionContextPropagation = defaultExecutionContextPropagation == null
-            ? ExecutionContextPropagation.noop()
-            : defaultExecutionContextPropagation;
+                ? ExecutionContextPropagation.noop()
+                : defaultExecutionContextPropagation;
     }
 
     public Builder builder() {
         return new Builder(
             resolveBuilderDefaults(null),
+            builtInTools,
             discoveredTools,
             discoveredHooks,
             discoveredSkills,
@@ -232,6 +262,7 @@ public class AgentFactory {
     public Builder builder(String name) {
         return new Builder(
             resolveBuilderDefaults(name),
+            builtInTools,
             discoveredTools,
             discoveredHooks,
             discoveredSkills,
@@ -276,6 +307,7 @@ public class AgentFactory {
     }
 
     private BuilderDefaults resolveDefaultBuilderDefaults() {
+        ArachneProperties.BuiltInToolProperties builtIns = properties.getAgent().getBuiltIns();
         return new BuilderDefaults(
                 copyModelProperties(properties.getModel()),
                 defaultModel,
@@ -283,6 +315,9 @@ public class AgentFactory {
                 ToolExecutionMode.PARALLEL,
                 true,
                 Set.of(),
+            builtIns.isInheritDefaults(),
+            normalizeNames(builtIns.getToolNames()),
+            normalizeNames(builtIns.getToolGroups()),
                 properties.getAgent().getConversation().getWindowSize(),
                 properties.getAgent().getSession().getId(),
                 defaultRetryStrategy);
@@ -298,6 +333,12 @@ public class AgentFactory {
 
     private BuilderDefaults resolveNamedBuilderDefaults(ArachneProperties.NamedAgentProperties namedProperties) {
         ArachneProperties.ModelProperties mergedModel = mergeModelProperties(properties.getModel(), namedProperties.getModel());
+        ArachneProperties.BuiltInToolProperties defaultBuiltIns = properties.getAgent().getBuiltIns();
+        ArachneProperties.BuiltInToolOverrideProperties namedBuiltIns = namedProperties.getBuiltIns();
+        boolean inheritBuiltInTools = defaultBuiltIns.isInheritDefaults();
+        if (namedBuiltIns.getInheritDefaults() != null) {
+            inheritBuiltInTools = namedBuiltIns.getInheritDefaults();
+        }
         return new BuilderDefaults(
                 mergedModel,
                 resolveNamedDefaultModel(namedProperties, mergedModel),
@@ -305,6 +346,9 @@ public class AgentFactory {
                 resolveNamedToolExecutionMode(namedProperties),
                 resolveNamedUseDiscoveredTools(namedProperties),
                 normalizeQualifiers(namedProperties.getToolQualifiers()),
+            inheritBuiltInTools,
+            union(normalizeNames(defaultBuiltIns.getToolNames()), normalizeNames(namedBuiltIns.getToolNames())),
+            union(normalizeNames(defaultBuiltIns.getToolGroups()), normalizeNames(namedBuiltIns.getToolGroups())),
                 resolveNamedConversationWindowSize(namedProperties),
                 resolveNamedSessionId(namedProperties),
                 resolveNamedRetryStrategy(namedProperties.getRetry()));
@@ -435,13 +479,27 @@ public class AgentFactory {
     }
 
     private static Set<String> normalizeQualifiers(List<String> toolQualifiers) {
+        return normalizeStrings(toolQualifiers);
+    }
+
+    private static Set<String> normalizeNames(List<String> values) {
+        return normalizeStrings(values);
+    }
+
+    private static Set<String> normalizeStrings(List<String> values) {
         LinkedHashSet<String> normalized = new LinkedHashSet<>();
-        for (String toolQualifier : toolQualifiers == null ? List.<String>of() : toolQualifiers) {
-            if (hasText(toolQualifier)) {
-                normalized.add(toolQualifier);
+        for (String value : values == null ? List.<String>of() : values) {
+            if (hasText(value)) {
+                normalized.add(value);
             }
         }
         return Set.copyOf(normalized);
+    }
+
+    private static Set<String> union(Set<String> left, Set<String> right) {
+        LinkedHashSet<String> merged = new LinkedHashSet<>(left);
+        merged.addAll(right);
+        return Set.copyOf(merged);
     }
 
     private static String firstNonBlank(String preferred, String fallback) {
@@ -459,6 +517,9 @@ public class AgentFactory {
             ToolExecutionMode toolExecutionMode,
             boolean useDiscoveredTools,
             Set<String> toolQualifiers,
+            boolean inheritBuiltInTools,
+            Set<String> builtInToolNames,
+            Set<String> builtInToolGroups,
             int conversationWindowSize,
             String sessionId,
             ModelRetryStrategy retryStrategy) {
@@ -477,6 +538,7 @@ public class AgentFactory {
 
         private final BuilderDefaults defaults;
         private final Model defaultModel;
+        private final List<BuiltInToolDefinition> builtInTools;
         private final List<DiscoveredTool> discoveredTools;
         private final List<HookProvider> discoveredHooks;
         private final List<Skill> discoveredSkills;
@@ -491,6 +553,9 @@ public class AgentFactory {
         private ToolExecutionMode toolExecutionMode;
         private boolean useDiscoveredTools;
         private Set<String> toolQualifiers;
+        private boolean inheritBuiltInTools;
+        private Set<String> builtInToolNames;
+        private Set<String> builtInToolGroups;
         private ConversationManager conversationManager;
         private SessionManager sessionManager;
         private ModelRetryStrategy retryStrategy;
@@ -504,6 +569,7 @@ public class AgentFactory {
 
         private Builder(
                 BuilderDefaults defaults,
+            List<BuiltInToolDefinition> builtInTools,
                 List<DiscoveredTool> discoveredTools,
                 List<HookProvider> discoveredHooks,
                 List<Skill> discoveredSkills,
@@ -514,6 +580,7 @@ public class AgentFactory {
                 ExecutionContextPropagation defaultExecutionContextPropagation) {
             this.defaults = Objects.requireNonNull(defaults, "defaults must not be null");
             this.defaultModel = defaults.defaultModel();
+            this.builtInTools = List.copyOf(builtInTools);
             this.discoveredTools = List.copyOf(discoveredTools);
             this.discoveredHooks = List.copyOf(discoveredHooks);
             this.discoveredSkills = List.copyOf(discoveredSkills);
@@ -526,6 +593,9 @@ public class AgentFactory {
             this.toolExecutionMode = defaults.toolExecutionMode();
             this.useDiscoveredTools = defaults.useDiscoveredTools();
             this.toolQualifiers = defaults.toolQualifiers();
+            this.inheritBuiltInTools = defaults.inheritBuiltInTools();
+            this.builtInToolNames = defaults.builtInToolNames();
+            this.builtInToolGroups = defaults.builtInToolGroups();
             this.retryStrategy = defaults.retryStrategy();
             this.sessionId = defaults.sessionId();
             this.executionContextPropagation = defaultExecutionContextPropagation;
@@ -604,6 +674,21 @@ public class AgentFactory {
 
         public Builder useDiscoveredTools(boolean useDiscoveredTools) {
             this.useDiscoveredTools = useDiscoveredTools;
+            return this;
+        }
+
+        public Builder inheritBuiltInTools(boolean inheritBuiltInTools) {
+            this.inheritBuiltInTools = inheritBuiltInTools;
+            return this;
+        }
+
+        public Builder builtInToolNames(String... builtInToolNames) {
+            this.builtInToolNames = normalizeNames(List.of(builtInToolNames));
+            return this;
+        }
+
+        public Builder builtInToolGroups(String... builtInToolGroups) {
+            this.builtInToolGroups = normalizeNames(List.of(builtInToolGroups));
             return this;
         }
 
@@ -696,8 +781,22 @@ public class AgentFactory {
 
         private List<Tool> resolveTools(List<? extends Plugin> resolvedPlugins) {
             return Stream.concat(
-                    Stream.concat(resolveDiscoveredTools().stream(), resolvePluginTools(resolvedPlugins).stream()),
+                    Stream.concat(
+                            Stream.concat(resolveBuiltInTools().stream(), resolveDiscoveredTools().stream()),
+                            resolvePluginTools(resolvedPlugins).stream()),
                     tools.stream()).toList();
+        }
+
+        private List<Tool> resolveBuiltInTools() {
+            return builtInTools.stream()
+                    .filter(definition -> shouldIncludeBuiltIn(definition))
+                    .map(BuiltInToolDefinition::tool)
+                    .toList();
+        }
+
+        private boolean shouldIncludeBuiltIn(BuiltInToolDefinition definition) {
+            boolean explicitlySelected = definition.matches(builtInToolNames, builtInToolGroups);
+            return explicitlySelected || (inheritBuiltInTools && definition.includedByDefault());
         }
 
         private List<Tool> resolveDiscoveredTools() {

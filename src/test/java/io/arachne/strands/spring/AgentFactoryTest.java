@@ -25,6 +25,7 @@ import io.arachne.strands.steering.SteeringHandler;
 import io.arachne.strands.tool.ExecutionContextPropagation;
 import io.arachne.strands.tool.Tool;
 import io.arachne.strands.tool.ToolResult;
+import io.arachne.strands.tool.builtin.CurrentTimeTool;
 import io.arachne.strands.tool.annotation.DiscoveredTool;
 import io.arachne.strands.tool.annotation.StrandsTool;
 
@@ -338,6 +339,77 @@ class AgentFactoryTest {
         assertThat(agent.getTools()).extracting(tool -> tool.spec().name())
                 .containsExactly("plannerTool", "pluginTool", "runtimeTool");
     }
+
+            @Test
+            void buildIncludesDefaultBuiltInTools() {
+            ArachneProperties properties = new ArachneProperties();
+            Agent agent = new AgentFactory(
+                properties,
+                echoModel(),
+                new BuiltInToolRegistry(List.of(builtInTool(new CurrentTimeTool(), true, "read-only", "utility"))),
+                List.of(),
+                List.of(),
+                List.of(),
+                io.arachne.strands.tool.BeanValidationSupport.defaultValidator(),
+                null,
+                null,
+                new com.fasterxml.jackson.databind.ObjectMapper(),
+                null)
+                .builder()
+                .build();
+
+            assertThat(agent.getTools()).extracting(tool -> tool.spec().name()).contains("current_time");
+            }
+
+            @Test
+            void buildCanDisableInheritedBuiltInTools() {
+            ArachneProperties properties = new ArachneProperties();
+            Agent agent = new AgentFactory(
+                properties,
+                echoModel(),
+                new BuiltInToolRegistry(List.of(builtInTool(new CurrentTimeTool(), true, "read-only", "utility"))),
+                List.of(),
+                List.of(),
+                List.of(),
+                io.arachne.strands.tool.BeanValidationSupport.defaultValidator(),
+                null,
+                null,
+                new com.fasterxml.jackson.databind.ObjectMapper(),
+                null)
+                .builder()
+                .inheritBuiltInTools(false)
+                .build();
+
+            assertThat(agent.getTools()).isEmpty();
+            }
+
+            @Test
+            void buildNamedAgentCanSelectBuiltInToolGroups() {
+            ArachneProperties properties = new ArachneProperties();
+            ArachneProperties.NamedAgentProperties namedAgent = new ArachneProperties.NamedAgentProperties();
+            namedAgent.getBuiltIns().setInheritDefaults(false);
+            namedAgent.getBuiltIns().setToolGroups(List.of("resource"));
+            properties.getAgents().put("reader", namedAgent);
+
+            Agent agent = new AgentFactory(
+                properties,
+                echoModel(),
+                new BuiltInToolRegistry(List.of(
+                    builtInTool(new CurrentTimeTool(), true, "utility"),
+                    builtInTool(namedTool("resource_reader"), true, "resource"))),
+                List.of(),
+                List.of(),
+                List.of(),
+                io.arachne.strands.tool.BeanValidationSupport.defaultValidator(),
+                null,
+                null,
+                new com.fasterxml.jackson.databind.ObjectMapper(),
+                null)
+                .builder("reader")
+                .build();
+
+            assertThat(agent.getTools()).extracting(tool -> tool.spec().name()).containsExactly("resource_reader");
+            }
 
     @Test
     void buildUsesConfiguredSessionIdAndRestoresAcrossAgents() {
@@ -731,6 +803,10 @@ class AgentFactoryTest {
                 return ToolResult.success(null, name);
             }
         };
+    }
+
+    private static BuiltInToolDefinition builtInTool(Tool tool, boolean includedByDefault, String... groups) {
+        return new BuiltInToolDefinition(tool, includedByDefault, java.util.Set.of(groups));
     }
 
     private static final class RecordingSystemPromptModel implements Model {
