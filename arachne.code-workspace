@@ -9,6 +9,10 @@
             "path": "samples/conversation-basics"
         },
         {
+            "name": "built-in-tools",
+            "path": "samples/built-in-tools"
+        },
+        {
             "name": "domain-separation",
             "path": "samples/domain-separation"
         },
