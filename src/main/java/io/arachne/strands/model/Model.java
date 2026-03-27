@@ -8,7 +8,7 @@ import io.arachne.strands.types.Message;
  * Abstraction over an LLM provider.
  *
  * <p>Corresponds to {@code strands.models.Model} in the Python SDK.
- * Concrete implementations: BedrockModel, OpenAIModel, etc.
+ * Concrete implementations provide provider-specific integrations such as Bedrock.
  */
 public interface Model {
 
@@ -24,7 +24,7 @@ public interface Model {
     /**
      * Send a converse request with an optional system prompt.
      *
-     * <p>Phase 1 providers may ignore the prompt by relying on the default implementation.
+     * <p>Implementations that do not use system prompts may rely on the default behavior.
      */
     default Iterable<ModelEvent> converse(List<Message> messages, List<ToolSpec> tools, String systemPrompt) {
         return converse(messages, tools);

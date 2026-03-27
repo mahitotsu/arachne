@@ -1,11 +1,11 @@
 package io.arachne.strands.spring;
 
 /**
- * Raised when a configured provider is not supported by the current implementation phase.
+ * Raised when a configured provider is outside the currently supported model set.
  */
 public class UnsupportedModelProviderException extends AgentConfigurationException {
 
     public UnsupportedModelProviderException(String provider) {
-        super("Unsupported model provider for Phase 1: " + provider);
+        super("Unsupported model provider: " + provider + ". Arachne currently supports bedrock only.");
     }
 }

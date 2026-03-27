@@ -3,8 +3,8 @@ package io.arachne.strands.hooks;
 /**
  * Lifecycle hook registry for an agent invocation.
  *
- * <p>Phase 1 introduced the lifecycle callsites as no-op defaults.
- * The current implementation supports {@code HookProvider} registration and full event dispatch.
+ * <p>The default methods support no-op behavior, while dispatching implementations can apply
+ * {@code HookProvider} registration and full event dispatch.
  *
  * <p>Corresponds to {@code strands.hooks.HookRegistry} in the Python SDK.
  */

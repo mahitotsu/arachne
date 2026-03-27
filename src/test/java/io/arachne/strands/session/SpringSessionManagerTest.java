@@ -2,6 +2,7 @@ package io.arachne.strands.session;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -25,6 +26,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.arachne.strands.types.Message;
 
 class SpringSessionManagerTest {
+
+    @Test
+    void loadReturnsNullWhenSessionDoesNotExist() {
+        SpringSessionManager manager = new SpringSessionManager(new MapSessionRepository(new ConcurrentHashMap<>()));
+
+        assertThat(manager.load("missing-session")).isNull();
+    }
 
     @Test
     void saveAndLoadRoundTripsThroughMapSessionRepository() {
@@ -74,6 +82,24 @@ class SpringSessionManagerTest {
 
         SpringSessionManager manager = new SpringSessionManager(repository);
         AgentSession restored = manager.load("support-456");
+
+        assertThat(restored).isNotNull();
+        assertThat(restored.messages()).containsExactly(Message.user("hello"));
+        assertThat(restored.state()).containsEntry("tenant", "acme");
+        assertThat(restored.conversationManagerState()).containsEntry("windowSize", 4);
+    }
+
+    @Test
+    void loadReadsNativeMessageAndStateAttributes() {
+        MapSessionRepository repository = new MapSessionRepository(new ConcurrentHashMap<>());
+        MapSession session = new MapSession("native-session");
+        session.setAttribute(SpringSessionManager.MESSAGES_ATTRIBUTE, List.of(Message.user("hello")));
+        session.setAttribute(SpringSessionManager.STATE_ATTRIBUTE, Map.of("tenant", "acme"));
+        session.setAttribute(SpringSessionManager.CONVERSATION_MANAGER_STATE_ATTRIBUTE, Map.of("windowSize", 4));
+        repository.save(session);
+
+        SpringSessionManager manager = new SpringSessionManager(repository);
+        AgentSession restored = manager.load("native-session");
 
         assertThat(restored).isNotNull();
         assertThat(restored.messages()).containsExactly(Message.user("hello"));
@@ -184,6 +210,67 @@ class SpringSessionManagerTest {
         assertThatThrownBy(() -> manager.save("explicit-id", new AgentSession(List.of(), Map.of(), Map.of())))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Unsupported Spring Session repository");
+    }
+
+    @Test
+    void saveRejectsRepositoriesThatReturnNullSessions() {
+        SessionRepository<Session> repository = new SessionRepository<>() {
+            @Override
+            public Session createSession() {
+                return null;
+            }
+
+            @Override
+            public void save(Session session) {
+            }
+
+            @Override
+            public Session findById(String id) {
+                return null;
+            }
+
+            @Override
+            public void deleteById(String id) {
+            }
+        };
+
+        SpringSessionManager manager = new SpringSessionManager(repository);
+
+        assertThatThrownBy(() -> manager.save("explicit-id", new AgentSession(List.of(), Map.of(), Map.of())))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("createSession() must not return null");
+    }
+
+    @Test
+    void saveAcceptsRepositoriesThatAlreadyUseRequestedSessionId() {
+        AtomicReference<Session> savedSession = new AtomicReference<>();
+        SessionRepository<Session> repository = new SessionRepository<>() {
+            @Override
+            public Session createSession() {
+                return new NonMapSession("explicit-id");
+            }
+
+            @Override
+            public void save(Session session) {
+                savedSession.set(session);
+            }
+
+            @Override
+            public Session findById(String id) {
+                return null;
+            }
+
+            @Override
+            public void deleteById(String id) {
+            }
+        };
+
+        SpringSessionManager manager = new SpringSessionManager(repository);
+        manager.save("explicit-id", new AgentSession(List.of(Message.user("hello")), Map.of("tenant", "acme"), Map.of()));
+
+        assertThat(savedSession.get()).isNotNull();
+        assertThat(savedSession.get().getId()).isEqualTo("explicit-id");
+        assertThat((Object) savedSession.get().getAttribute(SpringSessionManager.MESSAGES_ATTRIBUTE)).isInstanceOf(String.class);
     }
 
     private static final class NonMapSession implements Session {

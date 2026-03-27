@@ -3,7 +3,6 @@ package io.arachne.strands.tool.builtin;
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -78,7 +77,6 @@ public final class BuiltInResourceAccessPolicy {
                     throw new IllegalArgumentException("Classpath allowlist entries must start with classpath:");
                 })
                 .map(value -> value.endsWith("/") ? value : value + "/")
-                .map(value -> value.toLowerCase(Locale.ROOT).startsWith("classpath:/") ? value : value)
                 .toList();
     }
 

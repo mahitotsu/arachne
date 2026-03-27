@@ -49,4 +49,16 @@ class ResourceListToolTest {
         assertThat(result.status()).isEqualTo(ToolResult.ToolStatus.ERROR);
                 assertThat(result.content()).isEqualTo("Resource location is not allowlisted: " + docsDir.toUri());
     }
+
+        @Test
+        void rejectsClasspathDirectoriesOutsideAllowlistedRoots() {
+                ResourceListTool tool = new ResourceListTool(
+                                new PathMatchingResourcePatternResolver(),
+                                new BuiltInResourceAccessPolicy(List.of("classpath:/docs/"), List.of()));
+
+                ToolResult result = tool.invoke(Map.of("location", "classpath:/"));
+
+                assertThat(result.status()).isEqualTo(ToolResult.ToolStatus.ERROR);
+                assertThat(result.content()).isEqualTo("Resource location is not allowlisted: classpath:/");
+        }
 }

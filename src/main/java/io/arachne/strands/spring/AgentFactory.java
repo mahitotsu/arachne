@@ -332,7 +332,7 @@ public class AgentFactory {
     }
 
     private BuilderDefaults resolveNamedBuilderDefaults(ArachneProperties.NamedAgentProperties namedProperties) {
-        ArachneProperties.ModelProperties mergedModel = mergeModelProperties(properties.getModel(), namedProperties.getModel());
+        ResolvedModelDefaults resolvedModelDefaults = resolveNamedModelDefaults(namedProperties.getModel());
         ArachneProperties.BuiltInToolProperties defaultBuiltIns = properties.getAgent().getBuiltIns();
         ArachneProperties.BuiltInToolOverrideProperties namedBuiltIns = namedProperties.getBuiltIns();
         boolean inheritBuiltInTools = defaultBuiltIns.isInheritDefaults();
@@ -340,8 +340,8 @@ public class AgentFactory {
             inheritBuiltInTools = namedBuiltIns.getInheritDefaults();
         }
         return new BuilderDefaults(
-                mergedModel,
-                resolveNamedDefaultModel(namedProperties, mergedModel),
+                resolvedModelDefaults.modelProperties(),
+                resolvedModelDefaults.defaultModel(),
                 firstNonBlank(namedProperties.getSystemPrompt(), properties.getAgent().getSystemPrompt()),
                 resolveNamedToolExecutionMode(namedProperties),
                 resolveNamedUseDiscoveredTools(namedProperties),
@@ -354,13 +354,12 @@ public class AgentFactory {
                 resolveNamedRetryStrategy(namedProperties.getRetry()));
     }
 
-    private Model resolveNamedDefaultModel(
-            ArachneProperties.NamedAgentProperties namedProperties,
-            ArachneProperties.ModelProperties mergedModel) {
-        if (!hasModelOverride(namedProperties.getModel())) {
-            return defaultModel;
+    private ResolvedModelDefaults resolveNamedModelDefaults(ArachneProperties.ModelOverrideProperties modelOverrides) {
+        ArachneProperties.ModelProperties mergedModel = mergeModelProperties(properties.getModel(), modelOverrides);
+        if (!hasModelOverride(modelOverrides)) {
+            return new ResolvedModelDefaults(mergedModel, defaultModel);
         }
-        return createDefaultModel(mergedModel);
+        return new ResolvedModelDefaults(mergedModel, createDefaultModel(mergedModel));
     }
 
     private ToolExecutionMode resolveNamedToolExecutionMode(ArachneProperties.NamedAgentProperties namedProperties) {
@@ -524,6 +523,11 @@ public class AgentFactory {
             String sessionId,
             ModelRetryStrategy retryStrategy) {
     }
+
+            private record ResolvedModelDefaults(
+                ArachneProperties.ModelProperties modelProperties,
+                Model defaultModel) {
+            }
 
             private record BuilderRuntime(
                 Model model,

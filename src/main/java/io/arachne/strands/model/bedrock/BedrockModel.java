@@ -690,13 +690,21 @@ public class BedrockModel implements StreamingModel {
         }
 
         private Object numberValue(Document doc) {
+            String number = doc.asNumber().stringValue();
+            if (number.contains(".") || number.contains("e") || number.contains("E")) {
+                try {
+                    return Double.valueOf(number);
+                } catch (NumberFormatException ignored) {
+                    return number;
+                }
+            }
             try {
-                return doc.asNumber().longValue();
+                return Long.valueOf(number);
             } catch (NumberFormatException longException) {
                 try {
-                    return doc.asNumber().doubleValue();
+                    return Double.valueOf(number);
                 } catch (NumberFormatException doubleException) {
-                    return doc.asNumber().stringValue();
+                    return number;
                 }
             }
         }

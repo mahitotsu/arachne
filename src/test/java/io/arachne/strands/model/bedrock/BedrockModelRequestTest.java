@@ -3,6 +3,7 @@ package io.arachne.strands.model.bedrock;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -13,6 +14,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import org.junit.jupiter.api.Test;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import io.arachne.strands.model.ModelEvent;
 import io.arachne.strands.model.ModelException;
 import io.arachne.strands.model.ModelRetryableException;
@@ -21,6 +24,7 @@ import io.arachne.strands.model.ToolSelection;
 import io.arachne.strands.model.ToolSpec;
 import io.arachne.strands.types.ContentBlock;
 import io.arachne.strands.types.Message;
+import software.amazon.awssdk.core.document.Document;
 import software.amazon.awssdk.core.async.SdkPublisher;
 import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeAsyncClient;
 import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeClient;
@@ -67,6 +71,16 @@ class BedrockModelRequestTest {
     }
 
     @Test
+    void buildRequestOmitsBlankSystemPromptAndToolConfigWhenNoToolsAreProvided() {
+        BedrockModel model = new BedrockModel("test-model", "us-west-2");
+
+        var request = model.buildRequest(List.of(Message.user("hello")), List.of(), "   ", ToolSelection.force("weather"));
+
+        assertThat(request.system()).isEmpty();
+        assertThat(request.toolConfig()).isNull();
+    }
+
+    @Test
     void structuredToolResultIsSentAsJson() {
         BedrockModel model = new BedrockModel("test-model", "us-west-2");
         Message message = new Message(
@@ -82,6 +96,26 @@ class BedrockModelRequestTest {
         ToolResultContentBlock content = request.messages().getFirst().content().getFirst().toolResult().content().getFirst();
         assertThat(content.type()).isEqualTo(ToolResultContentBlock.Type.JSON);
         assertThat(content.json().asMap()).containsKey("city");
+    }
+
+    @Test
+    void stringToolResultIsSentAsTextAndErrorStatus() {
+        BedrockModel model = new BedrockModel("test-model", "us-west-2");
+        Message message = new Message(
+                Message.Role.USER,
+                List.of(new ContentBlock.ToolResult("tool-1", "temporary failure", "error")));
+
+        var request = model.buildRequest(
+                List.of(message),
+                List.of(new ToolSpec("weather", "Weather lookup", null)),
+                null,
+                null);
+
+        var toolResult = request.messages().getFirst().content().getFirst().toolResult();
+        ToolResultContentBlock content = toolResult.content().getFirst();
+        assertThat(toolResult.statusAsString()).isEqualTo("error");
+        assertThat(content.type()).isEqualTo(ToolResultContentBlock.Type.TEXT);
+        assertThat(content.text()).isEqualTo("temporary failure");
     }
 
     @Test
@@ -113,6 +147,81 @@ class BedrockModelRequestTest {
         assertThat(request.toolConfig().tools()).hasSize(2);
         assertThat(request.toolConfig().tools().getFirst().toolSpec().name()).isEqualTo("weather");
         assertThat(request.toolConfig().tools().get(1).cachePoint().type()).isEqualTo(CachePointType.DEFAULT);
+    }
+
+    @Test
+    void buildStreamRequestIncludesPromptCachingAndForcedToolChoice() throws Exception {
+        BedrockModel model = new BedrockModel(
+            "test-model",
+            "us-west-2",
+            new BedrockModel.PromptCaching(true, true));
+        Method buildStreamRequest = BedrockModel.class.getDeclaredMethod(
+            "buildStreamRequest",
+            List.class,
+            List.class,
+            String.class,
+            ToolSelection.class);
+        buildStreamRequest.setAccessible(true);
+
+        var request = (software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamRequest) buildStreamRequest.invoke(
+            model,
+            List.of(Message.user("hello")),
+            List.of(new ToolSpec("structured_output", "Final schema", null)),
+            "Be concise.",
+            ToolSelection.force("structured_output"));
+
+        assertThat(request.system()).hasSize(2);
+        assertThat(request.system().getFirst().text()).isEqualTo("Be concise.");
+        assertThat(request.system().get(1).cachePoint().type()).isEqualTo(CachePointType.DEFAULT);
+        assertThat(request.toolConfig().toolChoice().tool().name()).isEqualTo("structured_output");
+        assertThat(request.toolConfig().tools()).hasSize(2);
+        assertThat(request.toolConfig().tools().get(1).cachePoint().type()).isEqualTo(CachePointType.DEFAULT);
+    }
+
+    @Test
+    void staticDocumentConvertersRoundTripNestedValues() throws Exception {
+        ObjectMapper objectMapper = new ObjectMapper();
+        var node = objectMapper.readTree("""
+            {
+              "name": "weather",
+              "enabled": true,
+              "threshold": 1.5,
+              "tags": ["alpha", null, 2],
+              "config": {"city": "Tokyo"}
+            }
+            """);
+
+        Document fromJson = BedrockModel.jsonNodeToDocument(node);
+        Object restored = BedrockModel.documentToObject(fromJson);
+        Document fromObject = BedrockModel.objectToDocument(restored);
+
+        assertThat(restored)
+            .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
+            .containsEntry("name", "weather")
+            .containsEntry("enabled", true)
+            .containsEntry("threshold", 1.5d)
+            .containsEntry("config", Map.of("city", "Tokyo"))
+            .containsEntry("tags", Arrays.asList("alpha", null, 2L));
+        assertThat(BedrockModel.documentToObject(fromObject)).isEqualTo(restored);
+    }
+
+    @Test
+    void objectToDocumentSupportsPojoFallback() {
+        record WeatherInput(String city, int days) {
+        }
+
+        Object restored = BedrockModel.documentToObject(BedrockModel.objectToDocument(new WeatherInput("Tokyo", 3)));
+
+        assertThat(restored).isEqualTo(Map.of("city", "Tokyo", "days", 3L));
+    }
+
+    @Test
+    void parseStreamedToolInputReturnsNullForBlankInput() throws Exception {
+        BedrockModel model = new BedrockModel("test-model", "us-west-2");
+        Method parseStreamedToolInput = BedrockModel.class.getDeclaredMethod("parseStreamedToolInput", String.class);
+        parseStreamedToolInput.setAccessible(true);
+
+        assertThat(parseStreamedToolInput.invoke(model, "   ")).isNull();
     }
 
     @Test
@@ -390,6 +499,18 @@ class BedrockModelRequestTest {
         .hasMessageContaining("Bedrock temporarily failed the model request");
     }
 
+    @Test
+    void converseTranslatesSynchronousClientFailures() {
+        BedrockModel model = new BedrockModel(
+            clientFailing(new ServiceUnavailableException("temporary outage")),
+            null,
+            "test-model");
+
+        assertThatThrownBy(() -> model.converse(List.of(Message.user("hello")), List.of(), null, null))
+            .isInstanceOf(ModelRetryableException.class)
+            .hasMessageContaining("Bedrock temporarily failed the model request");
+    }
+
     private static BedrockRuntimeClient unusedClient() {
         return (BedrockRuntimeClient) Proxy.newProxyInstance(
             BedrockRuntimeClient.class.getClassLoader(),
@@ -444,6 +565,24 @@ class BedrockModelRequestTest {
                         return CompletableFuture.completedFuture(null);
                     }
                     return CompletableFuture.failedFuture(new CompletionException(failure));
+                }
+                throw new UnsupportedOperationException(method.getName());
+            });
+    }
+
+    private static BedrockRuntimeClient clientFailing(Throwable failure) {
+        return (BedrockRuntimeClient) Proxy.newProxyInstance(
+            BedrockRuntimeClient.class.getClassLoader(),
+            new Class<?>[]{BedrockRuntimeClient.class},
+            (proxy, method, args) -> {
+                if (method.getName().equals("serviceName")) {
+                    return "BedrockRuntime";
+                }
+                if (method.getName().equals("close")) {
+                    return null;
+                }
+                if (method.getName().equals("converse")) {
+                    throw failure;
                 }
                 throw new UnsupportedOperationException(method.getName());
             });

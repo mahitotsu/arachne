@@ -57,6 +57,16 @@ class AgentFactoryTest {
     }
 
     @Test
+    void buildRejectsUnsupportedConfiguredProvider() {
+        ArachneProperties properties = new ArachneProperties();
+        properties.getModel().setProvider("openai");
+
+        assertThatThrownBy(() -> new AgentFactory(properties).builder().build())
+                .isInstanceOf(UnsupportedModelProviderException.class)
+                .hasMessageContaining("currently supports bedrock only");
+    }
+
+    @Test
     void buildIncludesDiscoveredAnnotationTools() {
         ArachneProperties properties = new ArachneProperties();
         Model model = (messages, tools) -> List.of(

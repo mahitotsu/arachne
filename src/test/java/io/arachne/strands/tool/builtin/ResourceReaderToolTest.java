@@ -41,4 +41,16 @@ class ResourceReaderToolTest {
         assertThat(result.status()).isEqualTo(ToolResult.ToolStatus.ERROR);
         assertThat(result.content()).isEqualTo("Resource location is not allowlisted: " + file.toUri());
     }
+
+    @Test
+    void rejectsClasspathResourcesOutsideAllowlistedRoots() {
+        ResourceReaderTool tool = new ResourceReaderTool(
+                new PathMatchingResourcePatternResolver(),
+                new BuiltInResourceAccessPolicy(java.util.List.of("classpath:/docs/"), java.util.List.of()));
+
+        ToolResult result = tool.invoke(Map.of("location", "classpath:/application.yml"));
+
+        assertThat(result.status()).isEqualTo(ToolResult.ToolStatus.ERROR);
+        assertThat(result.content()).isEqualTo("Resource location is not allowlisted: classpath:/application.yml");
+    }
 }

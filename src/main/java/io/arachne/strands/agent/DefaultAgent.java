@@ -157,29 +157,7 @@ public class DefaultAgent implements Agent {
         addMessage(Message.user(beforeInvocationEvent.prompt()));
 
         EventLoopResult loopResult = eventLoop.run(model, messages, tools, systemPrompt, state, 0);
-        if (loopResult.interrupted()) {
-            pendingInterrupts = loopResult.interrupts();
-            persistSession();
-        } else {
-            pendingInterrupts = List.of();
-            conversationManager.applyManagement(messages);
-            persistSession();
-        }
-
-        // ── hook callsite: AfterInvocation ───────────────────────────────────
-        AfterInvocationEvent afterInvocationEvent = hooks.onAfterInvocation(new AfterInvocationEvent(
-            loopResult.text(),
-            messages,
-            loopResult.stopReason(),
-            state));
-
-        return new AgentResult(
-            afterInvocationEvent.text(),
-            List.copyOf(afterInvocationEvent.messages()),
-            afterInvocationEvent.stopReason(),
-            new AgentResult.Metrics(loopResult.usage()),
-            pendingInterrupts,
-            this::resume);
+        return completeInvocation(loopResult, true);
     }
 
     @Override
@@ -209,27 +187,13 @@ public class DefaultAgent implements Agent {
                 state,
                 0);
 
+        completeLoopResult(loopResult);
+        dispatchAfterInvocation(loopResult);
+
         if (loopResult.interrupted()) {
-            pendingInterrupts = loopResult.interrupts();
-            persistSession();
-            hooks.onAfterInvocation(new AfterInvocationEvent(
-                loopResult.text(),
-                messages,
-                loopResult.stopReason(),
-                state));
             throw new IllegalStateException(
                     "Structured output invocation was interrupted. Use Agent#run(String) and AgentResult.resume(...) instead.");
         }
-
-        pendingInterrupts = List.of();
-        conversationManager.applyManagement(messages);
-        persistSession();
-
-        hooks.onAfterInvocation(new AfterInvocationEvent(
-            loopResult.text(),
-            messages,
-            loopResult.stopReason(),
-            state));
 
         return structuredOutputContext.requireValue();
     }
@@ -245,7 +209,7 @@ public class DefaultAgent implements Agent {
         addMessage(Message.user(beforeInvocationEvent.prompt()));
 
         EventLoopResult loopResult = eventLoop.runStreaming(model, messages, tools, systemPrompt, state, 0, eventConsumer);
-        AgentResult result = completeInvocation(loopResult);
+        AgentResult result = completeInvocation(loopResult, true);
         eventConsumer.accept(new AgentStreamEvent.Complete(result));
         return result;
     }
@@ -327,48 +291,54 @@ public class DefaultAgent implements Agent {
         addMessage(new Message(Message.Role.USER, List.copyOf(resumeBlocks)));
 
         EventLoopResult loopResult = eventLoop.run(model, messages, tools, systemPrompt, state, 0);
-        if (loopResult.interrupted()) {
-            pendingInterrupts = loopResult.interrupts();
-            persistSession();
-            return new AgentResult(
-                    loopResult.text(),
-                    List.copyOf(messages),
-                    loopResult.stopReason(),
-                    new AgentResult.Metrics(loopResult.usage()),
-                    pendingInterrupts,
-                    this::resume);
-        }
-
-        conversationManager.applyManagement(messages);
-        persistSession();
-            return new AgentResult(
-                loopResult.text(),
-                List.copyOf(messages),
-                loopResult.stopReason(),
-                new AgentResult.Metrics(loopResult.usage()));
+        return completeInvocation(loopResult, false);
     }
 
-    private AgentResult completeInvocation(EventLoopResult loopResult) {
+    private void completeLoopResult(EventLoopResult loopResult) {
         if (loopResult.interrupted()) {
             pendingInterrupts = loopResult.interrupts();
             persistSession();
-        } else {
-            pendingInterrupts = List.of();
-            conversationManager.applyManagement(messages);
-            persistSession();
+            return;
         }
 
-        AfterInvocationEvent afterInvocationEvent = hooks.onAfterInvocation(new AfterInvocationEvent(
+        pendingInterrupts = List.of();
+        conversationManager.applyManagement(messages);
+        persistSession();
+    }
+
+    private AfterInvocationEvent dispatchAfterInvocation(EventLoopResult loopResult) {
+        return hooks.onAfterInvocation(new AfterInvocationEvent(
                 loopResult.text(),
                 messages,
                 loopResult.stopReason(),
                 state));
+    }
 
-        return new AgentResult(
+    private AgentResult completeInvocation(EventLoopResult loopResult, boolean dispatchAfterInvocation) {
+        completeLoopResult(loopResult);
+
+        if (!dispatchAfterInvocation) {
+            return createAgentResult(loopResult, loopResult.text(), List.copyOf(messages), loopResult.stopReason());
+        }
+
+        AfterInvocationEvent afterInvocationEvent = dispatchAfterInvocation(loopResult);
+        return createAgentResult(
+                loopResult,
                 afterInvocationEvent.text(),
                 List.copyOf(afterInvocationEvent.messages()),
-                afterInvocationEvent.stopReason(),
-            new AgentResult.Metrics(loopResult.usage()),
+                afterInvocationEvent.stopReason());
+    }
+
+    private AgentResult createAgentResult(
+            EventLoopResult loopResult,
+            String text,
+            List<Message> resultMessages,
+            String stopReason) {
+        return new AgentResult(
+                text,
+                resultMessages,
+                stopReason,
+                new AgentResult.Metrics(loopResult.usage()),
                 pendingInterrupts,
                 this::resume);
     }

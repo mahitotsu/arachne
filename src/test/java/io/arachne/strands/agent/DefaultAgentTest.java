@@ -227,6 +227,27 @@ class DefaultAgentTest {
     }
 
     @Test
+    void resumeDoesNotRedispatchInvocationHooks() {
+        List<String> events = new java.util.ArrayList<>();
+        HookProvider hookProvider = registrar -> registrar
+                .beforeInvocation(event -> events.add("before:" + event.prompt()))
+                .afterInvocation(event -> events.add("after:" + event.stopReason()));
+        HookProvider interruptingHook = registrar -> registrar.beforeToolCall(event -> event.interrupt("need approval"));
+        DispatchingHookRegistry hooks = DispatchingHookRegistry.fromProviders(List.of(hookProvider, interruptingHook));
+        EventLoop eventLoop = new EventLoop(hooks);
+        DefaultAgent agent = new DefaultAgent(toolUseThenResumeModel(), List.of(stubTool()), eventLoop, hooks);
+
+        AgentResult interrupted = agent.run("book the trip");
+        AgentResult resumed = interrupted.resume(new InterruptResponse("tool-1", "approved"));
+
+        assertThat(interrupted.stopReason()).isEqualTo("interrupt");
+        assertThat(resumed.stopReason()).isEqualTo("end_turn");
+        assertThat(events).containsExactly(
+                "before:book the trip",
+                "after:interrupt");
+    }
+
+    @Test
     void multiTurnAccumulatesMessages() {
         NoOpHookRegistry hooks = new NoOpHookRegistry();
         EventLoop eventLoop = new EventLoop(hooks);
