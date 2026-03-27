@@ -4,6 +4,7 @@ This document is a lightweight engineering snapshot of the Arachne repository.
 
 It is intended to complement, not replace, the normative project documents:
 
+- `docs/README.md` for the documentation catalog and reading order
 - `README.md` for entry points and quick start
 - `docs/project-status.md` for shipped scope and deferrals
 - `docs/user-guide.md` for API and usage guidance
@@ -13,7 +14,9 @@ Update this document when a quality audit, major phase closeout, new sample modu
 
 ## Scope Of This Snapshot
 
-- Snapshot date: 2026-03-25
+Structural counts below were refreshed against the checked-in repository state on 2026-03-27. Quality metrics still reflect the latest local quality artifacts gathered on 2026-03-25.
+
+- Snapshot date: 2026-03-27
 - Repository artifact: `io.arachne:arachne:0.1.0-SNAPSHOT`
 - Java version: 21
 - Spring Boot baseline: 3.5.12
@@ -31,24 +34,24 @@ These values reflect the checked-in repository state and the latest local qualit
 
 | Surface | Java files | LOC |
 | --- | ---: | ---: |
-| `src/main/java` | 91 | 7706 |
-| `src/test/java` | 23 | 5311 |
-| `samples/**/src/main/java` | 52 | not aggregated in this snapshot |
+| `src/main/java` | 98 | 8401 |
+| `src/test/java` | 26 | 5524 |
+| `samples/**/src/main/java` | 79 | not aggregated in this snapshot |
 | `samples/**/src/test/java` | 3 | not aggregated in this snapshot |
 
 ### Verification And Quality Totals
 
 | Metric | Value |
 | --- | ---: |
-| Root test methods (`@Test`) | 154 |
+| Root test methods (`@Test`) | 165 |
 | Latest Maven test result | 154 run, 0 failures, 0 errors, 1 skipped |
 | Instruction coverage | 85.53% |
 | Branch coverage | 68.01% |
 | SpotBugs findings | 49 |
 | PMD violations | 0 |
 | CPD duplications | 0 |
-| ADR count | 16 |
-| Sample modules | 9 |
+| ADR count | 17 |
+| Sample modules | 12 |
 
 ### Large-Class Hotspots
 
@@ -89,7 +92,7 @@ The current SpotBugs totals are concentrated in a few recurring categories rathe
 ### Root Structure
 
 - `src/`: the main library implementation and tests
-- `docs/`: status, user guide, tool catalog, ADRs, and repository-level documentation
+- `docs/`: status, user guide, tool catalog, repository facts, ADRs, and the documentation catalog
 - `samples/`: runnable reference applications that exercise shipped capabilities
 - `refs/sdk-python/`: behavioral reference material for the Python SDK lineage
 - `target/`: local build outputs and generated quality artifacts
@@ -115,7 +118,10 @@ Top-level package groups under `src/main/java/io/arachne/strands`:
 
 | Sample | Main Java files | Test Java files | Focus |
 | --- | ---: | ---: | --- |
+| `built-in-tools` | 3 | 0 | built-in inheritance and allowlisted resource access |
 | `conversation-basics` | 3 | 0 | basic multi-turn agent usage |
+| `secure-downstream-tools` | 14 | 0 | security propagation and downstream API calls |
+| `stateful-backend-operations` | 10 | 0 | idempotent backend mutations and workflow state |
 | `tool-delegation` | 4 | 0 | tools and delegation patterns |
 | `tool-execution-context` | 5 | 0 | execution-context propagation |
 | `session-redis` | 2 | 0 | Spring Session with Redis |

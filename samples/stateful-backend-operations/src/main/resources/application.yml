@@ -1,0 +1,14 @@
+spring:
+  application:
+    name: arachne-stateful-backend-operations-sample
+  main:
+    banner-mode: off
+    web-application-type: none
+  datasource:
+    url: jdbc:h2:mem:stateful-backend-operations;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql

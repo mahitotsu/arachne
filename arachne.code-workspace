@@ -13,6 +13,14 @@
             "path": "samples/built-in-tools"
         },
         {
+            "name": "secure-downstream-tools",
+            "path": "samples/secure-downstream-tools"
+        },
+        {
+            "name": "stateful-backend-operations",
+            "path": "samples/stateful-backend-operations"
+        },
+        {
             "name": "domain-separation",
             "path": "samples/domain-separation"
         },

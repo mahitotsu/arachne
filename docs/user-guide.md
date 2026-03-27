@@ -2,13 +2,15 @@
 
 This guide documents the features that are available on the current main branch.
 
+Use [docs/README.md](README.md) for the documentation catalog when you need the role split across status, usage, tool direction, and architecture documents.
+
 ## Scope
 
 The current implementation gives you a Bedrock-backed agent runtime with annotation-driven tools, structured output, retry, conversation/session management, hooks/plugins, interrupts, skills, opt-in Bedrock prompt caching, and opt-in streaming plus steering.
 
-For the repository-level scope snapshot, deliberately deferred features, and current contract boundary, see [docs/project-status.md](docs/project-status.md).
+For the repository-level scope snapshot, deliberately deferred features, and current contract boundary, see [docs/project-status.md](project-status.md).
 
-For a tool-centered view of the current shipped surface and the proposed first-party tool directions, see [docs/tool-catalog.md](docs/tool-catalog.md).
+For a tool-centered view of the current shipped surface and the proposed first-party tool directions, see [docs/tool-catalog.md](tool-catalog.md).
 
 Available now:
 
@@ -41,32 +43,17 @@ Available now:
 - callback-based streaming invocation through `Agent.stream(...)`
 - tool and model steering through runtime-local `SteeringHandler` plugins
 
-Deliberately deferred features such as additional providers, MCP, multi-agent protocols, Guardrails, and bidirectional realtime/audio streaming are tracked in [docs/project-status.md](docs/project-status.md).
+Deliberately deferred features such as additional providers, MCP, multi-agent protocols, Guardrails, and bidirectional realtime/audio streaming are tracked in [docs/project-status.md](project-status.md).
 
-If you want runnable examples instead of only reading the API docs, use these samples:
+If you want runnable examples instead of only reading the API docs, start with [samples/README.md](../samples/README.md), which now serves as the sample catalog and suggested learning order.
 
-- [samples/README.md](samples/README.md)
-- [samples/conversation-basics/README.md](samples/conversation-basics/README.md)
-- [samples/built-in-tools/README.md](samples/built-in-tools/README.md)
-- [samples/tool-delegation/README.md](samples/tool-delegation/README.md)
-- [samples/tool-execution-context/README.md](samples/tool-execution-context/README.md)
-- [samples/session-redis/README.md](samples/session-redis/README.md)
-- [samples/session-jdbc/README.md](samples/session-jdbc/README.md)
-- [samples/approval-workflow/README.md](samples/approval-workflow/README.md)
-- [samples/skill-activation/README.md](samples/skill-activation/README.md)
-- [samples/streaming-steering/README.md](samples/streaming-steering/README.md)
-- [samples/domain-separation/README.md](samples/domain-separation/README.md)
+For the most common next steps:
 
-## Contributor Workflows
-
-The repository ships four audit-oriented slash commands for recurring maintenance work:
-
-- `/compat-audit <area>` checks Arachne's compatibility with Strands Agents for a target capability area and separates implemented, partial, deferred, and MVP-missing items.
-- `/implementation-candidates <scope>` detects unported or deferred Strands capabilities that are plausible next implementation candidates for Arachne, compares them, and recommends an execution order.
-- `/alignment-audit <area>` checks whether implementation, tests, docs, ADRs, instructions, and samples stay aligned for a target capability area.
-- `/quality-audit` refreshes the current Maven quality evidence and produces a repository-specific quality report.
-
-Use `/compat-audit` when the external comparison baseline is Strands Agents. Use `/implementation-candidates` when the goal is to turn unported or deferred features into a ranked next-work proposal. Use `/alignment-audit` when the question is whether Arachne's own repository surfaces still match each other. Use `/quality-audit` when the focus is test, coverage, static analysis, dependency, and architecture quality evidence.
+- [samples/conversation-basics/README.md](../samples/conversation-basics/README.md) for the smallest end-to-end runtime
+- [samples/built-in-tools/README.md](../samples/built-in-tools/README.md) for shipped built-ins
+- [samples/secure-downstream-tools/README.md](../samples/secure-downstream-tools/README.md) for Spring Security propagation and downstream API calls
+- [samples/stateful-backend-operations/README.md](../samples/stateful-backend-operations/README.md) for idempotent backend mutations and safe workflow state
+- [samples/domain-separation/README.md](../samples/domain-separation/README.md) for the composed backend reference
 
 ## Prerequisites
 
@@ -576,7 +563,7 @@ class SupportApplication {
 
 This keeps session persistence in Spring Session while Arachne continues to load and save `Message` history, `AgentState`, and conversation-manager state through its own `SessionManager` abstraction.
 
-The runnable reference for this setup is [samples/session-redis/README.md](samples/session-redis/README.md).
+The runnable reference for this setup is [samples/session-redis/README.md](../samples/session-redis/README.md).
 
 For JDBC, the intended setup is:
 
@@ -607,7 +594,7 @@ class SupportApplication {
 
 This keeps session persistence in Spring Session while Arachne continues to load and save `Message` history, `AgentState`, and conversation-manager state through its own `SessionManager` abstraction.
 
-The runnable reference for this setup is [samples/session-jdbc/README.md](samples/session-jdbc/README.md).
+The runnable reference for this setup is [samples/session-jdbc/README.md](../samples/session-jdbc/README.md).
 
 ## Annotation-Driven Tools
 
@@ -822,7 +809,7 @@ This keeps the tool contract narrow and Spring-native:
 
 The runnable version of this pattern is here:
 
-- [samples/tool-delegation/README.md](samples/tool-delegation/README.md)
+- [samples/tool-delegation/README.md](../samples/tool-delegation/README.md)
 
 On the current main branch, that runnable sample uses named-agent defaults added later to keep the Java wiring small. The core pattern it demonstrates is the same one shown above: a `@StrandsTool`-annotated Spring service method delegates to another short-lived agent runtime, and the caller can still request structured output from the top-level agent.
 
@@ -880,12 +867,12 @@ Without a configured session id, conversation state still lives only inside the 
 
 If you want to see this behavior in a runnable application, the sample app keeps one runner-owned `Agent` runtime alive and exposes both a fixed two-turn demo and an interactive REPL:
 
-- [samples/conversation-basics/README.md](samples/conversation-basics/README.md)
+- [samples/conversation-basics/README.md](../samples/conversation-basics/README.md)
 
 For persisted session restore examples, see these session samples:
 
-- [samples/session-redis/README.md](samples/session-redis/README.md)
-- [samples/session-jdbc/README.md](samples/session-jdbc/README.md)
+- [samples/session-redis/README.md](../samples/session-redis/README.md)
+- [samples/session-jdbc/README.md](../samples/session-jdbc/README.md)
 
 ## Customizing The Model
 
@@ -1169,11 +1156,11 @@ Redundant activation is also suppressed. If the model tries to activate a skill 
 
 If you want a runnable, Bedrock-free example of this flow, use:
 
-- [samples/skill-activation/README.md](samples/skill-activation/README.md)
+- [samples/skill-activation/README.md](../samples/skill-activation/README.md)
 
 If you want a runnable, Bedrock-free example of the combined streaming and steering flow, use:
 
-- [samples/streaming-steering/README.md](samples/streaming-steering/README.md)
+- [samples/streaming-steering/README.md](../samples/streaming-steering/README.md)
 
 ## Current Constraints
 
@@ -1187,7 +1174,7 @@ The current implementation is intentionally narrow.
 - structured output currently targets simple JSON-shaped Java types rather than arbitrary object graphs
 - callback-based streaming is one-way output only; bidirectional realtime/audio streaming is not implemented
 
-Larger deferred feature areas are summarized in [docs/project-status.md](docs/project-status.md) and [docs/adr/0012-post-mvp-product-boundary.md](docs/adr/0012-post-mvp-product-boundary.md).
+Larger deferred feature areas are summarized in [docs/project-status.md](project-status.md) and [docs/adr/0012-post-mvp-product-boundary.md](adr/0012-post-mvp-product-boundary.md).
 
 ## Verification
 

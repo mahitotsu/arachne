@@ -6,6 +6,7 @@ Arachne ships a Bedrock-backed agent runtime with Spring Boot integration, annot
 
 ## Documentation
 
+- [docs/README.md](docs/README.md) for the documentation catalog and reading order
 - [docs/user-guide.md](docs/user-guide.md) for user-facing API, configuration, lifecycle, and examples
 - [docs/project-status.md](docs/project-status.md) for the shipped scope, current constraints, and deliberately deferred features
 - [docs/repository-facts.md](docs/repository-facts.md) for a repository-wide engineering snapshot with quantitative metrics, structure, and architectural hotspots
@@ -14,16 +15,10 @@ Arachne ships a Bedrock-backed agent runtime with Spring Boot integration, annot
 
 Runnable samples:
 
-- [samples/README.md](samples/README.md)
-- [samples/conversation-basics/README.md](samples/conversation-basics/README.md)
-- [samples/tool-delegation/README.md](samples/tool-delegation/README.md)
-- [samples/tool-execution-context/README.md](samples/tool-execution-context/README.md)
-- [samples/session-redis/README.md](samples/session-redis/README.md)
-- [samples/session-jdbc/README.md](samples/session-jdbc/README.md)
-- [samples/approval-workflow/README.md](samples/approval-workflow/README.md)
-- [samples/skill-activation/README.md](samples/skill-activation/README.md)
-- [samples/streaming-steering/README.md](samples/streaming-steering/README.md)
-- [samples/domain-separation/README.md](samples/domain-separation/README.md)
+- [samples/README.md](samples/README.md) for the sample catalog and learning tracks
+- [samples/secure-downstream-tools/README.md](samples/secure-downstream-tools/README.md) for secure backend tool patterns
+- [samples/stateful-backend-operations/README.md](samples/stateful-backend-operations/README.md) for idempotent backend mutations and state
+- [samples/domain-separation/README.md](samples/domain-separation/README.md) for the composed backend reference
 
 Deliberately deferred features include provider expansion beyond Bedrock, bidirectional realtime/audio streaming, MCP, multi-agent protocols, Guardrails, Agent Config, Evals SDK, and remote skill registries. The current deferral boundary is documented in [docs/project-status.md](docs/project-status.md) and [docs/adr/0012-post-mvp-product-boundary.md](docs/adr/0012-post-mvp-product-boundary.md).
 

@@ -15,6 +15,8 @@
     <modules>
         <module>conversation-basics</module>
         <module>built-in-tools</module>
+        <module>secure-downstream-tools</module>
+        <module>stateful-backend-operations</module>
         <module>domain-separation</module>
         <module>tool-delegation</module>
         <module>tool-execution-context</module>

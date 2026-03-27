@@ -2,6 +2,8 @@
 
 This document replaces `ROADMAP.md` as the repository-level snapshot of what Arachne ships today and what remains deliberately deferred.
 
+Use [docs/README.md](README.md) for the documentation catalog and role split across the rest of the docs set.
+
 ## Supported Scope
 
 ### Core Runtime And Spring Integration
@@ -50,7 +52,7 @@ This document replaces `ROADMAP.md` as the repository-level snapshot of what Ara
 
 - repository verification with `mvn test`
 - opt-in Bedrock smoke verification with `mvn -Dtest=BedrockModelIntegrationTest -Darachne.integration.bedrock=true test`
-- runnable samples for chat, built-in tools, tools, tool context, Redis session, JDBC session, hooks/interrupts, skills, streaming/steering, and the higher-level domain-separation backend reference under `samples/`
+- runnable samples documented under `samples/README.md`, including conversation basics, built-in tools, secure downstream tools, stateful backend operations, tool delegation, tool execution context, session restore, approval workflow, skills, streaming/steering, and the higher-level domain-separation backend reference
 
 ## Current Constraints
 
@@ -83,9 +85,10 @@ Future work in these areas should start with an ADR or ADR update before impleme
 
 ## Canonical Documentation
 
+- `docs/README.md` for the documentation catalog and reading order
 - `README.md` for the top-level entry point and quick-start path
 - `docs/user-guide.md` for user-facing API, configuration, lifecycle, and sample guidance
 - `docs/repository-facts.md` for repository-wide quantitative facts, structure, and engineering watch areas
 - `docs/tool-catalog.md` for the current tool authoring surface and the proposed first-party tool catalog direction
 - `docs/adr/README.md` for accepted architecture decisions and open ADR candidates
-- sample READMEs under `samples/` for runnable reference flows
+- `samples/README.md` for the runnable sample catalog and learning tracks

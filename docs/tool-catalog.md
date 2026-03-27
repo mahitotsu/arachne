@@ -5,7 +5,9 @@ This catalog has two jobs.
 - explain the tool surfaces that Arachne already ships today
 - classify the most plausible next tool families for Arachne-maintained support
 
-Use [docs/project-status.md](docs/project-status.md) for the current shipped contract and deferred boundary. Use this document when you need a more tool-centered view of that same boundary.
+This is a direction-and-boundary document, not an implementation task list.
+
+Use [docs/project-status.md](project-status.md) for the current shipped contract and deferred boundary. Use [docs/user-guide.md](user-guide.md) for concrete usage and setup. Use this document when you need a tool-centered view of those same boundaries plus likely next tool families.
 
 ## Scope
 
@@ -23,7 +25,7 @@ The current shipped tool surface includes:
 - plugin-contributed tools such as skill activation and skill resource loading
 - agent-as-tool delegation through normal Spring services
 
-For the underlying contract, see [docs/user-guide.md](docs/user-guide.md), [docs/project-status.md](docs/project-status.md), [docs/adr/0007-phase2-tool-contracts.md](docs/adr/0007-phase2-tool-contracts.md), and [docs/adr/0014-tool-invocation-context-contract.md](docs/adr/0014-tool-invocation-context-contract.md).
+For the underlying contract, see [docs/user-guide.md](user-guide.md), [docs/project-status.md](project-status.md), [docs/adr/0007-phase2-tool-contracts.md](adr/0007-phase2-tool-contracts.md), and [docs/adr/0014-tool-invocation-context-contract.md](adr/0014-tool-invocation-context-contract.md).
 
 ## Available Today
 
@@ -37,11 +39,11 @@ The current built-in pack is:
 
 The smallest current-main references are:
 
-- [samples/built-in-tools/README.md](samples/built-in-tools/README.md) for built-in inheritance, named-agent filtering, and allowlisted resource access
-- [samples/tool-delegation/README.md](samples/tool-delegation/README.md) for annotation-driven tools, named-agent scoping, and agent-as-tool delegation
-- [samples/tool-execution-context/README.md](samples/tool-execution-context/README.md) for the split between `ToolInvocationContext` and `ExecutionContextPropagation`
-- [samples/approval-workflow/README.md](samples/approval-workflow/README.md) for plugin-contributed tools and interrupt-aware execution
-- [samples/skill-activation/README.md](samples/skill-activation/README.md) for shipped plugin tools that expose delayed skill activation and skill resource reading
+- [samples/built-in-tools/README.md](../samples/built-in-tools/README.md) for built-in inheritance, named-agent filtering, and allowlisted resource access
+- [samples/tool-delegation/README.md](../samples/tool-delegation/README.md) for annotation-driven tools, named-agent scoping, and agent-as-tool delegation
+- [samples/tool-execution-context/README.md](../samples/tool-execution-context/README.md) for the split between `ToolInvocationContext` and `ExecutionContextPropagation`
+- [samples/approval-workflow/README.md](../samples/approval-workflow/README.md) for plugin-contributed tools and interrupt-aware execution
+- [samples/skill-activation/README.md](../samples/skill-activation/README.md) for shipped plugin tools that expose delayed skill activation and skill resource reading
 
 ## Catalog Policy
 
