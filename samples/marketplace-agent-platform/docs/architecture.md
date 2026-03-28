@@ -1,8 +1,8 @@
-# Marketplace Agent Backend Architecture
+# Marketplace Agent Platform Architecture
 
 This note separates architecture decisions from the sample concept.
 
-Use [concept.md](/home/akring/arachne/samples/marketplace-agent-backend/docs/concept.md) to describe what the sample is meant to demonstrate.
+Use [concept.md](/home/akring/arachne/samples/marketplace-agent-platform/docs/concept.md) to describe what the sample is meant to demonstrate.
 Use this file to describe how the sample should be structured and run.
 
 The architecture is intentionally split into two views:
@@ -14,7 +14,7 @@ That separation matters because the sample is trying to demonstrate a realistic 
 
 ## Architectural Intent
 
-The sample should demonstrate a marketplace backend where service boundaries and agent boundaries reinforce each other.
+The sample should demonstrate a marketplace platform where service boundaries and agent boundaries reinforce each other.
 
 Architecture should make these points clear:
 

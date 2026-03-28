@@ -1,8 +1,8 @@
-# Marketplace Agent Backend Sample
+# Marketplace Agent Platform Sample
 
 This directory is the concept home for the next high-density Arachne sample.
 
-The active direction is a marketplace backend in which Spring-based microservices each own a service-local agent and collaborate through explicit capability boundaries, with a thin operator-facing frontend for visibility and approval interaction.
+The active direction is a marketplace platform in which Spring-based microservices each own a service-local agent and collaborate through explicit capability boundaries, with a thin operator-facing frontend for visibility and approval interaction.
 
 At this stage, this directory is intentionally concept-only. It does not yet contain runnable implementation code.
 

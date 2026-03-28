@@ -1,11 +1,11 @@
-# Marketplace Agent Backend Concept
+# Marketplace Agent Platform Concept
 
 This note captures the concept direction for the next high-density Arachne sample.
 
 It is intentionally a concept document, not an implementation plan. The immediate goal is to decide what kind of sample should exist before deciding how much code, how many modules, or how much infrastructure the sample should carry.
 
-Requirements are tracked separately in [requirements.md](/home/akring/arachne/samples/marketplace-agent-backend/docs/requirements.md).
-Execution and development structure are tracked separately in [architecture.md](/home/akring/arachne/samples/marketplace-agent-backend/docs/architecture.md).
+Requirements are tracked separately in [requirements.md](/home/akring/arachne/samples/marketplace-agent-platform/docs/requirements.md).
+Execution and development structure are tracked separately in [architecture.md](/home/akring/arachne/samples/marketplace-agent-platform/docs/architecture.md).
 
 ## Goal
 
@@ -25,7 +25,7 @@ The backend remains the architectural center, but the sample should also include
 
 ## Domain Choice
 
-The preferred domain is a high-value marketplace backend with escrow-mediated settlement and exception handling.
+The preferred domain is a high-value marketplace platform with escrow-mediated settlement and exception handling.
 
 The sample should be broad enough to support several marketplace workflows, while still being explained through one representative scenario.
 
@@ -332,7 +332,7 @@ Unless later discussion changes them, use these defaults:
 
 Proceed with this concept baseline:
 
-- domain: marketplace agent backend with escrow-mediated settlement and exception handling
+- domain: marketplace agent platform with escrow-mediated settlement and exception handling
 - representative case: `ITEM_NOT_RECEIVED` under escrow
 - topology: five logical services with one named agent each, plus a thin operator frontend
 - physical target: multi-module Maven plus Docker Compose, but only after the logical boundaries and first workflow are fixed

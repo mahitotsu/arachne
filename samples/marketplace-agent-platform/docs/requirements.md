@@ -1,16 +1,16 @@
-# Marketplace Agent Backend Requirements
+# Marketplace Agent Platform Requirements
 
-This note captures requirements for the marketplace agent backend sample.
+This note captures requirements for the marketplace agent platform sample.
 
-Use [concept.md](/home/akring/arachne/samples/marketplace-agent-backend/docs/concept.md) for the sample's purpose, value proposition, and explanation story.
-Use [architecture.md](/home/akring/arachne/samples/marketplace-agent-backend/docs/architecture.md) for execution and development structure.
+Use [concept.md](/home/akring/arachne/samples/marketplace-agent-platform/docs/concept.md) for the sample's purpose, value proposition, and explanation story.
+Use [architecture.md](/home/akring/arachne/samples/marketplace-agent-platform/docs/architecture.md) for execution and development structure.
 Use this file for what the sample must support.
 
 ## Scope Level
 
 These requirements are for the first substantial sample slice, not necessarily the full long-term vision.
 
-The sample must demonstrate a marketplace backend that supports multiple case types through service-local agents and a thin operator-facing frontend.
+The sample must demonstrate a marketplace platform that supports multiple case types through service-local agents and a thin operator-facing frontend.
 
 ## Functional Requirements
 
