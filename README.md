@@ -2,6 +2,11 @@
 
 Arachne is a Java port of the Strands Agents SDK with Spring Boot integration.
 
+This repository is distributed under the Apache License 2.0. It was developed
+with reference to the Strands Agents Python SDK and includes original
+modifications and Java/Spring Boot-specific additions. See [LICENSE](LICENSE)
+and [NOTICE](NOTICE) for the applicable license and attribution details.
+
 Arachne currently provides a Bedrock-backed agent runtime with Spring Boot auto-configuration, annotation-driven tools, structured output, retry, conversation/session management, hooks/plugins, interrupts, packaged skills, and opt-in streaming plus steering.
 
 ## Start Here
@@ -107,3 +112,11 @@ Bedrock smoke verification is opt-in:
 ```bash
 mvn -Dtest=BedrockModelIntegrationTest -Darachne.integration.bedrock=true test
 ```
+
+## License
+
+Arachne is licensed under the Apache License 2.0.
+
+This repository is a Java/Spring Boot port developed with reference to the
+Strands Agents Python SDK. Attribution and lineage details are recorded in
+[NOTICE](NOTICE).

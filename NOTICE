@@ -1,0 +1,10 @@
+Arachne
+Copyright 2026 mahitotsu
+
+This product is a Java and Spring Boot port developed with reference to the
+Strands Agents SDK for Python: https://github.com/strands-agents/sdk-python
+
+This repository contains original modifications and additions.
+
+Upstream NOTICE attribution from the referenced Apache License 2.0 project:
+Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.

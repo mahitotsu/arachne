@@ -18,6 +18,13 @@
 
     <name>Arachne</name>
     <description>Strands Agents Java port with Spring Boot integration</description>
+    <licenses>
+        <license>
+            <name>Apache License 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
 
     <properties>
         <java.version>21</java.version>
