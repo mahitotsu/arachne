@@ -36,11 +36,12 @@ import io.arachne.strands.skills.Skill;
 import io.arachne.strands.skills.SkillParser;
 import io.arachne.strands.tool.BeanValidationSupport;
 import io.arachne.strands.tool.ExecutionContextPropagation;
+import io.arachne.strands.tool.annotation.DiscoveredTool;
 import io.arachne.strands.tool.builtin.BuiltInResourceAccessPolicy;
+import io.arachne.strands.tool.builtin.CalculatorTool;
 import io.arachne.strands.tool.builtin.CurrentTimeTool;
 import io.arachne.strands.tool.builtin.ResourceListTool;
 import io.arachne.strands.tool.builtin.ResourceReaderTool;
-import io.arachne.strands.tool.annotation.DiscoveredTool;
 import jakarta.validation.Validator;
 
 /**
@@ -110,6 +111,14 @@ public class ArachneAutoConfiguration {
         return new PathMatchingResourcePatternResolver();
     }
 
+    @Bean
+    @ConditionalOnMissingBean
+    public ArachneTemplateRenderer arachneTemplateRenderer(
+            ResourcePatternResolver resourcePatternResolver,
+            ObjectMapper objectMapper) {
+        return new ArachneTemplateRenderer(resourcePatternResolver, objectMapper);
+    }
+
     @Bean(name = "arachneBuiltInTools")
     @ConditionalOnMissingBean(name = "arachneBuiltInTools")
     public BuiltInToolRegistry arachneBuiltInTools(
@@ -120,6 +129,7 @@ public class ArachneAutoConfiguration {
                 resourceAccess.getAllowedClasspathLocations(),
                 resourceAccess.getAllowedFileLocations());
         return new BuiltInToolRegistry(List.of(
+            new BuiltInToolDefinition(new CalculatorTool(), true, Set.of("read-only", "utility")),
                 new BuiltInToolDefinition(new CurrentTimeTool(), true, Set.of("read-only", "utility")),
                 new BuiltInToolDefinition(new ResourceReaderTool(resourcePatternResolver, accessPolicy), true, Set.of("read-only", "resource")),
             new BuiltInToolDefinition(new ResourceListTool(resourcePatternResolver, accessPolicy), true, Set.of("read-only", "resource"))));

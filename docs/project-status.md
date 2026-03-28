@@ -22,7 +22,7 @@ For full usage details, see [docs/user-guide.md](user-guide.md).
 
 ### Tools And Structured Output
 
-- built-in read-only tools: `current_time`, `resource_reader`, and `resource_list`
+- built-in read-only tools: `calculator`, `current_time`, `resource_reader`, and `resource_list`
 - annotation-driven tools through `@StrandsTool` and `@ToolParam`
 - manual `Tool` registration
 - Spring tool discovery with qualifier-based scoping and opt-out control
@@ -30,6 +30,7 @@ For full usage details, see [docs/user-guide.md](user-guide.md).
 - `ToolInvocationContext` for logical tool-call metadata
 - `ExecutionContextPropagation` for opt-in executor-boundary context propagation
 - structured output with generated JSON schema and runtime validation
+- Spring-managed `ArachneTemplateRenderer` for deterministic `T -> String` rendering after structured output completes
 - `AgentResult.metrics()` usage reporting, including Bedrock cache read/write token counters
 
 ### Conversation And Sessions
@@ -40,6 +41,13 @@ For full usage details, see [docs/user-guide.md](user-guide.md).
 - `AgentState` for session-scoped key-value state
 - `SessionManager`, `InMemorySessionManager`, and `FileSessionManager`
 - Spring Session integration for Redis and JDBC repositories while preserving explicit Arachne session ids
+
+### Input Composition
+
+- `PromptTemplate` for named-placeholder template rendering with clear missing-variable failure
+- `PromptVariables` for supplying the variable map to template rendering
+- `MessageBuilder` for constructing `Message.user(...)` and `Message.assistant(...)` payloads from templates or plain text
+- helpers are Spring-neutral and live in `io.arachne.strands.prompt`
 
 ### Extensions And Control
 

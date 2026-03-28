@@ -4,7 +4,8 @@ This sample is a runnable, Bedrock-free demo for the built-in tool baseline that
 
 It demonstrates these current-main concepts together:
 
-- default built-in inheritance for read-only framework-provided tools
+- default built-in inheritance for read-only framework-provided tools including `calculator`
+- explicit named-agent selection by built-in tool name
 - named-agent filtering through built-in groups
 - named-agent opt-out from the default built-in baseline
 - allowlisted classpath resource access through `resource_reader` and `resource_list`
@@ -34,11 +35,14 @@ Expected output shape:
 
 ```text
 Arachne built-in tools sample
-default.tools> current_time, resource_reader, resource_list
+default.tools> calculator, current_time, resource_reader, resource_list
+math.tools> calculator
 reader.tools> resource_reader, resource_list
 strict.tools> (none)
 default.reply> At 2026-03-25T... in Asia/Tokyo I read the sample note: Built-in tools sample note.
 default.toolResults> [current_time, resource]
+math.reply> Calculator agent computed 1 + 2 * (3 + 4) = 15
+math.toolResults> [calculator]
 reader.reply> Reader agent found [classpath:/builtin/release-note.md] and read: Built-in tools sample note.
 reader.toolResults> [resource_list, resource]
 ```
@@ -48,7 +52,7 @@ reader.toolResults> [resource_list, resource]
 The sample is centered on four pieces:
 
 - `DemoBuiltInToolsModel`: a deterministic model that chooses built-in tools based on the current agent surface
-- `BuiltInToolsRunner`: builds three agents to show the default baseline, a resource-only named agent, and a full opt-out agent
+- `BuiltInToolsRunner`: builds four agents to show the default baseline, explicit calculator-only selection, a resource-only named agent, and a full opt-out agent
 - `application.yml`: configures the named-agent built-in policies and the allowlisted classpath root for resource access
 - `src/main/resources/builtin/release-note.md`: packaged reference data that the resource tools can list and read
 
@@ -56,6 +60,7 @@ This intentionally shows the current built-in boundary.
 
 - built-ins are available without declaring any `@StrandsTool` beans
 - the default baseline is inherited separately from discovered-tool enablement
+- named agents can select one built-in by explicit tool name without inheriting the full baseline
 - named agents can narrow the built-in surface without affecting other agents
 - resource access remains read-only and allowlist-driven
 
@@ -79,6 +84,12 @@ arachne:
           allowed-classpath-locations:
             - classpath:/builtin/
     agents:
+      math:
+        system-prompt: "You are a calculator-only agent."
+        built-ins:
+          inherit-defaults: false
+          tool-names:
+            - calculator
       reader:
         system-prompt: "You are a resource-only reader."
         built-ins:

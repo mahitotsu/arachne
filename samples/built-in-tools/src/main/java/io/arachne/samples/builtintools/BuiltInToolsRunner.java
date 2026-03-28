@@ -23,16 +23,21 @@ public class BuiltInToolsRunner implements ApplicationRunner {
     @Override
     public void run(ApplicationArguments args) {
         Agent defaultAgent = agentFactory.builder().build();
+        Agent mathAgent = agentFactory.builder("math").build();
         Agent readerAgent = agentFactory.builder("reader").build();
         Agent strictAgent = agentFactory.builder("strict").build();
 
         System.out.println("Arachne built-in tools sample");
         System.out.println("default.tools> " + toolNames(defaultAgent));
+        System.out.println("math.tools> " + toolNames(mathAgent));
         System.out.println("reader.tools> " + toolNames(readerAgent));
         System.out.println("strict.tools> " + toolNames(strictAgent));
 
         System.out.println("default.reply> " + defaultAgent.run("Run default profile.").text());
         System.out.println("default.toolResults> " + observedToolResultTypes(defaultAgent));
+
+        System.out.println("math.reply> " + mathAgent.run("Run calculator profile.").text());
+        System.out.println("math.toolResults> " + observedToolResultTypes(mathAgent));
 
         System.out.println("reader.reply> " + readerAgent.run("Run reader profile.").text());
         System.out.println("reader.toolResults> " + observedToolResultTypes(readerAgent));

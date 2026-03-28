@@ -14,7 +14,7 @@ If you first want a tool-focused view of the current surface, read [docs/tool-ca
 
 Available now:
 
-- framework-provided built-in tools: `current_time`, `resource_reader`, and `resource_list`
+- framework-provided built-in tools: `calculator`, `current_time`, `resource_reader`, and `resource_list`
 - Spring Boot auto-configuration for `Model` and `AgentFactory`
 - `AgentFactory.builder().build()` for creating an agent
 - `AgentFactory.builder("name").build()` for creating an agent from named defaults
@@ -204,6 +204,7 @@ When a Bedrock model reports prompt-cache usage, Arachne exposes the accumulated
 
 The current main branch ships a small default built-in tool pack for baseline read-only utility work:
 
+- `calculator`
 - `current_time`
 - `resource_reader`
 - `resource_list`
@@ -216,7 +217,7 @@ The current built-in groups are:
 - `utility`
 - `resource`
 
-`current_time` belongs to `read-only` and `utility`.
+`calculator` and `current_time` belong to `read-only` and `utility`.
 
 `resource_reader` and `resource_list` belong to `read-only` and `resource`.
 
@@ -272,6 +273,8 @@ Agent noBuiltInsAgent = factory.builder()
 ```
 
 The resource tools enforce the configured allowlists before reading or listing anything. Classpath access is allowed from `classpath:/` by default. File-system access is denied until you add explicit allowlisted roots.
+
+`calculator` accepts a single `expression` string and evaluates only arithmetic expressions with `+`, `-`, `*`, `/`, `%`, parentheses, and the helper functions `abs`, `round`, `min`, and `max`. Results are returned as canonical plain strings, and unsupported identifiers or invalid syntax are rejected instead of falling back to any general scripting surface.
 
 ## Creating An Agent
 
@@ -478,6 +481,69 @@ class SupportService {
   }
 }
 ```
+
+## Prompt And Message Composition Helpers
+
+Before calling `agent.run(String)` you may need to construct the prompt string from runtime data. Arachne ships a small core helper layer in the `io.arachne.strands.prompt` package that keeps string-building explicit and failure-safe without widening the agent API.
+
+### PromptTemplate
+
+`PromptTemplate` holds a template string with named placeholders and renders it into plain text.
+
+Placeholders are written as `{{name}}`. Prefix with a backslash to emit the literal brace sequence: `\{{name}}` → `{{name}}`.
+
+```java
+PromptTemplate template = PromptTemplate.of(
+        "Summarize the following article in {{lang}}: {{content}}");
+
+String prompt = template.render(
+        PromptVariables.of("lang", "Japanese", "content", articleText));
+
+String result = agent.run(prompt).text();
+```
+
+Rules:
+
+- every placeholder in the template must have a matching key in the variable map; missing variables fail immediately with a clear error
+- extra keys in the variable map are silently ignored
+- repeated occurrences of the same placeholder resolve to the same value
+- rendering stays text-only; no conditionals, loops, or expression evaluation
+
+### PromptVariables
+
+`PromptVariables` is an immutable variable map passed to `PromptTemplate.render(...)`.
+
+```java
+// from alternating key-value pairs
+PromptVariables vars = PromptVariables.of("lang", "Japanese", "content", articleText);
+
+// from an existing Map
+PromptVariables vars2 = PromptVariables.from(existingMap);
+
+// empty (useful for templates with no placeholders)
+PromptVariables none = PromptVariables.empty();
+```
+
+### MessageBuilder
+
+`MessageBuilder` bridges rendered text and `Message` creation so you do not need to call `Message.user(...)` or `Message.assistant(...)` manually.
+
+```java
+import io.arachne.strands.prompt.MessageBuilder;
+import io.arachne.strands.prompt.PromptTemplate;
+import io.arachne.strands.prompt.PromptVariables;
+
+PromptTemplate template = PromptTemplate.of("Translate to {{lang}}: {{text}}");
+PromptVariables vars = PromptVariables.of("lang", "French", "text", inputText);
+
+// renders the template and wraps the result in a user Message
+Message userMsg = MessageBuilder.user(template, vars);
+
+// plain-text shorthand when no substitution is needed
+Message simpleMsg = MessageBuilder.user("What is the capital of France?");
+```
+
+The helpers are Spring-neutral and have no framework dependency. They are suitable for use in unit tests, CLI runners, and pure service-layer code with no `ApplicationContext`.
 
 ## Running The Agent
 
@@ -834,6 +900,30 @@ TripPlan plan = agent.run(
 ```
 
 Under the hood, Arachne exposes a final structured-output tool whose schema is generated from the requested Java type. If the model does not call that tool on its own, the event loop forces a final retry that requires the structured output tool.
+
+If you want to turn that typed result into deterministic text for a downstream channel, use the Spring-managed `ArachneTemplateRenderer` as a post-processing step. This does not widen the `Agent` contract; it is an output helper layered on top of the existing structured-output result.
+
+```java
+import io.arachne.strands.spring.ArachneTemplateRenderer;
+
+record TripPlan(String city, String forecast, String advice) {}
+
+TripPlan plan = agent.run(
+  "Plan a short Tokyo outing. Return city, forecast, and one advice sentence.",
+  TripPlan.class);
+
+String rendered = templateRenderer.render(
+  "classpath:/templates/trip-plan.txt",
+  plan);
+```
+
+The first version keeps the rendering contract intentionally narrow:
+
+- templates are resolved from an explicit Spring resource location such as `classpath:/templates/trip-plan.txt`
+- template syntax uses the same named placeholders as `PromptTemplate`, for example `{{city}}`
+- top-level fields from the typed object become template variables through the configured Spring `ObjectMapper`
+- nested objects and arrays are exposed as compact JSON strings rather than dotted-property access
+- missing template resources and render failures are reported separately from structured-output binding and validation failures
 
 The current structured-output implementation is intentionally narrow:
 

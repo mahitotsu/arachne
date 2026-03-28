@@ -15,6 +15,7 @@ For setup and end-to-end usage, see [docs/user-guide.md](user-guide.md).
 
 The current built-in pack is intentionally small and read-only.
 
+- `calculator`
 - `current_time`
 - `resource_reader`
 - `resource_list`
@@ -27,6 +28,7 @@ Built-in groups:
 
 Group membership:
 
+- `calculator`: `read-only`, `utility`
 - `current_time`: `read-only`, `utility`
 - `resource_reader`: `read-only`, `resource`
 - `resource_list`: `read-only`, `resource`
@@ -70,6 +72,7 @@ That means:
 
 These points affect tool design and deployment today.
 
+- `calculator` is deterministic, read-only, and limited to arithmetic expressions plus `abs`, `round`, `min`, and `max`
 - built-in resource tools are read-only
 - classpath resource access is allowed from `classpath:/` by default
 - file-system resource access is denied until you configure explicit allowlisted roots

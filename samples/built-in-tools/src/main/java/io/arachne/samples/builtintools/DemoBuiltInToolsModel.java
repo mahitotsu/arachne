@@ -53,6 +53,21 @@ final class DemoBuiltInToolsModel implements Model {
                     new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
         }
 
+                if ("Run calculator profile.".equals(latestUserText)) {
+                    if (toolNames.contains("calculator") && latestToolResult(messages, "calculator") == null) {
+                    return List.of(
+                        new ModelEvent.ToolUse(
+                            "calc-1",
+                            "calculator",
+                            Map.of("expression", "1 + 2 * (3 + 4)")),
+                        new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
+                    }
+                    Object result = valueFromToolResult(messages, "calculator", "result");
+                    return List.of(
+                        new ModelEvent.TextDelta("Calculator agent computed 1 + 2 * (3 + 4) = " + result),
+                        new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
+                }
+
         if ("Run reader profile.".equals(latestUserText)) {
             if (toolNames.contains("resource_list") && latestToolResult(messages, "resource_list") == null) {
                 return List.of(

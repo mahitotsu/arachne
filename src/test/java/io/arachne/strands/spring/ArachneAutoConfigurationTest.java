@@ -102,7 +102,7 @@ class ArachneAutoConfigurationTest {
                     Agent agent = context.getBean(AgentFactory.class).builder().build();
 
                 assertThat(agent.getTools()).extracting(tool -> tool.spec().name())
-                    .contains("weather", "current_time", "resource_reader", "resource_list");
+                    .contains("weather", "calculator", "current_time", "resource_reader", "resource_list");
                 });
     }
 
@@ -115,7 +115,7 @@ class ArachneAutoConfigurationTest {
                 Agent agent = context.getBean(AgentFactory.class).builder("planner").build();
 
                 assertThat(agent.getTools()).extracting(tool -> tool.spec().name())
-                    .doesNotContain("current_time", "resource_reader", "resource_list");
+                    .doesNotContain("calculator", "current_time", "resource_reader", "resource_list");
             });
         }
 
@@ -131,7 +131,7 @@ class ArachneAutoConfigurationTest {
 
                 assertThat(agent.getTools()).extracting(tool -> tool.spec().name())
                     .contains("resource_reader", "resource_list")
-                    .doesNotContain("current_time");
+                    .doesNotContain("calculator", "current_time");
             });
         }
 
@@ -325,6 +325,27 @@ class ArachneAutoConfigurationTest {
                     SnakeCaseSummary result = agent.run("hello", SnakeCaseSummary.class);
 
                     assertThat(result.answerText()).isEqualTo("Tokyo");
+                });
+    }
+
+    @Test
+    void autoConfigurationProvidesTemplateRenderer() {
+        contextRunner
+                .run(context -> assertThat(context).hasSingleBean(ArachneTemplateRenderer.class));
+    }
+
+    @Test
+    void autoConfigurationReusesObjectMapperForTemplateRendering() {
+        contextRunner
+                .withUserConfiguration(CustomObjectMapperConfiguration.class)
+                .run(context -> {
+                    ArachneTemplateRenderer renderer = context.getBean(ArachneTemplateRenderer.class);
+
+                    String rendered = renderer.render(
+                            "classpath:/templates/snake-case-summary.txt",
+                            new SnakeCaseSummary("Tokyo"));
+
+                        assertThat(rendered).isEqualTo("Answer: Tokyo");
                 });
     }
 

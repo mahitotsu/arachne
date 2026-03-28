@@ -13,6 +13,12 @@ arachne:
           allowed-classpath-locations:
             - classpath:/builtin/
     agents:
+      math:
+        system-prompt: "You are a calculator-only agent."
+        built-ins:
+          inherit-defaults: false
+          tool-names:
+            - calculator
       reader:
         system-prompt: "You are a resource-only reader."
         built-ins:
