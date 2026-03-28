@@ -83,6 +83,12 @@ mvn -Pquality-report verify
 mvn -Pquality-security verify
 ```
 
+Dependency evidence is intentionally split:
+
+- `mvn -Pquality-security verify` generates CycloneDX SBOM inventory artifacts for the current checkout
+- GitHub Dependabot is the repository-side update and advisory monitoring source for the Maven manifest in `.github/dependabot.yml`
+- a local audit can confirm the Dependabot configuration, but live alert state requires GitHub UI or API evidence
+
 Bedrock live verification is opt-in:
 
 ```bash

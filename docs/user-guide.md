@@ -76,6 +76,14 @@ If you are consuming the library from this repository before publication, instal
 mvn install
 ```
 
+For opt-in live Bedrock smoke verification from this repository, run:
+
+```bash
+mvn -Dtest=BedrockModelIntegrationTest -Darachne.integration.bedrock=true test
+```
+
+The current integration test exercises the simple no-tool Bedrock path in both blocking and streaming modes. It remains outside the default `mvn test` path and requires valid AWS credentials plus model access in the configured region.
+
 ## Spring Boot Setup
 
 Arachne registers its auto-configuration through Spring Boot, so having the jar on the classpath is enough to make `Model` and `AgentFactory` available.

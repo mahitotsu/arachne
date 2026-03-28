@@ -105,6 +105,7 @@ For the current shipped surface and constraints, see [docs/project-status.md](do
 
 ```bash
 mvn test
+mvn -Pquality-security verify
 ```
 
 Bedrock smoke verification is opt-in:
@@ -112,6 +113,8 @@ Bedrock smoke verification is opt-in:
 ```bash
 mvn -Dtest=BedrockModelIntegrationTest -Darachne.integration.bedrock=true test
 ```
+
+For dependency evidence, treat `mvn -Pquality-security verify` as inventory generation only: it produces CycloneDX SBOM artifacts for the current branch. Treat GitHub Dependabot as the repository-side update and advisory monitoring source for the Maven manifest configured in [.github/dependabot.yml](.github/dependabot.yml); local checkouts can verify the configuration, but current alert state must come from GitHub UI or API evidence.
 
 ## License
 

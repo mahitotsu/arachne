@@ -1,3 +1,6 @@
+# Repository-side dependency monitoring for Arachne uses two evidence streams:
+# - `mvn -Pquality-security verify` generates CycloneDX SBOM inventory artifacts.
+# - GitHub Dependabot uses this manifest configuration to raise update PRs and security alerts for Maven dependencies.
 version: 2
 updates:
   - package-ecosystem: "maven"

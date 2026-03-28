@@ -50,6 +50,7 @@ Each ADR lives at `docs/adr/NNNN-title.md` and must include at least:
 - [0016-bedrock-prompt-caching-and-usage-metrics.md](0016-bedrock-prompt-caching-and-usage-metrics.md) - add opt-in Bedrock system/tool prompt caching while exposing accumulated usage through `AgentResult.metrics()`
 - [0017-built-in-tool-exposure-and-inheritance.md](0017-built-in-tool-exposure-and-inheritance.md) - define how framework-provided built-in tools are exposed, inherited, and kept separate from discovered tools
 - [0018-rest-backed-remote-agent-collaboration-boundary.md](0018-rest-backed-remote-agent-collaboration-boundary.md) - prefer REST-backed capability tools as the current boundary for cross-service agent collaboration and keep A2A deferred
+- [0019-agentfactory-internal-decomposition-boundary.md](0019-agentfactory-internal-decomposition-boundary.md) - keep `AgentFactory` as the public Spring entrypoint while defining the internal cleanup buckets for provider creation, named defaults, and runtime assembly
 
 ## Future ADR Candidates
 

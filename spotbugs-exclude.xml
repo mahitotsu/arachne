@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <FindBugsFilter>
+    <!-- Configuration properties and Spring event wrappers intentionally retain mutable values. -->
     <Match>
         <Class name="~io\.arachne\.strands\.spring\.ArachneProperties(\$.*)?"/>
         <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
@@ -7,5 +8,48 @@
     <Match>
         <Class name="~io\.arachne\.strands\.spring\.ArachneLifecycleApplicationEvent(\$.*)?"/>
         <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    </Match>
+    <!-- Hook events and tool invocation context deliberately expose live mutable state to hook/tool authors. -->
+    <Match>
+        <Class name="~io\.arachne\.strands\.hooks\.(AfterInvocationEvent|AfterModelCallEvent|AfterToolCallEvent|BeforeInvocationEvent|BeforeModelCallEvent|BeforeToolCallEvent|MessageAddedEvent)(\$.*)?"/>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Class name="~io\.arachne\.strands\.tool\.ToolInvocationContext(\$.*)?"/>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    </Match>
+    <!-- These types already defensively normalize or intentionally keep injected collaborators as part of their contract. -->
+    <Match>
+        <Class name="~io\.arachne\.strands\.skills\.Skill(\$.*)?"/>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Class name="~io\.arachne\.strands\.tool\.annotation\.DiscoveredTool(\$.*)?"/>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Class name="~io\.arachne\.strands\.session\.SpringSessionManager(\$.*)?"/>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Class name="~io\.arachne\.strands\.spring\.AgentFactory(\$.*)?"/>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Class name="~io\.arachne\.strands\.schema\.JsonSchemaGenerator(\$.*)?"/>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Class name="~io\.arachne\.strands\.tool\.StructuredOutputTool(\$.*)?"/>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Class name="~io\.arachne\.strands\.tool\.annotation\.(AnnotationToolScanner|MethodTool)(\$.*)?"/>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    </Match>
+    <!-- Constructor-throw is low-value noise here because these constructors validate inputs or initialize required resources. -->
+    <Match>
+        <Class name="~io\.arachne\.strands\.(agent\.conversation\.(SlidingWindowConversationManager|SummarizingConversationManager)|model\.retry\.ExponentialBackoffRetryStrategy|session\.FileSessionManager|tool\.annotation\.MethodTool)(\$.*)?"/>
+        <Bug pattern="CT_CONSTRUCTOR_THROW"/>
     </Match>
 </FindBugsFilter>

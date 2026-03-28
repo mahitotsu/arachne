@@ -45,6 +45,39 @@ class SlidingWindowConversationManagerTest {
     }
 
     @Test
+    void applyManagementKeepsCompleteToolPairWhenBoundaryStartsAtToolUse() {
+        SlidingWindowConversationManager manager = new SlidingWindowConversationManager(2);
+        List<Message> messages = new ArrayList<>(List.of(
+                Message.user("first"),
+                Message.assistant("one"),
+                new Message(Message.Role.ASSISTANT, List.of(new ContentBlock.ToolUse("tool-1", "weather", java.util.Map.of("city", "Tokyo")))),
+                new Message(Message.Role.USER, List.of(new ContentBlock.ToolResult("tool-1", java.util.Map.of("forecast", "sunny"), "success")))));
+
+        manager.applyManagement(messages);
+
+        assertThat(messages).hasSize(2);
+        assertThat(messages.getFirst().content().getFirst()).isInstanceOf(ContentBlock.ToolUse.class);
+        assertThat(messages.get(1).content().getFirst()).isInstanceOf(ContentBlock.ToolResult.class);
+        assertThat(manager.getRemovedMessageCount()).isEqualTo(2);
+    }
+
+    @Test
+    void applyManagementDropsIncompleteToolUseAtWindowBoundary() {
+        SlidingWindowConversationManager manager = new SlidingWindowConversationManager(2);
+        List<Message> messages = new ArrayList<>(List.of(
+                Message.user("first"),
+                Message.assistant("one"),
+                new Message(Message.Role.ASSISTANT, List.of(new ContentBlock.ToolUse("tool-1", "weather", java.util.Map.of("city", "Tokyo")))),
+                Message.assistant("fallback answer")));
+
+        manager.applyManagement(messages);
+
+        assertThat(messages).hasSize(1);
+        assertThat(messages.getFirst().content()).containsExactly(ContentBlock.text("fallback answer"));
+        assertThat(manager.getRemovedMessageCount()).isEqualTo(3);
+    }
+
+    @Test
     void rejectsNonPositiveWindowSize() {
         assertThatThrownBy(() -> new SlidingWindowConversationManager(0))
                 .isInstanceOf(IllegalArgumentException.class)

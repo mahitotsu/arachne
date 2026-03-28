@@ -63,7 +63,7 @@ For full usage details, see [docs/user-guide.md](user-guide.md).
 
 - runnable samples under `samples/README.md`
 - default verification with `mvn test`
-- opt-in Bedrock smoke verification with `mvn -Dtest=BedrockModelIntegrationTest -Darachne.integration.bedrock=true test`
+- opt-in Bedrock smoke verification for both blocking and streaming simple end-turn paths with `mvn -Dtest=BedrockModelIntegrationTest -Darachne.integration.bedrock=true test`
 
 ## Start With These Resources
 

@@ -106,6 +106,72 @@ class SummarizingConversationManagerTest {
                 .hasMessageContaining("tool use");
     }
 
+        @Test
+        void applyManagementSummarizesCompleteToolExchangeWhenBoundaryStartsAtToolResult() {
+        RecordingSummaryModel summaryModel = new RecordingSummaryModel(List.of("summary one"));
+        SummarizingConversationManager manager = new SummarizingConversationManager(summaryModel, 4, 2);
+        List<Message> messages = new ArrayList<>(List.of(
+            Message.user("first"),
+            Message.assistant("one"),
+            new Message(Message.Role.ASSISTANT, List.of(new ContentBlock.ToolUse("tool-1", "weather", java.util.Map.of("city", "Tokyo")))),
+            new Message(Message.Role.USER, List.of(new ContentBlock.ToolResult("tool-1", java.util.Map.of("forecast", "sunny"), "success"))),
+            Message.user("latest"),
+            Message.assistant("final answer")));
+
+        manager.applyManagement(messages);
+
+        assertThat(messages).hasSize(3);
+        assertThat(messages.get(1).content()).containsExactly(ContentBlock.text("latest"));
+        assertThat(messages.get(2).content()).containsExactly(ContentBlock.text("final answer"));
+        assertThat(summaryModel.prompts().getFirst()).contains("tool_use weather input={\"city\":\"Tokyo\"}");
+        assertThat(summaryModel.prompts().getFirst()).contains("tool_result status=success content={\"forecast\":\"sunny\"}");
+        }
+
+        @Test
+        void applyManagementSummarizesIncompleteToolUseBeforeRecentMessages() {
+        RecordingSummaryModel summaryModel = new RecordingSummaryModel(List.of("summary one"));
+        SummarizingConversationManager manager = new SummarizingConversationManager(summaryModel, 4, 2);
+        List<Message> messages = new ArrayList<>(List.of(
+            Message.user("first"),
+            Message.assistant("one"),
+            Message.user("second"),
+            new Message(Message.Role.ASSISTANT, List.of(new ContentBlock.ToolUse("tool-1", "weather", java.util.Map.of("city", "Tokyo")))),
+            Message.user("latest"),
+            Message.assistant("final answer")));
+
+        manager.applyManagement(messages);
+
+        assertThat(messages).hasSize(3);
+        assertThat(messages.get(1).content()).containsExactly(ContentBlock.text("latest"));
+        assertThat(messages.get(2).content()).containsExactly(ContentBlock.text("final answer"));
+        assertThat(summaryModel.prompts().getFirst()).contains("tool_use weather input={\"city\":\"Tokyo\"}");
+        }
+
+        @Test
+        void applyManagementPreservesMixedTextAndToolUseMessageWithFollowingToolResult() {
+        RecordingSummaryModel summaryModel = new RecordingSummaryModel(List.of("summary one"));
+        SummarizingConversationManager manager = new SummarizingConversationManager(summaryModel, 4, 3);
+        List<Message> messages = new ArrayList<>(List.of(
+            Message.user("first"),
+            Message.assistant("one"),
+            Message.user("second"),
+            new Message(Message.Role.ASSISTANT, List.of(
+                ContentBlock.text("calling weather"),
+                new ContentBlock.ToolUse("tool-1", "weather", java.util.Map.of("city", "Tokyo")))),
+            new Message(Message.Role.USER, List.of(new ContentBlock.ToolResult("tool-1", java.util.Map.of("forecast", "sunny"), "success"))),
+            Message.assistant("final answer")));
+
+        manager.applyManagement(messages);
+
+        assertThat(messages).hasSize(4);
+        assertThat(messages.get(1).content())
+            .containsExactly(
+                ContentBlock.text("calling weather"),
+                new ContentBlock.ToolUse("tool-1", "weather", java.util.Map.of("city", "Tokyo")));
+        assertThat(messages.get(2).content().getFirst()).isInstanceOf(ContentBlock.ToolResult.class);
+        assertThat(summaryModel.prompts().getFirst()).doesNotContain("calling weather");
+        }
+
     private static final class RecordingSummaryModel implements Model {
 
         private final List<String> summaries;

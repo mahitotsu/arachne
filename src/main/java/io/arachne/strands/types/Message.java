@@ -12,6 +12,10 @@ public record Message(
         List<ContentBlock> content
 ) {
 
+    public Message {
+        content = List.copyOf(content);
+    }
+
     public enum Role {
         USER, ASSISTANT
     }

@@ -81,16 +81,13 @@ public class SlidingWindowConversationManager implements ConversationManager {
         int trimIndex = candidate;
         while (trimIndex < messages.size()) {
             Message start = messages.get(trimIndex);
-            if (containsToolResult(start)) {
-                trimIndex++;
-                continue;
+            boolean startsWithToolResult = containsToolResult(start);
+            boolean startsWithIncompleteToolUse = containsToolUse(start)
+                    && (trimIndex + 1 >= messages.size() || !containsToolResult(messages.get(trimIndex + 1)));
+            if (!startsWithToolResult && !startsWithIncompleteToolUse) {
+                return trimIndex;
             }
-            if (containsToolUse(start)
-                    && (trimIndex + 1 >= messages.size() || !containsToolResult(messages.get(trimIndex + 1)))) {
-                trimIndex++;
-                continue;
-            }
-            return trimIndex;
+            trimIndex++;
         }
         return trimIndex;
     }

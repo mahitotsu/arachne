@@ -12,7 +12,7 @@ Required procedure:
 
 1. Read `pom.xml`, `docs/project-status.md`, and `.github/copilot-instructions.md` before interpreting results.
 2. Run the current workflow from the repository root unless the user explicitly limits the scope.
-   - Run `mvn -Pquality-report verify` first so coverage, surefire, SpotBugs, PMD, and CPD evidence is regenerated for this review.
+   - Run `mvn clean -Pquality-report verify` first so stale `target/` artifacts are removed and coverage, surefire, SpotBugs, PMD, and CPD evidence is regenerated for this review.
    - Run `mvn -Pquality-security verify` next so SBOM artifacts are regenerated for this review.
    - If a command fails, report the failure, inspect any artifacts that were still produced in this run, and clearly separate partial fresh evidence from stale leftovers.
 3. Confirm which quality artifacts now exist under `target/` and `target/site/`.
@@ -34,6 +34,8 @@ Required procedure:
    - dependency inventory evidence such as SBOM content
    - repository-side vulnerability or update signals such as Dependabot configuration or alerts
    Do not imply that SBOM alone provides advisory matching.
+   For this repository, treat `mvn -Pquality-security verify` artifacts as inventory evidence and GitHub Dependabot as the repository-side advisory/update signal for the Maven manifest in `.github/dependabot.yml`.
+   If the audit only has local checkout evidence, confirm the Dependabot configuration and say explicitly that live alert state was not observed from GitHub UI or API evidence.
 10. In `Notes`, include the commands you ran, whether they succeeded, and any missing or stale artifacts that limited confidence.
 
 Focus on these repo-specific questions:

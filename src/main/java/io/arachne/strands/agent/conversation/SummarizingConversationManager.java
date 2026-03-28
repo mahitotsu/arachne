@@ -236,16 +236,13 @@ public class SummarizingConversationManager implements ConversationManager {
         int splitIndex = candidate;
         while (splitIndex < messages.size()) {
             Message start = messages.get(splitIndex);
-            if (containsToolResult(start)) {
-                splitIndex++;
-                continue;
+            boolean startsWithToolResult = containsToolResult(start);
+            boolean startsWithIncompleteToolUse = containsToolUse(start)
+                    && (splitIndex + 1 >= messages.size() || !containsToolResult(messages.get(splitIndex + 1)));
+            if (!startsWithToolResult && !startsWithIncompleteToolUse) {
+                return splitIndex;
             }
-            if (containsToolUse(start)
-                    && (splitIndex + 1 >= messages.size() || !containsToolResult(messages.get(splitIndex + 1)))) {
-                splitIndex++;
-                continue;
-            }
-            return splitIndex;
+            splitIndex++;
         }
         return messages.size();
     }
