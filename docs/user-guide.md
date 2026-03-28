@@ -1,16 +1,16 @@
 # Arachne User Guide
 
-This guide documents the features that are available on the current main branch.
+This guide explains how to use the features that Arachne provides on the current branch.
 
-Use [docs/README.md](README.md) for the documentation catalog when you need the role split across status, usage, tool direction, and architecture documents.
+Use [docs/README.md](README.md) when you need a quick map of the documentation set.
 
-## Scope
+## What You Can Do With Arachne Today
 
-The current implementation gives you a Bedrock-backed agent runtime with annotation-driven tools, structured output, retry, conversation/session management, hooks/plugins, interrupts, skills, opt-in Bedrock prompt caching, and opt-in streaming plus steering.
+Arachne currently gives you a Bedrock-backed agent runtime with Spring Boot integration, annotation-driven tools, structured output, retry, conversation and session management, hooks/plugins, interrupts, packaged skills, opt-in Bedrock prompt caching, and opt-in streaming plus steering.
 
-For the repository-level scope snapshot, deliberately deferred features, and current contract boundary, see [docs/project-status.md](project-status.md).
+If you first want the shortest current capability snapshot, read [docs/project-status.md](project-status.md).
 
-For a tool-centered view of the current shipped surface and the proposed first-party tool directions, see [docs/tool-catalog.md](tool-catalog.md).
+If you first want a tool-focused view of the current surface, read [docs/tool-catalog.md](tool-catalog.md).
 
 Available now:
 
@@ -43,9 +43,7 @@ Available now:
 - callback-based streaming invocation through `Agent.stream(...)`
 - tool and model steering through runtime-local `SteeringHandler` plugins
 
-Deliberately deferred features such as additional providers, MCP, multi-agent protocols, Guardrails, and bidirectional realtime/audio streaming are tracked in [docs/project-status.md](project-status.md).
-
-If you want runnable examples instead of only reading the API docs, start with [samples/README.md](../samples/README.md), which now serves as the sample catalog and suggested learning order.
+If you want runnable examples instead of only reading the API docs, start with [samples/README.md](../samples/README.md), which serves as the sample catalog and suggested learning order.
 
 For the most common next steps:
 
@@ -54,6 +52,16 @@ For the most common next steps:
 - [samples/secure-downstream-tools/README.md](../samples/secure-downstream-tools/README.md) for Spring Security propagation and downstream API calls
 - [samples/stateful-backend-operations/README.md](../samples/stateful-backend-operations/README.md) for idempotent backend mutations and safe workflow state
 - [samples/domain-separation/README.md](../samples/domain-separation/README.md) for the composed backend reference
+
+## Before You Integrate
+
+The current operational assumptions are:
+
+- the built-in provider is AWS Bedrock
+- streaming is callback-based and output-only
+- built-in resource tools are read-only and respect explicit allowlists
+- summary compaction requires explicit `SummarizingConversationManager` wiring
+- structured output is best suited to simple JSON-shaped Java records or POJOs
 
 ## Prerequisites
 
@@ -1164,17 +1172,15 @@ If you want a runnable, Bedrock-free example of the combined streaming and steer
 
 ## Current Constraints
 
-The current implementation is intentionally narrow.
+These are the main current limits to account for when integrating Arachne.
 
 - only AWS Bedrock is supported as a built-in provider
 - the loop is synchronous and blocking
 - interrupt/resume currently feeds human responses back into the conversation as tool results rather than re-entering the original tool invocation automatically
-- sliding-window trimming is property-driven, but summary compaction still requires an explicit `SummarizingConversationManager` on the builder
-- skills currently come from builder-supplied values or classpath-discovered `SKILL.md` files; remote registries and hot reload are not implemented
+- summary compaction still requires an explicit `SummarizingConversationManager` on the builder
+- skills currently come from builder-supplied values or classpath-discovered `SKILL.md` files
 - structured output currently targets simple JSON-shaped Java types rather than arbitrary object graphs
-- callback-based streaming is one-way output only; bidirectional realtime/audio streaming is not implemented
-
-Larger deferred feature areas are summarized in [docs/project-status.md](project-status.md) and [docs/adr/0012-post-mvp-product-boundary.md](adr/0012-post-mvp-product-boundary.md).
+- callback-based streaming is one-way output only
 
 ## Verification
 

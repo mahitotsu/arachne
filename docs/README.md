@@ -1,58 +1,65 @@
-# Arachne Documentation Catalog
+# Arachne Documentation Guide
 
-This directory holds the repository-level documents that define what Arachne ships, how to use it, and how to reason about the current architecture.
+This directory contains the documents that explain what Arachne provides now, how to use it, and where to find runnable examples.
 
-Use this page when you are not sure which document to open first.
+## Start Here
 
-## Document Roles
-
-- `project-status.md`: the normative shipped-scope snapshot, current constraints, and deliberately deferred boundary
-- `user-guide.md`: user-facing setup, configuration, API usage, lifecycle guidance, and links to runnable samples
-- `tool-catalog.md`: the current tool authoring surface plus the proposed direction for future Arachne-maintained tool families
-- `repository-facts.md`: descriptive repository snapshot with structure, counts, hotspots, and quality-watch areas
-- `adr/`: accepted architectural decisions and deferred design boundaries
-
-## Suggested Reading Order
-
-### 1. Product Boundary
-
-Read these first when you need to know what is actually shipped today.
-
-1. `project-status.md`
-2. `adr/0012-post-mvp-product-boundary.md`
-
-### 2. Library Usage
-
-Read these when you are integrating Arachne into an application.
+If you are new to Arachne, read these in order:
 
 1. `user-guide.md`
-2. `../samples/README.md`
+2. `project-status.md`
+3. `../samples/README.md`
 
-### 3. Tool Design
+That path gives you:
 
-Read these when you are implementing tools or evaluating tool-related direction.
+- the current runtime and API surface
+- the main configuration and usage model
+- the current constraints that affect real integration work
+- the smallest runnable sample for each capability area
+
+## Choose By Need
+
+Open the document that matches the question you have now.
+
+- `user-guide.md`: setup, configuration, agent creation, tools, sessions, skills, streaming, steering, and sample links
+- `project-status.md`: concise snapshot of the features, samples, and constraints available on the current branch
+- `tool-catalog.md`: current built-in tools, tool authoring surfaces, and tool-related cautions
+- `repository-facts.md`: repository layout, verification commands, sample/module map, and code-location guide
+- `adr/`: architecture decisions that explain why the current public model looks the way it does
+
+## Recommended Reading Paths
+
+### I want to build with Arachne now
+
+1. `user-guide.md`
+2. `project-status.md`
+3. `../samples/conversation-basics/README.md`
+
+### I need tools
 
 1. `tool-catalog.md`
-2. `adr/0007-phase2-tool-contracts.md`
-3. `adr/0014-tool-invocation-context-contract.md`
-4. `adr/0015-execution-context-propagation-boundary.md`
-5. `../samples/secure-downstream-tools/README.md`
-6. `../samples/stateful-backend-operations/README.md`
+2. `../samples/built-in-tools/README.md`
+3. `../samples/tool-delegation/README.md`
+4. `../samples/tool-execution-context/README.md`
 
-### 4. Repository Maintenance
+### I need stateful backend behavior
 
-Read these when you are auditing or evolving the repository itself.
+1. `user-guide.md`
+2. `../samples/stateful-backend-operations/README.md`
+3. `../samples/session-jdbc/README.md` or `../samples/session-redis/README.md`
 
-1. `repository-facts.md`
+### I need architecture background
+
+1. `project-status.md`
 2. `adr/README.md`
 
-## What Not To Use Each Document For
+## Practical Notes
 
-- do not use `project-status.md` as a how-to guide
-- do not use `user-guide.md` as the source of truth for deferred features
-- do not use `tool-catalog.md` as an implementation task list
-- do not use `repository-facts.md` as a normative contract
+- `user-guide.md` is the main usage document. Start there unless you already know the surface and only need a capability snapshot.
+- `project-status.md` is the fastest way to confirm whether a feature is available on the current branch.
+- `tool-catalog.md` describes the current tool surface. It is not a roadmap.
+- `repository-facts.md` is a reference document for navigating the repository, not a getting-started guide.
 
-## Sample Catalog
+## Samples
 
-Runnable sample selection and learning tracks live under [samples/README.md](../samples/README.md).
+Runnable sample selection lives in [samples/README.md](../samples/README.md).

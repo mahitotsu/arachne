@@ -1,94 +1,109 @@
 # Project Status
 
-This document replaces `ROADMAP.md` as the repository-level snapshot of what Arachne ships today and what remains deliberately deferred.
+This document is the quickest snapshot of what Arachne provides on the current branch.
 
-Use [docs/README.md](README.md) for the documentation catalog and role split across the rest of the docs set.
+Use it to answer these questions:
 
-## Supported Scope
+- what can I use today?
+- what sample demonstrates it?
+- what constraints should I account for before integrating it?
 
-### Core Runtime And Spring Integration
+For full usage details, see [docs/user-guide.md](user-guide.md).
+
+## Available Today
+
+### Core Runtime
 
 - Spring Boot auto-configuration for `Model` and `AgentFactory`
 - `AgentFactory.builder()` and `AgentFactory.builder("name")` for runtime-local agent creation
-- configuration-driven defaults for model id, region, system prompt, retry, conversation window, and session id
-- configuration-driven defaults for Bedrock system-prompt caching and tool caching
 - Bedrock-backed `Agent.run(String)` and `Agent.run(String, Class<T>)`
 - callback-based `Agent.stream(String, Consumer<AgentStreamEvent>)`
+- configuration-driven defaults for model, system prompt, retry, conversation window, sessions, and built-ins
 
 ### Tools And Structured Output
 
-- framework-provided built-in read-only tools: `current_time`, `resource_reader`, and `resource_list`
-- per-agent built-in inheritance and built-in name/group selection
+- built-in read-only tools: `current_time`, `resource_reader`, and `resource_list`
 - annotation-driven tools through `@StrandsTool` and `@ToolParam`
-- logical tool invocation metadata through `ToolInvocationContext`
-- opt-in execution-context propagation through `ExecutionContextPropagation`
-- Spring-context tool discovery with qualifier-based scoping and opt-out control
-- manual `Tool` registration and configurable parallel or sequential execution
-- generated JSON schema from Java signatures and Java output types
-- runtime validation for tool input and structured output
-- `AgentResult.metrics()` for accumulated usage including Bedrock cache read/write token counts
-- agent-as-tool wiring through normal Spring services
+- manual `Tool` registration
+- Spring tool discovery with qualifier-based scoping and opt-out control
+- sequential or parallel tool execution
+- `ToolInvocationContext` for logical tool-call metadata
+- `ExecutionContextPropagation` for opt-in executor-boundary context propagation
+- structured output with generated JSON schema and runtime validation
+- `AgentResult.metrics()` usage reporting, including Bedrock cache read/write token counters
 
-### Conversation And Session Management
+### Conversation And Sessions
 
-- in-memory multi-turn conversation inside a single runtime
+- in-memory multi-turn conversations inside a single runtime
 - `SlidingWindowConversationManager` as the default conversation manager
 - `SummarizingConversationManager` as an explicit builder-level compaction option
 - `AgentState` for session-scoped key-value state
 - `SessionManager`, `InMemorySessionManager`, and `FileSessionManager`
-- Spring Session adapters for in-memory, Redis, and JDBC repositories while preserving explicit Arachne session ids
+- Spring Session integration for Redis and JDBC repositories while preserving explicit Arachne session ids
 
-### Extensions And Control Flow
+### Extensions And Control
 
 - lifecycle hooks through `HookProvider` and `HookRegistrar`
 - runtime-local `Plugin` bundling for hooks and tools
-- Spring hook discovery through `@ArachneHook`
+- Spring hook discovery with `@ArachneHook`
 - observation-only Spring `ApplicationEvent` bridge
 - interrupt / resume before tool execution through `AgentResult.interrupts()` and `AgentResult.resume(...)`
-- AgentSkills.io-style skills with delayed activation and duplicate-load suppression
-- runtime-local steering handlers for tool guidance, tool interrupts, and model guided retry
+- packaged skills with delayed activation and duplicate-load suppression
+- runtime-local steering handlers for tool guidance, interrupts, and model guided retry
 
-### Verification And Samples
+### Samples And Verification
 
-- repository verification with `mvn test`
+- runnable samples under `samples/README.md`
+- default verification with `mvn test`
 - opt-in Bedrock smoke verification with `mvn -Dtest=BedrockModelIntegrationTest -Darachne.integration.bedrock=true test`
-- runnable samples documented under `samples/README.md`, including conversation basics, built-in tools, secure downstream tools, stateful backend operations, tool delegation, tool execution context, session restore, approval workflow, skills, streaming/steering, and the higher-level domain-separation backend reference
+
+## Start With These Resources
+
+Choose the smallest reference that matches your integration goal.
+
+- smallest end-to-end runtime: `samples/conversation-basics`
+- built-in tools and resource allowlists: `samples/built-in-tools`
+- secure downstream calls: `samples/secure-downstream-tools`
+- stateful backend mutations: `samples/stateful-backend-operations`
+- agent delegation and typed outputs: `samples/tool-delegation`
+- tool-call metadata and execution-context propagation: `samples/tool-execution-context`
+- session restore: `samples/session-jdbc` or `samples/session-redis`
+- approval pause/resume: `samples/approval-workflow`
+- packaged skills: `samples/skill-activation`
+- streaming and steering: `samples/streaming-steering`
+- composed backend reference: `samples/domain-separation`
 
 ## Current Constraints
 
-- the only built-in provider is AWS Bedrock
-- the main event loop remains blocking; streaming is an opt-in callback path layered on top of that runtime
-- callback-based streaming is output-only; it is not bidirectional realtime or audio streaming
-- Bedrock prompt caching can emit cache points for system prompts and tool definitions; model compatibility remains provider- and model-dependent
-- summary compaction requires explicit `SummarizingConversationManager` wiring rather than property-only enablement
-- structured output currently targets simple JSON-shaped Java records or POJOs rather than arbitrary object graphs
-- skills currently come from builder-supplied values or classpath-discovered `SKILL.md` files, with optional `scripts/`, `references/`, and `assets/` path listing for packaged skills
-- interrupt/resume feeds human responses back through the existing tool-result path; interrupted structured-output runs must currently resume through the string-returning path first
-- built-in resource tools stay read-only and are limited to allowlisted `classpath:` and `file:` locations
+These points matter in real usage today.
 
-## Deliberately Deferred Features
+- the only built-in model provider is AWS Bedrock
+- the main event loop is blocking; streaming is an opt-in callback path layered on top
+- streaming is output-only and does not provide bidirectional realtime or audio transport
+- Bedrock prompt caching is opt-in and model-dependent
+- summary compaction requires explicit `SummarizingConversationManager` wiring
+- structured output is aimed at simple JSON-shaped Java records or POJOs
+- packaged skills come from builder-supplied values or classpath-discovered `SKILL.md` files
+- interrupt/resume for structured-output runs still requires resuming through the string-returning path first
+- built-in resource tools remain read-only and operate only within allowlisted `classpath:` and `file:` locations
 
-These items are not implemented on the current main branch and are not part of the shipped MVP contract:
+## Current Non-Goals
+
+These capabilities are not part of the current shipped surface:
 
 - additional model providers beyond Bedrock
-- bidirectional realtime or audio streaming
 - MCP tool support
-- multi-agent Swarm orchestration
-- multi-agent Graph orchestration
+- multi-agent Swarm or Graph orchestration
 - A2A protocol support
 - Guardrails integration
 - Agent Config support
 - Evals SDK support
+- bidirectional realtime or audio streaming
 - remote skill registries and hot reload
 
-Future work in these areas should start with an ADR or ADR update before implementation. See `docs/adr/0012-post-mvp-product-boundary.md`.
+## Related Documents
 
-## Canonical Documentation
-
-- `docs/README.md` for the documentation catalog and reading order
-- `README.md` for the top-level entry point and quick-start path
-- `docs/user-guide.md` for user-facing API, configuration, lifecycle, and sample guidance
-- `docs/repository-facts.md` for repository-wide quantitative facts, structure, and engineering watch areas
-- `docs/tool-catalog.md` for the current tool authoring surface and the proposed first-party tool catalog direction
-- `docs/adr/README.md` for accepted architecture decisions and open ADR candidates
-- `samples/README.md` for the runnable sample catalog and learning tracks
+- `user-guide.md` for setup and usage
+- `tool-catalog.md` for the current tool surface
+- `repository-facts.md` for repository layout and verification references
+- `adr/README.md` for architecture decisions behind the current model
