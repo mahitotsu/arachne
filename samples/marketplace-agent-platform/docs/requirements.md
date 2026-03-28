@@ -100,6 +100,99 @@ These capabilities must appear in ways that are visible to the user or to the re
 - delegation must correspond to service-local responsibilities
 - steering must visibly block or redirect an unsafe path
 
+## Security Requirements
+
+The sample must demonstrate Spring-oriented security behavior as a first-class concern.
+
+### Operator Identity
+
+The sample must treat the operator as an authenticated actor rather than as anonymous prompt input.
+
+At minimum, the first slice must support:
+
+- authenticated operator identity at the frontend and coordinator boundary
+- operator role or authority information available to backend workflow handling
+- explicit authorization-sensitive behavior in case handling
+
+### Authorization
+
+The sample must show that correctness-sensitive actions are guarded by deterministic authorization checks.
+
+At minimum, the first slice must demonstrate:
+
+- at least one settlement-changing action such as `REFUND` or `RELEASE_FUNDS` requiring elevated authority
+- authorization failure represented as explicit backend outcome rather than model narration
+- approval and authorization treated as separate concerns
+
+### Propagation
+
+The sample must propagate relevant operator authorization context across delegated execution.
+
+This should be visible in the sample through:
+
+- coordinator-owned operator context
+- delegated execution receiving that context in downstream service work
+- service-local authorization checks using propagated context
+
+## Transaction Requirements
+
+The sample must demonstrate Spring-oriented transaction boundaries for correctness-sensitive state changes.
+
+### Mutation Ownership
+
+The sample must show that transaction ownership belongs to deterministic backend services rather than to the coordinator agent.
+
+At minimum, the first slice must demonstrate:
+
+- settlement-changing actions executed inside an explicit transaction boundary
+- read-oriented evidence collection kept separate from mutation logic
+- coordinator orchestration staying outside transaction ownership
+
+### Transaction Visibility
+
+The sample should make it clear which actions are transactional and why.
+
+At minimum, the design should distinguish:
+
+- read-only shipment and risk review work
+- settlement mutation work in `escrow-service`
+- post-decision notification behavior separated from core settlement mutation
+
+## Availability Requirements
+
+The sample should demonstrate enterprise-relevant availability behavior without turning into a failure-injection demo.
+
+### Coordinator Continuity
+
+The sample must show that case workflows can continue correctly when requests are distributed across multiple coordinator instances.
+
+At minimum, the first slice should support:
+
+- multiple `case-coordinator-service` instances behind a load balancer
+- shared session persistence for case workflow state
+- continued case progression when successive requests are served by different coordinator instances
+
+### Load-Balanced Progression
+
+The sample should not require sticky sessions for normal case progression.
+
+At minimum, the first slice should demonstrate that these interactions remain valid through the load-balanced coordinator entry point:
+
+- case creation
+- follow-up chat turns
+- status inquiry
+- approval submission and resume
+
+### Visibility
+
+The sample should make this availability property understandable to the reader.
+
+At minimum, the design should make it clear that:
+
+- workflow and conversation state are externalized to a shared persistence layer
+- coordinator replicas are replaceable from the workflow point of view
+- availability is being shown through replica-safe continuity, not through forced failure choreography
+
 ## Backend Service Requirements
 
 The first architecture slice must include these logical backend services:
@@ -181,6 +274,8 @@ The sample should preserve these qualities.
 
 - the backend remains the architectural center
 - the frontend stays intentionally thin
+- Spring Security and transaction concerns are part of the sample's enterprise value
+- availability should be demonstrated through shared-state coordinator continuity
 - deterministic services own correctness-sensitive state changes
 - the sample demonstrates multiple case types without requiring many screens
 - the representative story should stay easy to explain to new readers
@@ -193,3 +288,5 @@ These items still need explicit resolution before implementation planning harden
 2. whether Redis is required in the first runnable slice
 3. whether approval is owned by finance control, risk review, or another actor
 4. whether the first demonstrated outcome is only `refund` or also `continued_hold`
+5. what the minimum operator roles or authorities should be in the first runnable slice
+6. what shared session store should back load-balanced coordinator continuity in the first runnable slice

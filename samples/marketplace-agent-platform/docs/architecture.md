@@ -22,6 +22,8 @@ Architecture should make these points clear:
 - cross-service collaboration happens through explicit backend contracts, not through one shared global prompt
 - operator interaction happens through a thin frontend and a coordinator boundary
 - correctness-sensitive state transitions remain deterministic inside backend services
+- security and transaction boundaries remain owned by Spring application services, not by free-form model output
+- availability is demonstrated through shared-state coordinator continuity rather than sticky single-instance ownership
 
 ## Execution Architecture
 
@@ -32,15 +34,14 @@ Execution architecture describes the runtime topology of the sample when it is r
 The target runtime topology is:
 
 - `operator-console`
+- `coordinator-load-balancer`
 - `case-coordinator-service`
 - `escrow-service`
 - `shipment-service`
 - `risk-service`
 - `notification-service`
 
-Each backend service is expected to be independently runnable.
-
-The first implementation slice may still simplify some infrastructure, but it should preserve these logical runtime boundaries.
+In the availability-focused slice, `case-coordinator-service` is expected to run as multiple replicas behind the load balancer.
 
 ### Frontend Role
 
@@ -67,12 +68,14 @@ It should not own business workflow logic.
 - skill activation and policy/runbook consultation
 - downstream service delegation
 - approval pause and resume control
+- operator identity and authorization context entry point
 
 `escrow-service`
 
 - escrow and settlement state
 - refund, hold, and release execution
 - deterministic settlement audit records
+- transaction owner for settlement-changing actions
 
 `shipment-service`
 
@@ -85,11 +88,13 @@ It should not own business workflow logic.
 - fraud and compliance indicators
 - threshold checks
 - manual review triggers
+- authorization-relevant escalation signals
 
 `notification-service`
 
 - operator-facing and participant-facing notification dispatch
 - post-decision delivery status
+- notification work kept separate from settlement transaction ownership
 
 ### Agent Placement
 
@@ -109,12 +114,26 @@ This mapping should stay explicit. The sample should not blur service boundaries
 
 The current architectural direction is:
 
-- frontend to coordinator: HTTP or WebSocket depending on the need for live updates
+- frontend to coordinator: HTTP or WebSocket through the coordinator load balancer depending on the need for live updates
 - coordinator to backend services: synchronous service-to-service API calls in the first slice
 - streaming to frontend: coordinator-originated live event feed
 - approval submission to coordinator: explicit API call that resumes the paused workflow
 
 The first slice should prefer the simplest communication model that still makes the distributed shape visible.
+
+### Security Boundary
+
+Security should be modeled as part of the core runtime shape, not as an afterthought.
+
+The architecture should preserve these rules:
+
+- operator identity enters through the frontend and coordinator boundary
+- authorization state is available to the coordinator when it decides workflow actions
+- delegated backend work receives the relevant operator context through explicit propagation
+- service-local mutation checks remain deterministic and Spring-owned
+- approval does not replace authorization; both must be satisfied where required
+
+The first slice does not need full enterprise identity integration, but it should clearly model authenticated operators and authority-based action control.
 
 ### Session Boundary
 
@@ -126,7 +145,35 @@ This means:
 - approval pause and resume are case-session aware
 - streamed activity entries are associated with the current case
 
+This session state should be externalized to a shared persistence layer so coordinator replicas can continue the same case through the load-balanced entry point.
+
 Other services may remain stateless from the Arachne session perspective even if they maintain their own business state.
+
+### Availability Boundary
+
+Availability should be demonstrated through replica-safe coordinator behavior rather than through artificial failure choreography.
+
+The architecture should preserve these rules:
+
+- `case-coordinator-service` instances are horizontally replaceable from the workflow point of view
+- shared session persistence holds the case workflow and conversation state needed for continuation
+- load balancing may route successive requests for the same case to different coordinator instances
+- sticky sessions are not required for normal workflow progression
+
+The sample does not need to simulate instance failure to prove this point. It is enough to show that the load-balanced path works correctly across coordinator replicas.
+
+### Transaction Boundary
+
+Transaction ownership should remain inside deterministic backend services.
+
+The architecture should preserve these rules:
+
+- `case-coordinator-service` orchestrates but does not own settlement transactions
+- `escrow-service` owns transaction boundaries for refund, release, and hold-changing operations
+- read-only review paths such as shipment and risk inspection remain outside mutation transactions where practical
+- notification behavior remains separated from the core settlement mutation boundary unless an explicit design reason requires coupling
+
+This boundary is important because the sample is meant to show enterprise backend discipline, not only agent collaboration.
 
 ### Streaming Boundary
 
@@ -210,6 +257,7 @@ The likely local run target is Docker Compose, but only after the module structu
 Expected role of Compose:
 
 - start all sample services consistently
+- start coordinator replicas and the load balancer consistently
 - connect frontend and backend endpoints
 - optionally provide shared infrastructure such as Redis
 
@@ -223,6 +271,7 @@ Recommended layers:
 
 - service-local tests inside each module
 - coordinator workflow tests at the orchestration boundary
+- service-local authorization and transaction tests for mutation paths
 - optional end-to-end sample tests across the composed runtime
 
 The sample should avoid requiring full multi-service startup for every small backend test.
@@ -236,6 +285,9 @@ These decisions should be recorded here but not forced too early:
 - whether `notification-service` starts as a full separate process or an initially simplified service module
 - whether agentic case search uses a dedicated search-oriented service or remains coordinator-led in the first slice
 - which frontend framework, if any, gives the best thin-UI outcome
+- what the minimal authenticated operator model and role set should be in the first slice
+- what shared session store should back load-balanced coordinator continuity in the first runnable slice
+- what load balancer implementation best fits the sample's local runtime story
 
 ## Current Recommendation
 
