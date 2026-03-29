@@ -52,8 +52,11 @@ public final class SkillParser {
         Map<String, Object> frontmatter = parseFrontmatter(parsed.frontmatter());
         String name = requireText(frontmatter, "name");
         String description = requireText(frontmatter, "description");
-        List<String> allowedTools = parseAllowedTools(frontmatter.get("allowed-tools"));
-        Map<String, Object> metadata = parseMetadata(frontmatter.get("metadata"));
+        LinkedHashMap<String, Object> metadata = new LinkedHashMap<>(parseMetadata(frontmatter.get("metadata")));
+        Object rawAllowedTools = frontmatter.containsKey("allowed-tools")
+                ? frontmatter.get("allowed-tools")
+                : metadata.remove("allowed-tools");
+        List<String> allowedTools = parseAllowedTools(rawAllowedTools);
         String compatibility = asOptionalText(frontmatter.get("compatibility"));
         String license = asOptionalText(frontmatter.get("license"));
         return new Skill(name, description, parsed.body(), allowedTools, metadata, compatibility, license, location);

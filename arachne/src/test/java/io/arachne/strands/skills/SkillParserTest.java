@@ -18,7 +18,7 @@ class SkillParserTest {
                 name: release-checklist
                 description: Use this skill when preparing a release.
                 allowed-tools: [git_status, git_log]
-                compatibility: java-21
+                compatibility: java-25
                 license: Apache-2.0
                 metadata:
                   owner: platform
@@ -35,12 +35,32 @@ class SkillParserTest {
         assertThat(skill.name()).isEqualTo("release-checklist");
         assertThat(skill.description()).isEqualTo("Use this skill when preparing a release.");
         assertThat(skill.allowedTools()).containsExactly("git_status", "git_log");
-        assertThat(skill.compatibility()).isEqualTo("java-21");
+        assertThat(skill.compatibility()).isEqualTo("java-25");
         assertThat(skill.license()).isEqualTo("Apache-2.0");
         assertThat(skill.metadata()).containsEntry("owner", "platform");
         assertThat(skill.metadata().get("tags")).isEqualTo(List.of("release", "qa"));
         assertThat(skill.instructions()).contains("# Release checklist");
         assertThat(skill.resourceFiles()).isEmpty();
+    }
+
+    @Test
+    void parsesAllowedToolsFromMetadataWhenSkillSchemaDoesNotAllowTopLevelField() {
+        Skill skill = parser.parse("""
+                ---
+                name: release-checklist
+                description: Use this skill when preparing a release.
+                metadata:
+                  owner: platform
+                  allowed-tools:
+                    - git_status
+                    - git_log
+                ---
+                Run mvn test before merging.
+                """);
+
+        assertThat(skill.allowedTools()).containsExactly("git_status", "git_log");
+        assertThat(skill.metadata()).containsEntry("owner", "platform");
+        assertThat(skill.metadata()).doesNotContainKey("allowed-tools");
     }
 
     @Test

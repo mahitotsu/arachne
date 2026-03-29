@@ -14,7 +14,7 @@ Readiness in this repository means the next worker can identify the right starti
 
 - Identify the exact code, tests, docs, samples, ADRs, and instructions that now represent the target area.
 - Confirm whether the latest quality evidence is fresh enough for the closeout claim. If not, either regenerate it or say that readiness is limited by stale evidence.
-- If you regenerate sample-side evidence through `samples/pom.xml`, first run `mvn install -DskipTests` so the sample reactor evaluates the current root snapshot instead of a stale local one.
+- If you regenerate sample-side evidence through `samples/pom.xml`, first run `mvn -pl arachne -am install -DskipTests` so the sample reactor evaluates the current library snapshot instead of a stale local one.
 - Confirm whether implementation-test-doc alignment was checked for the target area. If not, report that readiness is incomplete even if the code looks plausible.
 
 ## 3. Check entry-point boundedness

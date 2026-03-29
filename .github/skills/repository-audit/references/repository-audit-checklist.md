@@ -21,7 +21,7 @@ Use this checklist as the shared repository audit procedure behind `/alignment-a
 - Identify the tests that cover the target area.
 - Check whether changed behavior has matching test additions or updates.
 - Use the repo default verification command `mvn test` when code or behavior changed.
-- If you use `samples/pom.xml` for sample-side evidence, first run `mvn install -DskipTests` so the sample reactor evaluates the current root snapshot instead of a stale local one.
+- If you use `samples/pom.xml` for sample-side evidence, first run `mvn -pl arachne -am install -DskipTests` so the sample reactor evaluates the current library snapshot instead of a stale local one.
 - If only an audit was requested and no edits were made, state what verification would be required for a full closeout.
 
 ## 4. Review documentation surfaces

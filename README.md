@@ -21,11 +21,18 @@ Use those documents for the detailed API, configuration surface, current constra
 
 Treat [docs/project-status.md](docs/project-status.md) as the canonical source of truth for feature availability, shipped boundaries, and current constraints on this branch.
 
+## Repository Layout
+
+- `pom.xml`: root Maven reactor for the repository
+- `arachne/`: main library module published as `io.arachne:arachne`
+- `samples/`: runnable sample reactor and sample applications
+- `docs/`: repository and usage documentation
+
 ## Quick Start
 
 Prerequisites:
 
-- Java 21
+- Java 25
 - Spring Boot 3.5.12
 - AWS credentials resolvable by the AWS SDK default credentials chain
 - access to the configured Bedrock model in the target AWS region
@@ -33,7 +40,7 @@ Prerequisites:
 If you are consuming the library from this repository before publication, install it locally first:
 
 ```bash
-mvn install
+mvn -pl arachne -am install
 ```
 
 Minimum Spring Boot configuration:

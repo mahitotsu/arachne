@@ -6,7 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import io.arachne.strands.agent.Agent;
 import io.arachne.strands.agent.AgentResult;
@@ -17,7 +17,7 @@ import io.arachne.strands.spring.AgentFactory;
 @EnabledIfSystemProperty(named = "arachne.integration.bedrock", matches = "true")
 class ConversationBasicsBedrockIntegrationTest {
 
-    @MockBean
+    @MockitoBean
     private ConversationBasicsRunner conversationBasicsRunner;
 
     @Autowired
@@ -25,6 +25,8 @@ class ConversationBasicsBedrockIntegrationTest {
 
     @Test
     void bedrockConversationPreservesFactsAcrossTurns() {
+        assertThat(conversationBasicsRunner).isNotNull();
+
         Agent agent = agentFactory.builder().build();
 
         AgentResult first = agent.run("この会話では、私の好きな色は青です。覚えてください。");

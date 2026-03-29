@@ -41,8 +41,8 @@ class DomainSeparationIntegrationTest {
     private List<Skill> coordinatorSkills;
 
         @SuppressWarnings("unused")
-    @BeforeEach
-    void resetDemoState() {
+        @BeforeEach
+        void resetDemoState() {
         accountDirectoryService.resetDemoState();
     }
 

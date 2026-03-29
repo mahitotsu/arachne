@@ -2,6 +2,12 @@
 
 This directory contains the documents that explain what Arachne provides now, how to use it, and where to find runnable examples.
 
+Repository layout note:
+
+- the repository root `pom.xml` is a reactor only
+- the published library module lives under `../arachne/`
+- runnable sample applications live under `../samples/`
+
 ## Start Here
 
 If you are new to Arachne, read these in order:

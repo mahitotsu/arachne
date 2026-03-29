@@ -18,20 +18,21 @@ import org.springframework.core.io.ByteArrayResource;
 class DocumentedYamlExamplesTest {
 
     private static final Pattern YAML_FENCE = Pattern.compile("```yaml\\R(.*?)\\R```", Pattern.DOTALL);
+    private static final Path REPOSITORY_ROOT = Path.of("..");
 
     @Test
     void documentedArachneYamlExamplesRemainParseable() throws IOException {
         List<Path> markdownFiles = List.of(
-                Path.of("README.md"),
-                Path.of("docs/user-guide.md"),
-                Path.of("samples/conversation-basics/README.md"),
-                Path.of("samples/tool-delegation/README.md"),
-                Path.of("samples/tool-execution-context/README.md"),
-                Path.of("samples/session-redis/README.md"),
-                Path.of("samples/session-jdbc/README.md"),
-                Path.of("samples/approval-workflow/README.md"),
-                Path.of("samples/skill-activation/README.md"),
-                Path.of("samples/streaming-steering/README.md"));
+                REPOSITORY_ROOT.resolve("README.md"),
+                REPOSITORY_ROOT.resolve("docs/user-guide.md"),
+                REPOSITORY_ROOT.resolve("samples/conversation-basics/README.md"),
+                REPOSITORY_ROOT.resolve("samples/tool-delegation/README.md"),
+                REPOSITORY_ROOT.resolve("samples/tool-execution-context/README.md"),
+                REPOSITORY_ROOT.resolve("samples/session-redis/README.md"),
+                REPOSITORY_ROOT.resolve("samples/session-jdbc/README.md"),
+                REPOSITORY_ROOT.resolve("samples/approval-workflow/README.md"),
+                REPOSITORY_ROOT.resolve("samples/skill-activation/README.md"),
+                REPOSITORY_ROOT.resolve("samples/streaming-steering/README.md"));
 
         int validatedBlocks = 0;
         for (Path markdownFile : markdownFiles) {

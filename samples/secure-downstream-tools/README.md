@@ -33,13 +33,13 @@ The model never receives:
 
 ## Prerequisites
 
-- Java 21
+- Java 25
 - Maven
 
-The sample depends on the local snapshot of this repository, so install the root project first:
+The sample depends on the local `io.arachne:arachne` snapshot, so install the library module first:
 
 ```bash
-mvn install
+mvn -pl arachne -am install
 ```
 
 ## Run The Demo

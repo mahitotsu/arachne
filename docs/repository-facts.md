@@ -12,15 +12,21 @@ Use it when you need to know:
 ## Repository At A Glance
 
 - artifact: `io.arachne:arachne:0.1.0-SNAPSHOT`
-- Java baseline: 21
+- Java baseline: 25
 - Spring Boot baseline: 3.5.12
 - built-in model provider: AWS Bedrock
 - default verification command: `mvn test`
 
+## Top-Level Modules
+
+- `pom.xml`: repository reactor
+- `arachne/pom.xml`: main library module
+- `samples/pom.xml`: runnable sample reactor
+
 ## Main Directories
 
-- `src/main/java`: main library implementation
-- `src/test/java`: root test suite for the library
+- `arachne/src/main/java`: main library implementation
+- `arachne/src/test/java`: library test suite
 - `docs`: usage, status, repository map, and ADRs
 - `samples`: runnable reference applications for shipped capabilities
 - `refs/sdk-python`: behavioral reference material for the Python SDK lineage
@@ -28,7 +34,7 @@ Use it when you need to know:
 
 ## Main Package Areas
 
-Top-level packages under `src/main/java/io/arachne/strands`:
+Top-level packages under `arachne/src/main/java/io/arachne/strands`:
 
 - `agent`
 - `event`
@@ -45,13 +51,13 @@ Top-level packages under `src/main/java/io/arachne/strands`:
 
 ## Where To Look For Common Topics
 
-- agent creation and Spring wiring: `src/main/java/io/arachne/strands/spring`
-- runtime loop and orchestration: `src/main/java/io/arachne/strands/agent` and `src/main/java/io/arachne/strands/eventloop`
-- model integration and Bedrock behavior: `src/main/java/io/arachne/strands/model`
-- tool contracts and execution: `src/main/java/io/arachne/strands/tool`
-- sessions and persistence: `src/main/java/io/arachne/strands/session`
-- skills: `src/main/java/io/arachne/strands/skills`
-- steering: `src/main/java/io/arachne/strands/steering`
+- agent creation and Spring wiring: `arachne/src/main/java/io/arachne/strands/spring`
+- runtime loop and orchestration: `arachne/src/main/java/io/arachne/strands/agent` and `arachne/src/main/java/io/arachne/strands/eventloop`
+- model integration and Bedrock behavior: `arachne/src/main/java/io/arachne/strands/model`
+- tool contracts and execution: `arachne/src/main/java/io/arachne/strands/tool`
+- sessions and persistence: `arachne/src/main/java/io/arachne/strands/session`
+- skills: `arachne/src/main/java/io/arachne/strands/skills`
+- steering: `arachne/src/main/java/io/arachne/strands/steering`
 - architectural decisions: `docs/adr`
 
 ## Sample Map
@@ -83,14 +89,14 @@ mvn -Pquality-report verify
 mvn -Pquality-security verify
 ```
 
-For sample-side verification, refresh the root snapshot before using the samples reactor:
+For sample-side verification, refresh the library snapshot before using the samples reactor:
 
 ```bash
-mvn install -DskipTests
+mvn -pl arachne -am install -DskipTests
 mvn -f samples/pom.xml test
 ```
 
-This is required because `samples/pom.xml` resolves `io.arachne:arachne` from the local Maven repository.
+This is required because `samples/pom.xml` resolves `io.arachne:arachne` from the local Maven repository instead of directly from the sibling `arachne/` module.
 
 Dependency evidence is intentionally split:
 

@@ -1,11 +1,11 @@
 ---
 name: account-creation
 description: Use this skill when the requested operationType is ACCOUNT_CREATION.
-allowed-tools:
-  - prepare_account_operation
-  - execute_account_operation
-compatibility: java-21
+compatibility: java-25
 metadata:
+  allowed-tools:
+    - prepare_account_operation
+    - execute_account_operation
   operation-type: ACCOUNT_CREATION
   workflow-family: account-operations
 ---

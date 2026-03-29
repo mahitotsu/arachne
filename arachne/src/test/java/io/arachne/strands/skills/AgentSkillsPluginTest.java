@@ -32,7 +32,7 @@ class AgentSkillsPluginTest {
                         "Run mvn test before merging.",
                         List.of("git_status"),
                         java.util.Map.of(),
-                        "java-21",
+                        "java-25",
                         "Apache-2.0",
                         "/skills/release-checklist/SKILL.md"))
                 .build();

@@ -17,7 +17,7 @@ Requirements:
 - Use git changed files only as a prioritization hint. Do not let changed files replace repository-wide partitioning.
 - For each readiness area, identify the canonical docs, implementation entry points, tests, samples, ADRs, and instruction files before judging readiness.
 - Reuse existing quality or alignment evidence when it is fresh, but do not assume readiness from those audits alone.
-- If sample-side evidence will be gathered via `samples/pom.xml`, refresh the root snapshot first with `mvn install -DskipTests` so the sample reactor does not read a stale local `io.arachne:arachne` snapshot.
+- If sample-side evidence will be gathered via `samples/pom.xml`, refresh the library snapshot first with `mvn -pl arachne -am install -DskipTests` so the sample reactor does not read a stale local `io.arachne:arachne` snapshot.
 - Classify each readiness area as one of:
   - `ready`
   - `ready with follow-ups`

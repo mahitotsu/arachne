@@ -68,16 +68,16 @@ This repository does not currently force these workflows with hooks or CI. They 
 
 ## Sample Reactor Re-Entry Rule
 
-When you are about to use `samples/pom.xml` for sample-side readiness, consistency, or quality evidence, refresh the root snapshot in the local Maven repository first.
+When you are about to use `samples/pom.xml` for sample-side readiness, consistency, or quality evidence, refresh the library snapshot in the local Maven repository first.
 
 Use this sequence:
 
 ```bash
-mvn install -DskipTests
+mvn -pl arachne -am install -DskipTests
 mvn -f samples/pom.xml test
 ```
 
-The reason is mechanical: the sample reactor resolves `io.arachne:arachne` from the local Maven repository, not from the root reactor's in-memory workspace outputs. Without the install step, sample checks can accidentally evaluate an older local snapshot and produce false drift.
+The reason is mechanical: the sample reactor resolves `io.arachne:arachne` from the local Maven repository, not from the sibling `arachne/` module's in-memory reactor outputs. Without the install step, sample checks can accidentally evaluate an older local snapshot and produce false drift.
 
 ## Bedrock-Specific Re-Entry Rule
 

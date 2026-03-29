@@ -65,8 +65,8 @@ class BedrockModelIntegrationTest {
         AgentResult result = agent.stream("Say hello in one sentence.", event -> {
             switch (event) {
                 case AgentStreamEvent.TextDelta textDelta -> events.add("text:" + textDelta.delta());
-                case AgentStreamEvent.ToolUseRequested ignored -> events.add("toolUse");
-                case AgentStreamEvent.ToolResultObserved ignored -> events.add("toolResult");
+                case AgentStreamEvent.ToolUseRequested _ -> events.add("toolUse");
+                case AgentStreamEvent.ToolResultObserved _ -> events.add("toolResult");
                 case AgentStreamEvent.Retry retry -> events.add("retry:" + retry.guidance());
                 case AgentStreamEvent.Complete complete -> events.add("complete:" + complete.result().stopReason());
             }

@@ -6,7 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import io.arachne.strands.agent.Agent;
 import io.arachne.strands.spring.AgentFactory;
@@ -16,7 +16,7 @@ import io.arachne.strands.spring.AgentFactory;
 @EnabledIfSystemProperty(named = "arachne.integration.bedrock", matches = "true")
 class ToolDelegationBedrockIntegrationTest {
 
-    @MockBean
+    @MockitoBean
     private ToolDelegationRunner toolDelegationRunner;
 
     @Autowired
@@ -24,6 +24,8 @@ class ToolDelegationBedrockIntegrationTest {
 
     @Test
     void bedrockDelegationReturnsStructuredTripPlan() {
+        assertThat(toolDelegationRunner).isNotNull();
+
         Agent tripPlannerAgent = agentFactory.builder("trip-planner").build();
 
         TripPlan summary = tripPlannerAgent.run(

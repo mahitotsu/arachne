@@ -31,7 +31,7 @@ If you only need one isolated feature, start with the narrower samples under `sa
 
 ## Prerequisites
 
-- Java 21
+- Java 25
 - Maven
 
 For the optional Bedrock mode you also need:
@@ -39,10 +39,10 @@ For the optional Bedrock mode you also need:
 - AWS credentials resolvable by the AWS SDK default credentials chain
 - access to the configured Bedrock model in the target AWS region
 
-The sample depends on the local snapshot of this repository, so install the root project first:
+The sample depends on the local `io.arachne:arachne` snapshot, so install the library module first:
 
 ```bash
-mvn install
+mvn -pl arachne -am install
 ```
 
 ## Run The Demo

@@ -39,8 +39,8 @@ class DomainSeparationBedrockIntegrationTest {
     private AccountDirectoryService accountDirectoryService;
 
         @SuppressWarnings("unused")
-    @BeforeEach
-    void resetDemoState() {
+        @BeforeEach
+        void resetDemoState() {
         accountDirectoryService.resetDemoState();
     }
 

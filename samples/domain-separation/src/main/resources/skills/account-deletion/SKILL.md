@@ -1,11 +1,11 @@
 ---
 name: account-deletion
 description: Use this skill when the requested operationType is ACCOUNT_DELETION.
-allowed-tools:
-  - prepare_account_operation
-  - execute_account_operation
-compatibility: java-21
+compatibility: java-25
 metadata:
+  allowed-tools:
+    - prepare_account_operation
+    - execute_account_operation
   operation-type: ACCOUNT_DELETION
   workflow-family: account-operations
 ---

@@ -10,11 +10,13 @@ import org.junit.jupiter.api.Test;
 
 class DocumentedRepositorySurfaceTest {
 
+    private static final Path REPOSITORY_ROOT = Path.of("..");
+
         @Test
         void docsIdentifyProjectStatusAsCanonicalAvailabilitySource() throws IOException {
-                String readme = Files.readString(Path.of("README.md"), StandardCharsets.UTF_8);
-                String docsGuide = Files.readString(Path.of("docs/README.md"), StandardCharsets.UTF_8);
-                String userGuide = Files.readString(Path.of("docs/user-guide.md"), StandardCharsets.UTF_8);
+                String readme = Files.readString(REPOSITORY_ROOT.resolve("README.md"), StandardCharsets.UTF_8);
+                String docsGuide = Files.readString(REPOSITORY_ROOT.resolve("docs/README.md"), StandardCharsets.UTF_8);
+                String userGuide = Files.readString(REPOSITORY_ROOT.resolve("docs/user-guide.md"), StandardCharsets.UTF_8);
 
                 assertThat(readme)
                                 .contains("Treat [docs/project-status.md](docs/project-status.md) as the canonical source of truth for feature availability");
@@ -29,7 +31,7 @@ class DocumentedRepositorySurfaceTest {
 
     @Test
     void rootReadmeListsCurrentBuiltInToolSet() throws IOException {
-        String readme = Files.readString(Path.of("README.md"), StandardCharsets.UTF_8);
+                String readme = Files.readString(REPOSITORY_ROOT.resolve("README.md"), StandardCharsets.UTF_8);
 
         assertThat(readme)
                 .contains("built-in tools: `calculator`, `current_time`, `resource_reader`, `resource_list`");
@@ -37,11 +39,11 @@ class DocumentedRepositorySurfaceTest {
 
     @Test
     void sampleCatalogExplicitlyExcludesConceptOnlyMarketplaceDirectory() throws IOException {
-        String samplesCatalog = Files.readString(Path.of("samples/README.md"), StandardCharsets.UTF_8);
+        String samplesCatalog = Files.readString(REPOSITORY_ROOT.resolve("samples/README.md"), StandardCharsets.UTF_8);
         String marketplaceReadme = Files.readString(
-                Path.of("samples/marketplace-agent-platform/README.md"),
+                REPOSITORY_ROOT.resolve("samples/marketplace-agent-platform/README.md"),
                 StandardCharsets.UTF_8);
-        String samplesPom = Files.readString(Path.of("samples/pom.xml"), StandardCharsets.UTF_8);
+        String samplesPom = Files.readString(REPOSITORY_ROOT.resolve("samples/pom.xml"), StandardCharsets.UTF_8);
 
         assertThat(samplesCatalog)
                 .contains("The concept-only `marketplace-agent-platform` directory is design material for a future sample.")
@@ -62,8 +64,8 @@ class DocumentedRepositorySurfaceTest {
 
         @Test
         void readinessDocsExplainWhenToRefreshBedrockLiveEvidence() throws IOException {
-                String readiness = Files.readString(Path.of("docs/closeout-and-readiness.md"), StandardCharsets.UTF_8);
-                String repositoryFacts = Files.readString(Path.of("docs/repository-facts.md"), StandardCharsets.UTF_8);
+                String readiness = Files.readString(REPOSITORY_ROOT.resolve("docs/closeout-and-readiness.md"), StandardCharsets.UTF_8);
+                String repositoryFacts = Files.readString(REPOSITORY_ROOT.resolve("docs/repository-facts.md"), StandardCharsets.UTF_8);
 
                 assertThat(readiness)
                                 .contains("When a bounded task changes Bedrock-specific runtime behavior")
@@ -76,9 +78,9 @@ class DocumentedRepositorySurfaceTest {
 
         @Test
         void docsExplainHowToRefreshSampleReactorSnapshot() throws IOException {
-                String readiness = Files.readString(Path.of("docs/closeout-and-readiness.md"), StandardCharsets.UTF_8);
-                String repositoryFacts = Files.readString(Path.of("docs/repository-facts.md"), StandardCharsets.UTF_8);
-                String samplesCatalog = Files.readString(Path.of("samples/README.md"), StandardCharsets.UTF_8);
+                String readiness = Files.readString(REPOSITORY_ROOT.resolve("docs/closeout-and-readiness.md"), StandardCharsets.UTF_8);
+                String repositoryFacts = Files.readString(REPOSITORY_ROOT.resolve("docs/repository-facts.md"), StandardCharsets.UTF_8);
+                String samplesCatalog = Files.readString(REPOSITORY_ROOT.resolve("samples/README.md"), StandardCharsets.UTF_8);
 
                 assertThat(readiness)
                                 .contains("Sample Reactor Re-Entry Rule")

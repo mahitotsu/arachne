@@ -21,10 +21,10 @@ After that, move to the narrower sample that matches your current integration pr
 
 ## Before Running Samples
 
-Most samples depend on the local snapshot of this repository, so install the root project first:
+Most samples depend on the local `io.arachne:arachne` snapshot, so install the library module first:
 
 ```bash
-mvn install
+mvn -pl arachne -am install
 ```
 
 Then run the sample from its own directory.
@@ -32,7 +32,7 @@ Then run the sample from its own directory.
 For sample-reactor verification or readiness checks, prefer this stricter sequence so the sample build does not pick up a stale local snapshot:
 
 ```bash
-mvn install -DskipTests
+mvn -pl arachne -am install -DskipTests
 mvn -f samples/pom.xml test
 ```
 
@@ -114,5 +114,5 @@ Status legend:
 - Bedrock-backed samples require AWS credentials and model access. Deterministic samples do not.
 - `tool-delegation` remains `compile-checked in sample reactor` because its published value is live Bedrock-backed delegation plus structured output. It now also has an opt-in Bedrock smoke test for live evidence.
 - `conversation-basics` remains `compile-checked in sample reactor` because its published value is a live Bedrock-backed multi-turn conversation and prompt-cache metrics path rather than a deterministic in-process model. It now also has an opt-in Bedrock smoke test for live evidence.
-- before trusting `mvn -f samples/pom.xml ...` results after library changes, refresh the local `io.arachne:arachne` snapshot with `mvn install -DskipTests`.
+- before trusting `mvn -f samples/pom.xml ...` results after library changes, refresh the local `io.arachne:arachne` snapshot with `mvn -pl arachne -am install -DskipTests`.
 - `marketplace-agent-platform` is a design-only concept directory under `samples/`; it is not yet included in this runnable catalog.

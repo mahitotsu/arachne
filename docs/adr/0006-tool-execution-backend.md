@@ -8,7 +8,7 @@ Accepted
 
 Phase 2 made it possible for Arachne to execute tool calls in parallel or sequentially through `ToolExecutionMode`. In the current implementation, however, the parallel backend inside `ToolExecutor` is fixed to `Executors.newVirtualThreadPerTaskExecutor()`, and `AgentFactory.Builder` directly creates `new ToolExecutor(toolExecutionMode)` before passing it to `EventLoop`.
 
-That implementation is simple and reasonable as a Java 21 default, but from the Phase 3.5 perspective it leaves two problems. First, the execution policy of `PARALLEL` versus `SEQUENTIAL` is embedded in the same class as the choice of concrete execution backend. Second, despite providing Spring Boot integration, the design leaves no room to align the tool-execution scheduler or executor with standard Spring infrastructure.
+That implementation is simple and reasonable as a baseline-Java default, but from the Phase 3.5 perspective it leaves two problems. First, the execution policy of `PARALLEL` versus `SEQUENTIAL` is embedded in the same class as the choice of concrete execution backend. Second, despite providing Spring Boot integration, the design leaves no room to align the tool-execution scheduler or executor with standard Spring infrastructure.
 
 Phase 4 adds hooks, interrupts, and human-in-the-loop control, which makes the tool-execution substrate a likely target for observation, control, and replacement. Some users will want to keep virtual threads, while others will want a shared application-wide `TaskExecutor` or a bounded thread pool. Phase 3.5 does not need a new complex async API yet, but it does need to state that the execution backend should not be treated as a fixed implementation.
 

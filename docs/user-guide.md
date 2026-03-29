@@ -67,7 +67,7 @@ The current operational assumptions are:
 
 ## Prerequisites
 
-- Java 21
+- Java 25
 - Spring Boot 3.5.12
 - AWS credentials resolvable by the AWS SDK default credentials chain
 - access to the configured Bedrock model in the target AWS region
@@ -1250,7 +1250,7 @@ description: Use this skill when preparing a release.
 allowed-tools:
   - git_status
   - git_log
-compatibility: java-21
+compatibility: java-25
 ---
 Run mvn test before merging.
 Summarize the highest remaining risk before recommending release.

@@ -18,7 +18,7 @@ If this boundary cannot be stated precisely, do not claim closeout success.
 - Confirm the implementation surface that changed.
 - Confirm the tests that cover the change.
 - Confirm whether quality evidence is fresh enough for the closeout claim.
-- If sample-side evidence is gathered through `samples/pom.xml`, first run `mvn install -DskipTests` so the sample reactor evaluates the current root snapshot instead of a stale local one.
+- If sample-side evidence is gathered through `samples/pom.xml`, first run `mvn -pl arachne -am install -DskipTests` so the sample reactor evaluates the current library snapshot instead of a stale local one.
 - Confirm whether implementation, tests, docs, samples, ADRs, and instructions were checked for alignment.
 
 If evidence is stale, partial, or missing, say so explicitly and lower the closeout status.
