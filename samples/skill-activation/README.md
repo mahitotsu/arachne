@@ -36,7 +36,7 @@ Expected output shape:
 
 ```text
 Arachne skill activation sample
-tools> activate_skill, read_skill_resource
+tools> calculator, current_time, resource_reader, resource_list, activate_skill, read_skill_resource
 first.request> Prepare today's release.
 first.reply> Loaded release-checklist. Run mvn test before merging and summarize the remaining risk. Reference says: # Release Template - Verify the diff. - Run the test suite. - Note the highest remaining risk.
 state.loadedSkills> [release-checklist]
@@ -61,6 +61,7 @@ The sample is centered on three pieces:
 
 This intentionally shows the current skills boundary.
 
+- skill tools are added on top of the default read-only built-in baseline unless built-in inheritance is disabled
 - the model sees only a compact catalog before activation
 - the full skill body and packaged resource paths arrive through the dedicated activation tool
 - listed resources can then be read on demand through `read_skill_resource`

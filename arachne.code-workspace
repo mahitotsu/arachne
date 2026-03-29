@@ -1,6 +1,10 @@
 {
     "folders": [
         {
+            "name": "repo-root",
+            "path": "."
+        },
+        {
             "name": "arachne",
             "path": "arachne"
         },
@@ -54,6 +58,14 @@
         }
     ],
     "settings": {
+        "files.exclude": {
+            "arachne": true,
+            "samples": true
+        },
+        "search.exclude": {
+            "arachne": true,
+            "samples": true
+        },
         "java.configuration.updateBuildConfiguration": "automatic",
         "java.compile.nullAnalysis.mode": "automatic",
         "java.import.exclusions": [
