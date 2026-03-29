@@ -32,7 +32,7 @@
         <test.jvm.args>-Xshare:off --enable-native-access=ALL-UNNAMED --sun-misc-unsafe-memory-access=allow</test.jvm.args>
         <argLine></argLine>
         <testcontainers.version>2.0.4</testcontainers.version>
-        <jacoco.version>0.8.13</jacoco.version>
+        <jacoco.version>0.8.14</jacoco.version>
         <spotbugs.maven.plugin.version>4.9.8.3</spotbugs.maven.plugin.version>
         <pmd.maven.plugin.version>3.28.0</pmd.maven.plugin.version>
         <cyclonedx.maven.plugin.version>2.9.1</cyclonedx.maven.plugin.version>
