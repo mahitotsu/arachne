@@ -33,6 +33,52 @@ Architecture should make these points clear:
 
 Execution architecture describes the runtime topology of the sample when it is running.
 
+The runtime shape below is the quickest way to review the service boundaries, communication paths, and shared infrastructure in one pass.
+
+```mermaid
+flowchart LR
+	subgraph Frontend
+		OC[operator-console]
+	end
+
+	subgraph CaseBoundary[Case Boundary]
+		CS[case-service]
+		RDB[(relational database)]
+	end
+
+	subgraph WorkflowBoundary[Workflow Boundary]
+		LB[workflow-load-balancer]
+		WS1[workflow-service replica A]
+		WS2[workflow-service replica B]
+		Redis[(Redis session store)]
+	end
+
+	subgraph DomainServices[Domain Services]
+		ES[escrow-service]
+		SS[shipment-service]
+		RS[risk-service]
+		NS[notification-service]
+	end
+
+	OC -->|HTTP commands + SSE updates| CS
+	CS -->|create/list/detail/search| RDB
+	CS -->|start/continue/resume| LB
+	LB --> WS1
+	LB --> WS2
+	WS1 <--> Redis
+	WS2 <--> Redis
+	WS1 -->|projection updates| CS
+	WS2 -->|projection updates| CS
+	WS1 --> ES
+	WS1 --> SS
+	WS1 --> RS
+	WS1 --> NS
+	WS2 --> ES
+	WS2 --> SS
+	WS2 --> RS
+	WS2 --> NS
+```
+
 ### Runtime Topology
 
 The target runtime topology is:
@@ -135,6 +181,22 @@ This mapping should stay explicit. The sample should not blur service boundaries
 ### Communication Shape
 
 The current architectural direction is:
+
+The communication contract can also be read as a single path from operator input to final projection update.
+
+```mermaid
+flowchart TD
+	A[Operator action in operator-console]
+	B[case-service HTTP endpoint]
+	C[workflow-load-balancer]
+	D[workflow-service command handling]
+	E[downstream evidence and settlement calls]
+	F[workflow activity and outcome updates]
+	G[case-service projection update]
+	H[SSE or detail read back to operator-console]
+
+	A --> B --> C --> D --> E --> F --> G --> H
+```
 
 - frontend to case-service commands: HTTP
 - frontend to case-service live activity updates: SSE

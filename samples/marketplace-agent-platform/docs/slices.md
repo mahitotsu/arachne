@@ -17,6 +17,20 @@ The implementation sequence should preserve these rules:
 - downstream business ownership must remain visible from the first slice onward
 - new slices should add one kind of complexity at a time where practical
 
+The following build-order view is intended to make the first slice easier to review as a dependency chain rather than a flat checklist.
+
+```mermaid
+flowchart LR
+	A[1. shared contracts and policy resources]
+	B[2. case-service APIs and durable projections]
+	C[3. downstream service APIs and domain responses]
+	D[4. workflow-service orchestration and session handling]
+	E[5. operator-console thin UI]
+	F[6. composed runtime with load balancer, Redis, and RDB]
+
+	A --> B --> C --> D --> E --> F
+```
+
 ## Slice 1
 
 ### Goal
@@ -117,6 +131,19 @@ These items should not block the first runnable slice:
 This order keeps business ownership explicit before orchestration and UI layering are added.
 
 ## Stop-And-Check Gates
+
+These gates are also easier to read as a staged progression.
+
+```mermaid
+flowchart TD
+	G1[Gate 1<br>Downstream APIs ready]
+	G2[Gate 2<br>Case projection ready]
+	G3[Gate 3<br>Workflow start, interrupt, and resume ready]
+	G4[Gate 4<br>Replica continuity with Redis proven]
+	G5[Gate 5<br>Thin frontend shows full representative flow]
+
+	G1 --> G2 --> G3 --> G4 --> G5
+```
 
 Do not expand implementation scope past a gate until the previous one is stable.
 

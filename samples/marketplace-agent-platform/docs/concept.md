@@ -124,6 +124,28 @@ The detailed UX and behavior requirements for screens, regions, and visible Arac
 
 The current leading topology is six backend services plus a thin operator frontend.
 
+The following overview is meant to help a reviewer orient around ownership before reading the service-by-service details.
+
+```mermaid
+flowchart LR
+	OC[operator-console]
+	CS[case-service]
+	WS[workflow-service]
+	ES[escrow-service]
+	SS[shipment-service]
+	RS[risk-service]
+	NS[notification-service]
+
+	OC -->|create/search/detail/approve| CS
+	CS -->|start/continue/resume workflow| WS
+	WS -->|evidence + settlement request| ES
+	WS -->|shipment evidence| SS
+	WS -->|risk review| RS
+	WS -->|outcome notifications| NS
+	WS -->|projection updates| CS
+	CS -->|case view + activity| OC
+```
+
 ### `operator-console`
 
 Responsibility:
@@ -210,6 +232,42 @@ Agent role:
 ## Representative End-To-End Workflow
 
 The first demonstrated workflow should be intentionally concrete and easy to narrate.
+
+The same representative path is easier to review visually as an interaction sequence.
+
+```mermaid
+sequenceDiagram
+	actor Operator
+	participant UI as operator-console
+	participant Case as case-service
+	participant Workflow as workflow-service
+	participant Shipment as shipment-service
+	participant Escrow as escrow-service
+	participant Risk as risk-service
+	participant Notify as notification-service
+
+	Operator->>UI: Open ITEM_NOT_RECEIVED case
+	UI->>Case: Create case
+	Case->>Workflow: Start workflow
+	Workflow->>Workflow: Activate skill and read policy resources
+	Workflow->>Shipment: Collect shipment evidence
+	Workflow->>Escrow: Collect escrow state
+	Workflow->>Risk: Collect risk review
+	Shipment-->>Workflow: Shipment summary
+	Escrow-->>Workflow: Eligibility summary
+	Risk-->>Workflow: Risk summary
+	Workflow->>Case: Append activity and recommendation updates
+	Case-->>UI: Show progress via case projection
+	alt Approval required
+		Workflow->>Case: Mark awaiting finance control
+		UI->>Case: Submit approval decision
+		Case->>Workflow: Resume workflow
+	end
+	Workflow->>Escrow: Execute refund or continued hold
+	Workflow->>Notify: Send case outcome notifications
+	Workflow->>Case: Publish final outcome
+	Case-->>UI: Show completed case detail
+```
 
 Recommended flow:
 
