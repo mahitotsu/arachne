@@ -22,7 +22,7 @@ That path gives you:
 Open the document that matches the question you have now.
 
 - `user-guide.md`: setup, configuration, agent creation, tools, sessions, skills, streaming, steering, and sample links
-- `project-status.md`: concise snapshot of the features, samples, and constraints available on the current branch
+- `project-status.md`: canonical source of truth for shipped features, sample map, and current constraints on the current branch
 - `tool-catalog.md`: current built-in tools, tool authoring surfaces, and tool-related cautions
 - `repository-facts.md`: repository layout, verification commands, sample/module map, and code-location guide
 - `closeout-and-readiness.md`: local maintainer workflow for task closeout and later readiness recovery
@@ -57,7 +57,7 @@ Open the document that matches the question you have now.
 ## Practical Notes
 
 - `user-guide.md` is the main usage document. Start there unless you already know the surface and only need a capability snapshot.
-- `project-status.md` is the fastest way to confirm whether a feature is available on the current branch.
+- `project-status.md` is the canonical source of truth for feature availability and current constraints on the current branch.
 - `tool-catalog.md` describes the current tool surface. It is not a roadmap.
 - `repository-facts.md` is a reference document for navigating the repository, not a getting-started guide.
 

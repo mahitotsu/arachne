@@ -2,6 +2,8 @@
 
 This directory contains runnable samples for the features that Arachne provides now.
 
+Use [docs/project-status.md](../docs/project-status.md) as the canonical source of truth for whether a capability is shipped. This page is the sample-selection and sample-verification map for that shipped surface.
+
 The concept-only `marketplace-agent-platform` directory is design material for a future sample. It is not yet part of the runnable sample catalog and is not yet included in the Maven sample reactor.
 
 Use this page to choose the right sample. Use each sample's own README for setup, run commands, and what to inspect in the code.
@@ -27,6 +29,13 @@ mvn install
 
 Then run the sample from its own directory.
 
+For sample-reactor verification or readiness checks, prefer this stricter sequence so the sample build does not pick up a stale local snapshot:
+
+```bash
+mvn install -DskipTests
+mvn -f samples/pom.xml test
+```
+
 ## Choose By Goal
 
 | Goal | Sample |
@@ -46,20 +55,32 @@ Then run the sample from its own directory.
 
 ## Sample Matrix
 
-| Sample | Main topic | External dependency |
+Status legend:
+
+- `tested in sample reactor`: the sample has sample-local tests that run under `mvn -f samples/pom.xml test`
+- `compile-checked in sample reactor`: the sample is built by the sample reactor, but does not yet have sample-local tests
+- `concept-only`: the directory is design material and is excluded from the runnable sample reactor
+
+| Sample | Main topic | External dependency | Status |
+| --- | --- | --- | --- |
+| `conversation-basics` | in-memory multi-turn runtime | Bedrock | `compile-checked in sample reactor` |
+| `built-in-tools` | built-in tools | none | `tested in sample reactor` |
+| `secure-downstream-tools` | secure downstream tool calls | none | `tested in sample reactor` |
+| `stateful-backend-operations` | idempotent backend mutations | none | `tested in sample reactor` |
+| `tool-delegation` | delegation and structured output | Bedrock | `compile-checked in sample reactor` |
+| `tool-execution-context` | invocation vs execution context | none | `tested in sample reactor` |
+| `session-redis` | Spring Session Redis restore | Docker + Redis | `tested in sample reactor` |
+| `session-jdbc` | Spring Session JDBC restore | none | `tested in sample reactor` |
+| `approval-workflow` | interrupts and resume | none | `tested in sample reactor` |
+| `skill-activation` | skills and skill resources | none | `tested in sample reactor` |
+| `streaming-steering` | streaming and steering | none | `tested in sample reactor` |
+| `domain-separation` | composed backend workflow | none by default, Bedrock optional | `tested in sample reactor` |
+
+## Concept-Only Sample Directories
+
+| Directory | Role | Status |
 | --- | --- | --- |
-| `conversation-basics` | in-memory multi-turn runtime | Bedrock |
-| `built-in-tools` | built-in tools | none |
-| `secure-downstream-tools` | secure downstream tool calls | none |
-| `stateful-backend-operations` | idempotent backend mutations | none |
-| `tool-delegation` | delegation and structured output | Bedrock |
-| `tool-execution-context` | invocation vs execution context | none |
-| `session-redis` | Spring Session Redis restore | Docker + Redis |
-| `session-jdbc` | Spring Session JDBC restore | none |
-| `approval-workflow` | interrupts and resume | none |
-| `skill-activation` | skills and skill resources | none |
-| `streaming-steering` | streaming and steering | none |
-| `domain-separation` | composed backend workflow | none by default, Bedrock optional |
+| `marketplace-agent-platform` | future high-density sample design material | `concept-only` |
 
 ## Recommended Paths
 
@@ -87,6 +108,11 @@ Then run the sample from its own directory.
 ## Notes
 
 - `domain-separation` is the composed reference sample. Read it after the narrower feature samples unless you specifically want the higher-level backend picture first.
+- `domain-separation`, `session-jdbc`, `session-redis`, `approval-workflow`, `skill-activation`, `streaming-steering`, and `tool-execution-context` currently have sample-local tests in the sample reactor.
+- `built-in-tools`, `secure-downstream-tools`, and `stateful-backend-operations` also now have sample-local tests in the sample reactor.
 - `session-redis` and `session-jdbc` show the same restore boundary with different persistence backends. Choose the one that matches your deployment style.
 - Bedrock-backed samples require AWS credentials and model access. Deterministic samples do not.
+- `tool-delegation` remains `compile-checked in sample reactor` because its published value is live Bedrock-backed delegation plus structured output. It now also has an opt-in Bedrock smoke test for live evidence.
+- `conversation-basics` remains `compile-checked in sample reactor` because its published value is a live Bedrock-backed multi-turn conversation and prompt-cache metrics path rather than a deterministic in-process model. It now also has an opt-in Bedrock smoke test for live evidence.
+- before trusting `mvn -f samples/pom.xml ...` results after library changes, refresh the local `io.arachne:arachne` snapshot with `mvn install -DskipTests`.
 - `marketplace-agent-platform` is a design-only concept directory under `samples/`; it is not yet included in this runnable catalog.

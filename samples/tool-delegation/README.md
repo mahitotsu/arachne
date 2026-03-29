@@ -78,3 +78,12 @@ arachne:
 ```
 
 Override any of those values with standard Spring Boot configuration mechanisms if needed. The sample's Java wiring stays small because the per-agent defaults live under `arachne.strands.agents.<name>.*`.
+
+## Run The Opt-In Bedrock Smoke Test
+
+```bash
+cd samples/tool-delegation
+mvn -Dtest=ToolDelegationBedrockIntegrationTest -Darachne.integration.bedrock=true test
+```
+
+This test disables the sample runner, builds the coordinator agent through `AgentFactory`, and proves that live tool delegation still returns validated `TripPlan` structured output.

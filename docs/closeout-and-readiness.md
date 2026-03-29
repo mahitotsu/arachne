@@ -66,6 +66,32 @@ For normal local development:
 
 This repository does not currently force these workflows with hooks or CI. They are maintainers' operating procedures.
 
+## Sample Reactor Re-Entry Rule
+
+When you are about to use `samples/pom.xml` for sample-side readiness, consistency, or quality evidence, refresh the root snapshot in the local Maven repository first.
+
+Use this sequence:
+
+```bash
+mvn install -DskipTests
+mvn -f samples/pom.xml test
+```
+
+The reason is mechanical: the sample reactor resolves `io.arachne:arachne` from the local Maven repository, not from the root reactor's in-memory workspace outputs. Without the install step, sample checks can accidentally evaluate an older local snapshot and produce false drift.
+
+## Bedrock-Specific Re-Entry Rule
+
+When a bounded task changes Bedrock-specific runtime behavior, Bedrock-facing sample wiring, or Bedrock-only documentation claims, treat live Bedrock smoke verification as part of closeout evidence.
+
+Rerun these opt-in checks when credentials and model access are available:
+
+```bash
+mvn -Dtest=BedrockModelIntegrationTest -Darachne.integration.bedrock=true test
+mvn -f samples/pom.xml -pl domain-separation -Dtest=DomainSeparationBedrockIntegrationTest -Darachne.integration.bedrock=true test
+```
+
+If you do not rerun them, leave that gap as explicit residual work instead of implying that live provider evidence is fresh.
+
 ## What Counts As Good Enough
 
 An area is in good working shape when all of these are true:

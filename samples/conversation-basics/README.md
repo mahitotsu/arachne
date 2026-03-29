@@ -61,6 +61,15 @@ What to look for:
 
 If the cache counters stay zero, the selected Bedrock model or region may not support prompt caching, or the provider may not treat the current prompt shape as cacheable.
 
+## Run The Opt-In Bedrock Smoke Test
+
+```bash
+cd samples/conversation-basics
+mvn -Dtest=ConversationBasicsBedrockIntegrationTest -Darachne.integration.bedrock=true test
+```
+
+This test disables the interactive runner, creates the sample agent through `AgentFactory`, and proves that a fact stored on turn 1 is recalled on turn 2 against live Bedrock.
+
 ## Run The Interactive REPL
 
 ```bash

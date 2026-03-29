@@ -28,7 +28,7 @@ Load and follow the repository checklist in [repository-audit-checklist](./refer
 4. Decide whether each documentation and workflow surface needs updates. At minimum, consider README.md, docs/user-guide.md, docs/project-status.md, sample READMEs, `.github/instructions/`, and docs/adr/.
 5. Apply required updates in the same turn when the repository state gives enough evidence to do so safely.
 6. Verify architectural invariants and prior-phase behavior have not drifted.
-7. Run verification. Default to `mvn test` when code or behavior changed.
+7. Run verification. Default to `mvn test` when code or behavior changed. If sample-side evidence is gathered through `samples/pom.xml`, refresh the root snapshot first with `mvn install -DskipTests` so the sample reactor does not read a stale local `io.arachne:arachne` snapshot.
 8. Produce an audit report with explicit status: aligned, misaligned, incomplete, or blocked.
 
 ## Guardrails

@@ -16,6 +16,7 @@ Requirements:
 - Start from `docs/project-status.md`, `docs/repository-facts.md`, `docs/user-guide.md`, `.github/copilot-instructions.md`, and any relevant active instruction files.
 - Reconfirm the exact finished boundary before making any closeout claim.
 - Reuse fresh quality and alignment evidence when it already exists, but do not assume closeout from those audits alone.
+- If sample-side evidence will be gathered via `samples/pom.xml`, refresh the root snapshot first with `mvn install -DskipTests` so the sample reactor does not read a stale local `io.arachne:arachne` snapshot.
 - Check whether code, tests, docs, samples, ADRs, and instructions that should describe the finished state have actually been closed.
 - Make narrow no-regret fixes when the repository state directly proves the needed update. Prefer finishing the closeout in the same turn instead of reporting obvious drift and leaving it behind.
 - Force every leftover item into an explicit landing place. Never leave residual work as an implicit note.

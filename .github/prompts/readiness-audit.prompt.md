@@ -16,6 +16,7 @@ Requirements:
 - Start from `docs/project-status.md`, `docs/repository-facts.md`, `docs/user-guide.md`, `.github/copilot-instructions.md`, and any relevant active instruction files.
 - Treat readiness as stricter than quality or alignment alone. A target area is not ready if it is merely correct today but still requires broad rediscovery to continue tomorrow.
 - Reuse existing quality and alignment evidence when it is fresh and scoped correctly. If the evidence is stale, incomplete, or for the wrong surface, say so and limit the readiness claim.
+- If sample-side evidence will be gathered via `samples/pom.xml`, refresh the root snapshot first with `mvn install -DskipTests` so the sample reactor does not read a stale local `io.arachne:arachne` snapshot.
 - Check implementation, tests, docs, ADRs, instructions, and samples for the target area.
 - Explicitly evaluate:
   - whether the next worker has a small canonical set of entry points

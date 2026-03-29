@@ -19,6 +19,8 @@ If you are evaluating or integrating Arachne, read these first:
 
 Use those documents for the detailed API, configuration surface, current constraints, and runnable sample selection.
 
+Treat [docs/project-status.md](docs/project-status.md) as the canonical source of truth for feature availability, shipped boundaries, and current constraints on this branch.
+
 ## Quick Start
 
 Prerequisites:
@@ -73,6 +75,8 @@ class ChatService {
 ```
 
 ## What Is Available Now
+
+This section is a convenience summary. For the authoritative shipped boundary, use [docs/project-status.md](docs/project-status.md).
 
 - `AgentFactory.builder()` and `AgentFactory.builder("name")`
 - `Agent.run(String)` and `Agent.run(String, Class<T>)`

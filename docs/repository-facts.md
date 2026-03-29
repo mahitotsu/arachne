@@ -83,6 +83,15 @@ mvn -Pquality-report verify
 mvn -Pquality-security verify
 ```
 
+For sample-side verification, refresh the root snapshot before using the samples reactor:
+
+```bash
+mvn install -DskipTests
+mvn -f samples/pom.xml test
+```
+
+This is required because `samples/pom.xml` resolves `io.arachne:arachne` from the local Maven repository.
+
 Dependency evidence is intentionally split:
 
 - `mvn -Pquality-security verify` generates CycloneDX SBOM inventory artifacts for the current checkout
@@ -97,7 +106,15 @@ mvn -Dtest=BedrockModelIntegrationTest \
   -Darachne.integration.bedrock.region=<aws-region> \
   -Darachne.integration.bedrock.model-id=<bedrock-model-id> \
   test
+mvn -f samples/pom.xml -pl domain-separation \
+  -Dtest=DomainSeparationBedrockIntegrationTest \
+  -Darachne.integration.bedrock=true \
+  -Darachne.integration.bedrock.region=<aws-region> \
+  -Darachne.integration.bedrock.model-id=<bedrock-model-id> \
+  test
 ```
+
+When work changes Bedrock-specific runtime behavior, Bedrock-facing sample wiring, or Bedrock-only documentation claims, rerun both commands or record the missing live evidence explicitly.
 
 ## Current Reference Documents
 

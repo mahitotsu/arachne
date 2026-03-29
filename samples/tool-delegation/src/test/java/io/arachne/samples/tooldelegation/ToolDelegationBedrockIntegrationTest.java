@@ -1,0 +1,39 @@
+package io.arachne.samples.tooldelegation;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+
+import io.arachne.strands.agent.Agent;
+import io.arachne.strands.spring.AgentFactory;
+
+@Tag("integration")
+@SpringBootTest
+@EnabledIfSystemProperty(named = "arachne.integration.bedrock", matches = "true")
+class ToolDelegationBedrockIntegrationTest {
+
+    @MockBean
+    private ToolDelegationRunner toolDelegationRunner;
+
+    @Autowired
+    private AgentFactory agentFactory;
+
+    @Test
+    void bedrockDelegationReturnsStructuredTripPlan() {
+        Agent tripPlannerAgent = agentFactory.builder("trip-planner").build();
+
+        TripPlan summary = tripPlannerAgent.run(
+                "Plan a short Tokyo outing for tomorrow. Use tools if needed. Return city, forecast, and one advice sentence.",
+                TripPlan.class);
+
+        assertThat(summary.city()).isNotBlank();
+        assertThat(summary.city()).matches(city -> city.contains("東京") || city.toLowerCase().contains("tokyo"),
+                "expected structured output to stay focused on Tokyo");
+        assertThat(summary.forecast()).isNotBlank();
+        assertThat(summary.advice()).isNotBlank();
+    }
+}

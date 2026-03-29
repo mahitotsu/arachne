@@ -10,6 +10,23 @@ import org.junit.jupiter.api.Test;
 
 class DocumentedRepositorySurfaceTest {
 
+        @Test
+        void docsIdentifyProjectStatusAsCanonicalAvailabilitySource() throws IOException {
+                String readme = Files.readString(Path.of("README.md"), StandardCharsets.UTF_8);
+                String docsGuide = Files.readString(Path.of("docs/README.md"), StandardCharsets.UTF_8);
+                String userGuide = Files.readString(Path.of("docs/user-guide.md"), StandardCharsets.UTF_8);
+
+                assertThat(readme)
+                                .contains("Treat [docs/project-status.md](docs/project-status.md) as the canonical source of truth for feature availability");
+
+                assertThat(docsGuide)
+                                .contains("`project-status.md`: canonical source of truth for shipped features, sample map, and current constraints")
+                                .contains("`project-status.md` is the canonical source of truth for feature availability and current constraints");
+
+                assertThat(userGuide)
+                                .contains("Treat [docs/project-status.md](project-status.md) as the canonical source of truth for feature availability and current constraints.");
+        }
+
     @Test
     void rootReadmeListsCurrentBuiltInToolSet() throws IOException {
         String readme = Files.readString(Path.of("README.md"), StandardCharsets.UTF_8);
@@ -29,7 +46,10 @@ class DocumentedRepositorySurfaceTest {
         assertThat(samplesCatalog)
                 .contains("The concept-only `marketplace-agent-platform` directory is design material for a future sample.")
                 .contains("not yet part of the runnable sample catalog")
-                .contains("not yet included in the Maven sample reactor");
+                .contains("not yet included in the Maven sample reactor")
+                .contains("`tested in sample reactor`")
+                .contains("`compile-checked in sample reactor`")
+                .contains("`concept-only`");
 
         assertThat(marketplaceReadme)
                 .contains("intentionally concept-only")
@@ -39,4 +59,41 @@ class DocumentedRepositorySurfaceTest {
         assertThat(samplesPom)
                 .doesNotContain("<module>marketplace-agent-platform</module>");
     }
+
+        @Test
+        void readinessDocsExplainWhenToRefreshBedrockLiveEvidence() throws IOException {
+                String readiness = Files.readString(Path.of("docs/closeout-and-readiness.md"), StandardCharsets.UTF_8);
+                String repositoryFacts = Files.readString(Path.of("docs/repository-facts.md"), StandardCharsets.UTF_8);
+
+                assertThat(readiness)
+                                .contains("When a bounded task changes Bedrock-specific runtime behavior")
+                                .contains("DomainSeparationBedrockIntegrationTest");
+
+                assertThat(repositoryFacts)
+                                .contains("DomainSeparationBedrockIntegrationTest")
+                                .contains("rerun both commands or record the missing live evidence explicitly");
+        }
+
+        @Test
+        void docsExplainHowToRefreshSampleReactorSnapshot() throws IOException {
+                String readiness = Files.readString(Path.of("docs/closeout-and-readiness.md"), StandardCharsets.UTF_8);
+                String repositoryFacts = Files.readString(Path.of("docs/repository-facts.md"), StandardCharsets.UTF_8);
+                String samplesCatalog = Files.readString(Path.of("samples/README.md"), StandardCharsets.UTF_8);
+
+                assertThat(readiness)
+                                .contains("Sample Reactor Re-Entry Rule")
+                                .contains("mvn install -DskipTests")
+                                .contains("sample reactor resolves `io.arachne:arachne` from the local Maven repository");
+
+                assertThat(repositoryFacts)
+                                .contains("For sample-side verification, refresh the root snapshot before using the samples reactor")
+                                .contains("mvn install -DskipTests")
+                                .contains("samples/pom.xml")
+                                .contains("local Maven repository");
+
+                assertThat(samplesCatalog)
+                                .contains("For sample-reactor verification or readiness checks")
+                                .contains("mvn install -DskipTests")
+                                .contains("stale local snapshot");
+        }
 }

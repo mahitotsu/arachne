@@ -4,6 +4,8 @@ This guide explains how to use the features that Arachne provides on the current
 
 Use [docs/README.md](README.md) when you need a quick map of the documentation set.
 
+Treat [docs/project-status.md](project-status.md) as the canonical source of truth for feature availability and current constraints. This guide explains how to use that shipped surface.
+
 ## What You Can Do With Arachne Today
 
 Arachne currently gives you a Bedrock-backed agent runtime with Spring Boot integration, annotation-driven tools, structured output, retry, conversation and session management, hooks/plugins, interrupts, packaged skills, opt-in Bedrock prompt caching, and opt-in streaming plus steering.
