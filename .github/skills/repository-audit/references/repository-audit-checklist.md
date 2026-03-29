@@ -4,6 +4,8 @@ Use this checklist as the shared repository audit procedure behind `/alignment-a
 
 ## 1. Reconfirm the target area
 
+- If the user did not name a target area, inspect the current git changed files and decide whether they point to one capability area or one repository surface.
+- If git changed files span multiple areas, only touch cross-cutting docs, or are absent, do not silently choose a target area; report the audit as blocked by missing scope unless the user narrows it another way.
 - Read `docs/project-status.md`, `docs/user-guide.md`, and relevant ADRs for the target area.
 - Capture the shipped behavior, current constraints, and any explicitly deferred items that border the target area.
 - Treat undocumented or unverified behavior as incomplete until code, docs, and tests prove otherwise.

@@ -11,7 +11,10 @@ Use the workspace `repository-audit` skill and its checklist as the repository-s
 Requirements:
 
 - Respond in Japanese unless the user explicitly asks for another language.
-- If the slash-command arguments do not identify a target capability area and the user request does not narrow the scope another way, stop and report the audit as blocked by missing scope instead of silently choosing an area.
+- If the slash-command arguments do not identify a target capability area and the user request does not narrow the scope another way, inspect the current git changed files as a scope hint before blocking.
+- Use git changed files only as a scoping aid, not as a substitute for repository evidence.
+- If the changed files map cleanly to one capability area or one repository surface, state that inferred scope explicitly and continue the audit for that area.
+- If the changed files span multiple capability areas, only touch broad cross-cutting surfaces, or there are no changed files, stop and report the audit as blocked by missing scope instead of silently choosing an area.
 - Start from `docs/project-status.md`, `docs/user-guide.md`, `.github/copilot-instructions.md`, and the relevant instruction files.
 - Compare implementation, tests, README.md, docs/user-guide.md, docs/project-status.md, `.github/instructions/`, relevant ADRs, and sample READMEs for the target area.
 - Identify both under-documentation and overstatement. A stale or overly broad claim is a defect in alignment, not a minor wording issue.

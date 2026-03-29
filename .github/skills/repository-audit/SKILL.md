@@ -15,7 +15,8 @@ Load and follow the repository checklist in [repository-audit-checklist](./refer
 ## Inputs
 
 - The slash-command arguments identify the target capability area or repository surface.
-- If the scope is ambiguous, resolve it from `docs/project-status.md`, `docs/user-guide.md`, and the relevant ADRs before making edits.
+- If the scope is ambiguous, first check whether the current git changed files narrow it to one capability area or one repository surface.
+- If git changed files do not yield a single defensible area, resolve the scope from `docs/project-status.md`, `docs/user-guide.md`, and the relevant ADRs before making edits.
 - If the user asked for an audit rather than closeout, keep edits narrow and prioritize findings.
 - Unless the user explicitly asks for another language, produce the report in Japanese.
 
