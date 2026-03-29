@@ -84,18 +84,18 @@ class DocumentedRepositorySurfaceTest {
 
                 assertThat(readiness)
                                 .contains("Sample Reactor Re-Entry Rule")
-                                .contains("mvn install -DskipTests")
+                                .contains("mvn -pl arachne -am install -DskipTests")
                                 .contains("sample reactor resolves `io.arachne:arachne` from the local Maven repository");
 
                 assertThat(repositoryFacts)
-                                .contains("For sample-side verification, refresh the root snapshot before using the samples reactor")
-                                .contains("mvn install -DskipTests")
+                                .contains("For sample-side verification, refresh the library snapshot before using the samples reactor")
+                                .contains("mvn -pl arachne -am install -DskipTests")
                                 .contains("samples/pom.xml")
                                 .contains("local Maven repository");
 
                 assertThat(samplesCatalog)
                                 .contains("For sample-reactor verification or readiness checks")
-                                .contains("mvn install -DskipTests")
+                                .contains("mvn -pl arachne -am install -DskipTests")
                                 .contains("stale local snapshot");
         }
 }
