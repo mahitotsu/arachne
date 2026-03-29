@@ -43,7 +43,6 @@ flowchart LR
 
 	subgraph CaseBoundary[Case Boundary]
 		CS[case-service]
-		RDB[(relational database)]
 	end
 
 	subgraph WorkflowBoundary[Workflow Boundary]
@@ -60,9 +59,13 @@ flowchart LR
 		NS[notification-service]
 	end
 
+	subgraph Persistence[Business Persistence]
+		RDB[(relational database engine)]
+	end
+
 	OC -->|HTTP commands + SSE updates| CS
-	CS -->|create/list/detail/search| RDB
 	CS -->|start/continue/resume| LB
+	CS -->|case projections| RDB
 	LB --> WS1
 	LB --> WS2
 	WS1 <--> Redis
@@ -77,6 +80,10 @@ flowchart LR
 	WS2 --> SS
 	WS2 --> RS
 	WS2 --> NS
+	ES -->|escrow schema or database| RDB
+	SS -->|shipment schema or database| RDB
+	RS -->|risk schema or database| RDB
+	NS -->|notification schema or database| RDB
 ```
 
 ### Runtime Topology
@@ -163,6 +170,31 @@ For the first slice, `agentic case search` remains case-service-owned rather tha
 - post-decision delivery status
 - notification work kept separate from settlement transaction ownership
 
+### Persistence Boundary
+
+Business persistence should make service ownership visible rather than hiding it behind one generic platform database.
+
+The architecture should preserve these rules:
+
+- `case-service` persists only operator-facing case projections and case-facing workflow views
+- `escrow-service` persists escrow and settlement business truth
+- `shipment-service` persists shipment facts and shipment evidence records it owns
+- `risk-service` persists risk review and threshold-related records it owns
+- `notification-service` persists notification delivery records it owns
+- `workflow-service` does not become the durable owner of business truth; its continuity store is Redis session state
+
+For the first slice, business persistence remains relational.
+
+The preferred local shape is one relational database engine with service-separated schemas or logical databases:
+
+- case-service schema or database for case projections
+- escrow-service schema or database for escrow and settlement state
+- shipment-service schema or database for shipment evidence state
+- risk-service schema or database for risk review state
+- notification-service schema or database for notification delivery state
+
+That keeps the local runtime simple while still making domain-service ownership explicit.
+
 ### Agent Placement
 
 Each backend service owns one named Arachne agent.
@@ -244,7 +276,8 @@ Other services may remain stateless from the Arachne session perspective even if
 Business data storage remains separate from session persistence.
 
 - Redis backs shared workflow session continuity
-- relational database storage backs business records such as cases, escrow state, shipment evidence snapshots, approval records, and notification delivery records
+- relational database storage backs service-owned business records and case-service-owned projections
+- one local relational database engine is acceptable for the sample as long as service ownership remains separated by schema or logical database
 
 ### Availability Boundary
 
@@ -440,12 +473,3 @@ The sample should avoid requiring full multi-service startup for every small bac
 ## Deferred Decisions
 
 No deferred architecture decisions remain at the current concept-document level.
-
-## Current Recommendation
-
-Use this sequence:
-
-1. keep `concept.md` as the product and UX definition
-2. use this architecture note to separate execution and development concerns
-3. decide runtime boundaries before choosing local infrastructure
-4. decide module boundaries before choosing frontend tooling
