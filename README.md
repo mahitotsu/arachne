@@ -91,6 +91,7 @@ For the current shipped surface and constraints, see [docs/project-status.md](do
 - [docs/project-status.md](docs/project-status.md): current shipped features, sample map, and constraints
 - [docs/tool-catalog.md](docs/tool-catalog.md): current tool surface and tool-design cautions
 - [docs/repository-facts.md](docs/repository-facts.md): repository layout, package map, and verification commands
+- [docs/closeout-and-readiness.md](docs/closeout-and-readiness.md): maintainer workflow for task closeout and readiness recovery
 - [docs/adr/README.md](docs/adr/README.md): architecture decisions behind the current model
 
 ## Samples
@@ -107,6 +108,8 @@ For the current shipped surface and constraints, see [docs/project-status.md](do
 mvn test
 mvn -Pquality-security verify
 ```
+
+Repository maintenance workflows live under `.github/prompts`, including focused checks for quality, alignment, readiness, and end-of-task closeout.
 
 Bedrock smoke verification is opt-in:
 

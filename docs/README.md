@@ -25,6 +25,7 @@ Open the document that matches the question you have now.
 - `project-status.md`: concise snapshot of the features, samples, and constraints available on the current branch
 - `tool-catalog.md`: current built-in tools, tool authoring surfaces, and tool-related cautions
 - `repository-facts.md`: repository layout, verification commands, sample/module map, and code-location guide
+- `closeout-and-readiness.md`: local maintainer workflow for task closeout and later readiness recovery
 - `adr/`: architecture decisions that explain why the current public model looks the way it does
 
 ## Recommended Reading Paths
