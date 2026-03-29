@@ -42,7 +42,8 @@ This is preferred over direct trade-finance terminology because it preserves the
 
 This domain naturally requires separate responsibilities:
 
-- case coordination
+- case management and projection
+- workflow orchestration
 - escrow and settlement state
 - shipment evidence inspection
 - risk and compliance review
@@ -121,7 +122,7 @@ The detailed UX and behavior requirements for screens, regions, and visible Arac
 
 ## Logical Service Topology
 
-The current leading topology is five backend services plus a thin operator frontend.
+The current leading topology is six backend services plus a thin operator frontend.
 
 ### `operator-console`
 
@@ -135,21 +136,36 @@ Responsibility:
 
 This frontend should remain intentionally thin. It exists to reveal Arachne behavior rather than to become the main subject of the sample.
 
-### `case-coordinator-service`
+### `case-service`
 
 Responsibility:
 
-- own the dispute workflow
+- create marketplace cases
+- serve case list, case detail, and agentic search results
+- own durable operator-facing case projections
+- serve activity history, approval state, and outcome views
+- start and continue workflows through internal workflow-service calls
+
+Agent role:
+
+- `case-agent`
+
+### `workflow-service`
+
+Responsibility:
+
+- own the dispute workflow lifecycle
 - activate the appropriate skill
 - gather evidence from other services through stable capability-oriented tools
 - read policy and runbook resources
 - produce a typed recommendation
 - pause for approval when required
 - resume and finalize the workflow later
+- update case-service projections as the workflow advances
 
 Agent role:
 
-- `case-coordinator`
+- `case-workflow-agent`
 
 ### `escrow-service`
 
@@ -198,17 +214,17 @@ The first demonstrated workflow should be intentionally concrete and easy to nar
 Recommended flow:
 
 1. an operator opens a dispute case for `ITEM_NOT_RECEIVED` through the frontend
-2. `case-coordinator` activates the dispute-handling skill for escrow cases
-3. the coordinator reads allowlisted policy and runbook resources using built-in resource tools
-4. the coordinator delegates evidence collection to `shipment-agent`, `escrow-agent`, and `risk-agent`
-5. those agents return typed outputs summarizing evidence and eligibility
-6. streaming shows progress and evidence checkpoints in the frontend
-7. steering blocks any unsafe attempt to settle immediately without the required evidence path
-8. the coordinator produces a provisional settlement recommendation
-9. if the amount or risk level crosses a threshold, the workflow interrupts for approval and the frontend shows the pending decision state
-10. the session is restored later and the case resumes with an approval decision submitted from the frontend
-11. `escrow-service` executes the deterministic final action such as refund or continued hold
-12. `notification-service` sends the resulting notices
+2. `case-service` creates the case and starts the internal workflow
+3. `case-workflow-agent` activates the dispute-handling skill for escrow cases
+4. the workflow reads allowlisted policy and runbook resources using built-in resource tools
+5. the workflow delegates evidence collection to `shipment-agent`, `escrow-agent`, and `risk-agent`
+6. those agents return typed outputs summarizing evidence and eligibility
+7. case activity and evidence checkpoints become visible in the frontend through case-service projections
+8. steering blocks any unsafe attempt to settle immediately without the required evidence path
+9. the workflow produces a provisional settlement recommendation
+10. if the amount or risk level crosses a threshold, the workflow interrupts for approval and the frontend shows the pending decision state
+11. the session is restored later and the case resumes after an approval decision is submitted through case-service
+12. `escrow-service` executes the deterministic final action such as refund or continued hold and `notification-service` sends the resulting notices
 
 The same UX shape should later support other marketplace workflows without requiring a different screen model.
 
@@ -219,7 +235,8 @@ The sample should earn the label "full utilization" by making each major capabil
 ### Named agents and delegation
 
 - one named agent per microservice
-- coordinator calls other services through capability-oriented tools rather than by sharing one giant prompt
+- workflow-service calls other services through capability-oriented tools rather than by sharing one giant prompt
+- case-service may use a narrower agent for case search interpretation without becoming a workflow owner
 
 ### Structured output
 
@@ -228,7 +245,8 @@ The sample should earn the label "full utilization" by making each major capabil
 
 ### Skills
 
-- the coordinator uses packaged skills for dispute-handling procedure
+- workflow-service uses packaged skills for dispute-handling procedure
+- case-service may use narrower skills for agentic case search and query interpretation
 - skills encode the business workflow, not the deterministic state mutation logic
 
 ### Built-in resource tools
@@ -316,17 +334,14 @@ Keep these constraints:
 
 ## Questions To Resolve Before Implementation
 
-1. whether `notification-service` should be a real service in the first slice or remain an in-process boundary until later
-2. whether session persistence needs Redis in the first slice or can remain local for the initial concept validation
-3. whether the approval actor should be framed as platform operations, risk review, or finance control
-4. whether the first case should end in `refund`, `continued_hold`, or both depending on approval input
+No unresolved concept-level questions remain.
 
 ## Working Recommendations For The Next Design Step
 
-Unless later discussion changes them, use these defaults:
+The first concept and design pass has already fixed these defaults:
 
-1. approval actor: finance control for settlement-changing actions
-2. first demonstrated ending: `refund` on approval, while the model still allows `continued_hold` as a later extension path
+1. approval actor: `finance control`
+2. representative first-slice outcomes: `REFUND` and `CONTINUED_HOLD`
 
 ## Current Recommendation
 
@@ -334,5 +349,5 @@ Proceed with this concept baseline:
 
 - domain: marketplace agent platform with escrow-mediated settlement and exception handling
 - representative case: `ITEM_NOT_RECEIVED` under escrow
-- topology: five logical services with one named agent each, plus a thin operator frontend
+- topology: six logical backend services with one named agent each, plus a thin operator frontend
 - physical target: multi-module Maven plus Docker Compose, but only after the logical boundaries and first workflow are fixed

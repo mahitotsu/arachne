@@ -4,6 +4,10 @@ This note separates architecture decisions from the sample concept.
 
 Use [concept.md](/home/akring/arachne/samples/marketplace-agent-platform/docs/concept.md) to describe what the sample is meant to demonstrate.
 Use this file to describe how the sample should be structured and run.
+Use [apis.md](/home/akring/arachne/samples/marketplace-agent-platform/docs/apis.md) for minimal API boundaries and shared contract direction.
+Use [contracts.md](/home/akring/arachne/samples/marketplace-agent-platform/docs/contracts.md) for case and approval contract direction.
+Use [slices.md](/home/akring/arachne/samples/marketplace-agent-platform/docs/slices.md) for recommended implementation sequencing.
+Use [skills.md](/home/akring/arachne/samples/marketplace-agent-platform/docs/skills.md) for service-local skill and knowledge boundaries.
 
 The architecture is intentionally split into two views:
 
@@ -20,10 +24,10 @@ Architecture should make these points clear:
 
 - each backend service owns its own local state and its own service-local agent
 - cross-service collaboration happens through explicit backend contracts, not through one shared global prompt
-- operator interaction happens through a thin frontend and a coordinator boundary
+- operator interaction happens through a thin frontend and a case-facing boundary
 - correctness-sensitive state transitions remain deterministic inside backend services
 - security and transaction boundaries remain owned by Spring application services, not by free-form model output
-- availability is demonstrated through shared-state coordinator continuity rather than sticky single-instance ownership
+- availability is demonstrated through shared-state workflow continuity rather than sticky single-instance ownership
 
 ## Execution Architecture
 
@@ -34,14 +38,19 @@ Execution architecture describes the runtime topology of the sample when it is r
 The target runtime topology is:
 
 - `operator-console`
-- `coordinator-load-balancer`
-- `case-coordinator-service`
+- `case-service`
+- `workflow-load-balancer`
+- `workflow-service`
 - `escrow-service`
 - `shipment-service`
 - `risk-service`
 - `notification-service`
 
-In the availability-focused slice, `case-coordinator-service` is expected to run as multiple replicas behind the load balancer.
+In the availability-focused slice, `workflow-service` is expected to run as multiple replicas behind the internal load balancer.
+
+For the first runnable slice, that means exactly two workflow-service replicas behind one local load-balancer entry point.
+
+`notification-service` is part of the first runnable slice as its own runtime rather than as an in-process simplification inside another service.
 
 ### Frontend Role
 
@@ -58,17 +67,29 @@ Its responsibilities are limited to:
 
 It should not own business workflow logic.
 
+For the first slice, `agentic case search` remains case-service-owned rather than being split into a dedicated search-oriented service.
+
 ### Backend Roles
 
-`case-coordinator-service`
+`case-service`
 
-- workflow entry point
+- case creation entry point
+- case-facing CRUD and query API owner for operator workflows
+- case list, case detail, and search owner
+- durable projection owner for activity history, approval state, and outcome views
+- operator identity and authorization context entry point
+- internal caller of workflow start, continue, and resume commands
+
+`workflow-service`
+
+- workflow entry point for internal case commands
 - chat-oriented orchestration boundary
 - Arachne session ownership for case workflows
 - skill activation and policy/runbook consultation
 - downstream service delegation
+- recommendation production
 - approval pause and resume control
-- operator identity and authorization context entry point
+- projection updates back into case-service
 
 `escrow-service`
 
@@ -102,7 +123,8 @@ Each backend service owns one named Arachne agent.
 
 Recommended mapping:
 
-- `case-coordinator-service` -> `case-coordinator`
+- `case-service` -> `case-agent`
+- `workflow-service` -> `case-workflow-agent`
 - `escrow-service` -> `escrow-agent`
 - `shipment-service` -> `shipment-agent`
 - `risk-service` -> `risk-agent`
@@ -114,12 +136,16 @@ This mapping should stay explicit. The sample should not blur service boundaries
 
 The current architectural direction is:
 
-- frontend to coordinator: HTTP or WebSocket through the coordinator load balancer depending on the need for live updates
-- coordinator to backend services: synchronous service-to-service API calls in the first slice
-- streaming to frontend: coordinator-originated live event feed
-- approval submission to coordinator: explicit API call that resumes the paused workflow
+- frontend to case-service commands: HTTP
+- frontend to case-service live activity updates: SSE
+- case-service to workflow-service: synchronous internal workflow commands through `workflow-load-balancer`
+- workflow-service to backend domain services: synchronous service-to-service API calls in the first slice
+- workflow-service to case-service: explicit projection and activity updates
+- approval submission to case-service: explicit API call forwarded into the workflow resume path
 
 The first slice should prefer the simplest communication model that still makes the distributed shape visible.
+
+For the first slice, this makes HTTP plus SSE the preferred frontend communication model over WebSocket.
 
 ### Security Boundary
 
@@ -127,9 +153,9 @@ Security should be modeled as part of the core runtime shape, not as an aftertho
 
 The architecture should preserve these rules:
 
-- operator identity enters through the frontend and coordinator boundary
-- authorization state is available to the coordinator when it decides workflow actions
-- delegated backend work receives the relevant operator context through explicit propagation
+- operator identity enters through the frontend and case-service boundary
+- case-service forwards the relevant operator context into workflow handling
+- delegated backend work receives the relevant operator context through explicit propagation from workflow-service
 - service-local mutation checks remain deterministic and Spring-owned
 - approval does not replace authorization; both must be satisfied where required
 
@@ -137,30 +163,41 @@ The first slice does not need full enterprise identity integration, but it shoul
 
 ### Session Boundary
 
-`case-coordinator-service` should own the case session lifecycle.
+`workflow-service` should own the case session lifecycle.
 
 This means:
 
-- chat turns attach to a case session id
+- workflow commands attach to a case session id
 - approval pause and resume are case-session aware
-- streamed activity entries are associated with the current case
+- workflow progress is associated with the current case and then projected into case-service
 
-This session state should be externalized to a shared persistence layer so coordinator replicas can continue the same case through the load-balanced entry point.
+This session state should be externalized to a shared persistence layer so workflow-service replicas can continue the same case through the internal load-balanced entry point.
+
+The selected shared session store for the sample is Redis.
+
+`case-service` should remain durable from the operator-facing projection point of view, but it does not own Arachne workflow session state.
 
 Other services may remain stateless from the Arachne session perspective even if they maintain their own business state.
 
+Business data storage remains separate from session persistence.
+
+- Redis backs shared workflow session continuity
+- relational database storage backs business records such as cases, escrow state, shipment evidence snapshots, approval records, and notification delivery records
+
 ### Availability Boundary
 
-Availability should be demonstrated through replica-safe coordinator behavior rather than through artificial failure choreography.
+Availability should be demonstrated through replica-safe workflow behavior rather than through artificial failure choreography.
 
 The architecture should preserve these rules:
 
-- `case-coordinator-service` instances are horizontally replaceable from the workflow point of view
+- `workflow-service` instances are horizontally replaceable from the workflow point of view
 - shared session persistence holds the case workflow and conversation state needed for continuation
-- load balancing may route successive requests for the same case to different coordinator instances
+- internal load balancing may route successive workflow requests for the same case to different workflow-service instances
 - sticky sessions are not required for normal workflow progression
 
-The sample does not need to simulate instance failure to prove this point. It is enough to show that the load-balanced path works correctly across coordinator replicas.
+For this sample, the shared session persistence layer is Redis and is part of the intended availability story rather than an optional later substitution.
+
+The sample does not need to simulate instance failure to prove this point. It is enough to show that the load-balanced path works correctly across workflow-service replicas.
 
 ### Transaction Boundary
 
@@ -168,7 +205,7 @@ Transaction ownership should remain inside deterministic backend services.
 
 The architecture should preserve these rules:
 
-- `case-coordinator-service` orchestrates but does not own settlement transactions
+- `workflow-service` orchestrates but does not own settlement transactions
 - `escrow-service` owns transaction boundaries for refund, release, and hold-changing operations
 - read-only review paths such as shipment and risk inspection remain outside mutation transactions where practical
 - notification behavior remains separated from the core settlement mutation boundary unless an explicit design reason requires coupling
@@ -177,14 +214,15 @@ This boundary is important because the sample is meant to show enterprise backen
 
 ### Streaming Boundary
 
-Streaming should be exposed as coordinator-visible activity updates.
+Streaming should be exposed as case-visible activity updates.
 
 The sample should not expose raw low-level model protocol events directly to the user when a clearer activity entry can be produced.
 
 Expected transformation path:
 
 - Arachne stream event
-- coordinator-visible activity event
+- workflow-service activity event
+- case-service projection update
 - frontend-readable case activity item
 
 ### Approval Boundary
@@ -195,7 +233,9 @@ The architecture should preserve these rules:
 
 - approval interrupts before deterministic settlement action
 - the paused state is queryable from the case detail view
-- resume happens through an explicit backend endpoint that re-enters the existing Arachne resume path
+- resume happens through an explicit case-service endpoint that re-enters the existing Arachne resume path inside workflow-service
+
+For the first slice, the approval actor is `finance control`.
 
 ## Development Architecture
 
@@ -211,7 +251,8 @@ Recommended shape:
 - `shared-contracts`
 - `shared-policy-resources`
 - `operator-console`
-- `case-coordinator-service`
+- `case-service`
+- `workflow-service`
 - `escrow-service`
 - `shipment-service`
 - `risk-service`
@@ -229,6 +270,8 @@ This shape keeps shared types explicit while avoiding one giant backend module.
 - approval command and response types
 - settlement outcome types
 
+The initial API surface and contract direction are described in [apis.md](/home/akring/arachne/samples/marketplace-agent-platform/docs/apis.md).
+
 `shared-policy-resources`
 
 - allowlisted runbooks
@@ -241,36 +284,92 @@ This separation helps avoid mixing domain contracts with packaged content.
 
 The frontend should stay lightweight.
 
-Possible implementation choices remain open, but architecture should constrain the outcome:
+The selected first-slice frontend stack is `React + TypeScript + Vite`.
+
+This choice is preferred because it keeps the operator console thin while still giving straightforward support for:
+
+- case-facing HTTP command APIs
+- case-facing SSE activity updates
+- a two-screen UI with modest client-side state
+- fast local iteration for a separately runnable frontend
+
+The stack should still preserve these constraints:
 
 - minimal dependency footprint
 - easy local startup
-- clear API boundary to the coordinator
+- clear API boundary to case-service
 - no business logic duplication from the backend
 
-The frontend technology choice should be deferred until after the backend module and API boundaries are clearer.
+The frontend should remain intentionally small enough that replacing the stack later would not force a backend redesign.
 
 ### Local Run Strategy
 
 The likely local run target is Docker Compose, but only after the module structure is stable.
 
+The first runnable slice should define two local run modes:
+
+1. composed demo mode
+2. focused development mode
+
 Expected role of Compose:
 
 - start all sample services consistently
-- start coordinator replicas and the load balancer consistently
+- start workflow-service replicas and the internal load balancer consistently
 - connect frontend and backend endpoints
-- optionally provide shared infrastructure such as Redis
+- provide shared infrastructure such as Redis and the relational database
 
 Before Compose is introduced, individual services should still be runnable for focused development.
+
+### Composed Demo Mode
+
+The first runnable slice should have one primary local demo shape driven by Docker Compose.
+
+That composed runtime should include:
+
+- `operator-console`
+- `case-service`
+- `workflow-load-balancer`
+- two `workflow-service` replicas
+- `escrow-service`
+- `shipment-service`
+- `risk-service`
+- `notification-service`
+- `Redis` for shared workflow session persistence
+- one relational database engine for business data persistence
+
+For the local runtime story, `workflow-load-balancer` should be a lightweight reverse proxy container that fronts the workflow-service replicas for internal workflow commands.
+
+`nginx` is the preferred first-slice implementation because it keeps the local story concrete without pulling in a larger platform concern than the sample needs.
+
+The relational database does not need to imply a shared business ownership model.
+The local composed runtime may use one database engine instance while still preserving service-local ownership through separate schemas or separate logical databases per service.
+
+### Focused Development Mode
+
+The local architecture should also support targeted work without requiring the full composed runtime on every change.
+
+Focused development mode should allow:
+
+- running `case-service` directly from the IDE or Maven
+- running an individual backend service directly from the IDE or Maven
+- running a single workflow-service instance directly when replica behavior is not the subject of the task
+- running the `operator-console` through the Vite development server when working on the thin frontend in isolation
+- connecting that directly run service to the same local Redis and relational database infrastructure when needed
+- starting only the dependent services relevant to the current change rather than the full platform stack
+
+This keeps day-to-day development lighter while preserving one canonical composed runtime for the sample demonstration.
 
 ### Testing Strategy Direction
 
 Testing should follow the architecture split.
 
+Implementation sequencing and validation checkpoints are described in [slices.md](/home/akring/arachne/samples/marketplace-agent-platform/docs/slices.md).
+
 Recommended layers:
 
 - service-local tests inside each module
-- coordinator workflow tests at the orchestration boundary
+- case-service API and projection tests
+- workflow-service orchestration tests at the workflow boundary
 - service-local authorization and transaction tests for mutation paths
 - optional end-to-end sample tests across the composed runtime
 
@@ -278,16 +377,7 @@ The sample should avoid requiring full multi-service startup for every small bac
 
 ## Deferred Decisions
 
-These decisions should be recorded here but not forced too early:
-
-- whether streaming to the frontend uses SSE or WebSocket
-- whether Redis is required in the first runnable slice or later
-- whether `notification-service` starts as a full separate process or an initially simplified service module
-- whether agentic case search uses a dedicated search-oriented service or remains coordinator-led in the first slice
-- which frontend framework, if any, gives the best thin-UI outcome
-- what the minimal authenticated operator model and role set should be in the first slice
-- what shared session store should back load-balanced coordinator continuity in the first runnable slice
-- what load balancer implementation best fits the sample's local runtime story
+No deferred architecture decisions remain at the current concept-document level.
 
 ## Current Recommendation
 

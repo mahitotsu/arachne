@@ -6,6 +6,45 @@ The active direction is a marketplace platform in which Spring-based microservic
 
 At this stage, this directory is intentionally concept-only. It does not yet contain runnable implementation code.
 
+## Current State
+
+This sample is still in design only.
+
+The current first-slice direction is:
+
+- marketplace platform with escrow-mediated settlement and exception handling
+- representative scenario: `ITEM_NOT_RECEIVED`
+- thin frontend with exactly two screens: `Case List` and `Case Detail`
+- `case-service` owns case creation, list, detail, and search
+- `workflow-service` owns long-running workflow handling and case progression
+- `React + TypeScript + Vite` for the thin `operator-console`
+- workflow-service replicas behind an internal load balancer with shared Redis-backed session continuity
+- relational database storage for business data
+- `finance control` as the approval actor
+- `HTTP` for case-facing commands and `SSE` for case activity updates
+
+## Design Docs
+
+Use these documents by responsibility, not interchangeably.
+
+- `docs/concept.md`: what the sample is meant to show, why this domain fits, and the representative explanation scenario
+- `docs/requirements.md`: what the first slice must support and what boundaries are treated as requirements
+- `docs/architecture.md`: execution architecture, development architecture, local runtime story, and deferred architecture choices
+- `docs/apis.md`: minimal frontend/case-service, case-service/workflow-service, and workflow/downstream API boundaries
+- `docs/contracts.md`: minimal case-facing projections and approval-facing contract shapes
+- `docs/slices.md`: recommended implementation slice order and validation checkpoints
+- `docs/skills.md`: service-local skill boundaries, knowledge sources, and deterministic logic boundaries
+
+Recommended reading order:
+
+1. `docs/concept.md`
+2. `docs/requirements.md`
+3. `docs/architecture.md`
+4. `docs/apis.md`
+5. `docs/contracts.md`
+6. `docs/slices.md`
+7. `docs/skills.md`
+
 ## Active Concept
 
 The sample is intended to model a backend that can support multiple marketplace workflows such as:
@@ -26,6 +65,10 @@ The representative explanation scenario is still an `ITEM_NOT_RECEIVED` dispute 
 The concept details live in `docs/concept.md`.
 Requirements live in `docs/requirements.md`.
 Architecture follow-up lives in `docs/architecture.md`.
+API boundary follow-up lives in `docs/apis.md`.
+Case and approval contract follow-up lives in `docs/contracts.md`.
+Implementation slice planning lives in `docs/slices.md`.
+Agent skill boundary follow-up lives in `docs/skills.md`.
 
 ## Planned UX Shape
 
@@ -58,5 +101,9 @@ It also benefits from a thin frontend because streaming progress and human appro
 ## Status
 
 Concept only.
+
+The current design work has already fixed the main first-slice direction and reduced the remaining work to:
+
+- implementation and scaffold work, if the sample moves beyond concept docs
 
 An earlier provisional draft was discarded because it did not reflect the marketplace-centered sample direction strongly enough.

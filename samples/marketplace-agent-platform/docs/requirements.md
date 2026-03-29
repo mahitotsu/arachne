@@ -64,14 +64,20 @@ The `Case Detail` screen must include these functional regions:
 The sample must support this representative flow:
 
 1. an operator opens an `ITEM_NOT_RECEIVED` case
-2. the coordinator activates the appropriate skill
-3. the coordinator consults policy and runbook resources
-4. the coordinator delegates evidence collection to shipment, escrow, and risk services
-5. the system displays progress while work is in flight
-6. the workflow can interrupt for approval before final settlement action
-7. the workflow can resume later from the existing Arachne resume boundary
-8. deterministic backend execution completes the settlement action
-9. the outcome is visible in the case detail screen
+2. `case-service` creates the case and starts workflow handling
+3. `workflow-service` activates the appropriate skill
+4. `workflow-service` consults policy and runbook resources
+5. `workflow-service` delegates evidence collection to shipment, escrow, and risk services
+6. the system displays progress through case-facing activity updates while work is in flight
+7. the workflow can interrupt for approval before final settlement action
+8. the workflow can resume later from the existing Arachne resume boundary through a case-facing approval command path
+9. deterministic backend execution completes the settlement action
+10. the outcome is visible in the case detail screen
+
+The first slice should support at least these representative final outcomes:
+
+- `REFUND`
+- `CONTINUED_HOLD`
 
 ## Arachne Capability Requirements
 
@@ -110,9 +116,14 @@ The sample must treat the operator as an authenticated actor rather than as anon
 
 At minimum, the first slice must support:
 
-- authenticated operator identity at the frontend and coordinator boundary
+- authenticated operator identity at the frontend, case-service, and workflow-service boundary
 - operator role or authority information available to backend workflow handling
 - explicit authorization-sensitive behavior in case handling
+
+Minimum first-slice operator roles:
+
+- `CASE_OPERATOR` for case creation, search, chat continuation, and status inquiry
+- `FINANCE_CONTROL` for approval of settlement-changing actions that require finance control review
 
 ### Authorization
 
@@ -124,13 +135,20 @@ At minimum, the first slice must demonstrate:
 - authorization failure represented as explicit backend outcome rather than model narration
 - approval and authorization treated as separate concerns
 
+Approval actor for the first slice:
+
+- settlement approval is owned by `finance control`
+- the approval step is therefore not a generic operator action
+- finance control approval does not bypass deterministic authorization checks in the mutating backend service
+
 ### Propagation
 
 The sample must propagate relevant operator authorization context across delegated execution.
 
 This should be visible in the sample through:
 
-- coordinator-owned operator context
+- case-service-owned operator entry context
+- workflow-service receiving that context for workflow handling
 - delegated execution receiving that context in downstream service work
 - service-local authorization checks using propagated context
 
@@ -140,13 +158,13 @@ The sample must demonstrate Spring-oriented transaction boundaries for correctne
 
 ### Mutation Ownership
 
-The sample must show that transaction ownership belongs to deterministic backend services rather than to the coordinator agent.
+The sample must show that transaction ownership belongs to deterministic backend services rather than to the workflow-service agent.
 
 At minimum, the first slice must demonstrate:
 
 - settlement-changing actions executed inside an explicit transaction boundary
 - read-oriented evidence collection kept separate from mutation logic
-- coordinator orchestration staying outside transaction ownership
+- workflow orchestration staying outside transaction ownership
 
 ### Transaction Visibility
 
@@ -162,26 +180,28 @@ At minimum, the design should distinguish:
 
 The sample should demonstrate enterprise-relevant availability behavior without turning into a failure-injection demo.
 
-### Coordinator Continuity
+### Workflow Continuity
 
-The sample must show that case workflows can continue correctly when requests are distributed across multiple coordinator instances.
+The sample must show that case workflows can continue correctly when requests are distributed across multiple workflow-service instances.
 
 At minimum, the first slice should support:
 
-- multiple `case-coordinator-service` instances behind a load balancer
+- multiple `workflow-service` instances behind an internal load balancer
 - shared session persistence for case workflow state
-- continued case progression when successive requests are served by different coordinator instances
+- continued case progression when successive workflow requests are served by different workflow-service instances
 
 ### Load-Balanced Progression
 
 The sample should not require sticky sessions for normal case progression.
 
-At minimum, the first slice should demonstrate that these interactions remain valid through the load-balanced coordinator entry point:
+At minimum, the first slice should demonstrate that these interactions remain valid through the case-facing entry point even when workflow handling is load-balanced internally:
 
 - case creation
 - follow-up chat turns
 - status inquiry
 - approval submission and resume
+
+Those interactions may enter through `case-service`, while the actual workflow handling is routed across multiple `workflow-service` instances.
 
 ### Visibility
 
@@ -190,20 +210,35 @@ The sample should make this availability property understandable to the reader.
 At minimum, the design should make it clear that:
 
 - workflow and conversation state are externalized to a shared persistence layer
-- coordinator replicas are replaceable from the workflow point of view
+- workflow-service replicas are replaceable from the workflow point of view
 - availability is being shown through replica-safe continuity, not through forced failure choreography
 
 ## Backend Service Requirements
 
 The first architecture slice must include these logical backend services:
 
-1. `case-coordinator-service`
-2. `escrow-service`
-3. `shipment-service`
-4. `risk-service`
-5. `notification-service`
+1. `case-service`
+2. `workflow-service`
+3. `escrow-service`
+4. `shipment-service`
+5. `risk-service`
+6. `notification-service`
 
 Each backend service must own one named service-local agent.
+
+Each backend service must remain responsible for its own business domain.
+
+At minimum, the first slice must preserve these responsibility boundaries:
+
+- `case-service` owns case creation, case list/detail/search, and durable operator-facing case projections
+- `workflow-service` owns workflow orchestration, workflow sessions, recommendations, and approval pause/resume control
+- `escrow-service` owns escrow and settlement business state and settlement-changing actions
+- `shipment-service` owns shipment evidence and shipment interpretation responsibilities
+- `risk-service` owns risk review and escalation responsibilities
+- `notification-service` owns post-decision notification responsibilities
+
+`case-service` must not become the canonical owner of escrow, shipment, risk, or notification domain state.
+`workflow-service` must not become the canonical owner of case search, list, and detail projections.
 
 ## Frontend Requirements
 
@@ -215,6 +250,8 @@ The frontend must:
 - expose case list and case detail views
 - display activity updates from backend streaming
 - expose approval actions when the workflow pauses
+
+The frontend should interact with `case-service` only in the first slice.
 
 The frontend must not become a general-purpose workflow product in the first slice.
 
@@ -275,18 +312,11 @@ The sample should preserve these qualities.
 - the backend remains the architectural center
 - the frontend stays intentionally thin
 - Spring Security and transaction concerns are part of the sample's enterprise value
-- availability should be demonstrated through shared-state coordinator continuity
+- availability should be demonstrated through shared-state workflow continuity
 - deterministic services own correctness-sensitive state changes
 - the sample demonstrates multiple case types without requiring many screens
 - the representative story should stay easy to explain to new readers
 
 ## Open Requirement Questions
 
-These items still need explicit resolution before implementation planning hardens:
-
-1. whether `notification-service` is a full separate runtime in the first slice
-2. whether Redis is required in the first runnable slice
-3. whether approval is owned by finance control, risk review, or another actor
-4. whether the first demonstrated outcome is only `refund` or also `continued_hold`
-5. what the minimum operator roles or authorities should be in the first runnable slice
-6. what shared session store should back load-balanced coordinator continuity in the first runnable slice
+No open requirement questions remain at the current concept-document level.
