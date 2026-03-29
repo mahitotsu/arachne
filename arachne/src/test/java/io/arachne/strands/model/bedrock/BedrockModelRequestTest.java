@@ -24,8 +24,8 @@ import io.arachne.strands.model.ToolSelection;
 import io.arachne.strands.model.ToolSpec;
 import io.arachne.strands.types.ContentBlock;
 import io.arachne.strands.types.Message;
-import software.amazon.awssdk.core.document.Document;
 import software.amazon.awssdk.core.async.SdkPublisher;
+import software.amazon.awssdk.core.document.Document;
 import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeAsyncClient;
 import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeClient;
 import software.amazon.awssdk.services.bedrockruntime.model.CachePointType;
@@ -34,6 +34,9 @@ import software.amazon.awssdk.services.bedrockruntime.model.ContentBlockDeltaEve
 import software.amazon.awssdk.services.bedrockruntime.model.ContentBlockStart;
 import software.amazon.awssdk.services.bedrockruntime.model.ContentBlockStartEvent;
 import software.amazon.awssdk.services.bedrockruntime.model.ContentBlockStopEvent;
+import software.amazon.awssdk.services.bedrockruntime.model.ConversationRole;
+import software.amazon.awssdk.services.bedrockruntime.model.ConverseOutput;
+import software.amazon.awssdk.services.bedrockruntime.model.ConverseResponse;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamMetadataEvent;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamOutput;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamResponseHandler;
@@ -41,6 +44,7 @@ import software.amazon.awssdk.services.bedrockruntime.model.MessageStopEvent;
 import software.amazon.awssdk.services.bedrockruntime.model.StopReason;
 import software.amazon.awssdk.services.bedrockruntime.model.TokenUsage;
 import software.amazon.awssdk.services.bedrockruntime.model.ToolResultContentBlock;
+import software.amazon.awssdk.services.bedrockruntime.model.ToolUseBlock;
 import software.amazon.awssdk.services.bedrockruntime.model.ToolUseBlockDelta;
 import software.amazon.awssdk.services.bedrockruntime.model.ToolUseBlockStart;
 
@@ -148,6 +152,43 @@ class BedrockModelRequestTest {
         assertThat(request.toolConfig().tools().getFirst().toolSpec().name()).isEqualTo("weather");
         assertThat(request.toolConfig().tools().get(1).cachePoint().type()).isEqualTo(CachePointType.DEFAULT);
     }
+
+        @Test
+        void injectedClientConstructorNormalizesBlankRegionAndNullPromptCaching() {
+        BedrockModel model = new BedrockModel(unusedClient(), null, "test-model", "   ", null);
+
+        assertThat(model.getRegion()).isEqualTo(BedrockModel.DEFAULT_REGION);
+        assertThat(model.getPromptCaching()).isEqualTo(BedrockModel.PromptCaching.DISABLED);
+        }
+
+        @Test
+        void converseMapsSynchronousTextAndToolUseResponses() {
+        ConverseResponse response = ConverseResponse.builder()
+            .output(ConverseOutput.builder()
+                .message(software.amazon.awssdk.services.bedrockruntime.model.Message.builder()
+                    .role(ConversationRole.ASSISTANT)
+                    .content(
+                        software.amazon.awssdk.services.bedrockruntime.model.ContentBlock.builder()
+                            .text("draft")
+                            .build(),
+                        software.amazon.awssdk.services.bedrockruntime.model.ContentBlock.builder()
+                            .toolUse(ToolUseBlock.builder()
+                                .toolUseId("tool-1")
+                                .name("weather")
+                                .input(Document.mapBuilder().putString("city", "Tokyo").build())
+                                .build())
+                            .build())
+                    .build())
+                .build())
+            .build();
+        BedrockModel model = new BedrockModel(clientResponding(response), null, "test-model");
+
+        assertThat(model.converse(List.of(Message.user("hello")), List.of(), null, null))
+            .containsExactly(
+                new ModelEvent.TextDelta("draft"),
+                new ModelEvent.ToolUse("tool-1", "weather", Map.of("city", "Tokyo")),
+                new ModelEvent.Metadata("end_turn", ModelEvent.ZERO_USAGE));
+        }
 
     @Test
     void buildStreamRequestIncludesPromptCachingAndForcedToolChoice() throws Exception {
@@ -521,6 +562,24 @@ class BedrockModelRequestTest {
                 }
                 if (method.getName().equals("close")) {
                     return null;
+                }
+                throw new UnsupportedOperationException(method.getName());
+            });
+    }
+
+    private static BedrockRuntimeClient clientResponding(ConverseResponse response) {
+        return (BedrockRuntimeClient) Proxy.newProxyInstance(
+            BedrockRuntimeClient.class.getClassLoader(),
+            new Class<?>[]{BedrockRuntimeClient.class},
+            (proxy, method, args) -> {
+                if (method.getName().equals("serviceName")) {
+                    return "BedrockRuntime";
+                }
+                if (method.getName().equals("close")) {
+                    return null;
+                }
+                if (method.getName().equals("converse")) {
+                    return response;
                 }
                 throw new UnsupportedOperationException(method.getName());
             });

@@ -25,9 +25,9 @@ import io.arachne.strands.steering.SteeringHandler;
 import io.arachne.strands.tool.ExecutionContextPropagation;
 import io.arachne.strands.tool.Tool;
 import io.arachne.strands.tool.ToolResult;
-import io.arachne.strands.tool.builtin.CurrentTimeTool;
 import io.arachne.strands.tool.annotation.DiscoveredTool;
 import io.arachne.strands.tool.annotation.StrandsTool;
+import io.arachne.strands.tool.builtin.CurrentTimeTool;
 
 class AgentFactoryTest {
 
@@ -42,6 +42,36 @@ class AgentFactoryTest {
         assertThat(agent.getModel()).isInstanceOf(BedrockModel.class);
         assertThat(((BedrockModel) agent.getModel()).getModelId()).isEqualTo("jp.amazon.nova-2-lite-v1:0");
         assertThat(((BedrockModel) agent.getModel()).getRegion()).isEqualTo("ap-northeast-1");
+    }
+
+    @Test
+    void createDefaultModelUsesConfiguredRegionWhenModelIdIsBlank() {
+        ArachneProperties.ModelProperties modelProperties = new ArachneProperties.ModelProperties();
+        modelProperties.setId("   ");
+        modelProperties.setRegion("us-west-2");
+        modelProperties.getBedrock().getCache().setSystemPrompt(true);
+
+        BedrockModel model = (BedrockModel) AgentFactory.createDefaultModel(modelProperties);
+
+        assertThat(model.getModelId()).isEqualTo(BedrockModel.DEFAULT_MODEL_ID);
+        assertThat(model.getRegion()).isEqualTo("us-west-2");
+        assertThat(model.getPromptCaching().systemPrompt()).isTrue();
+        assertThat(model.getPromptCaching().tools()).isFalse();
+    }
+
+    @Test
+    void createDefaultModelUsesFrameworkDefaultsWhenCoordinatesAreBlank() {
+        ArachneProperties.ModelProperties modelProperties = new ArachneProperties.ModelProperties();
+        modelProperties.setId(" ");
+        modelProperties.setRegion(" ");
+        modelProperties.getBedrock().getCache().setTools(true);
+
+        BedrockModel model = (BedrockModel) AgentFactory.createDefaultModel(modelProperties);
+
+        assertThat(model.getModelId()).isEqualTo(BedrockModel.DEFAULT_MODEL_ID);
+        assertThat(model.getRegion()).isEqualTo(BedrockModel.DEFAULT_REGION);
+        assertThat(model.getPromptCaching().systemPrompt()).isFalse();
+        assertThat(model.getPromptCaching().tools()).isTrue();
     }
 
     @Test
@@ -581,6 +611,40 @@ class AgentFactoryTest {
         assertThat(restored.getMessages()).hasSize(2);
         assertThat(restored.getState().get("topic")).isEqualTo("travel");
     }
+
+        @Test
+        void buildNamedAgentCanDisableDiscoveredToolsWhileMergingBuiltInSelections() {
+        ArachneProperties properties = new ArachneProperties();
+        properties.getAgent().getBuiltIns().setToolNames(List.of("current_time"));
+
+        ArachneProperties.NamedAgentProperties namedAgent = new ArachneProperties.NamedAgentProperties();
+        namedAgent.setUseDiscoveredTools(false);
+        namedAgent.getBuiltIns().setToolGroups(List.of("resource"));
+        properties.getAgents().put("reader", namedAgent);
+
+        List<DiscoveredTool> discoveredTools = new io.arachne.strands.tool.annotation.AnnotationToolScanner()
+            .scanDiscoveredTools(List.of(new PlannerToolBean()));
+
+        Agent agent = new AgentFactory(
+            properties,
+            echoModel(),
+            new BuiltInToolRegistry(List.of(
+                builtInTool(new CurrentTimeTool(), false, "utility"),
+                builtInTool(namedTool("resource_reader"), false, "resource"))),
+            discoveredTools,
+            List.of(),
+            List.of(),
+            io.arachne.strands.tool.BeanValidationSupport.defaultValidator(),
+            null,
+            null,
+            new com.fasterxml.jackson.databind.ObjectMapper(),
+            null)
+            .builder("reader")
+            .build();
+
+        assertThat(agent.getTools()).extracting(tool -> tool.spec().name())
+            .containsExactly("current_time", "resource_reader");
+        }
 
     @Test
     void buildNamedAgentKeepsInjectedDefaultModelWithoutModelOverride() {

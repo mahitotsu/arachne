@@ -1,6 +1,5 @@
 package io.arachne.strands.spring;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -23,7 +22,6 @@ import io.arachne.strands.hooks.HookRegistry;
 import io.arachne.strands.hooks.NoOpHookRegistry;
 import io.arachne.strands.hooks.Plugin;
 import io.arachne.strands.model.Model;
-import io.arachne.strands.model.bedrock.BedrockModel;
 import io.arachne.strands.model.retry.ModelRetryStrategy;
 import io.arachne.strands.model.retry.RetryingModel;
 import io.arachne.strands.session.SessionManager;
@@ -247,7 +245,7 @@ public class AgentFactory {
 
     public Builder builder() {
         return new Builder(
-            resolveBuilderDefaults(null),
+            defaultsResolver().resolve(null),
             builtInTools,
             discoveredTools,
             discoveredHooks,
@@ -261,7 +259,7 @@ public class AgentFactory {
 
     public Builder builder(String name) {
         return new Builder(
-            resolveBuilderDefaults(name),
+            defaultsResolver().resolve(name),
             builtInTools,
             discoveredTools,
             discoveredHooks,
@@ -274,260 +272,16 @@ public class AgentFactory {
     }
 
     static Model createDefaultModel(ArachneProperties properties) {
-        return createDefaultModel(properties.getModel());
+        return AgentFactoryModelResolver.createDefaultModel(properties);
     }
 
     static Model createDefaultModel(ArachneProperties.ModelProperties modelProperties) {
-        String provider = modelProperties.getProvider();
-        if (!"bedrock".equalsIgnoreCase(provider)) {
-            throw new UnsupportedModelProviderException(provider);
-        }
-
-        BedrockModel.PromptCaching promptCaching = new BedrockModel.PromptCaching(
-                modelProperties.getBedrock().getCache().isSystemPrompt(),
-                modelProperties.getBedrock().getCache().isTools());
-
-        String modelId = modelProperties.getId();
-        String region = modelProperties.getRegion();
-        if (modelId != null && !modelId.isBlank()) {
-            return new BedrockModel(modelId, region, promptCaching);
-        }
-        if (region != null && !region.isBlank()) {
-            return new BedrockModel(BedrockModel.DEFAULT_MODEL_ID, region, promptCaching);
-        }
-        return new BedrockModel(BedrockModel.DEFAULT_MODEL_ID, BedrockModel.DEFAULT_REGION, promptCaching);
+        return AgentFactoryModelResolver.createDefaultModel(modelProperties);
     }
 
-    private BuilderDefaults resolveBuilderDefaults(String name) {
-        if (name == null || name.isBlank()) {
-            return resolveDefaultBuilderDefaults();
-        }
-
-        return resolveNamedBuilderDefaults(requireNamedAgentProperties(name));
+    private AgentFactoryDefaultsResolver defaultsResolver() {
+        return new AgentFactoryDefaultsResolver(properties, defaultModel, defaultRetryStrategy);
     }
-
-    private BuilderDefaults resolveDefaultBuilderDefaults() {
-        ArachneProperties.BuiltInToolProperties builtIns = properties.getAgent().getBuiltIns();
-        return new BuilderDefaults(
-                copyModelProperties(properties.getModel()),
-                defaultModel,
-                properties.getAgent().getSystemPrompt(),
-                ToolExecutionMode.PARALLEL,
-                true,
-                Set.of(),
-            builtIns.isInheritDefaults(),
-            normalizeNames(builtIns.getToolNames()),
-            normalizeNames(builtIns.getToolGroups()),
-                properties.getAgent().getConversation().getWindowSize(),
-                properties.getAgent().getSession().getId(),
-                defaultRetryStrategy);
-    }
-
-    private ArachneProperties.NamedAgentProperties requireNamedAgentProperties(String name) {
-        ArachneProperties.NamedAgentProperties namedProperties = properties.getAgents().get(name);
-        if (namedProperties == null) {
-            throw new NamedAgentNotFoundException(name);
-        }
-        return namedProperties;
-    }
-
-    private BuilderDefaults resolveNamedBuilderDefaults(ArachneProperties.NamedAgentProperties namedProperties) {
-        ResolvedModelDefaults resolvedModelDefaults = resolveNamedModelDefaults(namedProperties.getModel());
-        ArachneProperties.BuiltInToolProperties defaultBuiltIns = properties.getAgent().getBuiltIns();
-        ArachneProperties.BuiltInToolOverrideProperties namedBuiltIns = namedProperties.getBuiltIns();
-        boolean inheritBuiltInTools = defaultBuiltIns.isInheritDefaults();
-        if (namedBuiltIns.getInheritDefaults() != null) {
-            inheritBuiltInTools = namedBuiltIns.getInheritDefaults();
-        }
-        return new BuilderDefaults(
-                resolvedModelDefaults.modelProperties(),
-                resolvedModelDefaults.defaultModel(),
-                firstNonBlank(namedProperties.getSystemPrompt(), properties.getAgent().getSystemPrompt()),
-                resolveNamedToolExecutionMode(namedProperties),
-                resolveNamedUseDiscoveredTools(namedProperties),
-                normalizeQualifiers(namedProperties.getToolQualifiers()),
-            inheritBuiltInTools,
-            union(normalizeNames(defaultBuiltIns.getToolNames()), normalizeNames(namedBuiltIns.getToolNames())),
-            union(normalizeNames(defaultBuiltIns.getToolGroups()), normalizeNames(namedBuiltIns.getToolGroups())),
-                resolveNamedConversationWindowSize(namedProperties),
-                resolveNamedSessionId(namedProperties),
-                resolveNamedRetryStrategy(namedProperties.getRetry()));
-    }
-
-    private ResolvedModelDefaults resolveNamedModelDefaults(ArachneProperties.ModelOverrideProperties modelOverrides) {
-        ArachneProperties.ModelProperties mergedModel = mergeModelProperties(properties.getModel(), modelOverrides);
-        if (!hasModelOverride(modelOverrides)) {
-            return new ResolvedModelDefaults(mergedModel, defaultModel);
-        }
-        return new ResolvedModelDefaults(mergedModel, createDefaultModel(mergedModel));
-    }
-
-    private ToolExecutionMode resolveNamedToolExecutionMode(ArachneProperties.NamedAgentProperties namedProperties) {
-        return namedProperties.getToolExecutionMode() != null
-                ? namedProperties.getToolExecutionMode()
-                : ToolExecutionMode.PARALLEL;
-    }
-
-    private boolean resolveNamedUseDiscoveredTools(ArachneProperties.NamedAgentProperties namedProperties) {
-        Boolean useDiscoveredTools = namedProperties.getUseDiscoveredTools();
-        if (useDiscoveredTools == null) {
-            return true;
-        }
-        return useDiscoveredTools;
-    }
-
-    private int resolveNamedConversationWindowSize(ArachneProperties.NamedAgentProperties namedProperties) {
-        Integer namedWindowSize = namedProperties.getConversation().getWindowSize();
-        return namedWindowSize != null
-                ? namedWindowSize
-                : properties.getAgent().getConversation().getWindowSize();
-    }
-
-    private String resolveNamedSessionId(ArachneProperties.NamedAgentProperties namedProperties) {
-        return firstNonBlank(namedProperties.getSession().getId(), properties.getAgent().getSession().getId());
-    }
-
-    private ModelRetryStrategy resolveNamedRetryStrategy(ArachneProperties.RetryOverrideProperties retryProperties) {
-        if (!hasRetryOverride(retryProperties)) {
-            return defaultRetryStrategy;
-        }
-
-        Boolean enabledOverride = retryProperties.getEnabled();
-        boolean enabled;
-        if (enabledOverride != null) {
-            enabled = enabledOverride;
-        } else {
-            enabled = properties.getAgent().getRetry().isEnabled();
-        }
-        if (!enabled) {
-            return null;
-        }
-
-        ArachneProperties.RetryProperties defaults = properties.getAgent().getRetry();
-        Integer maxAttemptsOverride = retryProperties.getMaxAttempts();
-        int maxAttempts = maxAttemptsOverride != null
-                ? maxAttemptsOverride
-                : defaults.getMaxAttempts();
-        Duration initialDelay = retryProperties.getInitialDelay() != null
-                ? retryProperties.getInitialDelay()
-                : defaults.getInitialDelay();
-        Duration maxDelay = retryProperties.getMaxDelay() != null
-                ? retryProperties.getMaxDelay()
-                : defaults.getMaxDelay();
-        return new io.arachne.strands.model.retry.ExponentialBackoffRetryStrategy(maxAttempts, initialDelay, maxDelay);
-    }
-
-    private static boolean hasRetryOverride(ArachneProperties.RetryOverrideProperties retryProperties) {
-        return retryProperties != null
-                && (retryProperties.getEnabled() != null
-                || retryProperties.getMaxAttempts() != null
-                || retryProperties.getInitialDelay() != null
-                || retryProperties.getMaxDelay() != null);
-    }
-
-    private static boolean hasModelOverride(ArachneProperties.ModelOverrideProperties modelProperties) {
-        return modelProperties != null
-                && (hasText(modelProperties.getProvider())
-                || hasText(modelProperties.getId())
-                || hasText(modelProperties.getRegion())
-                || hasBedrockOverride(modelProperties.getBedrock()));
-    }
-
-    private static boolean hasBedrockOverride(ArachneProperties.BedrockOverrideProperties bedrockProperties) {
-        return bedrockProperties != null
-                && bedrockProperties.getCache() != null
-                && (bedrockProperties.getCache().getSystemPrompt() != null
-                || bedrockProperties.getCache().getTools() != null);
-    }
-
-    private static ArachneProperties.ModelProperties mergeModelProperties(
-            ArachneProperties.ModelProperties defaults,
-            ArachneProperties.ModelOverrideProperties overrides) {
-        ArachneProperties.ModelProperties merged = copyModelProperties(defaults);
-        if (overrides == null) {
-            return merged;
-        }
-        if (hasText(overrides.getProvider())) {
-            merged.setProvider(overrides.getProvider());
-        }
-        if (hasText(overrides.getId())) {
-            merged.setId(overrides.getId());
-        }
-        if (hasText(overrides.getRegion())) {
-            merged.setRegion(overrides.getRegion());
-        }
-        if (overrides.getBedrock() != null && overrides.getBedrock().getCache() != null) {
-            if (overrides.getBedrock().getCache().getSystemPrompt() != null) {
-                merged.getBedrock().getCache().setSystemPrompt(overrides.getBedrock().getCache().getSystemPrompt());
-            }
-            if (overrides.getBedrock().getCache().getTools() != null) {
-                merged.getBedrock().getCache().setTools(overrides.getBedrock().getCache().getTools());
-            }
-        }
-        return merged;
-    }
-
-    private static ArachneProperties.ModelProperties copyModelProperties(ArachneProperties.ModelProperties source) {
-        ArachneProperties.ModelProperties copy = new ArachneProperties.ModelProperties();
-        copy.setProvider(source.getProvider());
-        copy.setId(source.getId());
-        copy.setRegion(source.getRegion());
-        copy.getBedrock().getCache().setSystemPrompt(source.getBedrock().getCache().isSystemPrompt());
-        copy.getBedrock().getCache().setTools(source.getBedrock().getCache().isTools());
-        return copy;
-    }
-
-    private static Set<String> normalizeQualifiers(List<String> toolQualifiers) {
-        return normalizeStrings(toolQualifiers);
-    }
-
-    private static Set<String> normalizeNames(List<String> values) {
-        return normalizeStrings(values);
-    }
-
-    private static Set<String> normalizeStrings(List<String> values) {
-        LinkedHashSet<String> normalized = new LinkedHashSet<>();
-        for (String value : values == null ? List.<String>of() : values) {
-            if (hasText(value)) {
-                normalized.add(value);
-            }
-        }
-        return Set.copyOf(normalized);
-    }
-
-    private static Set<String> union(Set<String> left, Set<String> right) {
-        LinkedHashSet<String> merged = new LinkedHashSet<>(left);
-        merged.addAll(right);
-        return Set.copyOf(merged);
-    }
-
-    private static String firstNonBlank(String preferred, String fallback) {
-        return hasText(preferred) ? preferred : fallback;
-    }
-
-    private static boolean hasText(String value) {
-        return value != null && !value.isBlank();
-    }
-
-    private record BuilderDefaults(
-            ArachneProperties.ModelProperties modelProperties,
-            Model defaultModel,
-            String systemPrompt,
-            ToolExecutionMode toolExecutionMode,
-            boolean useDiscoveredTools,
-            Set<String> toolQualifiers,
-            boolean inheritBuiltInTools,
-            Set<String> builtInToolNames,
-            Set<String> builtInToolGroups,
-            int conversationWindowSize,
-            String sessionId,
-            ModelRetryStrategy retryStrategy) {
-    }
-
-            private record ResolvedModelDefaults(
-                ArachneProperties.ModelProperties modelProperties,
-                Model defaultModel) {
-            }
 
             private record BuilderRuntime(
                 Model model,
@@ -540,7 +294,7 @@ public class AgentFactory {
 
     public static class Builder {
 
-        private final BuilderDefaults defaults;
+        private final AgentFactoryDefaultsResolver.BuilderDefaults defaults;
         private final Model defaultModel;
         private final List<BuiltInToolDefinition> builtInTools;
         private final List<DiscoveredTool> discoveredTools;
@@ -572,7 +326,7 @@ public class AgentFactory {
         private List<Skill> skills = List.of();
 
         private Builder(
-                BuilderDefaults defaults,
+                AgentFactoryDefaultsResolver.BuilderDefaults defaults,
             List<BuiltInToolDefinition> builtInTools,
                 List<DiscoveredTool> discoveredTools,
                 List<HookProvider> discoveredHooks,
@@ -687,23 +441,17 @@ public class AgentFactory {
         }
 
         public Builder builtInToolNames(String... builtInToolNames) {
-            this.builtInToolNames = normalizeNames(List.of(builtInToolNames));
+            this.builtInToolNames = AgentFactoryDefaultsResolver.normalizeNames(List.of(builtInToolNames));
             return this;
         }
 
         public Builder builtInToolGroups(String... builtInToolGroups) {
-            this.builtInToolGroups = normalizeNames(List.of(builtInToolGroups));
+            this.builtInToolGroups = AgentFactoryDefaultsResolver.normalizeNames(List.of(builtInToolGroups));
             return this;
         }
 
         public Builder toolQualifiers(String... toolQualifiers) {
-            LinkedHashSet<String> normalized = new LinkedHashSet<>();
-            for (String toolQualifier : toolQualifiers) {
-                if (toolQualifier != null && !toolQualifier.isBlank()) {
-                    normalized.add(toolQualifier);
-                }
-            }
-            this.toolQualifiers = Set.copyOf(normalized);
+            this.toolQualifiers = AgentFactoryDefaultsResolver.normalizeQualifiers(List.of(toolQualifiers));
             return this;
         }
 
@@ -863,7 +611,7 @@ public class AgentFactory {
             if (defaultModel != null) {
                 return defaultModel;
             }
-            return createDefaultModel(defaults.modelProperties());
+            return AgentFactoryModelResolver.createDefaultModel(defaults.modelProperties());
         }
 
         private Model wrapWithRetryIfNeeded(Model resolvedModel) {

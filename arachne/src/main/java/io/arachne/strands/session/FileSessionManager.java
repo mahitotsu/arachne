@@ -5,6 +5,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Objects;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -22,7 +23,7 @@ public class FileSessionManager implements SessionManager {
 
     public FileSessionManager(Path storageDirectory, ObjectMapper objectMapper) {
         this.storageDirectory = storageDirectory;
-        this.objectMapper = objectMapper;
+        this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper must not be null").copy();
         try {
             Files.createDirectories(storageDirectory);
         } catch (IOException e) {

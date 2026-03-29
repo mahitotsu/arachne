@@ -10,6 +10,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import io.arachne.strands.types.Message;
 
 class FileSessionManagerTest {
@@ -60,5 +63,26 @@ class FileSessionManagerTest {
         assertThatThrownBy(() -> new FileSessionManager(storageFile))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Failed to create session storage directory");
+    }
+
+    @Test
+    void constructorCopiesProvidedObjectMapperConfiguration() throws Exception {
+        ObjectMapper objectMapper = new ObjectMapper()
+            .setDefaultPropertyInclusion(JsonInclude.Value.construct(
+                JsonInclude.Include.NON_EMPTY,
+                JsonInclude.Include.NON_EMPTY));
+        FileSessionManager manager = new FileSessionManager(tempDir, objectMapper);
+        objectMapper.setDefaultPropertyInclusion(JsonInclude.Value.construct(
+            JsonInclude.Include.ALWAYS,
+            JsonInclude.Include.ALWAYS));
+
+        manager.save("copy-check", new AgentSession(
+                List.of(Message.user("hello")),
+                Map.of(),
+                Map.of()));
+
+        String json = Files.readString(tempDir.resolve("copy-check.json"));
+        assertThat(json).doesNotContain("\"state\"");
+        assertThat(json).doesNotContain("\"conversationManagerState\"");
     }
 }

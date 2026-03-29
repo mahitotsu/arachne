@@ -105,7 +105,8 @@ final class CalculatorExpressionEvaluator {
 
         private BigDecimal parseExpression() {
             BigDecimal value = parseTerm();
-            while (true) {
+            boolean parsing = true;
+            while (parsing) {
                 skipWhitespace();
                 if (match('+')) {
                     value = value.add(parseTerm());
@@ -115,13 +116,15 @@ final class CalculatorExpressionEvaluator {
                     value = value.subtract(parseTerm());
                     continue;
                 }
-                return value;
+                parsing = false;
             }
+            return value;
         }
 
         private BigDecimal parseTerm() {
             BigDecimal value = parseUnary();
-            while (true) {
+            boolean parsing = true;
+            while (parsing) {
                 skipWhitespace();
                 if (match('*')) {
                     value = value.multiply(parseUnary());
@@ -143,8 +146,9 @@ final class CalculatorExpressionEvaluator {
                     value = value.remainder(divisor);
                     continue;
                 }
-                return value;
+                parsing = false;
             }
+            return value;
         }
 
         private BigDecimal parseUnary() {

@@ -36,6 +36,11 @@
         <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
     </Match>
     <Match>
+        <Class name="~io\.arachne\.strands\.agent\.DefaultAgent(\$.*)?"/>
+        <Method name="getState"/>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+    <Match>
         <Class name="~io\.arachne\.strands\.schema\.JsonSchemaGenerator(\$.*)?"/>
         <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
     </Match>
