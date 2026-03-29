@@ -76,7 +76,7 @@ class ChatService {
 
 - `AgentFactory.builder()` and `AgentFactory.builder("name")`
 - `Agent.run(String)` and `Agent.run(String, Class<T>)`
-- built-in tools: `current_time`, `resource_reader`, `resource_list`
+- built-in tools: `calculator`, `current_time`, `resource_reader`, `resource_list`
 - annotation-driven tools with `@StrandsTool` and `@ToolParam`
 - session persistence with in-memory, file, Redis, and JDBC-backed storage
 - interrupt / resume before tool execution

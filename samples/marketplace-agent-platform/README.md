@@ -6,6 +6,8 @@ The active direction is a marketplace platform in which Spring-based microservic
 
 At this stage, this directory is intentionally concept-only. It does not yet contain runnable implementation code.
 
+It is not yet part of the runnable sample catalog in `samples/README.md` and is not yet included in the Maven sample reactor declared in `samples/pom.xml`.
+
 ## Current State
 
 This sample is still in design only.

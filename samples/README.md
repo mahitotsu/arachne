@@ -2,6 +2,8 @@
 
 This directory contains runnable samples for the features that Arachne provides now.
 
+The concept-only `marketplace-agent-platform` directory is design material for a future sample. It is not yet part of the runnable sample catalog and is not yet included in the Maven sample reactor.
+
 Use this page to choose the right sample. Use each sample's own README for setup, run commands, and what to inspect in the code.
 
 ## Start Here
@@ -87,3 +89,4 @@ Then run the sample from its own directory.
 - `domain-separation` is the composed reference sample. Read it after the narrower feature samples unless you specifically want the higher-level backend picture first.
 - `session-redis` and `session-jdbc` show the same restore boundary with different persistence backends. Choose the one that matches your deployment style.
 - Bedrock-backed samples require AWS credentials and model access. Deterministic samples do not.
+- `marketplace-agent-platform` is a design-only concept directory under `samples/`; it is not yet included in this runnable catalog.
