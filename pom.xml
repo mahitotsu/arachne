@@ -14,6 +14,7 @@
 
     <modules>
         <module>arachne</module>
+        <module>marketplace-agent-platform</module>
         <module>samples</module>
     </modules>
 </project>

@@ -1,0 +1,107 @@
+package io.arachne.samples.marketplace.workflowservice;
+
+import io.arachne.samples.marketplace.workflowservice.DownstreamContracts.EscrowEvidenceRequest;
+import io.arachne.samples.marketplace.workflowservice.DownstreamContracts.EscrowEvidenceSummary;
+import io.arachne.samples.marketplace.workflowservice.DownstreamContracts.ExecuteSettlementCommand;
+import io.arachne.samples.marketplace.workflowservice.DownstreamContracts.NotificationDispatchCommand;
+import io.arachne.samples.marketplace.workflowservice.DownstreamContracts.NotificationDispatchResult;
+import io.arachne.samples.marketplace.workflowservice.DownstreamContracts.RiskCaseReviewRequest;
+import io.arachne.samples.marketplace.workflowservice.DownstreamContracts.RiskReviewSummary;
+import io.arachne.samples.marketplace.workflowservice.DownstreamContracts.SettlementOutcome;
+import io.arachne.samples.marketplace.workflowservice.DownstreamContracts.ShipmentEvidenceRequest;
+import io.arachne.samples.marketplace.workflowservice.DownstreamContracts.ShipmentEvidenceSummary;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.server.ResponseStatusException;
+
+interface DownstreamGateway {
+
+    ShipmentEvidenceSummary shipmentEvidence(ShipmentEvidenceRequest request);
+
+    EscrowEvidenceSummary escrowEvidence(EscrowEvidenceRequest request);
+
+    RiskReviewSummary riskReview(RiskCaseReviewRequest request);
+
+    SettlementOutcome executeSettlement(ExecuteSettlementCommand command);
+
+    NotificationDispatchResult dispatchNotification(NotificationDispatchCommand command);
+}
+
+@Component
+class HttpDownstreamGateway implements DownstreamGateway {
+
+    private final RestClient escrowRestClient;
+    private final RestClient shipmentRestClient;
+    private final RestClient riskRestClient;
+    private final RestClient notificationRestClient;
+
+    HttpDownstreamGateway(
+            RestClient escrowRestClient,
+            RestClient shipmentRestClient,
+            RestClient riskRestClient,
+            RestClient notificationRestClient) {
+        this.escrowRestClient = escrowRestClient;
+        this.shipmentRestClient = shipmentRestClient;
+        this.riskRestClient = riskRestClient;
+        this.notificationRestClient = notificationRestClient;
+    }
+
+    @Override
+    public ShipmentEvidenceSummary shipmentEvidence(ShipmentEvidenceRequest request) {
+        return requireBody(shipmentRestClient.post()
+                .uri("/internal/shipment/evidence-summary")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(request)
+                .retrieve()
+                .body(ShipmentEvidenceSummary.class));
+    }
+
+    @Override
+    public EscrowEvidenceSummary escrowEvidence(EscrowEvidenceRequest request) {
+        return requireBody(escrowRestClient.post()
+                .uri("/internal/escrow/evidence-summary")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(request)
+                .retrieve()
+                .body(EscrowEvidenceSummary.class));
+    }
+
+    @Override
+    public RiskReviewSummary riskReview(RiskCaseReviewRequest request) {
+        return requireBody(riskRestClient.post()
+                .uri("/internal/risk/case-review")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(request)
+                .retrieve()
+                .body(RiskReviewSummary.class));
+    }
+
+    @Override
+    public SettlementOutcome executeSettlement(ExecuteSettlementCommand command) {
+        return requireBody(escrowRestClient.post()
+                .uri("/internal/escrow/settlement-actions")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(command)
+                .retrieve()
+                .body(SettlementOutcome.class));
+    }
+
+    @Override
+    public NotificationDispatchResult dispatchNotification(NotificationDispatchCommand command) {
+        return requireBody(notificationRestClient.post()
+                .uri("/internal/notifications/case-outcome")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(command)
+                .retrieve()
+                .body(NotificationDispatchResult.class));
+    }
+
+    private <T> T requireBody(T body) {
+        if (body == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "downstream service returned an empty response body");
+        }
+        return body;
+    }
+}

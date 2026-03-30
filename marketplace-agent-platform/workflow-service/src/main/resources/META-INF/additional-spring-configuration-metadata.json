@@ -1,0 +1,39 @@
+{
+  "properties": [
+    {
+      "name": "downstream.escrow-base-url",
+      "type": "java.lang.String",
+      "description": "Base URL for the escrow-service internal HTTP API."
+    },
+    {
+      "name": "downstream.shipment-base-url",
+      "type": "java.lang.String",
+      "description": "Base URL for the shipment-service internal HTTP API."
+    },
+    {
+      "name": "downstream.risk-base-url",
+      "type": "java.lang.String",
+      "description": "Base URL for the risk-service internal HTTP API."
+    },
+    {
+      "name": "downstream.notification-base-url",
+      "type": "java.lang.String",
+      "description": "Base URL for the notification-service internal HTTP API."
+    },
+    {
+      "name": "workflow-session.store",
+      "type": "java.lang.String",
+      "description": "Workflow session backing store selection. Use memory by default or redis for shared continuity."
+    },
+    {
+      "name": "workflow-session.key-prefix",
+      "type": "java.lang.String",
+      "description": "Redis key prefix for workflow session records."
+    },
+    {
+      "name": "workflow-session.ttl",
+      "type": "java.time.Duration",
+      "description": "Time to live for persisted workflow session records."
+    }
+  ]
+}

@@ -38,25 +38,40 @@ class DocumentedRepositorySurfaceTest {
     }
 
     @Test
-    void sampleCatalogExplicitlyExcludesConceptOnlyMarketplaceDirectory() throws IOException {
+    void repositoryDocsExplainMarketplaceProductTrackBoundary() throws IOException {
+        String readme = Files.readString(REPOSITORY_ROOT.resolve("README.md"), StandardCharsets.UTF_8);
+        String docsGuide = Files.readString(REPOSITORY_ROOT.resolve("docs/README.md"), StandardCharsets.UTF_8);
+        String repositoryFacts = Files.readString(REPOSITORY_ROOT.resolve("docs/repository-facts.md"), StandardCharsets.UTF_8);
         String samplesCatalog = Files.readString(REPOSITORY_ROOT.resolve("samples/README.md"), StandardCharsets.UTF_8);
         String marketplaceReadme = Files.readString(
-                REPOSITORY_ROOT.resolve("samples/marketplace-agent-platform/README.md"),
+                REPOSITORY_ROOT.resolve("marketplace-agent-platform/README.md"),
                 StandardCharsets.UTF_8);
+        String rootPom = Files.readString(REPOSITORY_ROOT.resolve("pom.xml"), StandardCharsets.UTF_8);
         String samplesPom = Files.readString(REPOSITORY_ROOT.resolve("samples/pom.xml"), StandardCharsets.UTF_8);
 
+        assertThat(readme)
+                .contains("`marketplace-agent-platform/`: independent multi-module product track");
+
+        assertThat(docsGuide)
+                .contains("the independent `marketplace-agent-platform/` product track lives at the repository root");
+
+        assertThat(repositoryFacts)
+                .contains("marketplace-agent-platform/pom.xml")
+                .contains("marketplace-agent-platform")
+                .contains("root-level product track");
+
         assertThat(samplesCatalog)
-                .contains("The concept-only `marketplace-agent-platform` directory is design material for a future sample.")
-                .contains("not yet part of the runnable sample catalog")
-                .contains("not yet included in the Maven sample reactor")
-                .contains("`tested in sample reactor`")
-                .contains("`compile-checked in sample reactor`")
-                .contains("`concept-only`");
+                .contains("`marketplace-agent-platform` has moved out of `samples/`")
+                .contains("repository root as its own multi-module product track")
+                .contains("no longer part of the samples catalog");
 
         assertThat(marketplaceReadme)
-                .contains("intentionally concept-only")
-                .contains("not yet part of the runnable sample catalog")
-                .contains("not yet included in the Maven sample reactor");
+                .contains("source of truth for what is implemented today")
+                .contains("Treat `docs/*.md` in this directory as design and next-slice reference")
+                .contains("Agent-driven runtime behavior still needs implementation");
+
+        assertThat(rootPom)
+                .contains("<module>marketplace-agent-platform</module>");
 
         assertThat(samplesPom)
                 .doesNotContain("<module>marketplace-agent-platform</module>");

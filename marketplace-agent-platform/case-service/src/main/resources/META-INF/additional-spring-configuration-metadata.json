@@ -1,0 +1,9 @@
+{
+  "properties": [
+    {
+      "name": "workflow-service.base-url",
+      "type": "java.lang.String",
+      "description": "Base URL for the workflow-service internal HTTP API."
+    }
+  ]
+}

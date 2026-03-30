@@ -1,0 +1,5 @@
+create database marketplace_case_service;
+create database marketplace_escrow_service;
+create database marketplace_shipment_service;
+create database marketplace_risk_service;
+create database marketplace_notification_service;

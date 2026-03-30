@@ -25,6 +25,7 @@ Treat [docs/project-status.md](docs/project-status.md) as the canonical source o
 
 - `pom.xml`: root Maven reactor for the repository
 - `arachne/`: main library module published as `io.arachne:arachne`
+- `marketplace-agent-platform/`: independent multi-module product track for the marketplace backend/frontend slice
 - `samples/`: runnable sample reactor and sample applications
 - `docs/`: repository and usage documentation
 

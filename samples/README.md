@@ -4,7 +4,7 @@ This directory contains runnable samples for the features that Arachne provides 
 
 Use [docs/project-status.md](../docs/project-status.md) as the canonical source of truth for whether a capability is shipped. This page is the sample-selection and sample-verification map for that shipped surface.
 
-The concept-only `marketplace-agent-platform` directory is design material for a future sample. It is not yet part of the runnable sample catalog and is not yet included in the Maven sample reactor.
+`marketplace-agent-platform` has moved out of `samples/` and now lives at the repository root as its own multi-module product track.
 
 Use this page to choose the right sample. Use each sample's own README for setup, run commands, and what to inspect in the code.
 
@@ -80,7 +80,6 @@ Status legend:
 
 | Directory | Role | Status |
 | --- | --- | --- |
-| `marketplace-agent-platform` | future high-density sample design material | `concept-only` |
 
 ## Recommended Paths
 
@@ -115,4 +114,4 @@ Status legend:
 - `tool-delegation` remains `compile-checked in sample reactor` because its published value is live Bedrock-backed delegation plus structured output. It now also has an opt-in Bedrock smoke test for live evidence.
 - `conversation-basics` remains `compile-checked in sample reactor` because its published value is a live Bedrock-backed multi-turn conversation and prompt-cache metrics path rather than a deterministic in-process model. It now also has an opt-in Bedrock smoke test for live evidence.
 - before trusting `mvn -f samples/pom.xml ...` results after library changes, refresh the local `io.arachne:arachne` snapshot with `mvn -pl arachne -am install -DskipTests`.
-- `marketplace-agent-platform` is a design-only concept directory under `samples/`; it is not yet included in this runnable catalog.
+- `marketplace-agent-platform` is no longer part of the samples catalog; it now lives at the repository root as its own module tree.

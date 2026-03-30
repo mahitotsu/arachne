@@ -1,16 +1,23 @@
 # Marketplace Agent Platform Sample
 
-This directory is the concept home for the next high-density Arachne sample.
+This directory is the implementation home for the next high-density Arachne sample.
 
 The active direction is a marketplace platform in which Spring-based microservices each own a service-local agent and collaborate through explicit capability boundaries, with a thin operator-facing frontend for visibility and approval interaction.
 
-At this stage, this directory is intentionally concept-only. It does not yet contain runnable implementation code.
+At this stage, this directory contains only the initial implementation scaffold. It does not yet contain the runnable end-to-end sample described in the design documents.
 
-It is not yet part of the runnable sample catalog in `samples/README.md` and is not yet included in the Maven sample reactor declared in `samples/pom.xml`.
+It is not yet part of the runnable sample catalog in `samples/README.md`.
+
+It is now registered in the Maven sample reactor as a parent aggregator module.
+
+The first implementation modules are:
+
+- `case-service`
+- `workflow-service`
 
 ## Current State
 
-This sample is still in design only.
+This sample has moved beyond design-only status, but only as far as project scaffolding.
 
 The current first-slice direction is:
 
@@ -102,10 +109,14 @@ It also benefits from a thin frontend because streaming progress and human appro
 
 ## Status
 
-Concept only.
+Scaffold in place, implementation not started.
 
-The current design work has already fixed the main first-slice direction and reduced the remaining work to:
+The current design work has already fixed the main first-slice direction.
 
-- implementation and scaffold work, if the sample moves beyond concept docs
+The current repository state now includes:
 
-An earlier provisional draft was discarded because it did not reflect the marketplace-centered sample direction strongly enough.
+- parent aggregator wiring for `marketplace-agent-platform`
+- initial `case-service` case-facing API and projection skeleton
+- initial `workflow-service` internal workflow API skeleton
+
+The representative workflow, downstream services, thin frontend, and local composed runtime still need implementation.

@@ -21,3 +21,9 @@ replay_pid*
 # OS
 .DS_Store
 Thumbs.db
+
+# JavaScript / TypeScript
+**/node_modules/
+**/dist/
+*.tsbuildinfo
+npm-debug.log*

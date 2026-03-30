@@ -1,0 +1,9 @@
+.git
+.github
+**/node_modules
+**/target
+**/.DS_Store
+**/.idea
+**/.vscode
+samples/**/target
+refs/sdk-python/.venv

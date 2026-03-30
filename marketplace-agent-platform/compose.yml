@@ -1,0 +1,257 @@
+services:
+  operator-console:
+    build:
+      context: ..
+      dockerfile: marketplace-agent-platform/operator-console/Dockerfile
+      args:
+        VITE_CASE_SERVICE_BASE_URL: http://localhost:8080
+    depends_on:
+      case-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    ports:
+      - "8086:8080"
+
+  case-service:
+    build:
+      context: ..
+      dockerfile: marketplace-agent-platform/Dockerfile
+      args:
+        MODULE_DIR: marketplace-agent-platform/case-service
+        MODULE_ARTIFACT: marketplace-case-service
+    environment:
+      SERVER_PORT: 8080
+      WORKFLOW_SERVICE_BASE_URL: http://workflow-load-balancer:8080
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/marketplace_case_service
+      SPRING_DATASOURCE_USERNAME: marketplace
+      SPRING_DATASOURCE_PASSWORD: marketplace
+    depends_on:
+      postgres:
+        condition: service_healthy
+      workflow-load-balancer:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:8080/actuator/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    ports:
+      - "8080:8080"
+
+  workflow-service-1:
+    build:
+      context: ..
+      dockerfile: marketplace-agent-platform/Dockerfile
+      args:
+        MODULE_DIR: marketplace-agent-platform/workflow-service
+        MODULE_ARTIFACT: marketplace-workflow-service
+    environment:
+      SERVER_PORT: 8080
+      WORKFLOW_SESSION_STORE: redis
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      DOWNSTREAM_ESCROW_BASE_URL: http://escrow-service:8080
+      DOWNSTREAM_SHIPMENT_BASE_URL: http://shipment-service:8080
+      DOWNSTREAM_RISK_BASE_URL: http://risk-service:8080
+      DOWNSTREAM_NOTIFICATION_BASE_URL: http://notification-service:8080
+    depends_on:
+      redis:
+        condition: service_healthy
+      escrow-service:
+        condition: service_healthy
+      shipment-service:
+        condition: service_healthy
+      risk-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:8080/actuator/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  workflow-service-2:
+    build:
+      context: ..
+      dockerfile: marketplace-agent-platform/Dockerfile
+      args:
+        MODULE_DIR: marketplace-agent-platform/workflow-service
+        MODULE_ARTIFACT: marketplace-workflow-service
+    environment:
+      SERVER_PORT: 8080
+      WORKFLOW_SESSION_STORE: redis
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      DOWNSTREAM_ESCROW_BASE_URL: http://escrow-service:8080
+      DOWNSTREAM_SHIPMENT_BASE_URL: http://shipment-service:8080
+      DOWNSTREAM_RISK_BASE_URL: http://risk-service:8080
+      DOWNSTREAM_NOTIFICATION_BASE_URL: http://notification-service:8080
+    depends_on:
+      redis:
+        condition: service_healthy
+      escrow-service:
+        condition: service_healthy
+      shipment-service:
+        condition: service_healthy
+      risk-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:8080/actuator/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  workflow-load-balancer:
+    image: nginx:1.27-alpine
+    depends_on:
+      workflow-service-1:
+        condition: service_healthy
+      workflow-service-2:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    ports:
+      - "8081:8080"
+    volumes:
+      - ./compose/nginx/workflow-load-balancer.conf:/etc/nginx/conf.d/default.conf:ro
+
+  redis:
+    image: redis:7.4-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "6379:6379"
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: marketplace
+      POSTGRES_PASSWORD: marketplace
+      POSTGRES_DB: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U marketplace -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./compose/postgres/init:/docker-entrypoint-initdb.d:ro
+
+  escrow-service:
+    build:
+      context: ..
+      dockerfile: marketplace-agent-platform/Dockerfile
+      args:
+        MODULE_DIR: marketplace-agent-platform/escrow-service
+        MODULE_ARTIFACT: marketplace-escrow-service
+    environment:
+      SERVER_PORT: 8080
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/marketplace_escrow_service
+      SPRING_DATASOURCE_USERNAME: marketplace
+      SPRING_DATASOURCE_PASSWORD: marketplace
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:8080/actuator/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    ports:
+      - "8082:8080"
+
+  shipment-service:
+    build:
+      context: ..
+      dockerfile: marketplace-agent-platform/Dockerfile
+      args:
+        MODULE_DIR: marketplace-agent-platform/shipment-service
+        MODULE_ARTIFACT: marketplace-shipment-service
+    environment:
+      SERVER_PORT: 8080
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/marketplace_shipment_service
+      SPRING_DATASOURCE_USERNAME: marketplace
+      SPRING_DATASOURCE_PASSWORD: marketplace
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:8080/actuator/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    ports:
+      - "8083:8080"
+
+  risk-service:
+    build:
+      context: ..
+      dockerfile: marketplace-agent-platform/Dockerfile
+      args:
+        MODULE_DIR: marketplace-agent-platform/risk-service
+        MODULE_ARTIFACT: marketplace-risk-service
+    environment:
+      SERVER_PORT: 8080
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/marketplace_risk_service
+      SPRING_DATASOURCE_USERNAME: marketplace
+      SPRING_DATASOURCE_PASSWORD: marketplace
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:8080/actuator/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    ports:
+      - "8084:8080"
+
+  notification-service:
+    build:
+      context: ..
+      dockerfile: marketplace-agent-platform/Dockerfile
+      args:
+        MODULE_DIR: marketplace-agent-platform/notification-service
+        MODULE_ARTIFACT: marketplace-notification-service
+    environment:
+      SERVER_PORT: 8080
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/marketplace_notification_service
+      SPRING_DATASOURCE_USERNAME: marketplace
+      SPRING_DATASOURCE_PASSWORD: marketplace
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:8080/actuator/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    ports:
+      - "8085:8080"
+
+volumes:
+  postgres-data:

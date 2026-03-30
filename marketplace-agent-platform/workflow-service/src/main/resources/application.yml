@@ -1,0 +1,27 @@
+server:
+  port: ${SERVER_PORT:8080}
+
+spring:
+  application:
+    name: marketplace-workflow-service
+
+downstream:
+  escrow-base-url: ${DOWNSTREAM_ESCROW_BASE_URL:http://localhost:8082}
+  shipment-base-url: ${DOWNSTREAM_SHIPMENT_BASE_URL:http://localhost:8083}
+  risk-base-url: ${DOWNSTREAM_RISK_BASE_URL:http://localhost:8084}
+  notification-base-url: ${DOWNSTREAM_NOTIFICATION_BASE_URL:http://localhost:8085}
+
+workflow-session:
+  store: ${WORKFLOW_SESSION_STORE:memory}
+  key-prefix: ${WORKFLOW_SESSION_KEY_PREFIX:marketplace:workflow-session:}
+  ttl: ${WORKFLOW_SESSION_TTL:PT24H}
+
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: health
