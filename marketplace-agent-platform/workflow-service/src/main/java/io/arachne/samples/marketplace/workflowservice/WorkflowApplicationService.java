@@ -1,6 +1,14 @@
 package io.arachne.samples.marketplace.workflowservice;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.OffsetDateTime;
+import java.util.List;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
+
 import io.arachne.samples.marketplace.workflowservice.WorkflowContracts.ApprovalStateView;
 import io.arachne.samples.marketplace.workflowservice.WorkflowContracts.ApprovalStatus;
 import io.arachne.samples.marketplace.workflowservice.WorkflowContracts.ContinueWorkflowCommand;
@@ -14,12 +22,6 @@ import io.arachne.samples.marketplace.workflowservice.WorkflowContracts.Workflow
 import io.arachne.samples.marketplace.workflowservice.WorkflowContracts.WorkflowResumeResult;
 import io.arachne.samples.marketplace.workflowservice.WorkflowContracts.WorkflowStartResult;
 import io.arachne.samples.marketplace.workflowservice.WorkflowContracts.WorkflowStatus;
-import java.time.Clock;
-import java.time.OffsetDateTime;
-import java.util.List;
-import org.springframework.http.HttpStatus;
-import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
 
 @Service
 class WorkflowApplicationService {
