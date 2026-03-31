@@ -6,7 +6,7 @@ Use [concept.md](/home/akring/arachne/marketplace-agent-platform/docs/concept.md
 Use this file to describe how the sample should be structured and run.
 Use [apis.md](/home/akring/arachne/marketplace-agent-platform/docs/apis.md) for minimal API boundaries and shared contract direction.
 Use [contracts.md](/home/akring/arachne/marketplace-agent-platform/docs/contracts.md) for case and approval contract direction.
-Use [slices.md](/home/akring/arachne/marketplace-agent-platform/docs/slices.md) for recommended implementation sequencing.
+Use [roadmap.md](/home/akring/arachne/marketplace-agent-platform/docs/roadmap.md) for implementation sequencing and remaining tasks.
 Use [skills.md](/home/akring/arachne/marketplace-agent-platform/docs/skills.md) for service-local skill and knowledge boundaries.
 
 The architecture is intentionally split into two views:
@@ -459,7 +459,7 @@ This keeps day-to-day development lighter while preserving one canonical compose
 
 Testing should follow the architecture split.
 
-Implementation sequencing and validation checkpoints are described in [slices.md](/home/akring/arachne/marketplace-agent-platform/docs/slices.md).
+Implementation sequencing and remaining work are described in [roadmap.md](/home/akring/arachne/marketplace-agent-platform/docs/roadmap.md).
 
 Recommended layers:
 
