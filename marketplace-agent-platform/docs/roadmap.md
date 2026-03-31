@@ -11,6 +11,22 @@ Use this file for all of the following:
 
 Do not track the same implementation progress or residual task information in `README.md` or in separate `current-plan`, `current-tasks`, or `slices` documents.
 
+## How To Read This File
+
+Read this file in this order:
+
+1. `Current Active Queue` to see the concrete work order
+2. the first unchecked checkbox to identify the current position
+3. the current phase section to see what must become true before that phase is done
+4. later phase sections only after the active phase is complete
+
+Working rule:
+
+- do not work ahead on a later phase while an earlier phase still has remaining tasks
+- the current position is the boundary between checked and unchecked items in `Current Active Queue`
+- when a checkbox in the active phase becomes true and is verified, flip it to `[x]`
+- when all checkboxes in a phase are `[x]`, the next unchecked phase becomes active
+
 ## Task Management Rule
 
 This file uses a deletion-based task workflow.
@@ -66,9 +82,31 @@ Not implemented yet in the product-track workflow itself:
 - native Arachne interrupt and resume instead of deterministic HTTP/session simulation
 - visible steering and execution-context propagation inside operator-visible behavior
 
+Current interpretation:
+
+- you can run and inspect the marketplace flow today
+- you cannot yet use this product track as the representative Arachne capability-complete sample
+
+## Current Active Queue
+
+These are the concrete tasks to execute in order.
+
+The current position is the first unchecked item below.
+
+- [x] deterministic first slice baseline is closed and kept runnable
+- [ ] decide the explicit named-agent map across `case-service`, `workflow-service`, and the downstream services
+- [ ] decide the minimum packaged-skill set and resource-tool usage for the representative `ITEM_NOT_RECEIVED` flow
+- [ ] decide how `workflow-service` invokes Arachne while preserving deterministic settlement and projection ownership
+- [ ] decide the rollout mode for the next phase: deterministic in-process model, Bedrock-backed model, or staged support for both
+- [ ] record the next implementation theme in docs and tests
+- [ ] complete Phase 1 `Runtime Identity And Skill Wiring`
+- [ ] complete Phase 2 `Native Approval Pause And Resume`
+- [ ] complete Phase 3 `Operator-Visible Streaming And Steering`
+- [ ] complete Phase 4 `Capability-Complete Closeout`
+
 ## Roadmap
 
-The roadmap starts from the deterministic baseline above and moves toward the capability-complete target in phases that leave the sample runnable after each step.
+The roadmap below defines what each unchecked phase-completion item above means.
 
 ### Phase 1: Runtime Identity And Skill Wiring
 
@@ -76,12 +114,21 @@ Goal:
 
 Make the marketplace workflow visibly Arachne-native at the service-local runtime layer without collapsing service boundaries.
 
-Exit criteria:
+Definition of done:
 
-- workflow behavior is driven by named Arachne agents rather than only deterministic orchestration code
-- packaged skills are present and necessary in the workflow path
-- built-in resource access is used for policy or runbook lookup in a visible way
-- deterministic Spring application services still own correctness-sensitive state transitions
+- [ ] workflow behavior is driven by named Arachne agents rather than only deterministic orchestration code
+- [ ] packaged skills are present and necessary in the workflow path
+- [ ] built-in resource access is used for policy or runbook lookup in a visible way
+- [ ] deterministic Spring application services still own correctness-sensitive state transitions
+- [ ] tests prove the default deterministic baseline still behaves correctly when the Arachne-native path is disabled or not yet active
+- [ ] docs describe runtime identity, skill boundaries, and fallback behavior consistently
+
+Remaining implementation tasks for this phase:
+
+- wire named Arachne agents into the marketplace workflow path and keep the service-local responsibility split explicit
+- add packaged skills and built-in resource-tool usage where the workflow consults policy, runbook, or evidence interpretation material
+- update tests so the default deterministic baseline remains provable when the Arachne-native path is not yet active or is explicitly disabled
+- document the runtime identity, skill boundaries, and fallback behavior once the phase lands
 
 ### Phase 2: Native Approval Pause And Resume
 
@@ -89,12 +136,18 @@ Goal:
 
 Replace the current deterministic approval simulation with native Arachne interrupt and resume behavior.
 
-Exit criteria:
+Definition of done:
 
-- approval pause comes from an Arachne interrupt boundary
-- approval resume continues the existing workflow through Arachne-native resume handling
-- the operator-visible case state still shows the same approval lifecycle clearly
-- session continuity still works across the composed runtime
+- [ ] approval pause comes from an Arachne interrupt boundary
+- [ ] approval resume continues the existing workflow through Arachne-native resume handling
+- [ ] the operator-visible case state still shows the same approval lifecycle clearly
+- [ ] session continuity still works across the composed runtime
+
+Remaining implementation tasks for this phase:
+
+- introduce native interrupt and resume handling at the finance-control approval boundary
+- preserve the current approval-complete and approval-reject outcomes while moving the pause/resume semantics into Arachne-native runtime behavior
+- prove session continuity still works across replica changes after native resume wiring is introduced
 
 ### Phase 3: Operator-Visible Streaming And Steering
 
@@ -102,12 +155,18 @@ Goal:
 
 Make operator-visible activity updates reflect streaming and add narrow steering for unsafe workflow paths.
 
-Exit criteria:
+Definition of done:
 
-- streaming is visible in the case activity surface as incremental progress rather than only final deterministic events
-- steering visibly blocks or redirects at least one unsafe settlement shortcut
-- steering remains narrow and readable at model or tool boundaries
-- the frontend stays thin and does not absorb workflow logic
+- [ ] streaming is visible in the case activity surface as incremental progress rather than only final deterministic events
+- [ ] steering visibly blocks or redirects at least one unsafe settlement shortcut
+- [ ] steering remains narrow and readable at model or tool boundaries
+- [ ] the frontend stays thin and does not absorb workflow logic
+
+Remaining implementation tasks for this phase:
+
+- stream operator-visible activity updates from the Arachne-native workflow path rather than only deterministic state transitions
+- add narrow steering for at least one unsafe settlement path and expose the redirected behavior in the operator-visible activity timeline
+- verify the thin frontend still talks only to `case-service` while surfacing the richer runtime behavior
 
 ### Phase 4: Capability-Complete Closeout
 
@@ -115,44 +174,13 @@ Goal:
 
 Close the gap between the marketplace product track and the Arachne capability-complete sample definition.
 
-Exit criteria:
+Definition of done:
 
-- all capability requirements from `requirements.md` are demonstrated in the marketplace workflow itself
-- README, docs, tests, and sample positioning all describe the sample consistently
-- the product track is no longer described as deterministic-first or largely deferred for Arachne-native runtime behavior
+- [ ] all capability requirements from `requirements.md` are demonstrated in the marketplace workflow itself
+- [ ] README, docs, tests, and sample positioning all describe the sample consistently
+- [ ] the product track is no longer described as deterministic-first or largely deferred for Arachne-native runtime behavior
 
-## Remaining Tasks
-
-Only unfinished tasks belong in this section.
-
-### Next Up
-
-- define the explicit named-agent map for `case-service`, `workflow-service`, and the downstream services without blurring service ownership
-- decide the minimum packaged-skill set and resource-tool usage needed to make policy and runbook lookup non-decorative in the representative `ITEM_NOT_RECEIVED` flow
-- decide how the current `workflow-service` orchestration should invoke Arachne while preserving the existing deterministic settlement and projection boundaries
-- decide whether this next phase must start with deterministic in-process models, Bedrock-backed models, or a staged path that proves both without rewriting the service shape
-- record the next implementation theme in docs and tests before code expansion begins
-
-### Phase 1 Remaining
-
-- wire named Arachne agents into the marketplace workflow path and keep the service-local responsibility split explicit
-- add packaged skills and built-in resource-tool usage where the workflow consults policy, runbook, or evidence interpretation material
-- update tests so the default deterministic baseline remains provable when the Arachne-native path is not yet active or is explicitly disabled
-- document the runtime identity, skill boundaries, and fallback behavior once the phase lands
-
-### Phase 2 Remaining
-
-- introduce native interrupt and resume handling at the finance-control approval boundary
-- preserve the current approval-complete and approval-reject outcomes while moving the pause/resume semantics into Arachne-native runtime behavior
-- prove session continuity still works across replica changes after native resume wiring is introduced
-
-### Phase 3 Remaining
-
-- stream operator-visible activity updates from the Arachne-native workflow path rather than only deterministic state transitions
-- add narrow steering for at least one unsafe settlement path and expose the redirected behavior in the operator-visible activity timeline
-- verify the thin frontend still talks only to `case-service` while surfacing the richer runtime behavior
-
-### Phase 4 Remaining
+Remaining implementation tasks for this phase:
 
 - align `README.md`, `requirements.md`, `architecture.md`, and any other sample-facing docs with the completed capability surface
 - re-evaluate whether the sample still needs deterministic fallback wording once the Arachne-native path is shipped
