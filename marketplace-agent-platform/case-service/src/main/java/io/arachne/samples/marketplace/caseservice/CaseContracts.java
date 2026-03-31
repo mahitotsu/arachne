@@ -66,6 +66,9 @@ public final class CaseContracts {
             BigDecimal amount,
             String currency,
             Recommendation currentRecommendation,
+            ApprovalStatus approvalStatus,
+            String requestedRole,
+            OutcomeType outcomeType,
             boolean pendingApproval,
             OffsetDateTime updatedAt) {
     }

@@ -170,7 +170,7 @@ button {
 }
 
 .search-form {
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1.6fr) repeat(2, minmax(0, 0.8fr)) auto auto;
   margin-bottom: 18px;
 }
 
@@ -206,7 +206,8 @@ textarea {
 
 .primary-action,
 .secondary-action,
-.search-form button {
+.search-form button,
+.search-reset {
   border: 0;
   border-radius: 16px;
   padding: 13px 16px;
@@ -217,6 +218,11 @@ textarea {
 .search-form button {
   background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
   color: #f7f3ec;
+}
+
+.search-reset {
+  background: rgba(20, 84, 79, 0.08);
+  color: var(--accent-strong);
 }
 
 .secondary-action {
@@ -265,6 +271,18 @@ textarea {
   align-items: center;
 }
 
+.case-card-state-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.case-state-label {
+  color: var(--ink-soft);
+  font-size: 0.88rem;
+}
+
 .case-card p {
   margin: 8px 0 0;
   color: var(--ink-soft);
@@ -287,6 +305,11 @@ textarea {
 .pill-pending_finance_control {
   background: var(--signal-soft);
   color: var(--signal);
+}
+
+.pill-rejected {
+  background: rgba(167, 47, 47, 0.12);
+  color: #942727;
 }
 
 .detail-layout {

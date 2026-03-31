@@ -25,6 +25,9 @@ export interface CaseListItem {
   amount: number;
   currency: string;
   currentRecommendation: Recommendation;
+  approvalStatus: ApprovalStatus;
+  requestedRole: string | null;
+  outcomeType: OutcomeType | null;
   pendingApproval: boolean;
   updatedAt: string;
 }

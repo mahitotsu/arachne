@@ -32,7 +32,11 @@ The current first-slice direction is:
 - `case-service` owns case creation, list, detail, activity history, approval submission, and SSE activity updates
 - `workflow-service` owns internal workflow start and resume handling
 - `workflow-service` collects downstream evidence from shipment, escrow, and risk services over HTTP
-- approval completion triggers escrow settlement handling and notification dispatch over HTTP
+- lower-value `ITEM_NOT_RECEIVED` cases deterministically recommend `REFUND`, while higher-value cases stay on `CONTINUED_HOLD`
+- finance-control rejection returns the case to evidence gathering without creating a settlement outcome
+- approval completion triggers escrow settlement handling and notification dispatch over HTTP for both refund and continued-hold outcomes
+- case-service-led deterministic search now matches case identifiers plus structured workflow, approval, recommendation, and outcome terms
+- operator-console queue surfaces approval and outcome state alongside workflow status and recommendation
 - downstream services are separated into `shipment-service`, `escrow-service`, `risk-service`, and `notification-service`
 - `React + TypeScript + Vite` for the thin `operator-console`
 - workflow-service replicas behind an internal load balancer with shared Redis-backed session continuity in the composed runtime
@@ -47,6 +51,10 @@ Use these documents by responsibility, not interchangeably.
 Treat this README as the source of truth for what is implemented today.
 Treat `docs/*.md` in this directory as design and next-slice reference unless this README explicitly says the implementation now matches them.
 
+Use these working files to track in-flight execution status for this product track:
+
+- `docs/current-plan.md`: current implementation boundary, what is done, what remains, and the immediate next action
+- `docs/current-tasks.md`: short task list with status for the current implementation push
 - `docs/concept.md`: what the sample is meant to show, why this domain fits, and the representative explanation scenario
 - `docs/requirements.md`: what the first slice must support and what boundaries are treated as requirements
 - `docs/architecture.md`: execution architecture, development architecture, local runtime story, and deferred architecture choices
@@ -120,7 +128,9 @@ It also benefits from a thin frontend because streaming progress and human appro
 
 ## Status
 
-Backend first slice implemented and verified by module tests. A local composed runtime is now available.
+Backend deterministic first slice implemented and verified by module tests. A local composed runtime is now available.
+
+Deterministic Slice 1 closeout is now treated as complete on the current branch.
 
 The current repository state now includes:
 
@@ -134,23 +144,26 @@ The current repository state now includes:
 - `case-service -> workflow-service` HTTP integration
 - `workflow-service` internal workflow API and downstream orchestration
 - workflow-service session repository with memory default and Redis-backed continuity in the composed runtime
+- explicit workflow-service integration evidence that starts on one replica and continues on another replica against the same Redis-backed session store
 - deterministic downstream service modules for escrow, shipment, risk, and notification with service-owned persistence
+- module test coverage for both representative `ITEM_NOT_RECEIVED` settlement outcomes: `REFUND` and `CONTINUED_HOLD`
 - module test coverage for all six backend services
 - Docker Compose runtime for the six backend services plus an internal workflow load balancer, Redis, and PostgreSQL
 - Vite-based `operator-console` that consumes `case-service` only
 
 Agent-driven runtime behavior still needs implementation.
 
-That means the current slice is a deterministic service-backed scaffold with a thin frontend, not yet the full Arachne-capability-complete sample described across the design documents.
+That means the current product-track boundary is a closed deterministic service-backed scaffold with a thin frontend, not yet the full Arachne-capability-complete sample described across the design documents.
 
 ## Re-entry Boundary
 
 If work resumes tomorrow, start from these surfaces in this order:
 
 1. this README for the implemented boundary and current limits
-2. `workflow-service/src/main/java/.../WorkflowApplicationService.java` for the current orchestration shape
-3. `case-service/src/main/java/.../CaseApplicationService.java` for the case-facing boundary
-4. `workflow-service/src/test/java/.../WorkflowServiceApiTest.java` and `case-service/src/test/java/.../CaseServiceApiTest.java` for the main behavior evidence
+2. `docs/current-plan.md` and `docs/current-tasks.md` for remaining scope and next action
+3. `workflow-service/src/main/java/.../WorkflowApplicationService.java` for the current orchestration shape
+4. `case-service/src/main/java/.../CaseApplicationService.java` for the case-facing boundary
+5. `workflow-service/src/test/java/.../WorkflowReplicaRedisContinuityIntegrationTest.java`, `workflow-service/src/test/java/.../WorkflowServiceApiTest.java`, and `case-service/src/test/java/.../CaseServiceApiTest.java` for the main behavior evidence
 
 Treat the following as explicitly deferred from the implemented slice:
 

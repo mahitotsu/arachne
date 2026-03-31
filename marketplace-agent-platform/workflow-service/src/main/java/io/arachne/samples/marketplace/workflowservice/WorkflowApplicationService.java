@@ -24,6 +24,7 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 class WorkflowApplicationService {
 
+        private static final BigDecimal AUTOMATED_REFUND_THRESHOLD = BigDecimal.valueOf(100);
     private static final String POLICY_REFERENCE = "policy://marketplace/disputes/item-not-received";
 
     private final Clock clock;
@@ -49,6 +50,7 @@ class WorkflowApplicationService {
             command.currency(),
             command.operatorId(),
             command.operatorRole());
+        var recommendation = initialRecommendation(command.caseType(), command.amount());
         var state = new WorkflowSessionState(
                 command.caseId(),
                 command.caseType(),
@@ -56,7 +58,7 @@ class WorkflowApplicationService {
                 command.amount(),
                 command.currency(),
                 WorkflowStatus.AWAITING_APPROVAL,
-                Recommendation.CONTINUED_HOLD,
+                recommendation,
                 evidence,
                 pendingApproval(now),
                 null);
@@ -70,7 +72,8 @@ class WorkflowApplicationService {
                 List.of(
                         activity(now, "DELEGATION_STARTED", "workflow-service", "Workflow service started evidence gathering for the new case."),
                         activity(now.plusSeconds(1), "EVIDENCE_RECEIVED", "workflow-service", "Shipment, escrow, and risk evidence are available for recommendation building."),
-                        activity(now.plusSeconds(2), "APPROVAL_REQUESTED", "workflow-service", "Finance control approval is required for settlement progression.")));
+                        activity(now.plusSeconds(2), "RECOMMENDATION_UPDATED", "workflow-service", recommendationMessage(recommendation)),
+                        activity(now.plusSeconds(3), "APPROVAL_REQUESTED", "workflow-service", "Finance control approval is required for settlement progression.")));
     }
 
     WorkflowProgressUpdate continueWorkflow(String caseId, ContinueWorkflowCommand command) {
@@ -126,7 +129,7 @@ class WorkflowApplicationService {
                     updatedState.approvalState(),
                     updatedState.outcome(),
                     List.of(
-                            activity(now, "SETTLEMENT_COMPLETED", "escrow-service", "Escrow recorded the continued hold."),
+                            activity(now, "SETTLEMENT_COMPLETED", "escrow-service", settlementMessage(updatedState.currentRecommendation())),
                             activity(now.plusSeconds(1), "NOTIFICATION_DISPATCHED", "notification-service", "Notification dispatch was queued.")),
                     "Approval accepted and settlement completed.");
         }
@@ -180,6 +183,29 @@ class WorkflowApplicationService {
     private ApprovalStateView pendingApproval(OffsetDateTime now) {
         return new ApprovalStateView(true, ApprovalStatus.PENDING_FINANCE_CONTROL, "FINANCE_CONTROL", now, null, null, null);
     }
+
+        private Recommendation initialRecommendation(String caseType, BigDecimal amount) {
+                if ("ITEM_NOT_RECEIVED".equalsIgnoreCase(caseType)
+                                && amount != null
+                                && amount.compareTo(AUTOMATED_REFUND_THRESHOLD) <= 0) {
+                        return Recommendation.REFUND;
+                }
+                return Recommendation.CONTINUED_HOLD;
+        }
+
+        private String recommendationMessage(Recommendation recommendation) {
+                if (recommendation == Recommendation.REFUND) {
+                        return "Workflow recommends a refund after confirming non-delivery and a low-value exposure path.";
+                }
+                return "Workflow recommends keeping the hold until finance control confirms the next step.";
+        }
+
+        private String settlementMessage(Recommendation recommendation) {
+                if (recommendation == Recommendation.REFUND) {
+                        return "Escrow executed the refund after finance control approval.";
+                }
+                return "Escrow recorded the continued hold.";
+        }
 
     private WorkflowActivity activity(OffsetDateTime timestamp, String kind, String source, String message) {
         return new WorkflowActivity(kind, source, message, "{}", timestamp);

@@ -16,7 +16,10 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -146,10 +149,15 @@ class CaseProjectionRepository {
     }
 
     List<CaseListItem> listCases(String searchText, String caseType, String caseStatus) {
-        return jdbcTemplate.query("select * from cases order by updated_at desc", this::mapListItem).stream()
-                .filter(item -> matchesSearch(item, searchText))
+        return jdbcTemplate.query("select * from cases order by updated_at desc, case_id asc", this::mapListItem).stream()
                 .filter(item -> caseType == null || caseType.isBlank() || item.caseType().equalsIgnoreCase(caseType))
                 .filter(item -> caseStatus == null || caseStatus.isBlank() || item.caseStatus().name().equalsIgnoreCase(caseStatus))
+            .map(item -> new RankedCase(item, searchScore(item, searchText)))
+            .filter(RankedCase::matches)
+            .sorted(Comparator.comparingInt(RankedCase::score).reversed()
+                .thenComparing((RankedCase ranked) -> ranked.item().updatedAt(), Comparator.reverseOrder())
+                .thenComparing(ranked -> ranked.item().caseId()))
+            .map(RankedCase::item)
                 .toList();
     }
 
@@ -158,14 +166,137 @@ class CaseProjectionRepository {
         jdbcTemplate.update("delete from cases");
     }
 
-    private boolean matchesSearch(CaseListItem item, String searchText) {
+    private int searchScore(CaseListItem item, String searchText) {
         if (searchText == null || searchText.isBlank()) {
-            return true;
+            return 0;
         }
-        var normalized = searchText.toLowerCase();
-        return item.caseId().toLowerCase().contains(normalized)
-                || item.orderId().toLowerCase().contains(normalized)
-                || item.caseType().toLowerCase().contains(normalized);
+
+        var normalizedQuery = normalize(searchText);
+        var tokens = normalizedTokens(searchText);
+        if (tokens.isEmpty()) {
+            return 0;
+        }
+
+        int totalScore = wholeQueryScore(item, normalizedQuery);
+        for (var token : tokens) {
+            int tokenScore = tokenScore(item, token);
+            if (tokenScore == 0) {
+                return -1;
+            }
+            totalScore += tokenScore;
+        }
+
+        return totalScore;
+    }
+
+    private int wholeQueryScore(CaseListItem item, String normalizedQuery) {
+        if (normalizedQuery.isBlank()) {
+            return 0;
+        }
+
+        if (exactTerms(item).stream().anyMatch(term -> term.equals(normalizedQuery))) {
+            return 240;
+        }
+
+        if (item.caseId().toLowerCase(Locale.ROOT).startsWith(normalizedQuery)
+                || item.orderId().toLowerCase(Locale.ROOT).startsWith(normalizedQuery)) {
+            return 180;
+        }
+
+        if (searchTerms(item).stream().anyMatch(term -> term.contains(normalizedQuery))) {
+            return 80;
+        }
+
+        return 0;
+    }
+
+    private int tokenScore(CaseListItem item, String token) {
+        var exactTerms = exactTerms(item);
+        if (exactTerms.stream().anyMatch(term -> term.equals(token))) {
+            if (item.caseId().equalsIgnoreCase(token) || item.orderId().equalsIgnoreCase(token)) {
+                return 160;
+            }
+            return 100;
+        }
+
+        if (item.caseId().toLowerCase(Locale.ROOT).startsWith(token)
+                || item.orderId().toLowerCase(Locale.ROOT).startsWith(token)) {
+            return 120;
+        }
+
+        if (searchTerms(item).stream().anyMatch(term -> term.contains(token))) {
+            return 40;
+        }
+
+        return 0;
+    }
+
+    private List<String> exactTerms(CaseListItem item) {
+        var terms = new ArrayList<String>();
+        terms.add(normalize(item.caseId()));
+        terms.add(normalize(item.orderId()));
+        terms.add(normalize(item.caseType()));
+        terms.add(normalize(item.caseStatus().name()));
+        terms.add(normalize(item.currentRecommendation().name()));
+        terms.add(normalize(item.approvalStatus().name()));
+        if (item.requestedRole() != null) {
+            terms.add(normalize(item.requestedRole()));
+        }
+        if (item.outcomeType() != null) {
+            terms.add(normalize(item.outcomeType().name()));
+        }
+        return terms;
+    }
+
+    private List<String> searchTerms(CaseListItem item) {
+        var terms = new ArrayList<>(exactTerms(item));
+        terms.addAll(searchAliases(item));
+        return terms;
+    }
+
+    private List<String> searchAliases(CaseListItem item) {
+        var aliases = new ArrayList<String>();
+
+        if (item.pendingApproval()) {
+            aliases.add("pending approval");
+            aliases.add("awaiting finance control approval");
+            aliases.add("finance control review");
+        }
+
+        if (item.approvalStatus() == ApprovalStatus.REJECTED) {
+            aliases.add("approval rejected");
+            aliases.add("returned to evidence gathering");
+        }
+
+        if (item.approvalStatus() == ApprovalStatus.APPROVED) {
+            aliases.add("approval approved");
+        }
+
+        if (item.outcomeType() == OutcomeType.REFUND_EXECUTED) {
+            aliases.add("refund executed");
+            aliases.add("refund completed");
+        }
+
+        if (item.outcomeType() == OutcomeType.CONTINUED_HOLD_RECORDED) {
+            aliases.add("continued hold recorded");
+            aliases.add("hold recorded");
+        }
+
+        if (item.caseStatus() == CaseStatus.GATHERING_EVIDENCE) {
+            aliases.add("needs more evidence");
+        }
+
+        return aliases.stream().map(this::normalize).toList();
+    }
+
+    private List<String> normalizedTokens(String searchText) {
+        return List.of(normalize(searchText).split(" ")).stream()
+                .filter(token -> !token.isBlank())
+                .toList();
+    }
+
+    private String normalize(String value) {
+        return value == null ? "" : value.toLowerCase(Locale.ROOT).replace('_', ' ').replace('-', ' ').trim().replaceAll("\\s+", " ");
     }
 
     private List<ActivityEvent> activityHistory(String caseId) {
@@ -183,6 +314,8 @@ class CaseProjectionRepository {
     }
 
     private CaseListItem mapListItem(ResultSet rs, int rowNum) throws SQLException {
+        var approvalStatus = ApprovalStatus.valueOf(rs.getString("approval_status"));
+        var outcomeType = rs.getString("outcome_type");
         return new CaseListItem(
                 rs.getString("case_id"),
                 rs.getString("case_type"),
@@ -191,8 +324,17 @@ class CaseProjectionRepository {
                 rs.getBigDecimal("amount"),
                 rs.getString("currency"),
                 Recommendation.valueOf(rs.getString("current_recommendation")),
-                ApprovalStatus.PENDING_FINANCE_CONTROL.name().equals(rs.getString("approval_status")),
+                approvalStatus,
+                rs.getString("requested_role"),
+                outcomeType == null ? null : OutcomeType.valueOf(outcomeType),
+                ApprovalStatus.PENDING_FINANCE_CONTROL == approvalStatus,
                 offsetDateTime(rs, "updated_at"));
+    }
+
+    private record RankedCase(CaseListItem item, int score) {
+        private boolean matches() {
+            return score >= 0;
+        }
     }
 
     private CaseDetailView mapDetailWithoutHistory(ResultSet rs, int rowNum) throws SQLException {

@@ -43,6 +43,9 @@ Suggested fields:
 - `amount`
 - `currency`
 - `currentRecommendation`
+- `approvalStatus`
+- `requestedRole`
+- `outcomeType`
 - `pendingApproval`
 - `updatedAt`
 

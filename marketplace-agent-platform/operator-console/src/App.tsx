@@ -4,6 +4,7 @@ import {
   ApprovalSubmissionResult,
   CaseDetailView,
   CaseListItem,
+  CaseStatus,
   CaseType,
 } from './types';
 
@@ -14,6 +15,14 @@ const CASE_TYPES: CaseType[] = [
   'DELIVERED_BUT_DAMAGED',
   'HIGH_RISK_SETTLEMENT_HOLD',
   'SELLER_CANCELLATION_AFTER_AUTHORIZATION',
+];
+
+const CASE_STATUS_FILTERS: CaseStatus[] = [
+  'OPEN',
+  'GATHERING_EVIDENCE',
+  'AWAITING_APPROVAL',
+  'READY_FOR_SETTLEMENT',
+  'COMPLETED',
 ];
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
@@ -27,6 +36,8 @@ function App() {
   const [selectedCase, setSelectedCase] = useState<CaseDetailView | null>(null);
   const [searchText, setSearchText] = useState('');
   const [searchDraft, setSearchDraft] = useState('');
+  const [caseTypeFilter, setCaseTypeFilter] = useState<string>('');
+  const [caseStatusFilter, setCaseStatusFilter] = useState<string>('');
   const [isLoadingCases, setIsLoadingCases] = useState(true);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [isSubmittingCreate, setIsSubmittingCreate] = useState(false);
@@ -57,7 +68,7 @@ function App() {
 
   useEffect(() => {
     void loadCases();
-  }, [searchText]);
+  }, [searchText, caseTypeFilter, caseStatusFilter]);
 
   useEffect(() => {
     if (!selectedCaseId) {
@@ -118,6 +129,12 @@ function App() {
       const params = new URLSearchParams();
       if (searchText.trim()) {
         params.set('q', searchText.trim());
+      }
+      if (caseTypeFilter) {
+        params.set('caseType', caseTypeFilter);
+      }
+      if (caseStatusFilter) {
+        params.set('caseStatus', caseStatusFilter);
       }
       const response = await fetch(`${API_BASE_URL}/api/cases${params.size ? `?${params.toString()}` : ''}`);
       if (!response.ok) {
@@ -276,19 +293,46 @@ function App() {
               <p className="eyebrow">Case List</p>
               <h2>Operator queue</h2>
             </div>
-            <span className="status-chip">{isLoadingCases ? 'Refreshing' : `${cases.length} loaded`}</span>
+            <span className="status-chip">{isLoadingCases ? 'Refreshing' : `${cases.length} in queue`}</span>
           </div>
 
-          <form className="search-form" onSubmit={(event) => {
-            event.preventDefault();
-            setSearchText(searchDraft);
-          }}>
+          <form
+            className="search-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              setSearchText(searchDraft);
+            }}
+          >
             <input
               value={searchDraft}
               onChange={(event) => setSearchDraft(event.target.value)}
-              placeholder="Search by case id, order id, or type"
+              placeholder="Search by case id, order id, state, recommendation, or outcome"
             />
+            <select value={caseTypeFilter} onChange={(event) => setCaseTypeFilter(event.target.value)}>
+              <option value="">All types</option>
+              {CASE_TYPES.map((caseType) => (
+                <option key={caseType} value={caseType}>{formatLabel(caseType)}</option>
+              ))}
+            </select>
+            <select value={caseStatusFilter} onChange={(event) => setCaseStatusFilter(event.target.value)}>
+              <option value="">All workflow states</option>
+              {CASE_STATUS_FILTERS.map((caseStatus) => (
+                <option key={caseStatus} value={caseStatus}>{formatLabel(caseStatus)}</option>
+              ))}
+            </select>
             <button type="submit">Search</button>
+            <button
+              type="button"
+              className="search-reset"
+              onClick={() => {
+                setSearchDraft('');
+                setSearchText('');
+                setCaseTypeFilter('');
+                setCaseStatusFilter('');
+              }}
+            >
+              Clear
+            </button>
           </form>
 
           <div className="case-list" role="list">
@@ -301,13 +345,22 @@ function App() {
               >
                 <div className="case-card-top">
                   <strong>{item.caseType}</strong>
-                  <span className={`pill pill-${item.caseStatus.toLowerCase()}`}>{item.caseStatus.replaceAll('_', ' ')}</span>
+                  <span className={`pill pill-${item.caseStatus.toLowerCase()}`}>{formatLabel(item.caseStatus)}</span>
                 </div>
                 <p>{item.caseId}</p>
                 <p>Order {item.orderId}</p>
+                <div className="case-card-state-row">
+                  <span className="case-state-label">Recommendation {formatLabel(item.currentRecommendation)}</span>
+                  <span className={`pill pill-${item.approvalStatus.toLowerCase()}`}>{formatApprovalState(item)}</span>
+                </div>
+                {item.outcomeType && (
+                  <div className="case-card-state-row">
+                    <span className="case-state-label">Outcome {formatLabel(item.outcomeType)}</span>
+                  </div>
+                )}
                 <div className="case-card-bottom">
                   <span>{formatCurrency(item.amount, item.currency)}</span>
-                  <span>{item.currentRecommendation.replaceAll('_', ' ')}</span>
+                  <span>{formatDate(item.updatedAt)}</span>
                 </div>
               </button>
             ))}
@@ -391,15 +444,18 @@ function App() {
               <section className="detail-card detail-card-wide">
                 <div className="card-header">
                   <h3>Case Summary</h3>
-                  <span className={`pill pill-${selectedCase.caseStatus.toLowerCase()}`}>{selectedCase.caseStatus.replaceAll('_', ' ')}</span>
+                  <span className={`pill pill-${selectedCase.caseStatus.toLowerCase()}`}>{formatLabel(selectedCase.caseStatus)}</span>
                 </div>
                 <div className="summary-grid">
                   <SummaryField label="Case id" value={selectedCase.caseId} />
                   <SummaryField label="Order id" value={selectedCase.orderId} />
                   <SummaryField label="Transaction id" value={selectedCase.transactionId} />
-                  <SummaryField label="Recommendation" value={selectedCase.currentRecommendation.replaceAll('_', ' ')} />
+                  <SummaryField label="Workflow status" value={formatLabel(selectedCase.caseStatus)} />
+                  <SummaryField label="Recommendation" value={formatLabel(selectedCase.currentRecommendation)} />
                   <SummaryField label="Amount" value={formatCurrency(selectedCase.amount, selectedCase.currency)} />
-                  <SummaryField label="Approval status" value={selectedCase.approvalState.approvalStatus.replaceAll('_', ' ')} />
+                  <SummaryField label="Approval status" value={formatLabel(selectedCase.approvalState.approvalStatus)} />
+                  <SummaryField label="Approval required" value={selectedCase.approvalState.approvalRequired ? 'Yes' : 'No'} />
+                  <SummaryField label="Outcome" value={selectedCase.outcome ? formatLabel(selectedCase.outcome.outcomeType) : 'Pending'} />
                 </div>
               </section>
 
@@ -462,6 +518,7 @@ function App() {
                   <SummaryField label="Requested at" value={formatDate(selectedCase.approvalState.requestedAt)} />
                   <SummaryField label="Decision by" value={selectedCase.approvalState.decisionBy ?? 'Pending'} />
                   <SummaryField label="Decision at" value={formatDate(selectedCase.approvalState.decisionAt)} />
+                  <SummaryField label="Approval comment" value={selectedCase.approvalState.comment ?? 'No decision comment'} />
                 </div>
                 {selectedCase.approvalState.approvalRequired && selectedCase.approvalState.approvalStatus === 'PENDING_FINANCE_CONTROL' && (
                   <form className="stack-form" onSubmit={handleApproval}>
@@ -501,6 +558,13 @@ function App() {
                     </button>
                   </form>
                 )}
+                {!selectedCase.outcome && selectedCase.approvalState.approvalStatus === 'REJECTED' && (
+                  <div className="outcome-card">
+                    <p className="eyebrow">Outcome</p>
+                    <h4>Pending further evidence</h4>
+                    <p>Finance control rejected the current recommendation. The workflow returned this case to evidence gathering and no settlement has been recorded yet.</p>
+                  </div>
+                )}
                 {selectedCase.outcome && (
                   <div className="outcome-card">
                     <p className="eyebrow">Outcome</p>
@@ -524,7 +588,7 @@ function App() {
                   {selectedCase.activityHistory.map((event) => (
                     <article key={event.eventId} className="timeline-item">
                       <div className="timeline-meta">
-                        <strong>{event.kind.replaceAll('_', ' ')}</strong>
+                        <strong>{formatLabel(event.kind)}</strong>
                         <span>{event.source}</span>
                         <span>{formatDate(event.timestamp)}</span>
                       </div>
@@ -557,6 +621,17 @@ function formatCurrency(amount: number, currency: string) {
   } catch {
     return `${currencyFormatter.format(amount)} ${currency}`;
   }
+}
+
+function formatApprovalState(item: CaseListItem) {
+  if (item.pendingApproval && item.requestedRole) {
+    return `${formatLabel(item.approvalStatus)} · ${formatLabel(item.requestedRole)}`;
+  }
+  return formatLabel(item.approvalStatus);
+}
+
+function formatLabel(value: string) {
+  return value.replaceAll('_', ' ');
 }
 
 function formatDate(value: string | null) {
