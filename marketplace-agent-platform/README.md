@@ -183,6 +183,9 @@ cd /home/akring/arachne/marketplace-agent-platform/operator-console && npm run b
 
 The thin frontend now lives under `operator-console/` and is intentionally limited to the current case-service API surface.
 
+Common local operations for this product track are exposed through `make` from `marketplace-agent-platform/`.
+Run `make help` there to see the current shortcuts.
+
 Run it with:
 
 ```bash
@@ -191,11 +194,14 @@ npm ci
 npm run dev
 ```
 
-The default frontend endpoint configuration targets `http://localhost:8080` for `case-service`.
+The Vite dev server listens on `http://localhost:3000` and proxies `/api` to `http://localhost:8080` by default.
 
-If you are using a different case-service address, set `VITE_CASE_SERVICE_BASE_URL` before starting the Vite server.
+The recommended browser-facing shape is same-origin through the console at `http://localhost:3000`.
+That means the browser should talk to the console origin only, while the dev proxy or composed Nginx forwards `/api` to `case-service`.
 
-The local composed runtime also serves the built frontend at `http://localhost:8086`.
+If you need to bypass the proxy for a one-off setup, set `VITE_CASE_SERVICE_BASE_URL` before starting the Vite server.
+
+The local composed runtime also serves the built frontend at `http://localhost:3000`.
 
 ## Local Composed Runtime
 
@@ -220,6 +226,16 @@ Start it with:
 docker compose -f marketplace-agent-platform/compose.yml up --build
 ```
 
+Or from `marketplace-agent-platform/` use:
+
+```bash
+make up
+```
+
+Java service image builds share a Docker BuildKit Maven cache instead of bind-mounting the host local repository.
+That keeps repeated dependency downloads down across service builds without leaving root-owned artifacts under your host user home.
+If Docker BuildKit is disabled in your shell, enable it for this command with `DOCKER_BUILDKIT=1`.
+
 Compose startup is health-gated rather than start-order-only:
 
 - `postgres` and `redis` must become healthy before dependent backend services start
@@ -228,7 +244,7 @@ Compose startup is health-gated rather than start-order-only:
 
 The main local endpoints are:
 
-- `operator-console`: `http://localhost:8086`
+- `operator-console`: `http://localhost:3000`
 - `case-service`: `http://localhost:8080`
 - `workflow-load-balancer`: `http://localhost:8081`
 - `redis`: `localhost:6379`
@@ -242,6 +258,12 @@ Stop it with:
 
 ```bash
 docker compose -f marketplace-agent-platform/compose.yml down
+```
+
+To remove persisted PostgreSQL state as well, use:
+
+```bash
+make reset
 ```
 
 Current runtime limits:

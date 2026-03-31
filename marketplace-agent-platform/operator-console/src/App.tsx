@@ -8,7 +8,7 @@ import {
   CaseType,
 } from './types';
 
-const API_BASE_URL = (import.meta.env.VITE_CASE_SERVICE_BASE_URL as string | undefined) ?? 'http://localhost:8080';
+const API_BASE_URL = (import.meta.env.VITE_CASE_SERVICE_BASE_URL as string | undefined) ?? '';
 
 const CASE_TYPES: CaseType[] = [
   'ITEM_NOT_RECEIVED',
@@ -31,6 +31,7 @@ const currencyFormatter = new Intl.NumberFormat('en-US', {
 });
 
 function App() {
+  const apiEndpointLabel = API_BASE_URL || window.location.origin;
   const [cases, setCases] = useState<CaseListItem[]>([]);
   const [selectedCaseId, setSelectedCaseId] = useState<string>('');
   const [selectedCase, setSelectedCase] = useState<CaseDetailView | null>(null);
@@ -274,8 +275,8 @@ function App() {
           <h1>Operator Console</h1>
         </div>
         <div className="endpoint-card">
-          <span>Case-service endpoint</span>
-          <strong>{API_BASE_URL}</strong>
+          <span>Console origin</span>
+          <strong>{apiEndpointLabel}</strong>
         </div>
       </header>
 

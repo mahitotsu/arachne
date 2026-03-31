@@ -2,9 +2,6 @@ FROM node:22-alpine AS build
 
 WORKDIR /app
 
-ARG VITE_CASE_SERVICE_BASE_URL=http://localhost:8080
-ENV VITE_CASE_SERVICE_BASE_URL=${VITE_CASE_SERVICE_BASE_URL}
-
 COPY marketplace-agent-platform/operator-console/package.json ./
 COPY marketplace-agent-platform/operator-console/package-lock.json ./
 RUN npm ci

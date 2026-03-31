@@ -22,7 +22,9 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -97,6 +99,17 @@ class CaseServiceApiTest {
                 .andExpect(jsonPath("$[0].approvalStatus").value("PENDING_FINANCE_CONTROL"))
                 .andExpect(jsonPath("$[0].requestedRole").value("FINANCE_CONTROL"))
                 .andExpect(jsonPath("$[0].outcomeType").doesNotExist());
+
+        mockMvc.perform(options("/api/cases")
+                        .header("Origin", "http://localhost:3000")
+                        .header("Access-Control-Request-Method", "POST"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:3000"));
+
+        mockMvc.perform(get("/api/cases")
+                        .header("Origin", "http://localhost:3000"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:3000"));
 
         mockMvc.perform(get("/api/cases/{caseId}", caseId))
                 .andExpect(status().isOk())

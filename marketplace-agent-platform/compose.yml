@@ -3,19 +3,17 @@ services:
     build:
       context: ..
       dockerfile: marketplace-agent-platform/operator-console/Dockerfile
-      args:
-        VITE_CASE_SERVICE_BASE_URL: http://localhost:8080
     depends_on:
       case-service:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/ || exit 1"]
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/healthz || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 12
       start_period: 10s
     ports:
-      - "8086:8080"
+      - "3000:8080"
 
   case-service:
     build:
