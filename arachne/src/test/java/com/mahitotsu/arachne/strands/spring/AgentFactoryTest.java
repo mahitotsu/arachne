@@ -323,6 +323,42 @@ class AgentFactoryTest {
     }
 
     @Test
+    void buildRuntimeSkillsOverrideDiscoveredSkillsWithSameName() {
+        ArachneProperties properties = new ArachneProperties();
+        SkillSessionRestoreModel model = new SkillSessionRestoreModel();
+        Skill discoveredSkill = new Skill(
+                "release-checklist",
+                "Discovered guidance",
+                "Run the discovered checklist.");
+        Skill runtimeSkill = new Skill(
+                "release-checklist",
+                "Runtime guidance",
+                "Run the runtime checklist first.");
+
+        Agent agent = new AgentFactory(
+                properties,
+                model,
+                List.of(),
+                List.of(),
+                List.of(discoveredSkill),
+                com.mahitotsu.arachne.strands.tool.BeanValidationSupport.defaultValidator(),
+                null,
+                null,
+                new com.fasterxml.jackson.databind.ObjectMapper(),
+                null)
+                .builder()
+                .skills(runtimeSkill)
+                .build();
+
+        assertThat(agent.run("prepare release").text()).isEqualTo("loaded");
+        assertThat(agent.run("what should I do next?").text()).isEqualTo("restored");
+        assertThat(agent.getTools()).extracting(tool -> tool.spec().name()).contains("activate_skill");
+        assertThat(model.systemPrompts()).hasSize(3);
+        assertThat(model.systemPrompts().getLast()).contains("Run the runtime checklist first.");
+        assertThat(model.systemPrompts().getLast()).doesNotContain("Run the discovered checklist.");
+    }
+
+    @Test
     void buildCanFilterDiscoveredToolsByQualifier() {
         ArachneProperties properties = new ArachneProperties();
         Model model = (messages, tools) -> List.of(

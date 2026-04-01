@@ -1,5 +1,6 @@
 package com.mahitotsu.arachne.strands.skills;
 
+import java.util.Base64;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -60,5 +61,37 @@ class SkillResourceToolTest {
 
         assertThat(result.status()).isEqualTo(ToolResult.ToolStatus.ERROR);
         assertThat(result.content()).isEqualTo("Unknown skill resource: references/missing.md");
+    }
+
+    @Test
+    void returnsBase64PayloadForBinaryResourceUsingFileLocation(@TempDir Path tempDir) throws Exception {
+        Path skillDir = Files.createDirectories(tempDir.resolve("release-checklist"));
+        Files.writeString(skillDir.resolve("SKILL.md"), "---\nname: release-checklist\ndescription: Release guidance\n---\nRun tests\n");
+        Files.createDirectories(skillDir.resolve("assets"));
+        byte[] bytes = new byte[]{0, 1, 2, (byte) 0xFF};
+        Files.write(skillDir.resolve("assets/release-banner.bin"), bytes);
+
+        SkillResourceTool tool = new SkillResourceTool(List.of(new Skill(
+                "release-checklist",
+                "Release guidance",
+                "Run tests",
+                List.of(),
+                Map.of(),
+                null,
+                null,
+                skillDir.resolve("SKILL.md").toString(),
+                List.of("assets/release-banner.bin"))));
+
+        Object content = tool.invoke(Map.of("name", "release-checklist", "path", "assets/release-banner.bin")).content();
+
+        assertThat(content)
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
+                .containsEntry("type", "skill_resource")
+                .containsEntry("name", "release-checklist")
+                .containsEntry("path", "assets/release-banner.bin")
+                .containsEntry("encoding", "base64")
+                .containsEntry("mediaType", "application/octet-stream")
+                .containsEntry("size", bytes.length)
+                .containsEntry("content", Base64.getEncoder().encodeToString(bytes));
     }
 }

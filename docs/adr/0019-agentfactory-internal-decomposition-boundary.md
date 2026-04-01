@@ -34,14 +34,16 @@ The policy for each bucket is:
 
 Additional rules:
 
+- `ArachneAutoConfiguration` may choose and publish shared default beans such as `Model`, `ModelRetryStrategy`, `SessionManager`, built-in tools, discovered tools/hooks/skills, and composed execution-context propagation only when those beans are missing
 - `ArachneAutoConfiguration` remains responsible for composing shared infrastructure beans and passing them into `AgentFactory`; it should not absorb runtime-local assembly logic from the builder
-- `AgentFactory` remains the place where Spring-discovered components and configuration defaults become runtime-local decisions
+- `AgentFactory` remains the place where Spring-discovered components and configuration defaults become runtime-local decisions such as named-agent merge resolution, runtime model selection, retry wrapping, tool inclusion, skill precedence, and `EventLoop` construction
 - cleanup should prefer package-private helpers, records, or internal collaborators over new exported types or extra documentation surface unless the public contract truly changes
 - constructor overload cleanup is allowed as an internal refactoring target, but backward-compatible direct-constructor usage remains secondary to the standard Spring path
 
 ## Consequences
 
 - the repository now has an explicit record that `AgentFactory` may be decomposed internally without weakening its role as the single standard Spring entrypoint
+- the repository also has an explicit default-selection boundary: auto-configuration publishes shared defaults, while `AgentFactory.builder(...)` resolves runtime-local choices from those defaults
 - provider expansion can reuse the model-creation bucket without forcing an early public provider registry or extra factory layer
 - named-agent merge logic can be isolated for readability and testability without changing how applications obtain runtimes
 - builder/runtime assembly can be cleaned up incrementally while preserving the mental model established by ADR 0003 and ADR 0004

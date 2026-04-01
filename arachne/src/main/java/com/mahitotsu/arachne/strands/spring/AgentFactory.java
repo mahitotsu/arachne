@@ -40,6 +40,11 @@ import jakarta.validation.Validator;
  * Factory for creating {@link Agent} instances.
  * Injected automatically by {@link ArachneAutoConfiguration}.
  *
+ * <p>Spring auto-configuration contributes shared beans such as the default {@link Model},
+ * discovered tools, hooks, skills, retry strategy, sessions, and executor infrastructure.
+ * This factory resolves named-agent defaults from those shared definitions and turns them
+ * into runtime-local {@link Agent} instances through {@link Builder}.
+ *
  * <p>Usage:
  * <pre>{@code
  * @Autowired AgentFactory agentFactory;
@@ -54,18 +59,16 @@ import jakarta.validation.Validator;
  */
 public class AgentFactory {
 
-    private final ArachneProperties properties;
-    private final Model defaultModel;
     private final List<BuiltInToolDefinition> builtInTools;
     private final List<DiscoveredTool> discoveredTools;
     private final List<HookProvider> discoveredHooks;
     private final List<Skill> discoveredSkills;
     private final Validator validator;
     private final SessionManager defaultSessionManager;
-    private final ModelRetryStrategy defaultRetryStrategy;
     private final ObjectMapper objectMapper;
     private final Executor defaultToolExecutionExecutor;
     private final ExecutionContextPropagation defaultExecutionContextPropagation;
+    private final AgentFactoryDefaultsResolver defaultsResolver;
 
     public AgentFactory(ArachneProperties properties) {
         this(properties, null, BuiltInToolRegistry.empty(), List.of(), List.of(), List.of(), BeanValidationSupport.defaultValidator(), null, null, new ObjectMapper(), null, ExecutionContextPropagation.noop());
@@ -227,48 +230,44 @@ public class AgentFactory {
             ObjectMapper objectMapper,
             Executor defaultToolExecutionExecutor,
             ExecutionContextPropagation defaultExecutionContextPropagation) {
-        this.properties = properties;
-        this.defaultModel = defaultModel;
         this.builtInTools = builtInToolRegistry == null ? List.of() : builtInToolRegistry.definitions();
         this.discoveredTools = List.copyOf(discoveredTools);
         this.discoveredHooks = List.copyOf(discoveredHooks);
         this.discoveredSkills = List.copyOf(discoveredSkills);
         this.validator = validator;
         this.defaultSessionManager = defaultSessionManager;
-        this.defaultRetryStrategy = defaultRetryStrategy;
         this.objectMapper = objectMapper;
         this.defaultToolExecutionExecutor = defaultToolExecutionExecutor;
         this.defaultExecutionContextPropagation = defaultExecutionContextPropagation == null
                 ? ExecutionContextPropagation.noop()
                 : defaultExecutionContextPropagation;
+        this.defaultsResolver = new AgentFactoryDefaultsResolver(properties, defaultModel, defaultRetryStrategy);
     }
 
     public Builder builder() {
-        return new Builder(
-            defaultsResolver().resolve(null),
-            builtInTools,
-            discoveredTools,
-            discoveredHooks,
-            discoveredSkills,
-            validator,
-            defaultSessionManager,
-            objectMapper,
-            defaultToolExecutionExecutor,
-            defaultExecutionContextPropagation);
+        return createBuilder(resolveBuilderDefaults(null));
     }
 
     public Builder builder(String name) {
+        return createBuilder(resolveBuilderDefaults(name));
+    }
+
+    private AgentFactoryDefaultsResolver.BuilderDefaults resolveBuilderDefaults(String name) {
+        return defaultsResolver.resolve(name);
+    }
+
+    private Builder createBuilder(AgentFactoryDefaultsResolver.BuilderDefaults defaults) {
         return new Builder(
-            defaultsResolver().resolve(name),
-            builtInTools,
-            discoveredTools,
-            discoveredHooks,
-            discoveredSkills,
-            validator,
-            defaultSessionManager,
-            objectMapper,
-            defaultToolExecutionExecutor,
-            defaultExecutionContextPropagation);
+                defaults,
+                builtInTools,
+                discoveredTools,
+                discoveredHooks,
+                discoveredSkills,
+                validator,
+                defaultSessionManager,
+                objectMapper,
+                defaultToolExecutionExecutor,
+                defaultExecutionContextPropagation);
     }
 
     static Model createDefaultModel(ArachneProperties properties) {
@@ -279,18 +278,14 @@ public class AgentFactory {
         return AgentFactoryModelResolver.createDefaultModel(modelProperties);
     }
 
-    private AgentFactoryDefaultsResolver defaultsResolver() {
-        return new AgentFactoryDefaultsResolver(properties, defaultModel, defaultRetryStrategy);
+    private record BuilderRuntime(
+            Model model,
+            List<Tool> tools,
+            HookRegistry hooks,
+            ConversationManager conversationManager,
+            SessionManager sessionManager,
+            EventLoop eventLoop) {
     }
-
-            private record BuilderRuntime(
-                Model model,
-                List<Tool> tools,
-                HookRegistry hooks,
-                ConversationManager conversationManager,
-                SessionManager sessionManager,
-                EventLoop eventLoop) {
-            }
 
     public static class Builder {
 

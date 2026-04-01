@@ -61,4 +61,42 @@ class ClasspathSkillDiscovererTest {
 
         assertThat(discoverer.discover()).isEmpty();
     }
+
+    @Test
+    void duplicateSkillNamesCollapseToDeterministicSingleEntry(@TempDir Path tempDir) throws IOException {
+        Path earlySkillDir = Files.createDirectories(tempDir.resolve("a/skills/release-checklist"));
+        Files.writeString(
+                earlySkillDir.resolve("SKILL.md"),
+                """
+                        ---
+                        name: release-checklist
+                        description: First copy
+                        ---
+                        Use the first instructions.
+                        """);
+        Path laterSkillDir = Files.createDirectories(tempDir.resolve("z/skills/release-checklist"));
+        Files.writeString(
+                laterSkillDir.resolve("SKILL.md"),
+                """
+                        ---
+                        name: release-checklist
+                        description: Second copy
+                        ---
+                        Use the second instructions.
+                        """);
+
+        ClasspathSkillDiscoverer discoverer = new ClasspathSkillDiscoverer(
+                new PathMatchingResourcePatternResolver(),
+                new SkillParser(),
+                tempDir.toUri() + "*/skills/*/SKILL.md");
+
+        assertThat(discoverer.discover())
+                .singleElement()
+                .satisfies(skill -> {
+                    assertThat(skill.name()).isEqualTo("release-checklist");
+                    assertThat(skill.description()).isEqualTo("Second copy");
+                    assertThat(skill.instructions()).isEqualTo("Use the second instructions.");
+                    assertThat(skill.location()).contains("/z/skills/release-checklist/SKILL.md");
+                });
+    }
 }

@@ -15,6 +15,7 @@ For full usage details, see [docs/user-guide.md](user-guide.md).
 ### Core Runtime
 
 - Spring Boot auto-configuration for `Model` and `AgentFactory`
+- Spring integration boundary keeps shared bean wiring in `ArachneAutoConfiguration` and runtime-local default resolution in `AgentFactory.builder(...)`
 - `AgentFactory.builder()` and `AgentFactory.builder("name")` for runtime-local agent creation
 - Bedrock-backed `Agent.run(String)` and `Agent.run(String, Class<T>)`
 - callback-based `Agent.stream(String, Consumer<AgentStreamEvent>)`

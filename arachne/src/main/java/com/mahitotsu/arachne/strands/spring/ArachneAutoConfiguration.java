@@ -49,6 +49,11 @@ import jakarta.validation.Validator;
  *
  * <p>Activated automatically via {@code META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports}.
  * Users get an {@code AgentFactory} bean by default; wire in a {@code Model} bean to change provider.
+ *
+ * <p>Responsibility boundary: this class publishes shared Spring beans and default infrastructure.
+ * Runtime-local decisions such as named-agent default resolution, tool selection, skill/plugin
+ * composition, retry wrapping, and {@code EventLoop} creation remain inside {@link AgentFactory}
+ * and {@link AgentFactory.Builder}.
  */
 @AutoConfiguration
 @EnableConfigurationProperties(ArachneProperties.class)
