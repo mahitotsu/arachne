@@ -1,4 +1,4 @@
-package io.arachne.samples.statefulbackendoperations;
+package com.mahitotsu.arachne.samples.statefulbackendoperations;
 
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;

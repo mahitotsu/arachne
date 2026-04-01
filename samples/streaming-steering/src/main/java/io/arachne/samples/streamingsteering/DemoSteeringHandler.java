@@ -1,4 +1,4 @@
-package io.arachne.samples.streamingsteering;
+package com.mahitotsu.arachne.samples.streamingsteering;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 

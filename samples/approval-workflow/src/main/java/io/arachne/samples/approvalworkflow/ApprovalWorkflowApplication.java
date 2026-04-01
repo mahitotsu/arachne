@@ -1,4 +1,4 @@
-package io.arachne.samples.approvalworkflow;
+package com.mahitotsu.arachne.samples.approvalworkflow;
 
 import java.util.LinkedHashMap;
 import java.util.List;

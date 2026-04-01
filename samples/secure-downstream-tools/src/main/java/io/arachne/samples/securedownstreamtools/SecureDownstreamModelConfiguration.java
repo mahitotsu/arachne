@@ -1,4 +1,4 @@
-package io.arachne.samples.securedownstreamtools;
+package com.mahitotsu.arachne.samples.securedownstreamtools;
 
 import java.util.List;
 import java.util.Map;

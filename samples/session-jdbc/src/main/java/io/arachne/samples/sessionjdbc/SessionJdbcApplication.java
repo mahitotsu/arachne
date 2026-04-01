@@ -1,4 +1,4 @@
-package io.arachne.samples.sessionjdbc;
+package com.mahitotsu.arachne.samples.sessionjdbc;
 
 import java.util.List;
 

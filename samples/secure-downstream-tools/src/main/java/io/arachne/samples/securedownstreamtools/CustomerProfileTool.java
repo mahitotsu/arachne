@@ -1,4 +1,4 @@
-package io.arachne.samples.securedownstreamtools;
+package com.mahitotsu.arachne.samples.securedownstreamtools;
 
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;

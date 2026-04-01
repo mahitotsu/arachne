@@ -1,1 +1,1 @@
-io.arachne.strands.spring.ArachneAutoConfiguration
+com.mahitotsu.arachne.strands.spring.ArachneAutoConfiguration

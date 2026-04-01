@@ -1,4 +1,4 @@
-package io.arachne.samples.statefulbackendoperations;
+package com.mahitotsu.arachne.samples.statefulbackendoperations;
 
 import java.util.List;
 import java.util.Map;

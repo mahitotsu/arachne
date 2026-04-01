@@ -1,14 +1,14 @@
-package io.arachne.samples.domainseparation.tool;
+package com.mahitotsu.arachne.samples.domainseparation.tool;
 
 import org.springframework.stereotype.Service;
 import org.springframework.validation.annotation.Validated;
 
-import io.arachne.samples.domainseparation.domain.AccountLookupResult;
-import io.arachne.samples.domainseparation.domain.AccountMutationResult;
-import io.arachne.samples.domainseparation.domain.AccountOperationType;
-import io.arachne.samples.domainseparation.security.OperatorAuthorizationContext;
-import io.arachne.samples.domainseparation.security.OperatorAuthorizationContextHolder;
-import io.arachne.samples.domainseparation.service.AccountDirectoryService;
+import com.mahitotsu.arachne.samples.domainseparation.domain.AccountLookupResult;
+import com.mahitotsu.arachne.samples.domainseparation.domain.AccountMutationResult;
+import com.mahitotsu.arachne.samples.domainseparation.domain.AccountOperationType;
+import com.mahitotsu.arachne.samples.domainseparation.security.OperatorAuthorizationContext;
+import com.mahitotsu.arachne.samples.domainseparation.security.OperatorAuthorizationContextHolder;
+import com.mahitotsu.arachne.samples.domainseparation.service.AccountDirectoryService;
 import io.arachne.strands.tool.annotation.StrandsTool;
 import io.arachne.strands.tool.annotation.ToolParam;
 import jakarta.validation.constraints.NotBlank;

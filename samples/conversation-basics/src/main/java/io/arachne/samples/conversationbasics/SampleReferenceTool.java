@@ -1,4 +1,4 @@
-package io.arachne.samples.conversationbasics;
+package com.mahitotsu.arachne.samples.conversationbasics;
 
 import org.springframework.stereotype.Component;
 

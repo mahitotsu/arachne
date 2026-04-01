@@ -1,4 +1,4 @@
-package io.arachne.samples.marketplace.workflowservice;
+package com.mahitotsu.arachne.samples.marketplace.workflowservice;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;

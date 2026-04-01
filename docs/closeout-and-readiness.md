@@ -111,7 +111,7 @@ mvn -pl arachne -am install -DskipTests
 mvn -f samples/pom.xml test
 ```
 
-The reason is mechanical: the sample reactor resolves `io.arachne:arachne` from the local Maven repository, not from the sibling `arachne/` module's in-memory reactor outputs. Without the install step, sample checks can accidentally evaluate an older local snapshot and produce false drift.
+The reason is mechanical: the sample reactor resolves `com.mahitotsu.arachne:arachne` from the local Maven repository, not from the sibling `arachne/` module's in-memory reactor outputs. Without the install step, sample checks can accidentally evaluate an older local snapshot and produce false drift.
 
 ## Bedrock-Specific Re-Entry Rule
 

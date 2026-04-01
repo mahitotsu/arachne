@@ -1,4 +1,4 @@
-package io.arachne.samples.conversationbasics;
+package com.mahitotsu.arachne.samples.conversationbasics;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Tag;

@@ -1,4 +1,4 @@
-package io.arachne.samples.marketplace.workflowservice;
+package com.mahitotsu.arachne.samples.marketplace.workflowservice;
 
 import java.time.Clock;
 import java.time.Duration;

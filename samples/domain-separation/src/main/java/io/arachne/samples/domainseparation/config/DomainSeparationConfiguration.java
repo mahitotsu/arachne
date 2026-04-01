@@ -1,4 +1,4 @@
-package io.arachne.samples.domainseparation.config;
+package com.mahitotsu.arachne.samples.domainseparation.config;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -15,8 +15,8 @@ import org.springframework.transaction.support.DefaultTransactionStatus;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import io.arachne.samples.domainseparation.tool.AccountOperationDelegationTool;
-import io.arachne.samples.domainseparation.tool.AccountSystemTool;
+import com.mahitotsu.arachne.samples.domainseparation.tool.AccountOperationDelegationTool;
+import com.mahitotsu.arachne.samples.domainseparation.tool.AccountSystemTool;
 import io.arachne.strands.model.Model;
 import io.arachne.strands.model.ModelEvent;
 import io.arachne.strands.model.ToolSelection;

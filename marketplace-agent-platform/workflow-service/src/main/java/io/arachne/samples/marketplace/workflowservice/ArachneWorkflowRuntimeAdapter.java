@@ -1,4 +1,4 @@
-package io.arachne.samples.marketplace.workflowservice;
+package com.mahitotsu.arachne.samples.marketplace.workflowservice;
 
 import java.util.LinkedHashMap;
 import java.time.OffsetDateTime;
@@ -12,11 +12,11 @@ import io.arachne.strands.agent.Agent;
 import io.arachne.strands.agent.AgentInterrupt;
 import io.arachne.strands.agent.AgentResult;
 import io.arachne.strands.agent.InterruptResponse;
-import io.arachne.samples.marketplace.workflowservice.WorkflowContracts.EvidenceView;
-import io.arachne.samples.marketplace.workflowservice.WorkflowContracts.Recommendation;
-import io.arachne.samples.marketplace.workflowservice.WorkflowContracts.ResumeWorkflowCommand;
-import io.arachne.samples.marketplace.workflowservice.WorkflowContracts.StartWorkflowCommand;
-import io.arachne.samples.marketplace.workflowservice.WorkflowContracts.WorkflowActivity;
+import com.mahitotsu.arachne.samples.marketplace.workflowservice.WorkflowContracts.EvidenceView;
+import com.mahitotsu.arachne.samples.marketplace.workflowservice.WorkflowContracts.Recommendation;
+import com.mahitotsu.arachne.samples.marketplace.workflowservice.WorkflowContracts.ResumeWorkflowCommand;
+import com.mahitotsu.arachne.samples.marketplace.workflowservice.WorkflowContracts.StartWorkflowCommand;
+import com.mahitotsu.arachne.samples.marketplace.workflowservice.WorkflowContracts.WorkflowActivity;
 import io.arachne.strands.skills.Skill;
 import io.arachne.strands.spring.AgentFactory;
 

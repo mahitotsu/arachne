@@ -1,4 +1,4 @@
-package io.arachne.samples.domainseparation.observation;
+package com.mahitotsu.arachne.samples.domainseparation.observation;
 
 import java.util.LinkedHashMap;
 import java.util.Map;

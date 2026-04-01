@@ -1,4 +1,4 @@
-package io.arachne.samples.statefulbackendoperations;
+package com.mahitotsu.arachne.samples.statefulbackendoperations;
 
 import java.util.ArrayList;
 import java.util.List;

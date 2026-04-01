@@ -1,4 +1,4 @@
-package io.arachne.samples.builtintools;
+package com.mahitotsu.arachne.samples.builtintools;
 
 import java.util.List;
 import java.util.Map;

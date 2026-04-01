@@ -1,4 +1,4 @@
-package io.arachne.samples.domainseparation.tool;
+package com.mahitotsu.arachne.samples.domainseparation.tool;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -6,9 +6,9 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.validation.annotation.Validated;
 
-import io.arachne.samples.domainseparation.domain.AccountOperationExecution;
-import io.arachne.samples.domainseparation.domain.AccountOperationPreparation;
-import io.arachne.samples.domainseparation.domain.AccountOperationType;
+import com.mahitotsu.arachne.samples.domainseparation.domain.AccountOperationExecution;
+import com.mahitotsu.arachne.samples.domainseparation.domain.AccountOperationPreparation;
+import com.mahitotsu.arachne.samples.domainseparation.domain.AccountOperationType;
 import io.arachne.strands.agent.Agent;
 import io.arachne.strands.spring.AgentFactory;
 import io.arachne.strands.tool.annotation.StrandsTool;

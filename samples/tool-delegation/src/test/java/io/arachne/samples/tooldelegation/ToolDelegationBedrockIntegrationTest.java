@@ -1,4 +1,4 @@
-package io.arachne.samples.tooldelegation;
+package com.mahitotsu.arachne.samples.tooldelegation;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Tag;

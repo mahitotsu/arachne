@@ -1,4 +1,4 @@
-package io.arachne.samples.sessionredis;
+package com.mahitotsu.arachne.samples.sessionredis;
 
 import java.util.List;
 

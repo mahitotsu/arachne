@@ -1,4 +1,4 @@
-package io.arachne.samples.tooldelegation;
+package com.mahitotsu.arachne.samples.tooldelegation;
 
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;

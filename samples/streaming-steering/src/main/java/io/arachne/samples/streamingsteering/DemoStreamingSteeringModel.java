@@ -1,4 +1,4 @@
-package io.arachne.samples.streamingsteering;
+package com.mahitotsu.arachne.samples.streamingsteering;
 
 import java.util.ArrayList;
 import java.util.List;

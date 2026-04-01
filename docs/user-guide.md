@@ -403,7 +403,7 @@ For named agents:
 If you need summary compaction instead of a pure sliding window, provide the conversation manager explicitly:
 
 ```java
-import io.arachne.strands.agent.conversation.SummarizingConversationManager;
+import com.mahitotsu.arachne.strands.agent.conversation.SummarizingConversationManager;
 
 Agent supportAgent = factory.builder()
   .conversationManager(new SummarizingConversationManager(model, 40, 12))
@@ -471,7 +471,7 @@ Or override it per agent in Java:
 ```java
 import java.time.Duration;
 
-import io.arachne.strands.model.retry.ExponentialBackoffRetryStrategy;
+import com.mahitotsu.arachne.strands.model.retry.ExponentialBackoffRetryStrategy;
 
 @Service
 class SupportService {
@@ -494,7 +494,7 @@ class SupportService {
 
 ## Prompt And Message Composition Helpers
 
-Before calling `agent.run(String)` you may need to construct the prompt string from runtime data. Arachne ships a small core helper layer in the `io.arachne.strands.prompt` package that keeps string-building explicit and failure-safe without widening the agent API.
+Before calling `agent.run(String)` you may need to construct the prompt string from runtime data. Arachne ships a small core helper layer in the `com.mahitotsu.arachne.strands.prompt` package that keeps string-building explicit and failure-safe without widening the agent API.
 
 ### PromptTemplate
 
@@ -539,9 +539,9 @@ PromptVariables none = PromptVariables.empty();
 `MessageBuilder` bridges rendered text and `Message` creation so you do not need to call `Message.user(...)` or `Message.assistant(...)` manually.
 
 ```java
-import io.arachne.strands.prompt.MessageBuilder;
-import io.arachne.strands.prompt.PromptTemplate;
-import io.arachne.strands.prompt.PromptVariables;
+import com.mahitotsu.arachne.strands.prompt.MessageBuilder;
+import com.mahitotsu.arachne.strands.prompt.PromptTemplate;
+import com.mahitotsu.arachne.strands.prompt.PromptVariables;
 
 PromptTemplate template = PromptTemplate.of("Translate to {{lang}}: {{text}}");
 PromptVariables vars = PromptVariables.of("lang", "French", "text", inputText);
@@ -929,7 +929,7 @@ Under the hood, Arachne exposes a final structured-output tool whose schema is g
 If you want to turn that typed result into deterministic text for a downstream channel, use the Spring-managed `ArachneTemplateRenderer` as a post-processing step. This does not widen the `Agent` contract; it is an output helper layered on top of the existing structured-output result.
 
 ```java
-import io.arachne.strands.spring.ArachneTemplateRenderer;
+import com.mahitotsu.arachne.strands.spring.ArachneTemplateRenderer;
 
 record TripPlan(String city, String forecast, String advice) {}
 
@@ -1143,7 +1143,7 @@ Arachne keeps the existing blocking `Agent.run(...)` path and adds opt-in stream
 For streaming, call `Agent.stream(...)` and subscribe to `AgentStreamEvent` values as they arrive:
 
 ```java
-import io.arachne.strands.agent.AgentStreamEvent;
+import com.mahitotsu.arachne.strands.agent.AgentStreamEvent;
 
 Agent agent = factory.builder().build();
 
@@ -1169,24 +1169,24 @@ Provider support is optional. Models that implement `StreamingModel` can push `M
 For steering, register a `SteeringHandler` on the builder. Steering handlers are plugins, so they stay runtime-local like other hook/plugin-based extensions:
 
 ```java
-import io.arachne.strands.steering.Guide;
-import io.arachne.strands.steering.ModelSteeringAction;
-import io.arachne.strands.steering.Proceed;
-import io.arachne.strands.steering.SteeringHandler;
-import io.arachne.strands.steering.ToolSteeringAction;
+import com.mahitotsu.arachne.strands.steering.Guide;
+import com.mahitotsu.arachne.strands.steering.ModelSteeringAction;
+import com.mahitotsu.arachne.strands.steering.Proceed;
+import com.mahitotsu.arachne.strands.steering.SteeringHandler;
+import com.mahitotsu.arachne.strands.steering.ToolSteeringAction;
 
 Agent agent = factory.builder()
   .steeringHandlers(new SteeringHandler() {
     @Override
-    protected ToolSteeringAction steerBeforeTool(io.arachne.strands.hooks.BeforeToolCallEvent event) {
+    protected ToolSteeringAction steerBeforeTool(com.mahitotsu.arachne.strands.hooks.BeforeToolCallEvent event) {
       if ("delete_records".equals(event.toolName())) {
-        return new io.arachne.strands.steering.Interrupt("Operator approval required before deletion.");
+        return new com.mahitotsu.arachne.strands.steering.Interrupt("Operator approval required before deletion.");
       }
       return new Proceed("allow");
     }
 
     @Override
-    protected ModelSteeringAction steerAfterModel(io.arachne.strands.hooks.AfterModelCallEvent event) {
+    protected ModelSteeringAction steerAfterModel(com.mahitotsu.arachne.strands.hooks.AfterModelCallEvent event) {
       if (event.response().content().isEmpty()) {
         return new Guide("Provide a concrete answer.");
       }
@@ -1209,7 +1209,7 @@ Arachne supports AgentSkills.io-style skill ingestion and delayed activation. A 
 For direct Java usage, attach skills on the builder:
 
 ```java
-import io.arachne.strands.skills.Skill;
+import com.mahitotsu.arachne.strands.skills.Skill;
 
 Agent agent = factory.builder()
   .skills(new Skill(
@@ -1222,8 +1222,8 @@ Agent agent = factory.builder()
 If you already have a `SKILL.md` document, parse it first and reuse the parsed `Skill` object:
 
 ```java
-import io.arachne.strands.skills.Skill;
-import io.arachne.strands.skills.SkillParser;
+import com.mahitotsu.arachne.strands.skills.Skill;
+import com.mahitotsu.arachne.strands.skills.SkillParser;
 
 SkillParser parser = new SkillParser();
 Skill skill = parser.parse("""

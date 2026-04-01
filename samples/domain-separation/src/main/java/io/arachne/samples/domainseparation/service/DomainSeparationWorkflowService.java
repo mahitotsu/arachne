@@ -1,4 +1,4 @@
-package io.arachne.samples.domainseparation.service;
+package com.mahitotsu.arachne.samples.domainseparation.service;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -9,15 +9,15 @@ import org.springframework.stereotype.Service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import io.arachne.samples.domainseparation.domain.AccountOperationExecution;
-import io.arachne.samples.domainseparation.domain.AccountOperationPreparation;
-import io.arachne.samples.domainseparation.domain.AccountOperationRequest;
-import io.arachne.samples.domainseparation.domain.AccountOperationWorkflowSummary;
-import io.arachne.samples.domainseparation.domain.AccountWorkflowApproval;
-import io.arachne.samples.domainseparation.domain.ApprovalDecision;
-import io.arachne.samples.domainseparation.security.OperatorAuthorizationContext;
-import io.arachne.samples.domainseparation.security.OperatorAuthorizationContextHolder;
-import io.arachne.samples.domainseparation.workflow.DomainSeparationWorkflowState;
+import com.mahitotsu.arachne.samples.domainseparation.domain.AccountOperationExecution;
+import com.mahitotsu.arachne.samples.domainseparation.domain.AccountOperationPreparation;
+import com.mahitotsu.arachne.samples.domainseparation.domain.AccountOperationRequest;
+import com.mahitotsu.arachne.samples.domainseparation.domain.AccountOperationWorkflowSummary;
+import com.mahitotsu.arachne.samples.domainseparation.domain.AccountWorkflowApproval;
+import com.mahitotsu.arachne.samples.domainseparation.domain.ApprovalDecision;
+import com.mahitotsu.arachne.samples.domainseparation.security.OperatorAuthorizationContext;
+import com.mahitotsu.arachne.samples.domainseparation.security.OperatorAuthorizationContextHolder;
+import com.mahitotsu.arachne.samples.domainseparation.workflow.DomainSeparationWorkflowState;
 import io.arachne.strands.agent.Agent;
 import io.arachne.strands.agent.AgentResult;
 import io.arachne.strands.agent.AgentState;
@@ -147,7 +147,7 @@ public class DomainSeparationWorkflowService {
         return new AccountOperationWorkflowSummary(
                 workflowId,
                 status,
-                objectMapper.convertValue(request.get("operationType"), io.arachne.samples.domainseparation.domain.AccountOperationType.class),
+                objectMapper.convertValue(request.get("operationType"), com.mahitotsu.arachne.samples.domainseparation.domain.AccountOperationType.class),
                 stringValue(request.get("accountId")),
                 approval == null ? null : objectMapper.convertValue(approval, AccountWorkflowApproval.class),
                 preparation == null ? null : objectMapper.convertValue(preparation, AccountOperationPreparation.class),

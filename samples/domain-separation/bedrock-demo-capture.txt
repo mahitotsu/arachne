@@ -1,6 +1,6 @@
 [INFO] Scanning for projects...
 [INFO] 
-[INFO] ----------------< io.arachne.samples:domain-separation >----------------
+[INFO] -----------< com.mahitotsu.arachne.samples:domain-separation >-----------
 [INFO] Building Arachne Domain Separation Sample 0.1.0-SNAPSHOT
 [INFO]   from pom.xml
 [INFO] --------------------------------[ jar ]---------------------------------

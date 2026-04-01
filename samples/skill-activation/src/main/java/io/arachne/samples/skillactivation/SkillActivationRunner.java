@@ -1,4 +1,4 @@
-package io.arachne.samples.skillactivation;
+package com.mahitotsu.arachne.samples.skillactivation;
 
 import java.util.List;
 import java.util.Map;

@@ -1,4 +1,4 @@
-package io.arachne.samples.tooldelegation;
+package com.mahitotsu.arachne.samples.tooldelegation;
 
 import org.springframework.stereotype.Service;
 import org.springframework.validation.annotation.Validated;

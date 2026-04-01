@@ -17,7 +17,7 @@ It also includes an optional Bedrock system-prompt caching demo path that prints
 - valid AWS credentials for Bedrock
 - access to the configured model in the configured region
 
-The sample depends on the local `io.arachne:arachne` snapshot, so install the library module first:
+The sample depends on the local `com.mahitotsu.arachne:arachne` snapshot, so install the library module first. The sample itself now uses the `com.mahitotsu.arachne.samples` namespace until the core library coordinates are migrated in a later step:
 
 ```bash
 mvn -pl arachne -am install

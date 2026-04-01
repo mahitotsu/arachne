@@ -28,8 +28,8 @@ The demo application is a Spring Boot backend with two role-specific agent runti
 
 Relevant implementation files:
 
-- `src/main/java/io/arachne/samples/domainseparation/service/DomainSeparationWorkflowService.java`
-- `src/main/java/io/arachne/samples/domainseparation/runner/DomainSeparationRunner.java`
+- `src/main/java/com/mahitotsu/arachne/samples/domainseparation/service/DomainSeparationWorkflowService.java`
+- `src/main/java/com/mahitotsu/arachne/samples/domainseparation/runner/DomainSeparationRunner.java`
 - `src/main/resources/skills/account-unlock/SKILL.md`
 
 ### Executor Side
@@ -42,9 +42,9 @@ Relevant implementation files:
 
 Relevant implementation files:
 
-- `src/main/java/io/arachne/samples/domainseparation/tool/AccountOperationDelegationTool.java`
-- `src/main/java/io/arachne/samples/domainseparation/tool/AccountSystemTool.java`
-- `src/main/java/io/arachne/samples/domainseparation/service/AccountDirectoryService.java`
+- `src/main/java/com/mahitotsu/arachne/samples/domainseparation/tool/AccountOperationDelegationTool.java`
+- `src/main/java/com/mahitotsu/arachne/samples/domainseparation/tool/AccountSystemTool.java`
+- `src/main/java/com/mahitotsu/arachne/samples/domainseparation/service/AccountDirectoryService.java`
 
 ### Observability Used For The Demo
 
@@ -60,9 +60,9 @@ The sample now also supports an optional deeper executor capture mode.
 
 Relevant implementation files:
 
-- `src/main/java/io/arachne/samples/domainseparation/observation/DomainSeparationDemoLoggingListener.java`
-- `src/main/java/io/arachne/samples/domainseparation/workflow/DomainSeparationApprovalHook.java`
-- `src/main/java/io/arachne/samples/domainseparation/service/AccountDirectoryService.java`
+- `src/main/java/com/mahitotsu/arachne/samples/domainseparation/observation/DomainSeparationDemoLoggingListener.java`
+- `src/main/java/com/mahitotsu/arachne/samples/domainseparation/workflow/DomainSeparationApprovalHook.java`
+- `src/main/java/com/mahitotsu/arachne/samples/domainseparation/service/AccountDirectoryService.java`
 
 ## How The Application Was Executed
 
@@ -138,7 +138,7 @@ The following is the actual console output from the Bedrock demo run, copied wit
 ```text
 [INFO] Scanning for projects...
 [INFO] 
-[INFO] ----------------< io.arachne.samples:domain-separation >----------------
+[INFO] -----------< com.mahitotsu.arachne.samples:domain-separation >-----------
 [INFO] Building Arachne Domain Separation Sample 0.1.0-SNAPSHOT
 [INFO]   from pom.xml
 [INFO] --------------------------------[ jar ]---------------------------------

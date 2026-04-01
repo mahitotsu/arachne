@@ -11,7 +11,7 @@
         <relativePath/>
     </parent>
 
-    <groupId>io.arachne.samples.marketplace</groupId>
+    <groupId>com.mahitotsu.arachne.samples.marketplace</groupId>
     <artifactId>marketplace-notification-service</artifactId>
     <version>0.1.0-SNAPSHOT</version>
     <name>Arachne Marketplace Notification Service Sample</name>

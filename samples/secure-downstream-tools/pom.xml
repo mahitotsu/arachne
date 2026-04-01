@@ -11,7 +11,7 @@
         <relativePath/>
     </parent>
 
-    <groupId>io.arachne.samples</groupId>
+    <groupId>com.mahitotsu.arachne.samples</groupId>
     <artifactId>secure-downstream-tools</artifactId>
     <version>0.1.0-SNAPSHOT</version>
     <name>Arachne Secure Downstream Tools Sample</name>
@@ -26,7 +26,7 @@
 
     <dependencies>
         <dependency>
-            <groupId>io.arachne</groupId>
+            <groupId>com.mahitotsu.arachne</groupId>
             <artifactId>arachne</artifactId>
             <version>0.1.0-SNAPSHOT</version>
         </dependency>

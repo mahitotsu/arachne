@@ -1,4 +1,4 @@
-package io.arachne.samples.domainseparation;
+package com.mahitotsu.arachne.samples.domainseparation;
 
 import java.util.List;
 
@@ -12,13 +12,13 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 
-import io.arachne.samples.domainseparation.domain.AccountOperationRequest;
-import io.arachne.samples.domainseparation.domain.AccountOperationType;
-import io.arachne.samples.domainseparation.domain.AccountOperationWorkflowSummary;
-import io.arachne.samples.domainseparation.domain.ApprovalDecision;
-import io.arachne.samples.domainseparation.security.OperatorAuthorizationContext;
-import io.arachne.samples.domainseparation.service.AccountDirectoryService;
-import io.arachne.samples.domainseparation.service.DomainSeparationWorkflowService;
+import com.mahitotsu.arachne.samples.domainseparation.domain.AccountOperationRequest;
+import com.mahitotsu.arachne.samples.domainseparation.domain.AccountOperationType;
+import com.mahitotsu.arachne.samples.domainseparation.domain.AccountOperationWorkflowSummary;
+import com.mahitotsu.arachne.samples.domainseparation.domain.ApprovalDecision;
+import com.mahitotsu.arachne.samples.domainseparation.security.OperatorAuthorizationContext;
+import com.mahitotsu.arachne.samples.domainseparation.service.AccountDirectoryService;
+import com.mahitotsu.arachne.samples.domainseparation.service.DomainSeparationWorkflowService;
 import io.arachne.strands.agent.Agent;
 import io.arachne.strands.skills.Skill;
 import io.arachne.strands.spring.AgentFactory;

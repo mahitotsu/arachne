@@ -1,10 +1,10 @@
-package io.arachne.samples.domainseparation.security.propagation;
+package com.mahitotsu.arachne.samples.domainseparation.security.propagation;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import io.arachne.samples.domainseparation.security.OperatorAuthorizationContext;
-import io.arachne.samples.domainseparation.security.OperatorAuthorizationContextHolder;
+import com.mahitotsu.arachne.samples.domainseparation.security.OperatorAuthorizationContext;
+import com.mahitotsu.arachne.samples.domainseparation.security.OperatorAuthorizationContextHolder;
 import io.arachne.strands.tool.ExecutionContextPropagation;
 
 @Configuration(proxyBeanMethods = false)

@@ -1,11 +1,11 @@
-package io.arachne.samples.marketplace.workflowservice;
+package com.mahitotsu.arachne.samples.marketplace.workflowservice;
 
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import io.arachne.samples.marketplace.workflowservice.WorkflowContracts.Recommendation;
+import com.mahitotsu.arachne.samples.marketplace.workflowservice.WorkflowContracts.Recommendation;
 import io.arachne.strands.model.Model;
 import io.arachne.strands.model.ModelEvent;
 import io.arachne.strands.model.ToolSelection;

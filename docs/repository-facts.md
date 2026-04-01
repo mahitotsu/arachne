@@ -11,7 +11,7 @@ Use it when you need to know:
 
 ## Repository At A Glance
 
-- artifact: `io.arachne:arachne:0.1.0-SNAPSHOT`
+- artifact: `com.mahitotsu.arachne:arachne:0.1.0-SNAPSHOT`
 - Java baseline: 25
 - Spring Boot baseline: 3.5.12
 - built-in model provider: AWS Bedrock
@@ -36,7 +36,7 @@ Use it when you need to know:
 
 ## Main Package Areas
 
-Top-level packages under `arachne/src/main/java/io/arachne/strands`:
+Top-level packages under `arachne/src/main/java/com/mahitotsu/arachne/strands`:
 
 - `agent`
 - `event`
@@ -53,13 +53,13 @@ Top-level packages under `arachne/src/main/java/io/arachne/strands`:
 
 ## Where To Look For Common Topics
 
-- agent creation and Spring wiring: `arachne/src/main/java/io/arachne/strands/spring`
-- runtime loop and orchestration: `arachne/src/main/java/io/arachne/strands/agent` and `arachne/src/main/java/io/arachne/strands/eventloop`
-- model integration and Bedrock behavior: `arachne/src/main/java/io/arachne/strands/model`
-- tool contracts and execution: `arachne/src/main/java/io/arachne/strands/tool`
-- sessions and persistence: `arachne/src/main/java/io/arachne/strands/session`
-- skills: `arachne/src/main/java/io/arachne/strands/skills`
-- steering: `arachne/src/main/java/io/arachne/strands/steering`
+- agent creation and Spring wiring: `arachne/src/main/java/com/mahitotsu/arachne/strands/spring`
+- runtime loop and orchestration: `arachne/src/main/java/com/mahitotsu/arachne/strands/agent` and `arachne/src/main/java/com/mahitotsu/arachne/strands/eventloop`
+- model integration and Bedrock behavior: `arachne/src/main/java/com/mahitotsu/arachne/strands/model`
+- tool contracts and execution: `arachne/src/main/java/com/mahitotsu/arachne/strands/tool`
+- sessions and persistence: `arachne/src/main/java/com/mahitotsu/arachne/strands/session`
+- skills: `arachne/src/main/java/com/mahitotsu/arachne/strands/skills`
+- steering: `arachne/src/main/java/com/mahitotsu/arachne/strands/steering`
 - architectural decisions: `docs/adr`
 
 ## Sample Map
@@ -98,7 +98,7 @@ mvn -pl arachne -am install -DskipTests
 mvn -f samples/pom.xml test
 ```
 
-This is required because `samples/pom.xml` resolves `io.arachne:arachne` from the local Maven repository instead of directly from the sibling `arachne/` module.
+This is required because `samples/pom.xml` resolves `com.mahitotsu.arachne:arachne` from the local Maven repository instead of directly from the sibling `arachne/` module.
 
 Dependency evidence is intentionally split:
 

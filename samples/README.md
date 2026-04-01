@@ -21,7 +21,7 @@ After that, move to the narrower sample that matches your current integration pr
 
 ## Before Running Samples
 
-Most samples depend on the local `io.arachne:arachne` snapshot, so install the library module first:
+Most samples depend on the local `com.mahitotsu.arachne:arachne` snapshot, so install the library module first:
 
 ```bash
 mvn -pl arachne -am install
@@ -113,5 +113,5 @@ Status legend:
 - Bedrock-backed samples require AWS credentials and model access. Deterministic samples do not.
 - `tool-delegation` remains `compile-checked in sample reactor` because its published value is live Bedrock-backed delegation plus structured output. It now also has an opt-in Bedrock smoke test for live evidence.
 - `conversation-basics` remains `compile-checked in sample reactor` because its published value is a live Bedrock-backed multi-turn conversation and prompt-cache metrics path rather than a deterministic in-process model. It now also has an opt-in Bedrock smoke test for live evidence.
-- before trusting `mvn -f samples/pom.xml ...` results after library changes, refresh the local `io.arachne:arachne` snapshot with `mvn -pl arachne -am install -DskipTests`.
+- before trusting `mvn -f samples/pom.xml ...` results after library changes, refresh the local `com.mahitotsu.arachne:arachne` snapshot with `mvn -pl arachne -am install -DskipTests`.
 - `marketplace-agent-platform` is no longer part of the samples catalog; it now lives at the repository root as its own module tree.

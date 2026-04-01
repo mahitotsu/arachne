@@ -48,7 +48,7 @@ For full usage details, see [docs/user-guide.md](user-guide.md).
 - `PromptTemplate` for named-placeholder template rendering with clear missing-variable failure
 - `PromptVariables` for supplying the variable map to template rendering
 - `MessageBuilder` for constructing `Message.user(...)` and `Message.assistant(...)` payloads from templates or plain text
-- helpers are Spring-neutral and live in `io.arachne.strands.prompt`
+- helpers are Spring-neutral and live in `com.mahitotsu.arachne.strands.prompt`
 
 ### Extensions And Control
 

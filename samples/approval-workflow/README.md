@@ -16,7 +16,7 @@ The sample uses a deterministic in-process `Model` bean, so you can verify the h
 - Java 25
 - Maven
 
-The sample depends on the local `io.arachne:arachne` snapshot, so install the library module first:
+The sample depends on the local `com.mahitotsu.arachne:arachne` snapshot, so install the library module first. The sample itself now uses the `com.mahitotsu.arachne.samples` namespace until the core library coordinates are migrated in a later step:
 
 ```bash
 mvn -pl arachne -am install

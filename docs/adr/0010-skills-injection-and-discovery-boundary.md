@@ -16,7 +16,7 @@ AgentSkills.io also relies on progressive disclosure, which means catalog exposu
 
 Arachne adopts the following boundary for Phase 5 skills.
 
-- `Skill` and `SkillParser` live in `io.arachne.strands.skills` as core APIs. YAML frontmatter parsing and Markdown body extraction from `SKILL.md` remain reusable without Spring.
+- `Skill` and `SkillParser` live in `com.mahitotsu.arachne.strands.skills` as core APIs. YAML frontmatter parsing and Markdown body extraction from `SKILL.md` remain reusable without Spring.
 - `AgentSkillsPlugin` is implemented as a `Plugin` and injects a compact available-skill catalog plus loaded-skill instructions into the system prompt from `BeforeModelCallEvent`. It does not add hidden middleware or provider-specific branching.
 - `AgentSkillsPlugin` exposes a dedicated `activate_skill` tool as a plugin tool so the model can lazy-load only the required skill body by exact skill name.
 - Optional packaged skill resources under `scripts/`, `references/`, and `assets/` are discovered alongside `SKILL.md`, surfaced in activation payloads, and kept visible in the active-skill prompt block after activation.
