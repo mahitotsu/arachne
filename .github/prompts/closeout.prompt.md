@@ -10,6 +10,8 @@ This prompt is not a broad audit. Its job is to finish the task properly: confir
 
 Use the workspace `repository-audit` skill as the base repository procedure. Apply `.github/skills/repository-audit/references/repository-closeout-checklist.md` as the required closeout protocol, and use `.github/skills/repository-audit/references/repository-readiness-checklist.md` when judging whether the area is easy to resume.
 
+The closeout decision must answer one operational question explicitly: may the worker now treat this task boundary as finished, commit the resulting work as complete for that boundary, and end the session without leaving implicit repository drift behind?
+
 Requirements:
 
 - Respond in Japanese unless the user explicitly asks for another language.
@@ -28,6 +30,12 @@ Requirements:
   - `closed with follow-ups`
   - `not closed`
   - `blocked`
+- State explicitly whether the worker may now close the task boundary, commit it as finished work for that boundary, and end the session.
+- Interpret the statuses this way:
+  - `closed`: yes, the boundary may be treated as finished and safely closed now
+  - `closed with follow-ups`: yes, the boundary may be closed now, but the follow-up items must be listed with landing places
+  - `not closed`: no, more work is required before claiming the boundary is finished
+  - `blocked`: no, the boundary cannot be responsibly closed because the result or evidence is still unclear
 - If the area is `not closed`, state the minimum actions required to reach `closed` or `closed with follow-ups`.
 - If the area is `closed with follow-ups`, list each follow-up with its landing place.
 

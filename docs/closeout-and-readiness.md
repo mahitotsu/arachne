@@ -27,8 +27,18 @@ It should:
 - close the truth surfaces that should now reflect the finished state
 - force every leftover item to land somewhere explicit
 - leave short re-entry instructions for the next worker
+- say explicitly whether the worker may now treat that boundary as finished, commit it as complete for that boundary, and end the session
 
 Use it when the work is still fresh and you can still fix obvious drift in the same turn.
+
+Closeout does not require a prior readiness audit, and it does not automatically invoke one. It is the primary end-of-task decision point for whether the bounded task is actually ready to be closed.
+
+Interpret the closeout statuses this way:
+
+- `closed`: yes, the bounded task may be treated as finished and closed now
+- `closed with follow-ups`: yes, the bounded task may be closed now, but the follow-up items must already have explicit landing places
+- `not closed`: no, more work is required before the task may be treated as finished
+- `blocked`: no, the boundary or evidence is too unclear to close responsibly
 
 ### Readiness Audit
 

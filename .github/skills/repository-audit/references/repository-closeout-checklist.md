@@ -4,6 +4,8 @@ Use this checklist at the end of a bounded task, implementation slice, or audit-
 
 The purpose of closeout is to leave behind a repository state that the next worker can trust and re-enter without broad rediscovery.
 
+Closeout must also answer an operational go/no-go question: is the bounded task actually finished enough that the worker may commit it as complete for that boundary and end the session without leaving implicit cleanup behind?
+
 ## 1. Name the finished boundary
 
 - State the exact task, capability area, or repository surface being closed.
@@ -59,10 +61,12 @@ If this cannot be said concisely, the area is not ready for closeout.
 
 Use one of these states:
 
-- closed: the task boundary is explicit, evidence is fresh enough, truth surfaces are closed, and no implicit leftovers remain
-- closed with follow-ups: the task can close, but explicit follow-up items remain and each has a landing place
-- not closed: important drift, stale evidence, or unlanded residual work remains
-- blocked: the target boundary or evidence could not be identified confidently
+- closed: the task boundary is explicit, evidence is fresh enough, truth surfaces are closed, no implicit leftovers remain, and the worker may treat the boundary as finished now
+- closed with follow-ups: the task can close and the worker may end the session, but explicit follow-up items remain and each has a landing place
+- not closed: important drift, stale evidence, or unlanded residual work remains, so the worker should not claim the boundary is finished yet
+- blocked: the target boundary or evidence could not be identified confidently, so the worker should not close the task as finished
+
+Always state the go/no-go result in plain language, not only through the status label.
 
 ## 7. Report format
 
@@ -70,6 +74,7 @@ Use a concise Japanese report by default with these fields unless the invoking p
 
 - Closed scope
 - Closeout status
+- Whether the task may now be treated as closed for commit and session-end purposes
 - Evidence checked
 - Surfaces updated or confirmed
 - Residual work and landing places
