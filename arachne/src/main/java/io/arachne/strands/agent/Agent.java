@@ -30,6 +30,21 @@ public interface Agent {
     AgentResult stream(String prompt, Consumer<AgentStreamEvent> eventConsumer);
 
     /**
+     * Resume a previously interrupted invocation.
+     */
+    AgentResult resume(InterruptResponse... responses);
+
+    /**
+     * Resume a previously interrupted invocation.
+     */
+    AgentResult resume(List<InterruptResponse> responses);
+
+    /**
+     * The pending interrupts currently attached to this agent session.
+     */
+    List<AgentInterrupt> getPendingInterrupts();
+
+    /**
      * The model this agent is bound to.
      */
     Model getModel();

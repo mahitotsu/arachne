@@ -248,6 +248,52 @@ class DefaultAgentTest {
     }
 
     @Test
+    void restoredAgentCanResumePersistedInterrupts() {
+        HookProvider interruptingHook = registrar -> registrar.beforeToolCall(event -> event.interrupt("approval", "need approval"));
+        DispatchingHookRegistry hooks = DispatchingHookRegistry.fromProviders(List.of(interruptingHook));
+        EventLoop eventLoop = new EventLoop(hooks);
+        InMemorySessionManager sessionManager = new InMemorySessionManager();
+        Model model = toolUseThenResumeModel();
+        DefaultAgent firstAgent = new DefaultAgent(
+            model,
+                List.of(stubTool()),
+                eventLoop,
+                hooks,
+                null,
+                io.arachne.strands.tool.BeanValidationSupport.defaultValidator(),
+                new NoOpConversationManager(),
+                sessionManager,
+                "approval-session",
+                new AgentState());
+
+        AgentResult interrupted = firstAgent.run("book the trip");
+
+        DefaultAgent restoredAgent = new DefaultAgent(
+                model,
+                List.of(stubTool()),
+                eventLoop,
+                hooks,
+                null,
+                io.arachne.strands.tool.BeanValidationSupport.defaultValidator(),
+                new NoOpConversationManager(),
+                sessionManager,
+                "approval-session",
+                new AgentState());
+
+        assertThat(restoredAgent.getPendingInterrupts()).singleElement().satisfies(interrupt -> {
+            assertThat(interrupt.id()).isEqualTo("tool-1");
+            assertThat(interrupt.toolUseId()).isEqualTo("tool-1");
+        });
+
+        AgentResult resumed = restoredAgent.resume(new InterruptResponse("tool-1", "approved"));
+
+        assertThat(resumed.interrupted()).isFalse();
+        assertThat(resumed.text()).isEqualTo("Approval result: approved");
+        assertThat(restoredAgent.getPendingInterrupts()).isEmpty();
+        assertThat(interrupted.interrupts()).singleElement().satisfies(interrupt -> assertThat(interrupt.id()).isEqualTo("tool-1"));
+    }
+
+    @Test
     void multiTurnAccumulatesMessages() {
         NoOpHookRegistry hooks = new NoOpHookRegistry();
         EventLoop eventLoop = new EventLoop(hooks);

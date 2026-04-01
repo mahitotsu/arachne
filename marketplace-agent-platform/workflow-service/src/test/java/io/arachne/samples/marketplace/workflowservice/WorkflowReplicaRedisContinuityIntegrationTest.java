@@ -134,12 +134,86 @@ class WorkflowReplicaRedisContinuityIntegrationTest {
         }
     }
 
+    @Test
+    void redisBackedArachneApprovalResumeSurvivesAcrossReplicaHandoff() throws Exception {
+        Assumptions.assumeTrue(dockerAvailable(),
+                "Docker is required for the Redis continuity integration test.");
+
+        startServers();
+        GenericContainer<?> redis = new GenericContainer<>(DockerImageName.parse("redis:7.2-alpine"));
+        redis.withExposedPorts(6379);
+
+        try (redis) {
+            redis.start();
+
+            try (RunningReplica firstReplica = startReplica(redis, "arachne-replica-1", true);
+                 RunningReplica secondReplica = startReplica(redis, "arachne-replica-2", true)) {
+                enqueueStandardEvidenceResponses(BigDecimal.valueOf(49.95), "USD");
+
+                JsonNode startResponse = postJson(
+                        firstReplica.baseUrl(),
+                        "/internal/workflows",
+                        startWorkflowRequest("case-arachne-replica", BigDecimal.valueOf(49.95), "USD"));
+
+                assertThat(startResponse.path("workflowStatus").asText()).isEqualTo("AWAITING_APPROVAL");
+                assertThat(startResponse.path("currentRecommendation").asText()).isEqualTo("REFUND");
+
+                drainStartRequests();
+
+                enqueueJson(escrowServer, new DownstreamContracts.SettlementOutcome(
+                        "REFUND_EXECUTED",
+                        "SUCCEEDED",
+                        OffsetDateTime.parse("2026-03-30T12:05:01Z"),
+                        "refund-case-arachne-replica",
+                        "Escrow executed a refund after finance control approval."));
+                enqueueJson(notificationServer, new DownstreamContracts.NotificationDispatchResult(
+                        "QUEUED",
+                        "PENDING_DELIVERY",
+                        "Notification service queued participant and operator notifications."));
+
+                JsonNode approvalResponse = postJson(
+                        secondReplica.baseUrl(),
+                        "/internal/workflows/case-arachne-replica/approvals",
+                        """
+                                {
+                                  "decision": "APPROVE",
+                                  "comment": "Refund the buyer.",
+                                  "actorId": "finance-9",
+                                  "actorRole": "FINANCE_CONTROL",
+                                  "requestedAt": "2026-03-30T12:05:00Z"
+                                }
+                                """);
+
+                assertThat(approvalResponse.path("workflowStatus").asText()).isEqualTo("COMPLETED");
+                assertThat(approvalResponse.path("outcome").path("outcomeType").asText()).isEqualTo("REFUND_EXECUTED");
+                assertThat(approvalResponse.path("approvalState").path("decisionBy").asText()).isEqualTo("finance-9");
+
+                RecordedRequest settlementRequest = escrowServer.takeRequest(1, TimeUnit.SECONDS);
+                assertThat(settlementRequest).isNotNull();
+                if (settlementRequest == null) {
+                    throw new AssertionError("Expected settlement request to be recorded");
+                }
+                assertThat(settlementRequest.getBody().readUtf8())
+                        .contains("REFUND", "49.95", "USD", "case-arachne-replica");
+                assertThat(notificationServer.takeRequest(1, TimeUnit.SECONDS)).isNotNull();
+            }
+        }
+        finally {
+            stopServers();
+        }
+    }
+
     private RunningReplica startReplica(GenericContainer<?> redis, String replicaName) {
+        return startReplica(redis, replicaName, false);
+    }
+
+    private RunningReplica startReplica(GenericContainer<?> redis, String replicaName, boolean arachneEnabled) {
         ConfigurableApplicationContext context = new SpringApplicationBuilder(WorkflowServiceApplication.class)
             .run(
                 "--server.port=0",
                 "--spring.application.name=marketplace-workflow-service-" + replicaName,
                 "--workflow-session.store=redis",
+                "--marketplace.workflow-runtime.arachne.enabled=" + arachneEnabled,
                 "--spring.data.redis.host=" + redis.getHost(),
                 "--spring.data.redis.port=" + redis.getMappedPort(6379),
                 "--downstream.escrow-base-url=" + escrowServer.url("/").toString(),

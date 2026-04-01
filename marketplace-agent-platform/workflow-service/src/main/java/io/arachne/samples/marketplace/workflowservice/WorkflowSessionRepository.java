@@ -33,7 +33,9 @@ record WorkflowSessionState(
         Recommendation currentRecommendation,
         EvidenceView evidence,
         ApprovalStateView approvalState,
-        OutcomeView outcome) {
+        OutcomeView outcome,
+        String approvalRuntimeSessionId,
+        String approvalInterruptId) {
 }
 
 @Component

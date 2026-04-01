@@ -52,6 +52,7 @@ class WorkflowApplicationService {
                 command.operatorId(),
                 command.operatorRole());
         var assessment = workflowRuntimeAdapter.assessStart(command, rawEvidence, now);
+        var approvalPause = workflowRuntimeAdapter.pauseForApproval(command, assessment).orElse(null);
         var state = new WorkflowSessionState(
                 command.caseId(),
                 command.caseType(),
@@ -62,7 +63,9 @@ class WorkflowApplicationService {
                 assessment.recommendation(),
                 assessment.evidence(),
                 pendingApproval(now),
-                null);
+                null,
+                approvalPause == null ? null : approvalPause.sessionId(),
+                approvalPause == null ? null : approvalPause.interruptId());
         workflowSessionRepository.save(state);
         return new WorkflowStartResult(
                 state.workflowStatus(),
@@ -89,6 +92,7 @@ class WorkflowApplicationService {
     WorkflowResumeResult resume(String caseId, ResumeWorkflowCommand command) {
         var state = workflowSessionRepository.find(caseId).orElseThrow(() -> notFound(caseId));
         var now = now();
+                resumeNativeApprovalIfPresent(state, command);
         if ("APPROVE".equalsIgnoreCase(command.decision())) {
             var settlementOutcome = downstreamGateway.executeSettlement(new DownstreamContracts.ExecuteSettlementCommand(
                     caseId,
@@ -117,7 +121,9 @@ class WorkflowApplicationService {
                             settlementOutcome.outcomeStatus(),
                             settlementOutcome.settledAt(),
                             settlementOutcome.settlementReference(),
-                            settlementOutcome.summary()));
+                            settlementOutcome.summary()),
+                    null,
+                    null);
             workflowSessionRepository.save(updatedState);
             return new WorkflowResumeResult(
                     updatedState.workflowStatus(),
@@ -140,6 +146,8 @@ class WorkflowApplicationService {
                 Recommendation.PENDING_MORE_EVIDENCE,
                 state.evidence(),
                 new ApprovalStateView(true, ApprovalStatus.REJECTED, "FINANCE_CONTROL", state.approvalState().requestedAt(), now, command.actorId(), command.comment()),
+                null,
+                null,
                 null);
         workflowSessionRepository.save(updatedState);
         return new WorkflowResumeResult(
@@ -151,6 +159,14 @@ class WorkflowApplicationService {
                 List.of(activity(now, "RECOMMENDATION_UPDATED", "workflow-service", "Workflow returned to evidence gathering after rejection.")),
                 "Approval rejection accepted and workflow returned to evidence gathering.");
     }
+
+        private void resumeNativeApprovalIfPresent(WorkflowSessionState state, ResumeWorkflowCommand command) {
+                if (state.approvalRuntimeSessionId() == null || state.approvalInterruptId() == null) {
+                        return;
+                }
+                workflowRuntimeAdapter.resumeApproval(state, command)
+                                .orElseThrow(() -> new IllegalStateException("Approval runtime session is missing native resume handling."));
+        }
 
         private WorkflowRuntimeAdapter.RawEvidence collectRawEvidence(
             String caseId,

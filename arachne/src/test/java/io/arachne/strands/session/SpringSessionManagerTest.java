@@ -23,6 +23,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import io.arachne.strands.agent.AgentInterrupt;
 import io.arachne.strands.types.Message;
 
 class SpringSessionManagerTest {
@@ -68,6 +69,34 @@ class SpringSessionManagerTest {
         assertThat((Object) stored.getAttribute(SpringSessionManager.MESSAGES_ATTRIBUTE)).isInstanceOf(String.class);
         assertThat((Object) stored.getAttribute(SpringSessionManager.STATE_ATTRIBUTE)).isInstanceOf(String.class);
         assertThat((Object) stored.getAttribute(SpringSessionManager.CONVERSATION_MANAGER_STATE_ATTRIBUTE)).isInstanceOf(String.class);
+        assertThat((Object) stored.getAttribute(SpringSessionManager.PENDING_INTERRUPTS_ATTRIBUTE)).isInstanceOf(String.class);
+    }
+
+    @Test
+    void saveAndLoadRoundTripsPendingInterrupts() {
+        SpringSessionManager manager = new SpringSessionManager(new MapSessionRepository(new ConcurrentHashMap<>()));
+        AgentSession session = new AgentSession(
+                List.of(Message.user("hello")),
+                Map.of("tenant", "acme"),
+                Map.of("windowSize", 4),
+                List.of(new AgentInterrupt(
+                        "interrupt-1",
+                        "approval",
+                        Map.of("message", "need approval"),
+                        "tool-1",
+                        "approvalTool",
+                        Map.of("caseId", "case-1"),
+                        null)));
+
+        manager.save("support-789", session);
+
+        AgentSession restored = manager.load("support-789");
+
+        assertThat(restored).isNotNull();
+        assertThat(restored.pendingInterrupts()).singleElement().satisfies(interrupt -> {
+            assertThat(interrupt.id()).isEqualTo("interrupt-1");
+            assertThat(interrupt.toolUseId()).isEqualTo("tool-1");
+        });
     }
 
     @Test

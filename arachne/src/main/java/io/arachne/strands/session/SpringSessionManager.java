@@ -16,6 +16,7 @@ import org.springframework.session.data.redis.RedisSessionRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import io.arachne.strands.agent.AgentInterrupt;
 import io.arachne.strands.agent.AgentState;
 import io.arachne.strands.types.Message;
 
@@ -31,7 +32,9 @@ public class SpringSessionManager implements SessionManager {
     static final String MESSAGES_ATTRIBUTE = "arachne.messages";
     static final String STATE_ATTRIBUTE = "arachne.state";
     static final String CONVERSATION_MANAGER_STATE_ATTRIBUTE = "arachne.conversationManagerState";
+    static final String PENDING_INTERRUPTS_ATTRIBUTE = "arachne.pendingInterrupts";
     private static final TypeReference<List<Message>> MESSAGE_LIST_TYPE = new TypeReference<>() { };
+    private static final TypeReference<List<AgentInterrupt>> INTERRUPT_LIST_TYPE = new TypeReference<>() { };
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() { };
     private static final String REDIS_SESSION_CLASS_NAME =
             "org.springframework.session.data.redis.RedisSessionRepository$RedisSession";
@@ -64,8 +67,9 @@ public class SpringSessionManager implements SessionManager {
         List<Message> messages = readMessages(session);
         Map<String, Object> state = readState(session, STATE_ATTRIBUTE);
         Map<String, Object> conversationManagerState = readState(session, CONVERSATION_MANAGER_STATE_ATTRIBUTE);
+        List<AgentInterrupt> pendingInterrupts = readPendingInterrupts(session);
 
-        return new AgentSession(messages, state, conversationManagerState);
+        return new AgentSession(messages, state, conversationManagerState, pendingInterrupts);
     }
 
     @Override
@@ -80,6 +84,7 @@ public class SpringSessionManager implements SessionManager {
         session.setAttribute(
                 CONVERSATION_MANAGER_STATE_ATTRIBUTE,
                 writeJson(new LinkedHashMap<>(agentSession.conversationManagerState())));
+        session.setAttribute(PENDING_INTERRUPTS_ATTRIBUTE, writeJson(List.copyOf(agentSession.pendingInterrupts())));
 
         saveSession(session);
     }
@@ -200,6 +205,20 @@ public class SpringSessionManager implements SessionManager {
             return copy;
         }
         return Map.of();
+    }
+
+    private List<AgentInterrupt> readPendingInterrupts(Session session) {
+        Object value = session.getAttribute(PENDING_INTERRUPTS_ATTRIBUTE);
+        if (value instanceof String json) {
+            return readJson(json, INTERRUPT_LIST_TYPE, PENDING_INTERRUPTS_ATTRIBUTE);
+        }
+        if (value instanceof List<?> interrupts) {
+            return interrupts.stream()
+                    .filter(AgentInterrupt.class::isInstance)
+                    .map(AgentInterrupt.class::cast)
+                    .toList();
+        }
+        return List.of();
     }
 
     private String writeJson(Object value) {

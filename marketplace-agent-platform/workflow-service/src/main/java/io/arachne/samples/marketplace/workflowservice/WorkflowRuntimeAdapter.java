@@ -3,12 +3,14 @@ package io.arachne.samples.marketplace.workflowservice;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Optional;
 
 import io.arachne.samples.marketplace.workflowservice.DownstreamContracts.EscrowEvidenceSummary;
 import io.arachne.samples.marketplace.workflowservice.DownstreamContracts.RiskReviewSummary;
 import io.arachne.samples.marketplace.workflowservice.DownstreamContracts.ShipmentEvidenceSummary;
 import io.arachne.samples.marketplace.workflowservice.WorkflowContracts.EvidenceView;
 import io.arachne.samples.marketplace.workflowservice.WorkflowContracts.Recommendation;
+import io.arachne.samples.marketplace.workflowservice.WorkflowContracts.ResumeWorkflowCommand;
 import io.arachne.samples.marketplace.workflowservice.WorkflowContracts.StartWorkflowCommand;
 import io.arachne.samples.marketplace.workflowservice.WorkflowContracts.WorkflowActivity;
 
@@ -18,6 +20,14 @@ interface WorkflowRuntimeAdapter {
     BigDecimal AUTOMATED_REFUND_THRESHOLD = BigDecimal.valueOf(100);
 
     StartAssessment assessStart(StartWorkflowCommand command, RawEvidence rawEvidence, OffsetDateTime now);
+
+        default Optional<ApprovalPause> pauseForApproval(StartWorkflowCommand command, StartAssessment assessment) {
+                return Optional.empty();
+        }
+
+        default Optional<ApprovalResume> resumeApproval(WorkflowSessionState state, ResumeWorkflowCommand command) {
+                return Optional.empty();
+        }
 
     record RawEvidence(
             ShipmentEvidenceSummary shipment,
@@ -30,4 +40,10 @@ interface WorkflowRuntimeAdapter {
             EvidenceView evidence,
             List<WorkflowActivity> activities) {
     }
+
+        record ApprovalPause(String sessionId, String interruptId) {
+        }
+
+        record ApprovalResume(String message) {
+        }
 }

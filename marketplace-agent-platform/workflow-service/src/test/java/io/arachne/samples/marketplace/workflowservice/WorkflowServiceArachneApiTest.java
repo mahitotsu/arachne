@@ -2,6 +2,7 @@ package io.arachne.samples.marketplace.workflowservice;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.time.OffsetDateTime;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -108,6 +109,83 @@ class WorkflowServiceArachneApiTest {
         assertThat(riskServer.takeRequest(1, TimeUnit.SECONDS)).isNotNull();
     }
 
+        @Test
+        void approvalResumePreservesCompletedOutcomeOnEnabledArachnePath() throws Exception {
+        enqueueStandardEvidenceResponses(BigDecimal.valueOf(49.95), "USD");
+
+        mockMvc.perform(post("/internal/workflows")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(startWorkflowRequest("case-arachne-approve", BigDecimal.valueOf(49.95), "USD")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.workflowStatus").value("AWAITING_APPROVAL"))
+            .andExpect(jsonPath("$.currentRecommendation").value("REFUND"));
+
+        drainStartRequests();
+
+        enqueueJson(escrowServer, new DownstreamContracts.SettlementOutcome(
+            "REFUND_EXECUTED",
+            "SUCCEEDED",
+            OffsetDateTime.parse("2026-03-30T12:05:01Z"),
+            "refund-case-arachne-approve",
+            "Escrow executed a refund after finance control approval."));
+        enqueueJson(notificationServer, new DownstreamContracts.NotificationDispatchResult(
+            "QUEUED",
+            "PENDING_DELIVERY",
+            "Notification service queued participant and operator notifications."));
+
+        mockMvc.perform(post("/internal/workflows/{caseId}/approvals", "case-arachne-approve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "decision": "APPROVE",
+                      "comment": "Refund the buyer.",
+                      "actorId": "finance-3",
+                      "actorRole": "FINANCE_CONTROL",
+                      "requestedAt": "2026-03-30T12:05:00Z"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.workflowStatus").value("COMPLETED"))
+            .andExpect(jsonPath("$.currentRecommendation").value("REFUND"))
+            .andExpect(jsonPath("$.outcome.outcomeType").value("REFUND_EXECUTED"))
+            .andExpect(jsonPath("$.approvalState.approvalStatus").value("APPROVED"));
+
+        assertThat(escrowServer.takeRequest(1, TimeUnit.SECONDS)).isNotNull();
+        assertThat(notificationServer.takeRequest(1, TimeUnit.SECONDS)).isNotNull();
+        }
+
+        @Test
+        void approvalRejectionPreservesEvidenceGatheringOutcomeOnEnabledArachnePath() throws Exception {
+        enqueueStandardEvidenceResponses(BigDecimal.valueOf(149.95), "USD");
+
+        mockMvc.perform(post("/internal/workflows")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(startWorkflowRequest("case-arachne-reject", BigDecimal.valueOf(149.95), "USD")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.workflowStatus").value("AWAITING_APPROVAL"));
+
+        drainStartRequests();
+
+        mockMvc.perform(post("/internal/workflows/{caseId}/approvals", "case-arachne-reject")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "decision": "REJECT",
+                      "comment": "Need more shipment evidence before settlement.",
+                      "actorId": "finance-8",
+                      "actorRole": "FINANCE_CONTROL",
+                      "requestedAt": "2026-03-30T12:06:00Z"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.workflowStatus").value("GATHERING_EVIDENCE"))
+            .andExpect(jsonPath("$.currentRecommendation").value("PENDING_MORE_EVIDENCE"))
+            .andExpect(jsonPath("$.approvalState.approvalStatus").value("REJECTED"));
+
+        assertThat(escrowServer.takeRequest(100, TimeUnit.MILLISECONDS)).isNull();
+        assertThat(notificationServer.takeRequest(100, TimeUnit.MILLISECONDS)).isNull();
+        }
+
     private void enqueueStandardEvidenceResponses(BigDecimal amount, String currency) throws Exception {
         enqueueJson(shipmentServer, new DownstreamContracts.ShipmentEvidenceSummary(
                 "TRACK-order-1001",
@@ -148,5 +226,11 @@ class WorkflowServiceArachneApiTest {
         server.enqueue(new MockResponse()
                 .addHeader("Content-Type", MediaType.APPLICATION_JSON_VALUE)
                 .setBody(objectMapper.writeValueAsString(body)));
+    }
+
+    private void drainStartRequests() throws InterruptedException {
+        assertThat(shipmentServer.takeRequest(1, TimeUnit.SECONDS)).isNotNull();
+        assertThat(escrowServer.takeRequest(1, TimeUnit.SECONDS)).isNotNull();
+        assertThat(riskServer.takeRequest(1, TimeUnit.SECONDS)).isNotNull();
     }
 }

@@ -32,6 +32,7 @@ public class InMemorySessionManager implements SessionManager {
         return new AgentSession(
                 List.copyOf(session.messages()),
                 new AgentState(session.state()).get(),
-                new LinkedHashMap<>(session.conversationManagerState()));
+                new LinkedHashMap<>(session.conversationManagerState()),
+                List.copyOf(session.pendingInterrupts()));
     }
 }

@@ -574,7 +574,7 @@ Object stopReason = result.stopReason();
 - `stopReason`: the final model stop reason, such as `end_turn`
 - `interrupts`: pending interrupt payloads when tool execution was paused before running
 
-When `stopReason` is `interrupt`, resume the same runtime through the returned result:
+When `stopReason` is `interrupt`, you can resume immediately through the returned result:
 
 ```java
 AgentResult result = agent.run("Continue with the reservation.");
@@ -582,6 +582,21 @@ AgentResult result = agent.run("Continue with the reservation.");
 if (result.interrupted()) {
   AgentResult resumed = result.resume(
       new InterruptResponse(result.interrupts().getFirst().id(), Map.of("approved", true)));
+  String finalText = resumed.text();
+}
+```
+
+When the agent is rebuilt later with the same session id, the pending interrupts are restored together with message history, state, and conversation-manager state. In that case you can inspect and resume from the rebuilt `Agent` instance directly:
+
+```java
+Agent restored = agentFactory.builder("support")
+    .sessionId("support-session")
+    .build();
+
+if (!restored.getPendingInterrupts().isEmpty()) {
+  AgentInterrupt interrupt = restored.getPendingInterrupts().getFirst();
+  AgentResult resumed = restored.resume(
+      new InterruptResponse(interrupt.id(), Map.of("approved", true)));
   String finalText = resumed.text();
 }
 ```
@@ -595,7 +610,7 @@ agent.getState().put("tenant", "acme");
 Object tenant = agent.getState().get("tenant");
 ```
 
-When a session id is configured, both message history and `AgentState` are restored into newly built agent instances that use the same session id.
+When a session id is configured, message history, `AgentState`, conversation-manager state, and any pending interrupts are restored into newly built agent instances that use the same session id.
 
 ## Spring Session Backends
 
@@ -645,7 +660,7 @@ class SupportApplication {
 }
 ```
 
-This keeps session persistence in Spring Session while Arachne continues to load and save `Message` history, `AgentState`, and conversation-manager state through its own `SessionManager` abstraction.
+This keeps session persistence in Spring Session while Arachne continues to load and save `Message` history, `AgentState`, conversation-manager state, and pending interrupts through its own `SessionManager` abstraction.
 
 The runnable reference for this setup is [samples/session-redis/README.md](../samples/session-redis/README.md).
 

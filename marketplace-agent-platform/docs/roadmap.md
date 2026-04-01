@@ -57,17 +57,17 @@ Capability-complete means the sample visibly demonstrates all of the following i
 
 ## Current Baseline
 
-The current shipped baseline is a runnable product track with Phase 1 complete.
+The current shipped baseline is a runnable product track with Phase 2 complete.
 
 Implemented today:
 
 - end-to-end local marketplace flow with deterministic service ownership preserved
 - opt-in Arachne runtime identity, packaged skills, and built-in resource-tool usage for the representative `ITEM_NOT_RECEIVED` path inside `workflow-service`
+- native Arachne interrupt and resume now back the finance-control approval boundary on the opt-in workflow path, including Redis-backed continuity across workflow-service replicas
 - deterministic fallback still as the default path, with focused enabled-path tests and existing continuity coverage still green
 
 Not implemented yet in the product-track workflow itself:
 
-- native Arachne interrupt and resume at the approval boundary
 - operator-visible streaming progress, steering, and execution-context propagation
 - Bedrock-backed product-track runtime wiring
 
@@ -77,32 +77,12 @@ These are the concrete tasks to execute in order.
 
 The current position is the first unchecked item below.
 
-- [ ] complete Phase 2 `Native Approval Pause And Resume`
 - [ ] complete Phase 3 `Operator-Visible Streaming And Steering`
 - [ ] complete Phase 4 `Capability-Complete Closeout`
 
 ## Roadmap
 
 The roadmap below defines what each unchecked phase-completion item above means.
-
-### Phase 2: Native Approval Pause And Resume
-
-Goal:
-
-Replace the current deterministic approval simulation with native Arachne interrupt and resume behavior.
-
-Definition of done:
-
-- [ ] approval pause comes from an Arachne interrupt boundary
-- [ ] approval resume continues the existing workflow through Arachne-native resume handling
-- [ ] the operator-visible case state still shows the same approval lifecycle clearly
-- [ ] session continuity still works across the composed runtime
-
-Remaining implementation tasks for this phase:
-
-- introduce native interrupt and resume handling at the finance-control approval boundary
-- preserve the current approval-complete and approval-reject outcomes while moving the pause/resume semantics into Arachne-native runtime behavior
-- prove session continuity still works across replica changes after native resume wiring is introduced
 
 ### Phase 3: Operator-Visible Streaming And Steering
 
@@ -148,8 +128,8 @@ When work resumes on the next theme, start in this order:
 1. this roadmap for current boundary, target, and remaining tasks
 2. `README.md` for the public positioning of the product track
 3. `workflow-service/src/main/java/.../WorkflowApplicationService.java` and `workflow-service/src/main/java/.../ArachneWorkflowRuntimeAdapter.java` for the current orchestration seam
-4. `workflow-service/src/main/java/.../WorkflowServiceConfiguration.java` and the packaged skills/resources under `workflow-service/src/main/resources/` for the current Phase 1 runtime boundary
-5. `workflow-service/src/test/java/.../WorkflowReplicaRedisContinuityIntegrationTest.java`, `workflow-service/src/test/java/.../WorkflowServiceApiTest.java`, and `workflow-service/src/test/java/.../WorkflowServiceArachneApiTest.java` for the current baseline and opt-in runtime evidence
+4. `workflow-service/src/main/java/.../WorkflowServiceConfiguration.java` and the packaged skills/resources under `workflow-service/src/main/resources/` for the current native approval runtime boundary
+5. `workflow-service/src/test/java/.../WorkflowReplicaRedisContinuityIntegrationTest.java`, `workflow-service/src/test/java/.../WorkflowServiceApiTest.java`, and `workflow-service/src/test/java/.../WorkflowServiceArachneApiTest.java` for the current baseline, native approval continuity, and opt-in runtime evidence
 
 Re-run these commands first when resuming implementation:
 

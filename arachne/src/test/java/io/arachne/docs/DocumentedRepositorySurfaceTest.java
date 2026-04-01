@@ -67,8 +67,9 @@ class DocumentedRepositorySurfaceTest {
 
         assertThat(marketplaceReadme)
                 .contains("source of truth for what is implemented today")
-                .contains("Treat `docs/*.md` in this directory as design and next-slice reference")
-                .contains("Agent-driven runtime behavior still needs implementation");
+                .contains("Treat the other `docs/*.md` files as concept, requirements, architecture, API, contract, and skill-boundary references")
+                .contains("opt-in Arachne-native workflow path in `workflow-service`")
+                .contains("finance-control pause/resume runs through Arachne-native interrupt handling");
 
         assertThat(rootPom)
                 .contains("<module>marketplace-agent-platform</module>");

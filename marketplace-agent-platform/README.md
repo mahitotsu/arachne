@@ -22,9 +22,9 @@ The current implementation modules are:
 
 ## Current State
 
-This product track currently ships a working deterministic first slice for the representative `ITEM_NOT_RECEIVED` marketplace workflow, plus an opt-in Arachne-native runtime seam in `workflow-service`.
+This product track currently ships a working deterministic first slice for the representative `ITEM_NOT_RECEIVED` marketplace workflow, plus an opt-in Arachne-native workflow path in `workflow-service`.
 
-That baseline includes the full composed service shape, a thin operator console, PostgreSQL-backed business persistence, Redis-backed workflow continuity, representative `REFUND` plus `CONTINUED_HOLD` outcomes, and a Phase 1 path where named agents, packaged skills, and built-in resource tools shape the workflow recommendation while Spring services keep state-transition ownership.
+That baseline includes the full composed service shape, a thin operator console, PostgreSQL-backed business persistence, Redis-backed workflow continuity, representative `REFUND` plus `CONTINUED_HOLD` outcomes, named agents, packaged skills, built-in resource tools, and a Phase 2 approval path where finance-control pause/resume runs through Arachne-native interrupt handling while Spring services keep state-transition ownership.
 
 The detailed implemented boundary, remaining gaps, and capability-complete target now live only in `docs/roadmap.md`.
 
@@ -33,7 +33,7 @@ The detailed implemented boundary, remaining gaps, and capability-complete targe
 Use these documents by responsibility, not interchangeably.
 
 Treat this README as the public product-track overview.
-Treat `docs/roadmap.md` as the single source of truth for implementation progress, remaining tasks, and next-phase sequencing.
+Treat `docs/roadmap.md` as the single source of truth for what is implemented today, implementation progress, remaining tasks, and next-phase sequencing.
 Treat the other `docs/*.md` files as concept, requirements, architecture, API, contract, and skill-boundary references.
 
 Use these working files to track in-flight execution status for this product track:

@@ -212,29 +212,29 @@ This mapping should stay explicit. The sample should not blur service boundaries
 
 For the representative `ITEM_NOT_RECEIVED` flow, the first implementation focus is the `case-workflow-agent` plus the evidence-oriented downstream agents. `case-agent` remains narrow and search-oriented, and `notification-agent` can stay thin until the post-settlement path is moved behind Arachne.
 
-### Phase 1 Runtime Invocation Boundary
+### Current Runtime Invocation Boundary
 
 The Arachne-native path should enter the product track inside `workflow-service`, not at the frontend or controller layer.
 
-Phase 1 preserves this split:
+The current implementation preserves this split:
 
 - `WorkflowApplicationService` remains the Spring-owned start, continue, and resume seam
-- a workflow-runtime adapter inside `workflow-service` invokes the `case-workflow-agent`, packaged skills, and visible resource-tool reads
+- a workflow-runtime adapter inside `workflow-service` invokes the `case-workflow-agent`, packaged skills, visible resource-tool reads, and the native finance-control approval interrupt path
 - downstream services continue to own their business APIs and may introduce their service-local agent wiring behind those APIs without leaking agent protocol details into cross-service contracts
 - `case-service` remains the durable owner of operator-facing projections and activity history
 - `escrow-service` remains the deterministic owner of settlement-changing transactions and authorization checks
 
 This keeps the runtime readable as Spring command handling around an Arachne orchestration seam instead of turning agent execution into the owner of correctness-sensitive state.
 
-### Phase 1 Rollout Mode
+### Current Rollout Mode
 
-Phase 1 uses staged support for both deterministic and Bedrock-backed execution.
+The current rollout uses staged support for both deterministic and Bedrock-backed execution.
 
 That means:
 
 - the current deterministic path remains the default runtime behavior
-- the first Arachne-native path is introduced behind an opt-in product-track property
-- the enabled path uses a deterministic in-process model first so tests and local runs stay repeatable
+- the current Arachne-native path remains opt-in behind a product-track property
+- the enabled path now covers recommendation shaping plus native approval interrupt/resume, while still using a deterministic in-process model first so tests and local runs stay repeatable
 - later Bedrock-backed support can be layered onto the same service-local ownership map without changing API or persistence boundaries
 
 ### Communication Shape
@@ -357,6 +357,8 @@ The architecture should preserve these rules:
 - approval interrupts before deterministic settlement action
 - the paused state is queryable from the case detail view
 - resume happens through an explicit case-service endpoint that re-enters the existing Arachne resume path inside workflow-service
+
+The current opt-in workflow path now satisfies this boundary with a native Arachne interrupt stored in shared session state so approval resume can continue across workflow-service replica handoff.
 
 For the first slice, the approval actor is `finance control`.
 

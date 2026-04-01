@@ -41,6 +41,7 @@ For full usage details, see [docs/user-guide.md](user-guide.md).
 - `AgentState` for session-scoped key-value state
 - `SessionManager`, `InMemorySessionManager`, and `FileSessionManager`
 - Spring Session integration for Redis and JDBC repositories while preserving explicit Arachne session ids
+- pending interrupts now persist with session state so a rebuilt agent using the same session id can inspect and resume them
 
 ### Input Composition
 
@@ -55,7 +56,7 @@ For full usage details, see [docs/user-guide.md](user-guide.md).
 - runtime-local `Plugin` bundling for hooks and tools
 - Spring hook discovery with `@ArachneHook`
 - observation-only Spring `ApplicationEvent` bridge
-- interrupt / resume before tool execution through `AgentResult.interrupts()` and `AgentResult.resume(...)`
+- interrupt / resume before tool execution through `AgentResult.interrupts()`, `AgentResult.resume(...)`, `Agent.resume(...)`, and `Agent.getPendingInterrupts()`
 - packaged skills with delayed activation and duplicate-load suppression
 - runtime-local steering handlers for tool guidance, interrupts, and model guided retry
 

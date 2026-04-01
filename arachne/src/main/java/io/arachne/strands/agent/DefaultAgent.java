@@ -215,6 +215,21 @@ public class DefaultAgent implements Agent {
     }
 
     @Override
+    public AgentResult resume(InterruptResponse... responses) {
+        return resume(List.of(responses));
+    }
+
+    @Override
+    public AgentResult resume(List<InterruptResponse> responses) {
+        return resumeInternal(responses);
+    }
+
+    @Override
+    public List<AgentInterrupt> getPendingInterrupts() {
+        return List.copyOf(pendingInterrupts);
+    }
+
+    @Override
     public Model getModel() {
         return model;
     }
@@ -246,6 +261,7 @@ public class DefaultAgent implements Agent {
         messages.addAll(session.messages());
         state.replaceWith(session.state());
         conversationManager.restore(session.conversationManagerState());
+        pendingInterrupts = List.copyOf(session.pendingInterrupts());
     }
 
     private void persistSession() {
@@ -254,7 +270,7 @@ public class DefaultAgent implements Agent {
         }
         sessionManager.save(
                 sessionId,
-                new AgentSession(List.copyOf(messages), state.get(), conversationManager.getState()));
+            new AgentSession(List.copyOf(messages), state.get(), conversationManager.getState(), pendingInterrupts));
     }
 
     private void addMessage(Message message) {
@@ -262,7 +278,7 @@ public class DefaultAgent implements Agent {
         hooks.onMessageAdded(new MessageAddedEvent(message, messages, state));
     }
 
-    private AgentResult resume(List<InterruptResponse> responses) {
+    private AgentResult resumeInternal(List<InterruptResponse> responses) {
         if (pendingInterrupts.isEmpty()) {
             throw new IllegalStateException("This agent does not have any pending interrupts to resume.");
         }
@@ -340,7 +356,7 @@ public class DefaultAgent implements Agent {
                 stopReason,
                 new AgentResult.Metrics(loopResult.usage()),
                 pendingInterrupts,
-                this::resume);
+            this::resumeInternal);
     }
 
     private void ensureNoPendingInterrupts() {

@@ -8,6 +8,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 
+import io.arachne.strands.agent.AgentInterrupt;
 import io.arachne.strands.types.Message;
 
 class AgentSessionTest {
@@ -39,5 +40,19 @@ class AgentSessionTest {
 
         assertThat(session.state()).containsEntry("summary", null);
         assertThat(session.conversationManagerState()).containsEntry("summary", null);
+    }
+
+    @Test
+    void constructorCopiesPendingInterrupts() {
+        List<AgentInterrupt> pendingInterrupts = new ArrayList<>(List.of(
+                new AgentInterrupt("interrupt-1", "approval", Map.of("message", "need approval"), "tool-1", "approvalTool", Map.of("caseId", "case-1"), null)));
+
+        AgentSession session = new AgentSession(List.of(Message.user("hello")), Map.of(), Map.of(), pendingInterrupts);
+        pendingInterrupts.add(new AgentInterrupt("interrupt-2", "approval", Map.of(), "tool-2", "approvalTool", Map.of(), null));
+
+        assertThat(session.pendingInterrupts()).singleElement().satisfies(interrupt -> {
+            assertThat(interrupt.id()).isEqualTo("interrupt-1");
+            assertThat(interrupt.toolUseId()).isEqualTo("tool-1");
+        });
     }
 }
