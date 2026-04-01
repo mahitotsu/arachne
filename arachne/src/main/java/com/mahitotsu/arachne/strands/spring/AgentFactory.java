@@ -9,7 +9,6 @@ import java.util.concurrent.Executor;
 import java.util.stream.Stream;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-
 import com.mahitotsu.arachne.strands.agent.Agent;
 import com.mahitotsu.arachne.strands.agent.AgentState;
 import com.mahitotsu.arachne.strands.agent.DefaultAgent;
@@ -34,6 +33,7 @@ import com.mahitotsu.arachne.strands.tool.Tool;
 import com.mahitotsu.arachne.strands.tool.ToolExecutionMode;
 import com.mahitotsu.arachne.strands.tool.ToolExecutor;
 import com.mahitotsu.arachne.strands.tool.annotation.DiscoveredTool;
+
 import jakarta.validation.Validator;
 
 /**
