@@ -82,6 +82,7 @@ class WorkflowServiceApiTest {
                 .andExpect(jsonPath("$.workflowStatus").value("AWAITING_APPROVAL"))
                 .andExpect(jsonPath("$.currentRecommendation").value("CONTINUED_HOLD"))
             .andExpect(jsonPath("$.approvalState.approvalStatus").value("PENDING_FINANCE_CONTROL"))
+            .andExpect(jsonPath("$.activities[0].source").value("workflow-service"))
             .andExpect(jsonPath("$.evidence.shipmentEvidence").value(org.hamcrest.Matchers.containsString("TRACK-order-1001")));
 
         assertThat(shipmentServer.takeRequest(1, TimeUnit.SECONDS)).isNotNull();

@@ -5,6 +5,39 @@ spring:
   application:
     name: marketplace-workflow-service
 
+marketplace:
+  workflow-runtime:
+    arachne:
+      enabled: ${MARKETPLACE_WORKFLOW_ARACHNE_ENABLED:false}
+      model-mode: ${MARKETPLACE_WORKFLOW_ARACHNE_MODEL_MODE:deterministic}
+
+arachne:
+  strands:
+    agent:
+      built-ins:
+        resources:
+          allowed-classpath-locations:
+            - classpath:/marketplace-workflow/
+    agents:
+      case-workflow-agent:
+        system-prompt: "You are case-workflow-agent for the marketplace dispute workflow."
+        built-ins:
+          inherit-defaults: false
+          tool-groups:
+            - resource
+      shipment-agent:
+        system-prompt: "You are shipment-agent for marketplace shipment evidence review."
+        built-ins:
+          inherit-defaults: false
+      escrow-agent:
+        system-prompt: "You are escrow-agent for marketplace settlement eligibility review."
+        built-ins:
+          inherit-defaults: false
+      risk-agent:
+        system-prompt: "You are risk-agent for marketplace dispute risk review."
+        built-ins:
+          inherit-defaults: false
+
 downstream:
   escrow-base-url: ${DOWNSTREAM_ESCROW_BASE_URL:http://localhost:8082}
   shipment-base-url: ${DOWNSTREAM_SHIPMENT_BASE_URL:http://localhost:8083}

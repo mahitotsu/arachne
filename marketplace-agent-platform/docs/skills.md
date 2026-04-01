@@ -200,6 +200,55 @@ Minimum recommended set:
 
 This is enough to make skills visible and necessary without turning slice 1 into a skill taxonomy exercise.
 
+## Phase 1 Representative Activation Set
+
+For the current Phase 1 implementation, the representative `ITEM_NOT_RECEIVED` path activates only the smallest skill and resource surface that makes the workflow visibly Arachne-native.
+
+### Activated Skills
+
+- `case-workflow-agent`
+	- `marketplace-dispute-intake`
+	- `item-not-received-investigation`
+	- `approval-escalation-and-resume`
+- `escrow-agent`
+	- `settlement-eligibility-summary`
+- `shipment-agent`
+	- `shipment-evidence-review`
+- `risk-agent`
+	- `risk-review-summary`
+
+Not yet required on the representative dispute-handling path:
+
+- `case-agent` search interpretation, which stays scoped to list and search behavior
+- `notification-agent` composition, which may remain deterministic until the post-settlement path is moved behind Arachne
+
+### Resource-Tool Usage
+
+Phase 1 should keep built-in resource-tool usage inside `workflow-service` and keep it legible to a reader.
+
+Required packaged resources for the representative path:
+
+- dispute-handling runbook for the `ITEM_NOT_RECEIVED` investigation procedure
+- settlement policy summary that frames `REFUND` versus `CONTINUED_HOLD`
+- finance-control approval threshold reference that explains why the workflow pauses for approval
+
+Required built-in tool usage pattern:
+
+- use `resource_list` to discover the allowlisted workflow-skill bundle when the agent needs to orient itself
+- use `resource_reader` for the specific runbook and policy documents that influence recommendation shaping or approval escalation
+- do not introduce a custom policy lookup tool in Phase 1 unless the built-in resource tools fail to cover a concrete workflow need
+
+### Structured Output Boundary
+
+The activated skills should return typed recommendation, evidence-summary, and approval-gate data that `workflow-service` can hand back to deterministic Spring application logic.
+
+The skills should not own:
+
+- settlement mutation execution
+- case projection persistence
+- authorization enforcement
+- notification delivery recording
+
 ## Expansion Direction After Slice 1
 
 Only after the first runnable slice is stable should the skill set broaden.

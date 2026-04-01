@@ -7,8 +7,10 @@ The goal is simple: do not depend on perfect end-of-task discipline, but make it
 ## The Short Version
 
 - use `Closeout` when you have just finished a bounded task and want to finish it cleanly
+- update `docs/project-status.md` inside `Closeout` when the bounded task changed the branch-level shipped snapshot
 - use `Readiness Audit` when you want to check whether one area is easy to resume and what should be repaired
 - use `Repository Readiness Audit` when the repository feels scattered, a new theme is about to begin, or you want a wider maintenance sweep
+- use `Project Status Sync` when the main remaining drift is the branch snapshot in `docs/project-status.md`
 
 ## What Each Workflow Does
 
@@ -43,6 +45,27 @@ It should:
 
 Use it when closeout was skipped, when an area feels scattered, or before starting new work in that area.
 
+If readiness finds that the main problem is a stale `docs/project-status.md` snapshot rather than broader area drift, use `.github/prompts/project-status-sync.prompt.md` to repair that snapshot directly.
+
+### Project Status Sync
+
+Use [.github/prompts/project-status-sync.prompt.md](../.github/prompts/project-status-sync.prompt.md) when the branch snapshot in `docs/project-status.md` needs to be reconciled with the current repository truth surfaces.
+
+It is the branch-snapshot maintenance workflow.
+
+It should:
+
+- decide whether `docs/project-status.md` actually needs an update
+- refresh only the branch-level surfaces that changed
+- avoid turning the status document into a changelog or roadmap
+- report missing evidence when the repository state is not strong enough to justify an edit
+
+Use it:
+
+- during closeout when the task changed shipped surface or constraints and the snapshot still needs to be updated
+- after readiness or alignment work when the main remaining drift is in `docs/project-status.md`
+- after several bounded tasks when the branch snapshot needs consolidation
+
 ### Repository Readiness Audit
 
 Use [.github/prompts/repository-readiness-audit.prompt.md](../.github/prompts/repository-readiness-audit.prompt.md) for a broader maintenance sweep.
@@ -60,9 +83,10 @@ Use it:
 For normal local development:
 
 1. Finish a bounded task.
-2. If the work is still fresh, run `Closeout`.
-3. If you skipped closeout or later suspect drift, run `Readiness Audit` for that area.
-4. When the repository as a whole feels scattered, run `Repository Readiness Audit`.
+2. If the work is still fresh, run `Closeout` and update `docs/project-status.md` there when the branch snapshot changed.
+3. If only the branch snapshot drift remains, run `Project Status Sync`.
+4. If you skipped closeout or later suspect wider drift, run `Readiness Audit` for that area.
+5. When the repository as a whole feels scattered, run `Repository Readiness Audit`.
 
 This repository does not currently force these workflows with hooks or CI. They are maintainers' operating procedures.
 
@@ -101,6 +125,8 @@ An area is in good working shape when all of these are true:
 - code, tests, docs, samples, ADRs, and instructions do not contradict each other in meaningful ways
 - leftover work is explicitly classified instead of implied
 - readiness can name the highest-value repairs without broad rediscovery
+
+`docs/project-status.md` is in good shape when it stays a short branch snapshot: accurate enough to orient the next worker, narrow enough to avoid becoming a second user guide, and updated only when branch-level facts changed.
 
 ## If You Only Do One Thing
 

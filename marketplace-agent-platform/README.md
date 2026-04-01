@@ -4,7 +4,7 @@ This directory is the implementation home for the marketplace agent platform pro
 
 The active direction is a marketplace platform in which Spring-based microservices each own a service-local agent and collaborate through explicit capability boundaries, with a thin operator-facing frontend for visibility and approval interaction.
 
-At this stage, this directory contains the first backend implementation slice for the product. It still does not contain the runnable end-to-end system described in the design documents.
+At this stage, this directory contains a runnable end-to-end product-track slice for the representative marketplace workflow, with later phases still open in the roadmap.
 
 It is intentionally not part of the runnable `samples/` catalog.
 
@@ -22,9 +22,9 @@ The current implementation modules are:
 
 ## Current State
 
-This product track currently ships a working deterministic first slice for the representative `ITEM_NOT_RECEIVED` marketplace workflow.
+This product track currently ships a working deterministic first slice for the representative `ITEM_NOT_RECEIVED` marketplace workflow, plus an opt-in Arachne-native runtime seam in `workflow-service`.
 
-That baseline includes the full composed service shape, a thin operator console, PostgreSQL-backed business persistence, Redis-backed workflow continuity, and representative `REFUND` plus `CONTINUED_HOLD` outcomes.
+That baseline includes the full composed service shape, a thin operator console, PostgreSQL-backed business persistence, Redis-backed workflow continuity, representative `REFUND` plus `CONTINUED_HOLD` outcomes, and a Phase 1 path where named agents, packaged skills, and built-in resource tools shape the workflow recommendation while Spring services keep state-transition ownership.
 
 The detailed implemented boundary, remaining gaps, and capability-complete target now live only in `docs/roadmap.md`.
 

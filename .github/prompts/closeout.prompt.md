@@ -15,6 +15,8 @@ Requirements:
 - Respond in Japanese unless the user explicitly asks for another language.
 - Start from `docs/project-status.md`, `docs/repository-facts.md`, `docs/user-guide.md`, `.github/copilot-instructions.md`, and any relevant active instruction files.
 - Reconfirm the exact finished boundary before making any closeout claim.
+- Treat `docs/project-status.md` update as part of closeout whenever the finished boundary changed the branch-level shipped surface, sample map, current constraints, current non-goals, or related document map.
+- If only `docs/project-status.md` drift remains after the rest of closeout is already done, use `.github/prompts/project-status-sync.prompt.md` instead of broadening back into a full readiness audit.
 - Reuse fresh quality and alignment evidence when it already exists, but do not assume closeout from those audits alone.
 - If sample-side evidence will be gathered via `samples/pom.xml`, refresh the library snapshot first with `mvn -pl arachne -am install -DskipTests` so the sample reactor does not read a stale local `io.arachne:arachne` snapshot.
 - Check whether code, tests, docs, samples, ADRs, and instructions that should describe the finished state have actually been closed.

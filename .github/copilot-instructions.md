@@ -33,15 +33,24 @@ Treat `refs/sdk-python` as behavioral reference material and do not edit it unle
 
 ## Implementation Theme Workflow
 - Keep durable repository-wide rules in this file.
-- Use `.github/instructions/` only when there is an active implementation theme that needs temporary, focused guidance beyond the stable repository rules.
-- When such theme-specific files are needed, keep at most one implementation instruction file and one test-strategy instruction file for that theme, and give them narrow `applyTo` scopes.
-- Before starting a new implementation theme, review whether `.github/instructions/` is needed at all. If it is, update those files for the new theme and remove stale constraints from the previous one.
+- Use `.github/instructions/` for scoped workflows that benefit from `applyTo`, including active implementation themes and reusable language- or layer-specific guidance that should not apply repository-wide.
+- Keep instruction filenames, descriptions, and `applyTo` scopes aligned to their real coverage. Do not leave marketplace- or phase-specific naming on files that now apply broadly.
+- When theme-specific files are needed, keep at most one implementation instruction file and one test-strategy instruction file for that theme, and give them narrow `applyTo` scopes.
+- Before starting a new implementation theme, review whether the existing scoped instruction files are sufficient. If not, update or replace them for the new theme and remove stale constraints from the previous one.
 - During that review, check consistency with `docs/project-status.md`, relevant ADRs, test emphasis, and completion conditions.
 
 ## ADR Workflow
 - Record important architectural decisions as ADRs under `docs/adr/`. This includes both new decisions and already adopted decisions that remain important assumptions.
 - When a change affects public API, Spring integration, session persistence, tool binding or validation, execution backend, or another cross-cutting boundary, consider adding or updating an ADR in the same turn.
 - Even when a decision is deferred, record rejected alternatives or the reason for deferral so later work can reuse that context.
+
+## Exploration Discipline
+- For normal implementation and test work, begin from the smallest trusted surface that can identify the target area.
+- Start with `docs/project-status.md`, this file, and the relevant active `.github/instructions/*.instructions.md` file before widening to implementation, tests, samples, or ADRs.
+- In multi-module Java work, identify the owning Maven module, package, or service first. Read its nearest implementation and matching tests before tracing adjacent modules.
+- Use the nearest `pom.xml`, module-local `src/main`, and module-local `src/test` trees as the default first-pass scope unless the task clearly crosses a published contract boundary.
+- Use broad guides such as `docs/user-guide.md` and `docs/README.md` as maps or follow-up references, not as default front-to-back first-pass reading.
+- Expand context only when the current surface cannot answer a concrete implementation, contract, or verification question.
 
 ## Coding Conventions
 - Prefer small classes with clear responsibilities over deep abstraction trees.

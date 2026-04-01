@@ -199,7 +199,7 @@ That keeps the local runtime simple while still making domain-service ownership 
 
 Each backend service owns one named Arachne agent.
 
-Recommended mapping:
+Phase 1 implementation map:
 
 - `case-service` -> `case-agent`
 - `workflow-service` -> `case-workflow-agent`
@@ -209,6 +209,33 @@ Recommended mapping:
 - `notification-service` -> `notification-agent`
 
 This mapping should stay explicit. The sample should not blur service boundaries by hiding several service concerns behind one agent.
+
+For the representative `ITEM_NOT_RECEIVED` flow, the first implementation focus is the `case-workflow-agent` plus the evidence-oriented downstream agents. `case-agent` remains narrow and search-oriented, and `notification-agent` can stay thin until the post-settlement path is moved behind Arachne.
+
+### Phase 1 Runtime Invocation Boundary
+
+The Arachne-native path should enter the product track inside `workflow-service`, not at the frontend or controller layer.
+
+Phase 1 preserves this split:
+
+- `WorkflowApplicationService` remains the Spring-owned start, continue, and resume seam
+- a workflow-runtime adapter inside `workflow-service` invokes the `case-workflow-agent`, packaged skills, and visible resource-tool reads
+- downstream services continue to own their business APIs and may introduce their service-local agent wiring behind those APIs without leaking agent protocol details into cross-service contracts
+- `case-service` remains the durable owner of operator-facing projections and activity history
+- `escrow-service` remains the deterministic owner of settlement-changing transactions and authorization checks
+
+This keeps the runtime readable as Spring command handling around an Arachne orchestration seam instead of turning agent execution into the owner of correctness-sensitive state.
+
+### Phase 1 Rollout Mode
+
+Phase 1 uses staged support for both deterministic and Bedrock-backed execution.
+
+That means:
+
+- the current deterministic path remains the default runtime behavior
+- the first Arachne-native path is introduced behind an opt-in product-track property
+- the enabled path uses a deterministic in-process model first so tests and local runs stay repeatable
+- later Bedrock-backed support can be layered onto the same service-local ownership map without changing API or persistence boundaries
 
 ### Communication Shape
 

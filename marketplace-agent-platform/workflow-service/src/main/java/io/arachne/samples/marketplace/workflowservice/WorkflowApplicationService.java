@@ -12,7 +12,6 @@ import org.springframework.web.server.ResponseStatusException;
 import io.arachne.samples.marketplace.workflowservice.WorkflowContracts.ApprovalStateView;
 import io.arachne.samples.marketplace.workflowservice.WorkflowContracts.ApprovalStatus;
 import io.arachne.samples.marketplace.workflowservice.WorkflowContracts.ContinueWorkflowCommand;
-import io.arachne.samples.marketplace.workflowservice.WorkflowContracts.EvidenceView;
 import io.arachne.samples.marketplace.workflowservice.WorkflowContracts.OutcomeView;
 import io.arachne.samples.marketplace.workflowservice.WorkflowContracts.Recommendation;
 import io.arachne.samples.marketplace.workflowservice.WorkflowContracts.ResumeWorkflowCommand;
@@ -26,33 +25,33 @@ import io.arachne.samples.marketplace.workflowservice.WorkflowContracts.Workflow
 @Service
 class WorkflowApplicationService {
 
-        private static final BigDecimal AUTOMATED_REFUND_THRESHOLD = BigDecimal.valueOf(100);
-    private static final String POLICY_REFERENCE = "policy://marketplace/disputes/item-not-received";
-
     private final Clock clock;
     private final DownstreamGateway downstreamGateway;
-        private final WorkflowSessionRepository workflowSessionRepository;
+    private final WorkflowSessionRepository workflowSessionRepository;
+    private final WorkflowRuntimeAdapter workflowRuntimeAdapter;
 
-        WorkflowApplicationService(
-                        Clock clock,
-                        DownstreamGateway downstreamGateway,
-                        WorkflowSessionRepository workflowSessionRepository) {
+    WorkflowApplicationService(
+            Clock clock,
+            DownstreamGateway downstreamGateway,
+            WorkflowSessionRepository workflowSessionRepository,
+            WorkflowRuntimeAdapter workflowRuntimeAdapter) {
         this.clock = clock;
         this.downstreamGateway = downstreamGateway;
-                this.workflowSessionRepository = workflowSessionRepository;
+        this.workflowSessionRepository = workflowSessionRepository;
+        this.workflowRuntimeAdapter = workflowRuntimeAdapter;
     }
 
     WorkflowStartResult start(StartWorkflowCommand command) {
         var now = now();
-        var evidence = collectEvidence(
-            command.caseId(),
-            command.caseType(),
-            command.orderId(),
-            command.amount(),
-            command.currency(),
-            command.operatorId(),
-            command.operatorRole());
-        var recommendation = initialRecommendation(command.caseType(), command.amount());
+        var rawEvidence = collectRawEvidence(
+                command.caseId(),
+                command.caseType(),
+                command.orderId(),
+                command.amount(),
+                command.currency(),
+                command.operatorId(),
+                command.operatorRole());
+        var assessment = workflowRuntimeAdapter.assessStart(command, rawEvidence, now);
         var state = new WorkflowSessionState(
                 command.caseId(),
                 command.caseType(),
@@ -60,8 +59,8 @@ class WorkflowApplicationService {
                 command.amount(),
                 command.currency(),
                 WorkflowStatus.AWAITING_APPROVAL,
-                recommendation,
-                evidence,
+                assessment.recommendation(),
+                assessment.evidence(),
                 pendingApproval(now),
                 null);
         workflowSessionRepository.save(state);
@@ -71,11 +70,7 @@ class WorkflowApplicationService {
                 state.evidence(),
                 state.approvalState(),
                 state.outcome(),
-                List.of(
-                        activity(now, "DELEGATION_STARTED", "workflow-service", "Workflow service started evidence gathering for the new case."),
-                        activity(now.plusSeconds(1), "EVIDENCE_RECEIVED", "workflow-service", "Shipment, escrow, and risk evidence are available for recommendation building."),
-                        activity(now.plusSeconds(2), "RECOMMENDATION_UPDATED", "workflow-service", recommendationMessage(recommendation)),
-                        activity(now.plusSeconds(3), "APPROVAL_REQUESTED", "workflow-service", "Finance control approval is required for settlement progression.")));
+                assessment.activities());
     }
 
     WorkflowProgressUpdate continueWorkflow(String caseId, ContinueWorkflowCommand command) {
@@ -157,7 +152,7 @@ class WorkflowApplicationService {
                 "Approval rejection accepted and workflow returned to evidence gathering.");
     }
 
-    private EvidenceView collectEvidence(
+        private WorkflowRuntimeAdapter.RawEvidence collectRawEvidence(
             String caseId,
             String caseType,
             String orderId,
@@ -175,39 +170,19 @@ class WorkflowApplicationService {
                 operatorId,
                 operatorRole));
         var risk = downstreamGateway.riskReview(new DownstreamContracts.RiskCaseReviewRequest(caseId, caseType, orderId, operatorRole));
-        return new EvidenceView(
-                shipment.milestoneSummary() + " Tracking number: " + shipment.trackingNumber() + ". " + shipment.shippingExceptionSummary(),
-                escrow.summary(),
-                risk.summary(),
-                POLICY_REFERENCE);
+        return new WorkflowRuntimeAdapter.RawEvidence(shipment, escrow, risk);
     }
 
     private ApprovalStateView pendingApproval(OffsetDateTime now) {
         return new ApprovalStateView(true, ApprovalStatus.PENDING_FINANCE_CONTROL, "FINANCE_CONTROL", now, null, null, null);
     }
 
-        private Recommendation initialRecommendation(String caseType, BigDecimal amount) {
-                if ("ITEM_NOT_RECEIVED".equalsIgnoreCase(caseType)
-                                && amount != null
-                                && amount.compareTo(AUTOMATED_REFUND_THRESHOLD) <= 0) {
-                        return Recommendation.REFUND;
-                }
-                return Recommendation.CONTINUED_HOLD;
+    private String settlementMessage(Recommendation recommendation) {
+        if (recommendation == Recommendation.REFUND) {
+            return "Escrow executed the refund after finance control approval.";
         }
-
-        private String recommendationMessage(Recommendation recommendation) {
-                if (recommendation == Recommendation.REFUND) {
-                        return "Workflow recommends a refund after confirming non-delivery and a low-value exposure path.";
-                }
-                return "Workflow recommends keeping the hold until finance control confirms the next step.";
-        }
-
-        private String settlementMessage(Recommendation recommendation) {
-                if (recommendation == Recommendation.REFUND) {
-                        return "Escrow executed the refund after finance control approval.";
-                }
-                return "Escrow recorded the continued hold.";
-        }
+        return "Escrow recorded the continued hold.";
+    }
 
     private WorkflowActivity activity(OffsetDateTime timestamp, String kind, String source, String message) {
         return new WorkflowActivity(kind, source, message, "{}", timestamp);
