@@ -45,6 +45,16 @@ final class MarketplaceWorkflowArachneModel implements Model {
             return toolUse("shipment-skill", "activate_skill", Map.of("name", "shipment-evidence-review"));
         }
         Map<String, String> prompt = promptValues(messages);
+        if ("operator-follow-up".equalsIgnoreCase(prompt.get("mode"))) {
+            return structuredOutput(
+                "shipment-follow-up",
+                Map.of(
+                    "summary",
+                    "shipment-agent reviewed the operator instruction \""
+                        + blankSafe(prompt.get("instruction"))
+                        + "\" and focused on shipment evidence: "
+                        + blankSafe(prompt.get("existingEvidence"))));
+        }
         return structuredOutput(
                 "shipment-summary",
                 Map.of(
@@ -58,6 +68,16 @@ final class MarketplaceWorkflowArachneModel implements Model {
             return toolUse("escrow-skill", "activate_skill", Map.of("name", "settlement-eligibility-summary"));
         }
         Map<String, String> prompt = promptValues(messages);
+        if ("operator-follow-up".equalsIgnoreCase(prompt.get("mode"))) {
+            return structuredOutput(
+                "escrow-follow-up",
+                Map.of(
+                    "summary",
+                    "escrow-agent reviewed the operator instruction \""
+                        + blankSafe(prompt.get("instruction"))
+                        + "\" and focused on settlement posture: "
+                        + blankSafe(prompt.get("existingEvidence"))));
+        }
         return structuredOutput(
                 "escrow-summary",
                 Map.of(
@@ -71,6 +91,16 @@ final class MarketplaceWorkflowArachneModel implements Model {
             return toolUse("risk-skill", "activate_skill", Map.of("name", "risk-review-summary"));
         }
         Map<String, String> prompt = promptValues(messages);
+        if ("operator-follow-up".equalsIgnoreCase(prompt.get("mode"))) {
+            return structuredOutput(
+                "risk-follow-up",
+                Map.of(
+                    "summary",
+                    "risk-agent reviewed the operator instruction \""
+                        + blankSafe(prompt.get("instruction"))
+                        + "\" and focused on risk controls: "
+                        + blankSafe(prompt.get("existingEvidence"))));
+        }
         return structuredOutput(
                 "risk-summary",
                 Map.of(
@@ -349,6 +379,10 @@ final class MarketplaceWorkflowArachneModel implements Model {
 
     private String stringValue(Object value) {
         return value == null ? null : String.valueOf(value);
+    }
+
+    private String blankSafe(String value) {
+        return value == null ? "" : value;
     }
 
     private record ToolOutcome(String status, Object content) {

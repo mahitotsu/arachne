@@ -8,6 +8,7 @@ import java.util.Optional;
 import com.mahitotsu.arachne.samples.marketplace.workflowservice.DownstreamContracts.EscrowEvidenceSummary;
 import com.mahitotsu.arachne.samples.marketplace.workflowservice.DownstreamContracts.RiskReviewSummary;
 import com.mahitotsu.arachne.samples.marketplace.workflowservice.DownstreamContracts.ShipmentEvidenceSummary;
+import com.mahitotsu.arachne.samples.marketplace.workflowservice.WorkflowContracts.ContinueWorkflowCommand;
 import com.mahitotsu.arachne.samples.marketplace.workflowservice.WorkflowContracts.EvidenceView;
 import com.mahitotsu.arachne.samples.marketplace.workflowservice.WorkflowContracts.Recommendation;
 import com.mahitotsu.arachne.samples.marketplace.workflowservice.WorkflowContracts.ResumeWorkflowCommand;
@@ -20,6 +21,10 @@ interface WorkflowRuntimeAdapter {
     BigDecimal AUTOMATED_REFUND_THRESHOLD = BigDecimal.valueOf(100);
 
     StartAssessment assessStart(StartWorkflowCommand command, RawEvidence rawEvidence, OffsetDateTime now);
+
+        default FollowUpAssessment continueWorkflow(WorkflowSessionState state, ContinueWorkflowCommand command, OffsetDateTime now) {
+                return new FollowUpAssessment(state.currentRecommendation(), List.of());
+        }
 
         default Optional<ApprovalPause> pauseForApproval(StartWorkflowCommand command, StartAssessment assessment) {
                 return Optional.empty();
@@ -41,7 +46,12 @@ interface WorkflowRuntimeAdapter {
             List<WorkflowActivity> activities) {
     }
 
-        record ApprovalPause(String sessionId, String interruptId) {
+        record FollowUpAssessment(
+                Recommendation recommendation,
+                List<WorkflowActivity> activities) {
+        }
+
+        record ApprovalPause(String sessionId, String interruptId, List<WorkflowActivity> activities) {
         }
 
         record ApprovalResume(String message) {

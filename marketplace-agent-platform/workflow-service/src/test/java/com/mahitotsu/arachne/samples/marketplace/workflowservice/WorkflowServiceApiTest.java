@@ -6,6 +6,8 @@ import java.time.OffsetDateTime;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.nullValue;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -130,7 +132,12 @@ class WorkflowServiceApiTest {
                     """))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.evidence.shipmentEvidence").value(org.hamcrest.Matchers.containsString("TRACK-order-1001")))
-            .andExpect(jsonPath("$.approvalState.requestedRole").value("FINANCE_CONTROL"));
+                    .andExpect(jsonPath("$.approvalState.requestedRole").value("FINANCE_CONTROL"))
+                    .andExpect(jsonPath("$.activities[0].kind").value("OPERATOR_INSTRUCTION_RECEIVED"))
+                    .andExpect(jsonPath("$.activities[1].kind").value("AGENT_RESPONSE"))
+                    .andExpect(jsonPath("$.activities[2].kind").value("OPERATOR_REQUEST_COMPLETED"))
+                    .andExpect(jsonPath("$.activities[*].message", hasItem(containsString("kept the case on the continued hold path"))))
+                    .andExpect(jsonPath("$.activities[0].structuredPayload").value(containsString("shipment-agent")));
 
         assertThat(shipmentServer.takeRequest(100, TimeUnit.MILLISECONDS)).isNull();
         assertThat(escrowServer.takeRequest(100, TimeUnit.MILLISECONDS)).isNull();

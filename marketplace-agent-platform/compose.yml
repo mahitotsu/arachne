@@ -8,7 +8,7 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/healthz || exit 1"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
       retries: 12
       start_period: 10s
@@ -35,7 +35,7 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:8080/actuator/health >/dev/null || exit 1"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
       retries: 12
       start_period: 20s
@@ -54,6 +54,16 @@ services:
       WORKFLOW_SESSION_STORE: redis
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
+      MARKETPLACE_WORKFLOW_ARACHNE_ENABLED: ${MARKETPLACE_WORKFLOW_ARACHNE_ENABLED:-false}
+      MARKETPLACE_WORKFLOW_ARACHNE_MODEL_MODE: ${MARKETPLACE_WORKFLOW_ARACHNE_MODEL_MODE:-deterministic}
+      ARACHNE_STRANDS_MODEL_PROVIDER: ${ARACHNE_STRANDS_MODEL_PROVIDER:-}
+      ARACHNE_STRANDS_MODEL_ID: ${ARACHNE_STRANDS_MODEL_ID:-}
+      ARACHNE_STRANDS_MODEL_REGION: ${ARACHNE_STRANDS_MODEL_REGION:-}
+      AWS_REGION: ${AWS_REGION:-}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
       DOWNSTREAM_ESCROW_BASE_URL: http://escrow-service:8080
       DOWNSTREAM_SHIPMENT_BASE_URL: http://shipment-service:8080
       DOWNSTREAM_RISK_BASE_URL: http://risk-service:8080
@@ -71,7 +81,7 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:8080/actuator/health >/dev/null || exit 1"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
       retries: 12
       start_period: 20s
@@ -88,6 +98,16 @@ services:
       WORKFLOW_SESSION_STORE: redis
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
+      MARKETPLACE_WORKFLOW_ARACHNE_ENABLED: ${MARKETPLACE_WORKFLOW_ARACHNE_ENABLED:-false}
+      MARKETPLACE_WORKFLOW_ARACHNE_MODEL_MODE: ${MARKETPLACE_WORKFLOW_ARACHNE_MODEL_MODE:-deterministic}
+      ARACHNE_STRANDS_MODEL_PROVIDER: ${ARACHNE_STRANDS_MODEL_PROVIDER:-}
+      ARACHNE_STRANDS_MODEL_ID: ${ARACHNE_STRANDS_MODEL_ID:-}
+      ARACHNE_STRANDS_MODEL_REGION: ${ARACHNE_STRANDS_MODEL_REGION:-}
+      AWS_REGION: ${AWS_REGION:-}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
       DOWNSTREAM_ESCROW_BASE_URL: http://escrow-service:8080
       DOWNSTREAM_SHIPMENT_BASE_URL: http://shipment-service:8080
       DOWNSTREAM_RISK_BASE_URL: http://risk-service:8080
@@ -105,7 +125,7 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:8080/actuator/health >/dev/null || exit 1"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
       retries: 12
       start_period: 20s
@@ -119,7 +139,7 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/actuator/health || exit 1"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
       retries: 12
       start_period: 10s
@@ -172,7 +192,7 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:8080/actuator/health >/dev/null || exit 1"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
       retries: 12
       start_period: 20s
@@ -196,7 +216,7 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:8080/actuator/health >/dev/null || exit 1"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
       retries: 12
       start_period: 20s
@@ -220,7 +240,7 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:8080/actuator/health >/dev/null || exit 1"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
       retries: 12
       start_period: 20s
@@ -244,7 +264,7 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:8080/actuator/health >/dev/null || exit 1"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
       retries: 12
       start_period: 20s

@@ -28,7 +28,7 @@ final class MarketplaceOperatorContextPlugin implements Plugin {
                 return new ToolSpec(
                         TOOL_NAME,
                         "Reads the operator authorization context visible inside delegated workflow tool execution.",
-                        null);
+                        MarketplaceToolSchemas.permissiveObjectSchema());
             }
 
             @Override

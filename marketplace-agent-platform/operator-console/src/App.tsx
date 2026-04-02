@@ -1,6 +1,7 @@
 import { FormEvent, startTransition, useEffect, useMemo, useState } from 'react';
 import {
   ActivityEvent,
+  ActivityCategory,
   ApprovalSubmissionResult,
   CaseDetailView,
   CaseListItem,
@@ -44,6 +45,7 @@ function App() {
   const [isSubmittingCreate, setIsSubmittingCreate] = useState(false);
   const [isSubmittingMessage, setIsSubmittingMessage] = useState(false);
   const [isSubmittingApproval, setIsSubmittingApproval] = useState(false);
+  const [activityFilter, setActivityFilter] = useState<'all' | ActivityCategory>('all');
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [flashMessage, setFlashMessage] = useState<string>('');
   const [createForm, setCreateForm] = useState({
@@ -123,6 +125,49 @@ function App() {
       { label: 'Policy', value: selectedCase.evidence.policyReference },
     ];
   }, [selectedCase]);
+
+  const activityTimeline = useMemo(() => {
+    if (!selectedCase) {
+      return [] as Array<ActivityTimelineEntry>;
+    }
+    return selectedCase.activityHistory.map((event) => {
+      const payload = parseStructuredPayload(event.structuredPayload);
+      return {
+        event,
+        payload,
+        category: classifyActivity(event, payload),
+      };
+    });
+  }, [selectedCase]);
+
+  const activityCounts = useMemo(() => countActivityCategories(activityTimeline), [activityTimeline]);
+
+  const delegationTrace = useMemo(() => buildDelegationTrace(activityTimeline), [activityTimeline]);
+
+  const filteredActivityTimeline = useMemo(() => {
+    if (activityFilter === 'all') {
+      return activityTimeline;
+    }
+    return activityTimeline.filter((entry) => entry.category === activityFilter);
+  }, [activityFilter, activityTimeline]);
+
+  const displayedActivityTimeline = useMemo(
+    () => collapseDuplicateActivities(filteredActivityTimeline),
+    [filteredActivityTimeline],
+  );
+
+  const activityBlocks = useMemo(() => buildActivityBlocks(displayedActivityTimeline), [displayedActivityTimeline]);
+
+  const filteredDelegationTrace = useMemo(() => {
+    if (activityFilter === 'all') {
+      return delegationTrace;
+    }
+    return delegationTrace.filter((entry) => entry.category === activityFilter);
+  }, [activityFilter, delegationTrace]);
+
+  const latestWorkflowCompletion = useMemo(() => {
+    return [...activityTimeline].reverse().find((entry) => entry.payload?.type === 'workflow_completion') ?? null;
+  }, [activityTimeline]);
 
   async function loadCases(preserveSelection = true) {
     setIsLoadingCases(true);
@@ -477,9 +522,10 @@ function App() {
 
               <section className="detail-card">
                 <div className="card-header">
-                  <h3>Chat</h3>
-                  <span className="subtle-label">Operator continuation</span>
+                  <h3>Operator Instruction</h3>
+                  <span className="subtle-label">workflow-agent delegation</span>
                 </div>
+                <p className="instruction-hint">The workflow-agent routes this instruction to shipment-agent, escrow-agent, or risk-agent and records the delegation trail below.</p>
                 <form className="stack-form" onSubmit={handleAddMessage}>
                   <label>
                     Message
@@ -504,9 +550,64 @@ function App() {
                     </select>
                   </label>
                   <button className="secondary-action" type="submit" disabled={isSubmittingMessage}>
-                    {isSubmittingMessage ? 'Submitting...' : 'Send follow-up'}
+                    {isSubmittingMessage ? 'Delegating...' : 'Delegate via workflow-agent'}
                   </button>
                 </form>
+              </section>
+
+              <section className="detail-card">
+                <div className="card-header">
+                  <h3>Agent Orchestration</h3>
+                  <span className="subtle-label">Latest completion</span>
+                </div>
+                {latestWorkflowCompletion ? (
+                  <div className="orchestration-card">
+                    <p className="eyebrow">workflow-agent summary</p>
+                    <p className="orchestration-message">{latestWorkflowCompletion.event.message}</p>
+                    <div className="payload-grid">
+                      <PayloadRow label="Delegated by" value={latestWorkflowCompletion.payload?.delegatedBy} />
+                      <PayloadRow label="Agents" value={latestWorkflowCompletion.payload?.delegatedAgents} />
+                      <PayloadRow label="Recommendation" value={latestWorkflowCompletion.payload?.recommendation} />
+                      <PayloadRow label="Approval status" value={latestWorkflowCompletion.payload?.approvalStatus} />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="empty-state">Submit an operator instruction to see which agents the workflow-agent selected and how it closed the request.</div>
+                )}
+              </section>
+
+              <section className="detail-card">
+                <div className="card-header">
+                  <h3>Delegation Trace</h3>
+                  <span className="subtle-label">agent runtime tool hook</span>
+                </div>
+                {filteredDelegationTrace.length ? (
+                  <div className="trace-stack">
+                    {filteredDelegationTrace.map((entry) => (
+                      <article key={entry.eventId} className="trace-item">
+                        <div className="trace-header">
+                          <span className={`category-pill category-${entry.category}`}>{entry.category}</span>
+                          <strong>{entry.title}</strong>
+                        </div>
+                        <div className="trace-lane">
+                          <div className="trace-node trace-node-source">
+                            <span className="trace-node-label">Source</span>
+                            <strong>{entry.source}</strong>
+                          </div>
+                          <div className="trace-arrow" aria-hidden="true">→</div>
+                          <div className="trace-node trace-node-target">
+                            <span className="trace-node-label">Target</span>
+                            <strong>{entry.target}</strong>
+                          </div>
+                        </div>
+                        {entry.highlight ? <p className="trace-highlight">{entry.highlight}</p> : null}
+                        <p>{entry.description}</p>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="empty-state">No delegation entries match the current category filter.</div>
+                )}
               </section>
 
               <section className="detail-card">
@@ -583,20 +684,124 @@ function App() {
               <section className="detail-card detail-card-wide">
                 <div className="card-header">
                   <h3>Activity History</h3>
-                  <span className="subtle-label">SSE-fed timeline</span>
+                  <span className="subtle-label">SSE-fed agent timeline</span>
+                </div>
+                <div className="activity-guide">
+                  <div className="activity-guide-header">
+                    <strong>How to read this timeline</strong>
+                    <span className="subtle-label">top to bottom in time order</span>
+                  </div>
+                  <div className="activity-guide-grid">
+                    <article className="activity-guide-card">
+                      <span className="activity-guide-step">1</span>
+                      <strong>Who acted</strong>
+                      <p>The source tells you which agent, runtime component, tool, or hook produced the entry.</p>
+                    </article>
+                    <article className="activity-guide-card">
+                      <span className="activity-guide-step">2</span>
+                      <strong>What kind of action</strong>
+                      <p>The category pill shows whether the entry is an agent action, runtime control step, tool call, or hook intervention.</p>
+                    </article>
+                    <article className="activity-guide-card">
+                      <span className="activity-guide-step">3</span>
+                      <strong>Why it matters</strong>
+                      <p>The fact pills surface the key fields first, such as delegated agent, tool name, focus, recommendation, or approval gate.</p>
+                    </article>
+                    <article className="activity-guide-card">
+                      <span className="activity-guide-step">4</span>
+                      <strong>Turn boundary</strong>
+                      <p>Each block groups one operator turn or one workflow phase. Open the nested steps only when you need event-level detail.</p>
+                    </article>
+                  </div>
+                </div>
+                <div className="filter-bar" role="tablist" aria-label="Activity categories">
+                  <FilterChip
+                    label="All"
+                    value={activityFilter}
+                    target="all"
+                    onSelect={setActivityFilter}
+                    count={collapseDuplicateActivities(activityTimeline).length}
+                  />
+                  <FilterChip
+                    label="Agent"
+                    value={activityFilter}
+                    target="agent"
+                    onSelect={setActivityFilter}
+                    count={activityCounts.agent}
+                  />
+                  <FilterChip
+                    label="Runtime"
+                    value={activityFilter}
+                    target="runtime"
+                    onSelect={setActivityFilter}
+                    count={activityCounts.runtime}
+                  />
+                  <FilterChip
+                    label="Tool"
+                    value={activityFilter}
+                    target="tool"
+                    onSelect={setActivityFilter}
+                    count={activityCounts.tool}
+                  />
+                  <FilterChip
+                    label="Hook"
+                    value={activityFilter}
+                    target="hook"
+                    onSelect={setActivityFilter}
+                    count={activityCounts.hook}
+                  />
+                </div>
+                <div className="category-summary-row">
+                  <SummaryPill label="Agent" value={activityCounts.agent} category="agent" />
+                  <SummaryPill label="Runtime" value={activityCounts.runtime} category="runtime" />
+                  <SummaryPill label="Tool" value={activityCounts.tool} category="tool" />
+                  <SummaryPill label="Hook" value={activityCounts.hook} category="hook" />
                 </div>
                 <div className="timeline">
-                  {selectedCase.activityHistory.map((event) => (
-                    <article key={event.eventId} className="timeline-item">
-                      <div className="timeline-meta">
-                        <strong>{formatLabel(event.kind)}</strong>
-                        <span>{event.source}</span>
-                        <span>{formatDate(event.timestamp)}</span>
+                  {activityBlocks.map((block) => (
+                    <section key={block.id} className="activity-block">
+                      <div className="activity-block-header">
+                        <div>
+                          <p className="eyebrow">{block.phaseLabel}</p>
+                          <h4>{block.title}</h4>
+                        </div>
+                        <div className="activity-block-meta">
+                          <span className="status-chip">{block.entries.length} steps</span>
+                          <span>{formatDate(block.entries[0]?.event.timestamp ?? null)}</span>
+                        </div>
                       </div>
-                      <p>{event.message}</p>
-                    </article>
+                      {block.subtitle ? <p className="activity-block-subtitle">{block.subtitle}</p> : null}
+                      <div className="activity-step-list">
+                        {block.entries.map(({ event, payload, category, duplicateCount }) => {
+                          const payloadType = typeof payload?.type === 'string' ? payload.type : null;
+                          return (
+                            <article key={event.eventId} className="timeline-item timeline-item-nested">
+                              <div className="timeline-meta">
+                                <strong>{friendlyKindLabel(event.kind)}</strong>
+                                <span>{event.source}</span>
+                                <span className={`category-pill category-${category}`} title={categoryDescription(category)}>{category}</span>
+                                {payloadType ? <span className="subtle-label timeline-label">{formatLabel(payloadType)}</span> : null}
+                                {duplicateCount > 1 ? <span className="duplicate-pill">shown {duplicateCount}x</span> : null}
+                              </div>
+                              {payload && timelineKeyFacts(payload).length ? (
+                                <div className="timeline-facts">
+                                  {timelineKeyFacts(payload).map((fact) => (
+                                    <span key={`${event.eventId}-${fact.label}`} className="timeline-fact">
+                                      <span>{fact.label}</span>
+                                      <strong>{fact.value}</strong>
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : null}
+                              <p>{event.message}</p>
+                              {payload && hasPayloadFields(payload) ? <PayloadDetails payload={payload} /> : null}
+                            </article>
+                          );
+                        })}
+                      </div>
+                    </section>
                   ))}
-                  {!selectedCase.activityHistory.length && <div className="empty-state">No activity has been recorded for this case yet.</div>}
+                  {!activityBlocks.length && <div className="empty-state">No activity entries match the current category filter.</div>}
                 </div>
               </section>
             </div>
@@ -607,11 +812,92 @@ function App() {
   );
 }
 
+function FilterChip({
+  label,
+  value,
+  target,
+  onSelect,
+  count,
+}: {
+  label: string;
+  value: 'all' | ActivityCategory;
+  target: 'all' | ActivityCategory;
+  onSelect: (next: 'all' | ActivityCategory) => void;
+  count: number;
+}) {
+  const active = value === target;
+  return (
+    <button
+      type="button"
+      className={`filter-chip ${active ? 'filter-chip-active' : ''}`}
+      onClick={() => onSelect(target)}
+      aria-pressed={active}
+    >
+      <span>{label}</span>
+      <strong>{count}</strong>
+    </button>
+  );
+}
+
+function SummaryPill({ label, value, category }: { label: string; value: number; category: ActivityCategory }) {
+  return (
+    <div className="summary-pill">
+      <span>{label}</span>
+      <strong className={`category-pill category-${category}`}>{value}</strong>
+    </div>
+  );
+}
+
 function SummaryField({ label, value }: { label: string; value: string }) {
   return (
     <div className="summary-field">
       <span>{label}</span>
       <strong>{value}</strong>
+    </div>
+  );
+}
+
+function PayloadDetails({ payload }: { payload: Record<string, unknown> }) {
+  const entries = orderedPayloadEntries(payload);
+
+  if (!entries.length) {
+    return null;
+  }
+
+  return (
+    <details className="payload-details">
+      <summary>Structured details</summary>
+      <div className="payload-grid">
+        {entries.map(([label, value]) => (
+          <PayloadRow key={label} label={formatLabel(label)} value={value} />
+        ))}
+      </div>
+    </details>
+  );
+}
+
+function PayloadRow({ label, value }: { label: string; value: unknown }) {
+  if (value == null || value === '') {
+    return null;
+  }
+
+  if (Array.isArray(value)) {
+    return (
+      <div className="payload-row">
+        <span>{label}</span>
+        <div className="payload-pill-row">
+          {value.map((item) => (
+            <strong key={`${label}-${String(item)}`} className="payload-pill">{formatValue(item)}</strong>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="payload-row">
+      <span>{label}</span>
+      <strong>{formatValue(value)}</strong>
     </div>
   );
 }
@@ -644,5 +930,378 @@ function formatDate(value: string | null) {
     timeStyle: 'short',
   }).format(new Date(value));
 }
+
+function parseStructuredPayload(payload: string): Record<string, unknown> | null {
+  if (!payload || payload === '{}') {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(payload) as Record<string, unknown>;
+    return Object.keys(parsed).length ? parsed : null;
+  } catch {
+    return { rawPayload: payload };
+  }
+}
+
+function classifyActivity(event: ActivityEvent, payload: Record<string, unknown> | null): ActivityCategory {
+  const payloadType = typeof payload?.type === 'string' ? payload.type : '';
+  const source = event.source.toLowerCase();
+  const kind = event.kind.toUpperCase();
+
+  if (payloadType === 'hook_event' || kind.includes('HOOK')) {
+    return 'hook';
+  }
+  if (payloadType === 'tool_call' || payloadType === 'tool_result' || kind.includes('TOOL') || kind.includes('STEERING')) {
+    return 'tool';
+  }
+  if (payloadType === 'runtime_event' || source.includes('workflow-runtime') || source.includes('workflow-security') || source.includes('workflow-steering')) {
+    return 'runtime';
+  }
+  return 'agent';
+}
+
+function categoryDescription(category: ActivityCategory) {
+  switch (category) {
+    case 'agent':
+      return 'agent action';
+    case 'runtime':
+      return 'runtime control';
+    case 'tool':
+      return 'tool call';
+    case 'hook':
+      return 'hook intervention';
+    default:
+      return category;
+  }
+}
+
+function friendlyKindLabel(kind: string) {
+  switch (kind) {
+    case 'OPERATOR_INSTRUCTION_RECEIVED':
+      return 'Operator request received';
+    case 'DELEGATION_ROUTED':
+      return 'Delegation routed';
+    case 'AGENT_RESPONSE':
+      return 'Specialist response';
+    case 'OPERATOR_REQUEST_COMPLETED':
+      return 'Operator request completed';
+    case 'DELEGATION_STARTED':
+      return 'Case intake started';
+    case 'EVIDENCE_RECEIVED':
+      return 'Evidence received';
+    case 'STREAM_PROGRESS':
+      return 'Workflow consulted guidance';
+    case 'HOOK_FORCED_TOOL_SELECTION':
+      return 'Hook forced tool choice';
+    case 'TOOL_CALL_RECORDED':
+      return 'Tool invoked';
+    case 'APPROVAL_INTERRUPT_REGISTERED':
+      return 'Approval pause registered';
+    case 'APPROVAL_REQUESTED':
+      return 'Approval requested';
+    case 'RECOMMENDATION_UPDATED':
+      return 'Recommendation updated';
+    default:
+      return formatLabel(kind);
+  }
+}
+
+function countActivityCategories(entries: ActivityTimelineEntry[]) {
+  return collapseDuplicateActivities(entries).reduce(
+    (counts, entry) => {
+      counts[entry.category] += 1;
+      return counts;
+    },
+    { agent: 0, runtime: 0, tool: 0, hook: 0 } as Record<ActivityCategory, number>,
+  );
+}
+
+function buildDelegationTrace(entries: ActivityTimelineEntry[]) {
+  return entries
+    .filter(({ payload, event }) => {
+      const payloadType = typeof payload?.type === 'string' ? payload.type : '';
+      return payloadType === 'delegation_start'
+        || payloadType === 'operator_instruction'
+        || payloadType === 'delegation_assignment'
+        || payloadType === 'agent_response'
+        || payloadType === 'workflow_completion'
+        || payloadType === 'tool_call'
+        || payloadType === 'tool_result'
+        || payloadType === 'hook_event'
+        || payloadType === 'runtime_event'
+        || event.kind === 'APPROVAL_REQUESTED';
+    })
+    .map(({ event, payload, category }) => ({
+      eventId: event.eventId,
+      category,
+      title: traceTitle(event, payload),
+      source: traceSource(event, payload),
+      target: traceTarget(event, payload),
+      highlight: traceHighlight(payload),
+      description: event.message,
+    }));
+}
+
+function traceTitle(event: ActivityEvent, payload: Record<string, unknown> | null) {
+  const payloadType = typeof payload?.type === 'string' ? payload.type : '';
+  if (payloadType === 'delegation_assignment') {
+    return `${formatValue(payload?.delegatedBy)} -> ${formatValue(payload?.agent)}`;
+  }
+  if (payloadType === 'delegation_start') {
+    return `${formatValue(payload?.delegatedBy)} -> ${formatValue(payload?.delegatedAgents)}`;
+  }
+  if (payloadType === 'hook_event') {
+    return `Hook forced ${formatValue(payload?.toolName)}`;
+  }
+  if (payloadType === 'tool_call' || payloadType === 'tool_result') {
+    return `${formatValue(payload?.toolName)} via ${event.source}`;
+  }
+  if (payloadType === 'workflow_completion') {
+    return `${formatValue(payload?.delegatedBy)} completed operator request`;
+  }
+  return `${event.source} ${formatLabel(event.kind).toLowerCase()}`;
+}
+
+function traceSource(event: ActivityEvent, payload: Record<string, unknown> | null) {
+  const delegatedBy = payloadValue(payload?.delegatedBy);
+  if (delegatedBy) {
+    return delegatedBy;
+  }
+  if (typeof payload?.hookName === 'string') {
+    return formatLabel(payload.hookName);
+  }
+  return event.source;
+}
+
+function traceTarget(event: ActivityEvent, payload: Record<string, unknown> | null) {
+  const agent = payloadValue(payload?.agent);
+  if (agent) {
+    return agent;
+  }
+  const toolName = payloadValue(payload?.toolName);
+  if (toolName) {
+    return toolName;
+  }
+  const delegatedAgents = payloadValue(payload?.delegatedAgents);
+  if (delegatedAgents) {
+    return delegatedAgents;
+  }
+  if (event.kind === 'APPROVAL_REQUESTED') {
+    return payloadValue(payload?.requestedRole) || 'approval gate';
+  }
+  return event.source;
+}
+
+function traceHighlight(payload: Record<string, unknown> | null) {
+  if (!payload) {
+    return null;
+  }
+  return payloadValue(payload.focus)
+    || payloadValue(payload.instruction)
+    || payloadValue(payload.recommendation)
+    || payloadValue(payload.approvalStatus)
+    || null;
+}
+
+function timelineKeyFacts(payload: Record<string, unknown>) {
+  const keys = ['agent', 'delegatedBy', 'toolName', 'requestedRole', 'focus', 'recommendation', 'approvalStatus'];
+  return keys
+    .map((key) => ({ label: formatLabel(key), raw: payload[key] }))
+    .map(({ label, raw }) => ({ label, value: payloadValue(raw) }))
+    .filter((entry): entry is { label: string; value: string } => Boolean(entry.value));
+}
+
+function payloadValue(value: unknown): string | null {
+  if (value == null || value === '') {
+    return null;
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => formatValue(item)).join(' -> ');
+  }
+  return formatValue(value);
+}
+
+function hasPayloadFields(payload: Record<string, unknown>) {
+  return orderedPayloadEntries(payload).length > 0;
+}
+
+function orderedPayloadEntries(payload: Record<string, unknown>) {
+  const order = [
+    'delegatedBy',
+    'agent',
+    'focus',
+    'delegatedAgents',
+    'recommendation',
+    'approvalStatus',
+    'requestedRole',
+    'operatorId',
+    'operatorRole',
+    'instruction',
+    'summary',
+    'policyReference',
+    'toolName',
+    'location',
+    'probe',
+    'status',
+    'content',
+    'rawPayload',
+    'shipmentEvidence',
+    'escrowEvidence',
+    'riskEvidence',
+    'delegateSummaries',
+  ];
+
+  return Object.entries(payload)
+    .filter(([key, value]) => key !== 'type' && value != null && value !== '')
+    .sort(([left], [right]) => {
+      const leftIndex = order.indexOf(left);
+      const rightIndex = order.indexOf(right);
+      if (leftIndex === -1 && rightIndex === -1) {
+        return left.localeCompare(right);
+      }
+      if (leftIndex === -1) {
+        return 1;
+      }
+      if (rightIndex === -1) {
+        return -1;
+      }
+      return leftIndex - rightIndex;
+    });
+}
+
+function formatValue(value: unknown): string {
+  if (Array.isArray(value)) {
+    return value.map((item) => formatValue(item)).join(' -> ');
+  }
+  if (typeof value === 'string') {
+    return formatLabel(value);
+  }
+  if (typeof value === 'object') {
+    return JSON.stringify(value);
+  }
+  return String(value);
+}
+
+function collapseDuplicateActivities(entries: ActivityTimelineEntry[]): DisplayActivityTimelineEntry[] {
+  const grouped = new Map<string, DisplayActivityTimelineEntry>();
+
+  for (const entry of entries) {
+    const key = `${entry.event.kind}|${entry.event.source}|${entry.event.message}|${entry.event.structuredPayload}`;
+    const existing = grouped.get(key);
+    if (existing) {
+      existing.duplicateCount += 1;
+      continue;
+    }
+    grouped.set(key, {
+      ...entry,
+      duplicateCount: 1,
+    });
+  }
+
+  return Array.from(grouped.values());
+}
+
+function buildActivityBlocks(entries: DisplayActivityTimelineEntry[]): ActivityBlock[] {
+  const blocks: ActivityBlock[] = [];
+  let current: ActivityBlock | null = null;
+
+  for (const entry of entries) {
+    if (startsNewBlock(entry, current)) {
+      if (current) {
+        blocks.push(current);
+      }
+      current = createActivityBlock(entry);
+      if (current.phaseLabel === 'Workflow Update') {
+        blocks.push(current);
+        current = null;
+      }
+      continue;
+    }
+
+    if (current) {
+      current.entries.push(entry);
+      if (endsBlock(entry, current)) {
+        blocks.push(current);
+        current = null;
+      }
+      continue;
+    }
+
+    blocks.push(createActivityBlock(entry));
+  }
+
+  if (current) {
+    blocks.push(current);
+  }
+
+  return blocks;
+}
+
+function startsNewBlock(entry: DisplayActivityTimelineEntry, current: ActivityBlock | null) {
+  if (!current) {
+    return true;
+  }
+  return entry.event.kind === 'DELEGATION_STARTED' || entry.event.kind === 'OPERATOR_INSTRUCTION_RECEIVED';
+}
+
+function endsBlock(entry: DisplayActivityTimelineEntry, current: ActivityBlock) {
+  if (current.phaseLabel === 'Operator Turn') {
+    return entry.event.kind === 'OPERATOR_REQUEST_COMPLETED';
+  }
+  if (current.phaseLabel === 'Case Intake') {
+    return entry.event.kind === 'APPROVAL_REQUESTED';
+  }
+  return true;
+}
+
+function createActivityBlock(entry: DisplayActivityTimelineEntry): ActivityBlock {
+  const payload = entry.payload;
+  if (entry.event.kind === 'OPERATOR_INSTRUCTION_RECEIVED') {
+    return {
+      id: entry.event.eventId,
+      phaseLabel: 'Operator Turn',
+      title: payloadValue(payload?.instruction) || 'Operator follow-up',
+      subtitle: 'workflow-agent received one operator request and delegated the necessary follow-up steps below.',
+      entries: [entry],
+    };
+  }
+
+  if (entry.event.kind === 'DELEGATION_STARTED') {
+    return {
+      id: entry.event.eventId,
+      phaseLabel: 'Case Intake',
+      title: payloadValue(payload?.instruction) || 'Initial case assessment',
+      subtitle: 'This block covers the first investigation pass from intake through recommendation and approval gate setup.',
+      entries: [entry],
+    };
+  }
+
+  return {
+    id: entry.event.eventId,
+    phaseLabel: 'Workflow Update',
+    title: friendlyKindLabel(entry.event.kind),
+    subtitle: entry.event.message,
+    entries: [entry],
+  };
+}
+
+type ActivityTimelineEntry = {
+  event: ActivityEvent;
+  payload: Record<string, unknown> | null;
+  category: ActivityCategory;
+};
+
+type DisplayActivityTimelineEntry = ActivityTimelineEntry & {
+  duplicateCount: number;
+};
+
+type ActivityBlock = {
+  id: string;
+  phaseLabel: string;
+  title: string;
+  subtitle: string;
+  entries: DisplayActivityTimelineEntry[];
+};
 
 export default App;

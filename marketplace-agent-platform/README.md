@@ -113,8 +113,22 @@ It also benefits from a thin frontend because streaming progress and human appro
 
 The thin frontend now lives under `operator-console/` and is intentionally limited to the current case-service API surface.
 
+The console now makes the agent/runtime boundary visible instead of treating the workflow as a flat chat log. The case detail view shows:
+
+- activity categories for `agent`, `runtime`, `tool`, and `hook`
+- a delegation trace from `case-workflow-agent` to specialist agents
+- tool calls such as `resource_list`, `resource_reader`, `operator_authorization_probe`, and `finance_control_approval`
+- approval-start control points where the hook forces `finance_control_approval` and the runtime registers the interrupt
+- operator follow-up messages flowing back through `case-workflow-agent` before they are delegated
+
 Common local operations for this product track are exposed through `make` from `marketplace-agent-platform/`.
 Run `make help` there to see the current shortcuts.
+
+The main startup modes are:
+
+- `make up`: composed runtime with the default deterministic workflow path
+- `make up-arachne`: composed runtime with the deterministic Arachne-native workflow path enabled
+- `make up-bedrock`: composed runtime with the Bedrock-backed Arachne workflow path enabled
 
 Run it with:
 
@@ -161,6 +175,51 @@ Or from `marketplace-agent-platform/` use:
 ```bash
 make up
 ```
+
+The `make` entrypoints keep using `docker compose up --build`, but they now set `COMPOSE_PARALLEL_LIMIT=1` by default.
+That keeps build and startup integrated while reducing local BuildKit snapshot failures that can happen when all marketplace service images build at once from the shared Dockerfile setup.
+If your Docker setup is stable under more concurrency, you can override that limit when launching make.
+
+```bash
+COMPOSE_PARALLEL_LIMIT=4 make up-bedrock
+```
+
+To enable the deterministic Arachne-native path instead of the default workflow path, use:
+
+```bash
+make up-arachne
+```
+
+To enable the Bedrock-backed Arachne path, you can export model settings before startup when you want to override the defaults:
+
+```bash
+export ARACHNE_STRANDS_MODEL_ID=your-bedrock-model-id
+export ARACHNE_STRANDS_MODEL_REGION=us-east-1
+make up-bedrock
+```
+
+If you omit those variables, Arachne falls back to its Bedrock defaults: model `jp.amazon.nova-2-lite-v1:0` in region `ap-northeast-1`.
+
+`make up-bedrock` resolves AWS credentials at runtime by calling `aws configure export-credentials --format env-no-export` in the same shell that launches compose.
+That means it can reuse whichever credentials the AWS CLI can currently resolve in your terminal session, including SSO-backed, assumed-role, and temporary session credentials.
+If you want to force a specific profile, pass `AWS_PROFILE=...` to the make command.
+
+```bash
+AWS_PROFILE=my-sso-profile make up-bedrock
+```
+
+The target sets `MARKETPLACE_WORKFLOW_ARACHNE_ENABLED=true`, switches the workflow runtime to `bedrock`, and forwards the model plus resolved AWS credential environment variables into both workflow-service replicas.
+
+Before compose starts, `make up-bedrock` now fails fast unless all of the following pass on the host shell:
+
+- `aws configure export-credentials` can resolve credentials
+- `aws sts get-caller-identity` succeeds
+
+That preflight only proves the resolved principal can authenticate successfully from the current shell.
+It intentionally does not validate model-specific Bedrock permissions because that would couple the startup target too tightly to the sample runtime behavior.
+
+The workflow-service containers still do not mount host `~/.aws` files directly.
+The supported path is to let the host AWS CLI resolve credentials first and then hand the resolved values to compose for that one launch.
 
 Java service image builds share a Docker BuildKit Maven cache instead of bind-mounting the host local repository.
 That keeps repeated dependency downloads down across service builds without leaving root-owned artifacts under your host user home.

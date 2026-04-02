@@ -4,12 +4,15 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mahitotsu.arachne.samples.marketplace.workflowservice.WorkflowContracts.ApprovalStateView;
 import com.mahitotsu.arachne.samples.marketplace.workflowservice.WorkflowContracts.ApprovalStatus;
 import com.mahitotsu.arachne.samples.marketplace.workflowservice.WorkflowContracts.ContinueWorkflowCommand;
@@ -30,19 +33,22 @@ class WorkflowApplicationService {
     private final DownstreamGateway downstreamGateway;
     private final WorkflowSessionRepository workflowSessionRepository;
     private final WorkflowRuntimeAdapter workflowRuntimeAdapter;
-        private final OperatorAuthorizationContextHolder operatorAuthorizationContextHolder;
+                private final OperatorAuthorizationContextHolder operatorAuthorizationContextHolder;
+                private final ObjectMapper objectMapper;
 
     WorkflowApplicationService(
             Clock clock,
             DownstreamGateway downstreamGateway,
             WorkflowSessionRepository workflowSessionRepository,
                         WorkflowRuntimeAdapter workflowRuntimeAdapter,
-                        OperatorAuthorizationContextHolder operatorAuthorizationContextHolder) {
+                        OperatorAuthorizationContextHolder operatorAuthorizationContextHolder,
+                        ObjectMapper objectMapper) {
         this.clock = clock;
         this.downstreamGateway = downstreamGateway;
         this.workflowSessionRepository = workflowSessionRepository;
-        this.workflowRuntimeAdapter = workflowRuntimeAdapter;
+                this.workflowRuntimeAdapter = workflowRuntimeAdapter;
                 this.operatorAuthorizationContextHolder = operatorAuthorizationContextHolder;
+                this.objectMapper = objectMapper;
     }
 
     WorkflowStartResult start(StartWorkflowCommand command) {
@@ -63,7 +69,12 @@ class WorkflowApplicationService {
                 command.operatorId(),
                 command.operatorRole(),
                 () -> workflowRuntimeAdapter.pauseForApproval(command, assessment).orElse(null));
-        var state = new WorkflowSessionState(
+                List<WorkflowActivity> startActivities = assessment.activities();
+                if (approvalPause != null && !approvalPause.activities().isEmpty()) {
+                        startActivities = new java.util.ArrayList<>(assessment.activities());
+                        startActivities.addAll(approvalPause.activities());
+                }
+                var state = new WorkflowSessionState(
                 command.caseId(),
                 command.caseType(),
                 command.orderId(),
@@ -83,20 +94,50 @@ class WorkflowApplicationService {
                 state.evidence(),
                 state.approvalState(),
                 state.outcome(),
-                assessment.activities());
+                startActivities);
     }
 
     WorkflowProgressUpdate continueWorkflow(String caseId, ContinueWorkflowCommand command) {
         var state = workflowSessionRepository.find(caseId).orElseThrow(() -> notFound(caseId));
         var now = now();
-        workflowSessionRepository.save(state);
+                var followUp = withOperatorAuthorizationContext(
+                                command.operatorId(),
+                                command.operatorRole(),
+                                () -> workflowRuntimeAdapter.continueWorkflow(state, command, now));
+                var updatedState = new WorkflowSessionState(
+                                state.caseId(),
+                                state.caseType(),
+                                state.orderId(),
+                                state.amount(),
+                                state.currency(),
+                                state.workflowStatus(),
+                                followUp.recommendation(),
+                                state.evidence(),
+                                state.approvalState(),
+                                state.outcome(),
+                                state.approvalRuntimeSessionId(),
+                                state.approvalInterruptId());
+        workflowSessionRepository.save(updatedState);
         return new WorkflowProgressUpdate(
-                state.workflowStatus(),
-                state.currentRecommendation(),
-                state.evidence(),
-                state.approvalState(),
-                state.outcome(),
-                List.of(activity(now, "RECOMMENDATION_UPDATED", "workflow-service", "Workflow kept the case on the current recommendation after operator follow-up.")));
+                updatedState.workflowStatus(),
+                updatedState.currentRecommendation(),
+                updatedState.evidence(),
+                updatedState.approvalState(),
+                updatedState.outcome(),
+                followUp.activities().isEmpty()
+                                ? List.of(activity(
+                                                now,
+                                                "OPERATOR_REQUEST_COMPLETED",
+                                                "workflow-service",
+                                                "Workflow kept the case on the current recommendation after operator follow-up.",
+                                                Map.of(
+                                                                "type", "workflow_completion",
+                                                                "instruction", command.message(),
+                                                                "operatorId", command.operatorId(),
+                                                                "operatorRole", command.operatorRole(),
+                                                                "recommendation", updatedState.currentRecommendation().name(),
+                                                                "workflowStatus", updatedState.workflowStatus().name())))
+                                : followUp.activities());
     }
 
     WorkflowResumeResult resume(String caseId, ResumeWorkflowCommand command) {
@@ -213,8 +254,12 @@ class WorkflowApplicationService {
         return "Escrow recorded the continued hold.";
     }
 
-    private WorkflowActivity activity(OffsetDateTime timestamp, String kind, String source, String message) {
-        return new WorkflowActivity(kind, source, message, "{}", timestamp);
+        private WorkflowActivity activity(OffsetDateTime timestamp, String kind, String source, String message) {
+                return activity(timestamp, kind, source, message, Map.of());
+        }
+
+        private WorkflowActivity activity(OffsetDateTime timestamp, String kind, String source, String message, Map<String, Object> payload) {
+                return new WorkflowActivity(kind, source, message, writePayload(payload), timestamp);
     }
 
     private OffsetDateTime now() {
@@ -233,5 +278,13 @@ class WorkflowApplicationService {
 
         private ResponseStatusException notFound(String caseId) {
                 return new ResponseStatusException(HttpStatus.NOT_FOUND, "Workflow session not found: " + caseId);
+        }
+
+        private String writePayload(Map<String, Object> payload) {
+                try {
+                        return objectMapper.writeValueAsString(payload);
+                } catch (JsonProcessingException exception) {
+                        throw new IllegalStateException("Failed to serialize workflow activity payload", exception);
+                }
         }
 }

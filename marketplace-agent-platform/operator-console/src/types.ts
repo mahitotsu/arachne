@@ -60,6 +60,8 @@ export interface ActivityEvent {
   structuredPayload: string;
 }
 
+export type ActivityCategory = 'agent' | 'runtime' | 'tool' | 'hook';
+
 export interface ApprovalStateView {
   approvalRequired: boolean;
   approvalStatus: ApprovalStatus;

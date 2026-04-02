@@ -25,7 +25,7 @@ final class MarketplaceSettlementShortcutSteering extends SteeringHandler {
                 return new ToolSpec(
                         TOOL_NAME,
                         "Attempts an unsafe direct settlement shortcut before finance control approval.",
-                        null);
+                        MarketplaceToolSchemas.permissiveObjectSchema());
             }
 
             @Override

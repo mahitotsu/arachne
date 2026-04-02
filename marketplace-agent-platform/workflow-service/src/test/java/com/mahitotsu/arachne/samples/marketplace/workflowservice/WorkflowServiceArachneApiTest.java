@@ -3,9 +3,11 @@ package com.mahitotsu.arachne.samples.marketplace.workflowservice;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -134,6 +136,51 @@ class WorkflowServiceArachneApiTest {
     }
 
     @Test
+    void startWorkflowPublishesEachResourceListProgressOnlyOnce() throws Exception {
+        enqueueStandardEvidenceResponses(BigDecimal.valueOf(149.95), "USD");
+
+        String response = mockMvc.perform(post("/internal/workflows")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(startWorkflowRequest("case-arachne-no-duplicate-progress", BigDecimal.valueOf(149.95), "USD")))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        WorkflowContracts.WorkflowStartResult result = objectMapper.readValue(response, WorkflowContracts.WorkflowStartResult.class);
+        List<WorkflowContracts.WorkflowActivity> resourceListActivities = result.activities().stream()
+                .filter(activity -> "STREAM_PROGRESS".equals(activity.kind()))
+                .filter(activity -> activity.structuredPayload().contains("\"toolName\":\"resource_list\""))
+                .toList();
+
+        assertThat(resourceListActivities).hasSize(1);
+
+        assertThat(shipmentServer.takeRequest(1, TimeUnit.SECONDS)).isNotNull();
+        assertThat(escrowServer.takeRequest(1, TimeUnit.SECONDS)).isNotNull();
+        assertThat(riskServer.takeRequest(1, TimeUnit.SECONDS)).isNotNull();
+    }
+
+    @Test
+    void startWorkflowPublishesApprovalHookAndToolActivities() throws Exception {
+        enqueueStandardEvidenceResponses(BigDecimal.valueOf(149.95), "USD");
+
+        mockMvc.perform(post("/internal/workflows")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(startWorkflowRequest("case-arachne-approval-events", BigDecimal.valueOf(149.95), "USD")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.activities[*].kind", hasItem("HOOK_FORCED_TOOL_SELECTION")))
+                .andExpect(jsonPath("$.activities[*].kind", hasItem("TOOL_CALL_RECORDED")))
+                .andExpect(jsonPath("$.activities[*].kind", hasItem("APPROVAL_INTERRUPT_REGISTERED")))
+                .andExpect(jsonPath("$.activities[*].structuredPayload", hasItem(containsString("hook_event"))))
+                .andExpect(jsonPath("$.activities[*].structuredPayload", hasItem(containsString("finance_control_approval"))))
+                .andExpect(jsonPath("$.activities[*].structuredPayload", hasItem(containsString("financeControlApproval"))));
+
+        assertThat(shipmentServer.takeRequest(1, TimeUnit.SECONDS)).isNotNull();
+        assertThat(escrowServer.takeRequest(1, TimeUnit.SECONDS)).isNotNull();
+        assertThat(riskServer.takeRequest(1, TimeUnit.SECONDS)).isNotNull();
+    }
+
+    @Test
     void approvalResumePreservesCompletedOutcomeOnEnabledArachnePath() throws Exception {
         enqueueStandardEvidenceResponses(BigDecimal.valueOf(49.95), "USD");
 
@@ -208,6 +255,43 @@ class WorkflowServiceArachneApiTest {
 
         assertThat(escrowServer.takeRequest(100, TimeUnit.MILLISECONDS)).isNull();
         assertThat(notificationServer.takeRequest(100, TimeUnit.MILLISECONDS)).isNull();
+    }
+
+    @Test
+    void continueWorkflowDelegatesOperatorInstructionToTargetAgentOnEnabledArachnePath() throws Exception {
+        enqueueStandardEvidenceResponses(BigDecimal.valueOf(149.95), "USD");
+
+        mockMvc.perform(post("/internal/workflows")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(startWorkflowRequest("case-arachne-follow-up", BigDecimal.valueOf(149.95), "USD")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.workflowStatus").value("AWAITING_APPROVAL"));
+
+        drainStartRequests();
+
+        mockMvc.perform(post("/internal/workflows/{caseId}/messages", "case-arachne-follow-up")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "message": "Please summarize the shipment evidence.",
+                                  "operatorId": "operator-1",
+                                  "operatorRole": "CASE_OPERATOR",
+                                  "requestedAt": "2026-03-30T12:03:00Z"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.activities[0].kind").value("OPERATOR_INSTRUCTION_RECEIVED"))
+                .andExpect(jsonPath("$.activities[1].kind").value("DELEGATION_ROUTED"))
+                .andExpect(jsonPath("$.activities[2].kind").value("AGENT_RESPONSE"))
+                .andExpect(jsonPath("$.activities[3].kind").value("OPERATOR_REQUEST_COMPLETED"))
+                .andExpect(jsonPath("$.activities[2].source").value("shipment-agent"))
+                .andExpect(jsonPath("$.activities[2].message", containsString("shipment-agent reviewed the operator instruction")))
+                .andExpect(jsonPath("$.activities[0].structuredPayload", containsString("shipment-agent")))
+                .andExpect(jsonPath("$.activities[3].structuredPayload", containsString("workflow_completion")));
+
+        assertThat(shipmentServer.takeRequest(100, TimeUnit.MILLISECONDS)).isNull();
+        assertThat(escrowServer.takeRequest(100, TimeUnit.MILLISECONDS)).isNull();
+        assertThat(riskServer.takeRequest(100, TimeUnit.MILLISECONDS)).isNull();
     }
 
     private void enqueueStandardEvidenceResponses(BigDecimal amount, String currency) throws Exception {

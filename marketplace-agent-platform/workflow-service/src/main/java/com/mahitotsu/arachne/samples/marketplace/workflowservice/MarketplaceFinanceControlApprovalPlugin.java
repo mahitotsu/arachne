@@ -3,6 +3,7 @@ package com.mahitotsu.arachne.samples.marketplace.workflowservice;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import com.mahitotsu.arachne.strands.hooks.HookRegistrar;
 import com.mahitotsu.arachne.strands.hooks.Plugin;
@@ -15,12 +16,24 @@ final class MarketplaceFinanceControlApprovalPlugin implements Plugin {
     static final String TOOL_NAME = "finance_control_approval";
     static final String INTERRUPT_NAME = "financeControlApproval";
 
+    private final Consumer<Object> toolInputRecorder;
+
+    MarketplaceFinanceControlApprovalPlugin() {
+        this(input -> {
+        });
+    }
+
+    MarketplaceFinanceControlApprovalPlugin(Consumer<Object> toolInputRecorder) {
+        this.toolInputRecorder = toolInputRecorder;
+    }
+
     @Override
     public void registerHooks(HookRegistrar registrar) {
         registrar.beforeToolCall(event -> {
             if (!TOOL_NAME.equals(event.toolName())) {
                 return;
             }
+            toolInputRecorder.accept(event.input());
             event.state().put("financeControlApprovalPending", Boolean.TRUE);
             event.interrupt(INTERRUPT_NAME, interruptReason(event.input()));
         });
@@ -31,7 +44,10 @@ final class MarketplaceFinanceControlApprovalPlugin implements Plugin {
         return List.of(new Tool() {
             @Override
             public ToolSpec spec() {
-                return new ToolSpec(TOOL_NAME, "Accepts a finance-control approval decision for settlement progression", null);
+                return new ToolSpec(
+                        TOOL_NAME,
+                        "Accepts a finance-control approval decision for settlement progression",
+                        MarketplaceToolSchemas.permissiveObjectSchema());
             }
 
             @Override

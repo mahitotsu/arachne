@@ -162,8 +162,8 @@ class WorkflowServiceConfiguration {
             @Qualifier("shipmentAgentSkills") List<Skill> shipmentSkills,
             @Qualifier("escrowAgentSkills") List<Skill> escrowSkills,
             @Qualifier("riskAgentSkills") List<Skill> riskSkills,
+            ObjectMapper objectMapper,
             MarketplaceOperatorContextPlugin marketplaceOperatorContextPlugin,
-            MarketplaceFinanceControlApprovalPlugin marketplaceFinanceControlApprovalPlugin,
             MarketplaceSettlementShortcutSteering marketplaceSettlementShortcutSteering) {
         return new ArachneWorkflowRuntimeAdapter(
                 agentFactory,
@@ -171,15 +171,15 @@ class WorkflowServiceConfiguration {
                 shipmentSkills,
                 escrowSkills,
                 riskSkills,
+                objectMapper,
                 marketplaceOperatorContextPlugin,
-                marketplaceFinanceControlApprovalPlugin,
                 marketplaceSettlementShortcutSteering);
     }
 
     @Bean
     @ConditionalOnMissingBean(WorkflowRuntimeAdapter.class)
-    WorkflowRuntimeAdapter deterministicWorkflowRuntimeAdapter() {
-        return new DeterministicWorkflowRuntimeAdapter();
+    WorkflowRuntimeAdapter deterministicWorkflowRuntimeAdapter(ObjectMapper objectMapper) {
+        return new DeterministicWorkflowRuntimeAdapter(objectMapper);
     }
 
     private Skill parseSkill(SkillParser skillParser, String path) {
