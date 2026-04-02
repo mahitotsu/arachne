@@ -6,7 +6,6 @@ Use [concept.md](/home/akring/arachne/marketplace-agent-platform/docs/concept.md
 Use this file to describe how the sample should be structured and run.
 Use [apis.md](/home/akring/arachne/marketplace-agent-platform/docs/apis.md) for minimal API boundaries and shared contract direction.
 Use [contracts.md](/home/akring/arachne/marketplace-agent-platform/docs/contracts.md) for case and approval contract direction.
-Use [roadmap.md](/home/akring/arachne/marketplace-agent-platform/docs/roadmap.md) for implementation sequencing and remaining tasks.
 Use [skills.md](/home/akring/arachne/marketplace-agent-platform/docs/skills.md) for service-local skill and knowledge boundaries.
 
 The architecture is intentionally split into two views:
@@ -226,16 +225,15 @@ The current implementation preserves this split:
 
 This keeps the runtime readable as Spring command handling around an Arachne orchestration seam instead of turning agent execution into the owner of correctness-sensitive state.
 
-### Current Rollout Mode
+### Supported Runtime Modes
 
-The current rollout uses staged support for both deterministic and Bedrock-backed execution.
+The workflow-service supports two Arachne model modes behind the same runtime boundary.
 
 That means:
 
-- the current deterministic path remains the default runtime behavior
-- the current Arachne-native path remains opt-in behind a product-track property
-- the enabled path now covers recommendation shaping, operator-visible progress capture from resource-tool activity, narrow tool-boundary steering for the unsafe automatic settlement shortcut, and native approval interrupt/resume, while still using a deterministic in-process model first so tests and local runs stay repeatable
-- later Bedrock-backed support can be layered onto the same service-local ownership map without changing API or persistence boundaries
+- `deterministic` mode keeps local verification and regression tests repeatable while exercising the same named agents, skills, streaming, steering, approval, and execution-context propagation path
+- `bedrock` mode uses the standard `arachne.strands.model.*` provider configuration so the same workflow-service ownership map can run on the shipped Bedrock model provider
+- both modes preserve the same Spring-owned command, projection, session, authorization, and settlement boundaries
 
 ### Communication Shape
 
@@ -279,6 +277,8 @@ The architecture should preserve these rules:
 - delegated backend work receives the relevant operator context through explicit propagation from workflow-service
 - service-local mutation checks remain deterministic and Spring-owned
 - approval does not replace authorization; both must be satisfied where required
+
+The current workflow-service implementation additionally restores operator authorization context into parallel workflow-tool execution before recommendation shaping, so the propagation boundary is visible in activity history as well as in code.
 
 The first slice does not need full enterprise identity integration, but it should clearly model authenticated operators and authority-based action control.
 
@@ -487,8 +487,6 @@ This keeps day-to-day development lighter while preserving one canonical compose
 ### Testing Strategy Direction
 
 Testing should follow the architecture split.
-
-Implementation sequencing and remaining work are described in [roadmap.md](/home/akring/arachne/marketplace-agent-platform/docs/roadmap.md).
 
 Recommended layers:
 

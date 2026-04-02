@@ -339,6 +339,8 @@ In the sample UI this should appear as readable activity entries in the case det
 - operator identity or authorization context should propagate across delegated tool execution
 - authorization failures should stay deterministic and explicit
 
+The current workflow demonstrates this by restoring operator authorization context into parallel workflow-tool probes before recommendation shaping, while deterministic downstream settlement authorization remains enforced in `escrow-service`.
+
 ## UX Guardrails
 
 The sample should avoid these traps:

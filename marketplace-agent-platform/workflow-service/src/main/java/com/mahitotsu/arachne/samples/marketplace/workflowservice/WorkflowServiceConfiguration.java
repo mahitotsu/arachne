@@ -25,6 +25,7 @@ import com.mahitotsu.arachne.strands.session.SessionManager;
 import com.mahitotsu.arachne.strands.skills.Skill;
 import com.mahitotsu.arachne.strands.skills.SkillParser;
 import com.mahitotsu.arachne.strands.spring.AgentFactory;
+import com.mahitotsu.arachne.strands.tool.ExecutionContextPropagation;
 
 @Configuration
 @EnableConfigurationProperties({
@@ -105,6 +106,34 @@ class WorkflowServiceConfiguration {
     }
 
     @Bean
+    OperatorAuthorizationContextHolder operatorAuthorizationContextHolder() {
+        return new OperatorAuthorizationContextHolder();
+    }
+
+    @Bean
+    ExecutionContextPropagation operatorAuthorizationContextPropagation(
+            OperatorAuthorizationContextHolder operatorAuthorizationContextHolder) {
+        return task -> {
+            OperatorAuthorizationContext captured = operatorAuthorizationContextHolder.current();
+            return () -> {
+                OperatorAuthorizationContext previous = operatorAuthorizationContextHolder.current();
+                operatorAuthorizationContextHolder.restore(captured);
+                try {
+                    task.run();
+                } finally {
+                    operatorAuthorizationContextHolder.restore(previous);
+                }
+            };
+        };
+    }
+
+    @Bean
+    MarketplaceOperatorContextPlugin marketplaceOperatorContextPlugin(
+            OperatorAuthorizationContextHolder operatorAuthorizationContextHolder) {
+        return new MarketplaceOperatorContextPlugin(operatorAuthorizationContextHolder);
+    }
+
+    @Bean
     @ConditionalOnProperty(prefix = "workflow-session", name = "store", havingValue = "memory", matchIfMissing = true)
     SessionManager workflowArachneInMemorySessionManager() {
         return new InMemorySessionManager();
@@ -120,7 +149,7 @@ class WorkflowServiceConfiguration {
     }
 
     @Bean
-    @ConditionalOnProperty(prefix = "marketplace.workflow-runtime.arachne", name = "enabled", havingValue = "true")
+    @ConditionalOnProperty(prefix = "marketplace.workflow-runtime.arachne", name = "model-mode", havingValue = "deterministic", matchIfMissing = true)
     Model marketplaceWorkflowDeterministicModel() {
         return new MarketplaceWorkflowArachneModel();
     }
@@ -133,6 +162,7 @@ class WorkflowServiceConfiguration {
             @Qualifier("shipmentAgentSkills") List<Skill> shipmentSkills,
             @Qualifier("escrowAgentSkills") List<Skill> escrowSkills,
             @Qualifier("riskAgentSkills") List<Skill> riskSkills,
+            MarketplaceOperatorContextPlugin marketplaceOperatorContextPlugin,
             MarketplaceFinanceControlApprovalPlugin marketplaceFinanceControlApprovalPlugin,
             MarketplaceSettlementShortcutSteering marketplaceSettlementShortcutSteering) {
         return new ArachneWorkflowRuntimeAdapter(
@@ -141,6 +171,7 @@ class WorkflowServiceConfiguration {
                 shipmentSkills,
                 escrowSkills,
                 riskSkills,
+                marketplaceOperatorContextPlugin,
                 marketplaceFinanceControlApprovalPlugin,
                 marketplaceSettlementShortcutSteering);
     }

@@ -8,9 +8,9 @@ Use this file for what the sample must support.
 
 ## Scope Level
 
-These requirements are for the first substantial sample slice, not necessarily the full long-term vision.
+These requirements define the currently shipped capability-complete sample scope.
 
-The sample must demonstrate a marketplace platform that supports multiple case types through service-local agents and a thin operator-facing frontend.
+The sample demonstrates a marketplace platform that supports multiple case types through service-local agents and a thin operator-facing frontend.
 
 ## Functional Requirements
 

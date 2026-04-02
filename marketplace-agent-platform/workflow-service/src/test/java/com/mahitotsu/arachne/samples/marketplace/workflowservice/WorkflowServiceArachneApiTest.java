@@ -87,6 +87,9 @@ class WorkflowServiceArachneApiTest {
                 .andExpect(jsonPath("$.activities[1].source").value("shipment-agent"))
                 .andExpect(jsonPath("$.activities[2].source").value("escrow-agent"))
                 .andExpect(jsonPath("$.activities[3].source").value("risk-agent"))
+            .andExpect(jsonPath("$.activities[*].kind", hasItem("CONTEXT_PROPAGATED")))
+            .andExpect(jsonPath("$.activities[*].message", hasItem("workflow-service propagated operator authorization context operator-1/CASE_OPERATOR into parallel tool execution for shipment-delegation.")))
+            .andExpect(jsonPath("$.activities[*].message", hasItem("workflow-service propagated operator authorization context operator-1/CASE_OPERATOR into parallel tool execution for risk-delegation.")))
                 .andExpect(jsonPath("$.evidence.policyReference").value("policy://marketplace/disputes/item-not-received"));
 
         assertThat(shipmentServer.takeRequest(1, TimeUnit.SECONDS)).isNotNull();

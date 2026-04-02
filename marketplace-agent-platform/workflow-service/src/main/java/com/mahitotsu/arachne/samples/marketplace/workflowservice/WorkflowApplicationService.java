@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.function.Supplier;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -29,16 +30,19 @@ class WorkflowApplicationService {
     private final DownstreamGateway downstreamGateway;
     private final WorkflowSessionRepository workflowSessionRepository;
     private final WorkflowRuntimeAdapter workflowRuntimeAdapter;
+        private final OperatorAuthorizationContextHolder operatorAuthorizationContextHolder;
 
     WorkflowApplicationService(
             Clock clock,
             DownstreamGateway downstreamGateway,
             WorkflowSessionRepository workflowSessionRepository,
-            WorkflowRuntimeAdapter workflowRuntimeAdapter) {
+                        WorkflowRuntimeAdapter workflowRuntimeAdapter,
+                        OperatorAuthorizationContextHolder operatorAuthorizationContextHolder) {
         this.clock = clock;
         this.downstreamGateway = downstreamGateway;
         this.workflowSessionRepository = workflowSessionRepository;
         this.workflowRuntimeAdapter = workflowRuntimeAdapter;
+                this.operatorAuthorizationContextHolder = operatorAuthorizationContextHolder;
     }
 
     WorkflowStartResult start(StartWorkflowCommand command) {
@@ -51,8 +55,14 @@ class WorkflowApplicationService {
                 command.currency(),
                 command.operatorId(),
                 command.operatorRole());
-        var assessment = workflowRuntimeAdapter.assessStart(command, rawEvidence, now);
-        var approvalPause = workflowRuntimeAdapter.pauseForApproval(command, assessment).orElse(null);
+        var assessment = withOperatorAuthorizationContext(
+                command.operatorId(),
+                command.operatorRole(),
+                () -> workflowRuntimeAdapter.assessStart(command, rawEvidence, now));
+        var approvalPause = withOperatorAuthorizationContext(
+                command.operatorId(),
+                command.operatorRole(),
+                () -> workflowRuntimeAdapter.pauseForApproval(command, assessment).orElse(null));
         var state = new WorkflowSessionState(
                 command.caseId(),
                 command.caseType(),
@@ -92,7 +102,10 @@ class WorkflowApplicationService {
     WorkflowResumeResult resume(String caseId, ResumeWorkflowCommand command) {
         var state = workflowSessionRepository.find(caseId).orElseThrow(() -> notFound(caseId));
         var now = now();
-                resumeNativeApprovalIfPresent(state, command);
+                withOperatorAuthorizationContext(command.actorId(), command.actorRole(), () -> {
+                        resumeNativeApprovalIfPresent(state, command);
+                        return null;
+                });
         if ("APPROVE".equalsIgnoreCase(command.decision())) {
             var settlementOutcome = downstreamGateway.executeSettlement(new DownstreamContracts.ExecuteSettlementCommand(
                     caseId,
@@ -207,6 +220,16 @@ class WorkflowApplicationService {
     private OffsetDateTime now() {
         return OffsetDateTime.now(clock);
     }
+
+        private <T> T withOperatorAuthorizationContext(String operatorId, String operatorRole, Supplier<T> action) {
+                OperatorAuthorizationContext previous = operatorAuthorizationContextHolder.current();
+                operatorAuthorizationContextHolder.restore(new OperatorAuthorizationContext(operatorId, operatorRole));
+                try {
+                        return action.get();
+                } finally {
+                        operatorAuthorizationContextHolder.restore(previous);
+                }
+        }
 
         private ResponseStatusException notFound(String caseId) {
                 return new ResponseStatusException(HttpStatus.NOT_FOUND, "Workflow session not found: " + caseId);

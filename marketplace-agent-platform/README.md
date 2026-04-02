@@ -4,7 +4,7 @@ This directory is the implementation home for the marketplace agent platform pro
 
 The active direction is a marketplace platform in which Spring-based microservices each own a service-local agent and collaborate through explicit capability boundaries, with a thin operator-facing frontend for visibility and approval interaction.
 
-At this stage, this directory contains a runnable end-to-end product-track slice for the representative marketplace workflow, with later phases still open in the roadmap.
+This directory contains the capability-complete marketplace sample for the representative marketplace workflow on the current branch.
 
 It is intentionally not part of the runnable `samples/` catalog.
 
@@ -22,23 +22,24 @@ The current implementation modules are:
 
 ## Current State
 
-This product track currently ships a working Phase 3 slice for the representative `ITEM_NOT_RECEIVED` marketplace workflow.
+This product track ships a capability-complete marketplace workflow sample for the representative `ITEM_NOT_RECEIVED` path.
 
-That baseline includes the full composed service shape, a thin operator console, PostgreSQL-backed business persistence, Redis-backed workflow continuity, representative `REFUND` plus `CONTINUED_HOLD` outcomes, named agents, packaged skills, built-in resource tools, native finance-control pause and resume on the opt-in Arachne path, operator-visible streaming progress from packaged guidance lookup, and narrow tool-boundary steering that redirects an unsafe automatic settlement shortcut while Spring services keep deterministic state-transition ownership.
+The current sample includes the full composed service shape, a thin operator console, PostgreSQL-backed business persistence, Redis-backed workflow continuity across workflow-service replicas, representative `REFUND` plus `CONTINUED_HOLD` outcomes, named agents, service-local delegation, structured output, packaged skills, built-in resource tools, native finance-control pause and resume, operator-visible streaming progress, steering that redirects the unsafe settlement shortcut, and execution-context propagation of operator authorization into parallel delegated tool execution while Spring services keep deterministic state-transition ownership.
 
-The detailed implemented boundary, remaining gaps, and capability-complete target now live only in `docs/roadmap.md`.
+`workflow-service` supports both a deterministic Arachne model mode for repeatable local verification and an alternate Bedrock-backed model mode through the standard `arachne.strands.model.*` configuration surface.
+
+The capability-complete flow is still the opt-in Arachne-native workflow path in `workflow-service`, and the finance-control pause/resume runs through Arachne-native interrupt handling.
 
 ## Design Docs
 
 Use these documents by responsibility, not interchangeably.
 
 Treat this README as the public product-track overview.
-Treat `docs/roadmap.md` as the single source of truth for what is implemented today, implementation progress, remaining tasks, and next-phase sequencing.
 Treat the other `docs/*.md` files as concept, requirements, architecture, API, contract, and skill-boundary references.
+Treat `docs/requirements.md`, `docs/architecture.md`, `docs/apis.md`, `docs/contracts.md`, and `docs/skills.md` together as the source of truth for what is implemented today in this product track.
 
-Use these working files to track in-flight execution status for this product track:
+Use these documents to understand the shipped shape of this product track:
 
-- `docs/roadmap.md`: current baseline, capability-complete target, ordered roadmap, and remaining tasks
 - `docs/concept.md`: what the sample is meant to show, why this domain fits, and the representative explanation scenario
 - `docs/requirements.md`: what the first slice must support and what boundaries are treated as requirements
 - `docs/architecture.md`: execution architecture, development architecture, local runtime story, and deferred architecture choices
@@ -54,7 +55,6 @@ Recommended reading order:
 4. `docs/apis.md`
 5. `docs/contracts.md`
 6. `docs/skills.md`
-7. `docs/roadmap.md`
 
 ## Active Concept
 
@@ -79,7 +79,7 @@ Architecture follow-up lives in `docs/architecture.md`.
 API boundary follow-up lives in `docs/apis.md`.
 Case and approval contract follow-up lives in `docs/contracts.md`.
 Agent skill boundary follow-up lives in `docs/skills.md`.
-Implementation progress and remaining work live in `docs/roadmap.md`.
+The current shipped boundaries are described across `docs/requirements.md`, `docs/architecture.md`, `docs/apis.md`, `docs/contracts.md`, and `docs/skills.md`.
 
 ## Planned UX Shape
 

@@ -131,6 +131,20 @@ final class MarketplaceWorkflowArachneModel implements Model {
                     "resource_reader",
                     Map.of("location", "classpath:/marketplace-workflow/policies/finance-control-thresholds.md"));
         }
+        ToolOutcome firstContextProbe = latestToolOutcome(messages, "workflow-context-probe-1");
+        ToolOutcome secondContextProbe = latestToolOutcome(messages, "workflow-context-probe-2");
+        if (toolNames.contains(MarketplaceOperatorContextPlugin.TOOL_NAME)
+            && (firstContextProbe == null || secondContextProbe == null)) {
+            return toolUses(List.of(
+                new ModelEvent.ToolUse(
+                    "workflow-context-probe-1",
+                    MarketplaceOperatorContextPlugin.TOOL_NAME,
+                    Map.of("probe", "shipment-delegation")),
+                new ModelEvent.ToolUse(
+                    "workflow-context-probe-2",
+                    MarketplaceOperatorContextPlugin.TOOL_NAME,
+                    Map.of("probe", "risk-delegation"))));
+        }
 
         Recommendation recommendation = recommendation(prompt.get("caseType"), prompt.get("amount"));
         if (recommendation == Recommendation.REFUND && shortcutOutcome == null) {
@@ -200,6 +214,12 @@ final class MarketplaceWorkflowArachneModel implements Model {
         return List.of(
                 new ModelEvent.ToolUse(toolUseId, toolName, input),
                 new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
+    }
+
+    private Iterable<ModelEvent> toolUses(List<ModelEvent.ToolUse> toolUses) {
+        java.util.ArrayList<ModelEvent> events = new java.util.ArrayList<>(toolUses);
+        events.add(new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(toolUses.size(), toolUses.size())));
+        return List.copyOf(events);
     }
 
     private Iterable<ModelEvent> structuredOutput(String toolUseId, Map<String, Object> payload) {

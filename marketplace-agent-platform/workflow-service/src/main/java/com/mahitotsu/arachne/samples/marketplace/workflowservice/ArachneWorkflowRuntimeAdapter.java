@@ -21,6 +21,7 @@ import com.mahitotsu.arachne.strands.agent.InterruptResponse;
 import com.mahitotsu.arachne.strands.hooks.HookProvider;
 import com.mahitotsu.arachne.strands.skills.Skill;
 import com.mahitotsu.arachne.strands.spring.AgentFactory;
+import com.mahitotsu.arachne.strands.tool.ToolExecutionMode;
 
 final class ArachneWorkflowRuntimeAdapter implements WorkflowRuntimeAdapter {
 
@@ -29,6 +30,7 @@ final class ArachneWorkflowRuntimeAdapter implements WorkflowRuntimeAdapter {
     private final List<Skill> shipmentSkills;
     private final List<Skill> escrowSkills;
     private final List<Skill> riskSkills;
+        private final MarketplaceOperatorContextPlugin marketplaceOperatorContextPlugin;
         private final MarketplaceFinanceControlApprovalPlugin marketplaceFinanceControlApprovalPlugin;
         private final MarketplaceSettlementShortcutSteering marketplaceSettlementShortcutSteering;
 
@@ -38,6 +40,7 @@ final class ArachneWorkflowRuntimeAdapter implements WorkflowRuntimeAdapter {
             @Qualifier("shipmentAgentSkills") List<Skill> shipmentSkills,
             @Qualifier("escrowAgentSkills") List<Skill> escrowSkills,
                         @Qualifier("riskAgentSkills") List<Skill> riskSkills,
+                        MarketplaceOperatorContextPlugin marketplaceOperatorContextPlugin,
                         MarketplaceFinanceControlApprovalPlugin marketplaceFinanceControlApprovalPlugin,
                         MarketplaceSettlementShortcutSteering marketplaceSettlementShortcutSteering) {
         this.agentFactory = agentFactory;
@@ -45,6 +48,7 @@ final class ArachneWorkflowRuntimeAdapter implements WorkflowRuntimeAdapter {
         this.shipmentSkills = shipmentSkills;
         this.escrowSkills = escrowSkills;
         this.riskSkills = riskSkills;
+                this.marketplaceOperatorContextPlugin = marketplaceOperatorContextPlugin;
                 this.marketplaceFinanceControlApprovalPlugin = marketplaceFinanceControlApprovalPlugin;
                 this.marketplaceSettlementShortcutSteering = marketplaceSettlementShortcutSteering;
     }
@@ -66,7 +70,9 @@ final class ArachneWorkflowRuntimeAdapter implements WorkflowRuntimeAdapter {
         List<WorkflowActivity> workflowProgressActivities = new ArrayList<>();
         WorkflowDecision decision = agentFactory.builder("case-workflow-agent")
                 .skills(caseWorkflowSkills)
+                .plugins(marketplaceOperatorContextPlugin)
                 .steeringHandlers(marketplaceSettlementShortcutSteering)
+                .toolExecutionMode(ToolExecutionMode.PARALLEL)
                 .hooks(workflowProgressHook(workflowProgressActivities, now.plusSeconds(4)))
                 .build()
                 .run(workflowPrompt(command, shipment, escrow, risk), WorkflowDecision.class);
@@ -166,84 +172,106 @@ final class ArachneWorkflowRuntimeAdapter implements WorkflowRuntimeAdapter {
                 "riskSummary=" + risk.summary());
     }
 
-        private HookProvider workflowProgressHook(List<WorkflowActivity> activities, OffsetDateTime startTimestamp) {
-                return registrar -> registrar
-                                .beforeToolCall(event -> {
-                                        WorkflowActivity next = toolUseActivity(event.toolName(), event.input(), startTimestamp.plusSeconds(activities.size()));
-                                        if (next != null) {
-                                                activities.add(next);
-                                        }
-                                })
-                                .afterToolCall(event -> {
-                                        WorkflowActivity next = toolResultActivity(event.toolName(), event.result(), startTimestamp.plusSeconds(activities.size()));
-                                        if (next != null) {
-                                                activities.add(next);
-                                        }
-                                });
-        }
+    private HookProvider workflowProgressHook(List<WorkflowActivity> activities, OffsetDateTime startTimestamp) {
+        return registrar -> registrar
+                .beforeToolCall(event -> {
+                    WorkflowActivity next = toolUseActivity(event.toolName(), event.input(), startTimestamp.plusSeconds(activities.size()));
+                    if (next != null) {
+                        activities.add(next);
+                    }
+                })
+                .afterToolCall(event -> {
+                    WorkflowActivity next = toolResultActivity(event.toolName(), event.result(), startTimestamp.plusSeconds(activities.size()));
+                    if (next != null) {
+                        activities.add(next);
+                    }
+                });
+    }
 
-        private WorkflowActivity toolUseActivity(String toolName, Object input, OffsetDateTime timestamp) {
-                if ("resource_list".equals(toolName)) {
-                        return activity(timestamp, "STREAM_PROGRESS", "case-workflow-agent", "case-workflow-agent listed the packaged marketplace guidance before updating the recommendation.");
-                }
-                if ("resource_reader".equals(toolName) && input instanceof Map<?, ?> inputMap) {
-                        String location = String.valueOf(inputMap.get("location"));
-                        if (location.endsWith("settlement-policy-summary.md")) {
-                                return activity(timestamp, "STREAM_PROGRESS", "case-workflow-agent", "case-workflow-agent reviewed the packaged settlement policy summary.");
-                        }
-                        if (location.endsWith("finance-control-thresholds.md")) {
-                                return activity(timestamp, "STREAM_PROGRESS", "case-workflow-agent", "case-workflow-agent reviewed finance-control thresholds before any settlement-changing action.");
-                        }
-                        if (location.endsWith("item-not-received.md")) {
-                                return activity(timestamp, "STREAM_PROGRESS", "case-workflow-agent", "case-workflow-agent consulted the item-not-received runbook for the active case.");
-                        }
-                }
-                if (MarketplaceSettlementShortcutSteering.TOOL_NAME.equals(toolName)) {
-                        return activity(timestamp, "SETTLEMENT_SHORTCUT_ATTEMPTED", "case-workflow-agent", "case-workflow-agent attempted an automatic settlement shortcut on the low-value refund path.");
-                }
-                return null;
+    private WorkflowActivity toolUseActivity(String toolName, Object input, OffsetDateTime timestamp) {
+        if ("resource_list".equals(toolName)) {
+            return activity(timestamp, "STREAM_PROGRESS", "case-workflow-agent", "case-workflow-agent listed the packaged marketplace guidance before updating the recommendation.");
         }
+        if ("resource_reader".equals(toolName) && input instanceof Map<?, ?> inputMap) {
+            String location = String.valueOf(inputMap.get("location"));
+            if (location.endsWith("settlement-policy-summary.md")) {
+                return activity(timestamp, "STREAM_PROGRESS", "case-workflow-agent", "case-workflow-agent reviewed the packaged settlement policy summary.");
+            }
+            if (location.endsWith("finance-control-thresholds.md")) {
+                return activity(timestamp, "STREAM_PROGRESS", "case-workflow-agent", "case-workflow-agent reviewed finance-control thresholds before any settlement-changing action.");
+            }
+            if (location.endsWith("item-not-received.md")) {
+                return activity(timestamp, "STREAM_PROGRESS", "case-workflow-agent", "case-workflow-agent consulted the item-not-received runbook for the active case.");
+            }
+        }
+        if (MarketplaceSettlementShortcutSteering.TOOL_NAME.equals(toolName)) {
+            return activity(timestamp, "SETTLEMENT_SHORTCUT_ATTEMPTED", "case-workflow-agent", "case-workflow-agent attempted an automatic settlement shortcut on the low-value refund path.");
+        }
+        return null;
+    }
 
-        private WorkflowActivity toolResultActivity(String toolName, com.mahitotsu.arachne.strands.tool.ToolResult result, OffsetDateTime timestamp) {
-                if (MarketplaceSettlementShortcutSteering.TOOL_NAME.equals(toolName)
-                                && result.status() == com.mahitotsu.arachne.strands.tool.ToolResult.ToolStatus.ERROR
-                                && MarketplaceSettlementShortcutSteering.GUIDANCE.equals(String.valueOf(result.content()))) {
-                        return activity(timestamp, "STEERING_APPLIED", "workflow-steering", MarketplaceSettlementShortcutSteering.GUIDANCE);
-                }
-                return null;
+    private WorkflowActivity toolResultActivity(String toolName, com.mahitotsu.arachne.strands.tool.ToolResult result, OffsetDateTime timestamp) {
+        if (MarketplaceSettlementShortcutSteering.TOOL_NAME.equals(toolName)
+                && result.status() == com.mahitotsu.arachne.strands.tool.ToolResult.ToolStatus.ERROR
+                && MarketplaceSettlementShortcutSteering.GUIDANCE.equals(String.valueOf(result.content()))) {
+            return activity(timestamp, "STEERING_APPLIED", "workflow-steering", MarketplaceSettlementShortcutSteering.GUIDANCE);
         }
+        if (MarketplaceOperatorContextPlugin.TOOL_NAME.equals(toolName)) {
+            if (result.status() == com.mahitotsu.arachne.strands.tool.ToolResult.ToolStatus.SUCCESS
+                    && result.content() instanceof Map<?, ?> payload) {
+                return activity(
+                        timestamp,
+                        "CONTEXT_PROPAGATED",
+                        "workflow-security",
+                        "workflow-service propagated operator authorization context "
+                                + payload.get("operatorId")
+                                + "/"
+                                + payload.get("operatorRole")
+                                + " into parallel tool execution for "
+                                + payload.get("probe")
+                                + ".");
+            }
+            return activity(
+                    timestamp,
+                    "CONTEXT_PROPAGATION_FAILED",
+                    "workflow-security",
+                    "workflow-service failed to propagate operator authorization context into parallel tool execution: "
+                            + result.content());
+        }
+        return null;
+    }
 
-        private Agent approvalAgent(String sessionId) {
-                return agentFactory.builder("case-workflow-agent")
-                                .skills(caseWorkflowSkills)
-                                .plugins(marketplaceFinanceControlApprovalPlugin)
-                                .sessionId(sessionId)
-                                .build();
-        }
+    private Agent approvalAgent(String sessionId) {
+        return agentFactory.builder("case-workflow-agent")
+                .skills(caseWorkflowSkills)
+                .plugins(marketplaceFinanceControlApprovalPlugin)
+                .sessionId(sessionId)
+                .build();
+    }
 
-        private String approvalPrompt(StartWorkflowCommand command, Recommendation recommendation) {
-                return String.join("\n",
-                                "mode=approval-start",
-                                "caseId=" + command.caseId(),
-                                "caseType=" + command.caseType(),
-                                "orderId=" + command.orderId(),
-                                "recommendation=" + recommendation.name(),
-                                "approvalMessage=Finance control approval is required for settlement progression.");
-        }
+    private String approvalPrompt(StartWorkflowCommand command, Recommendation recommendation) {
+        return String.join("\n",
+                "mode=approval-start",
+                "caseId=" + command.caseId(),
+                "caseType=" + command.caseType(),
+                "orderId=" + command.orderId(),
+                "recommendation=" + recommendation.name(),
+                "approvalMessage=Finance control approval is required for settlement progression.");
+    }
 
-        private Map<String, Object> approvalResponse(ResumeWorkflowCommand command) {
-                LinkedHashMap<String, Object> response = new LinkedHashMap<>();
-                response.put("decision", blankSafe(command.decision()));
-                response.put("comment", blankSafe(command.comment()));
-                response.put("actorId", blankSafe(command.actorId()));
-                response.put("actorRole", blankSafe(command.actorRole()));
-                response.put("requestedAt", command.requestedAt() == null ? "" : command.requestedAt().toString());
-                return response;
-        }
+    private Map<String, Object> approvalResponse(ResumeWorkflowCommand command) {
+        LinkedHashMap<String, Object> response = new LinkedHashMap<>();
+        response.put("decision", blankSafe(command.decision()));
+        response.put("comment", blankSafe(command.comment()));
+        response.put("actorId", blankSafe(command.actorId()));
+        response.put("actorRole", blankSafe(command.actorRole()));
+        response.put("requestedAt", command.requestedAt() == null ? "" : command.requestedAt().toString());
+        return response;
+    }
 
-        private String approvalSessionId(String caseId) {
-                return "marketplace-approval:" + caseId;
-        }
+    private String approvalSessionId(String caseId) {
+        return "marketplace-approval:" + caseId;
+    }
 
     private String blankSafe(String value) {
         return value == null ? "" : value;
