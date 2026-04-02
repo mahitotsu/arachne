@@ -57,18 +57,20 @@ Capability-complete means the sample visibly demonstrates all of the following i
 
 ## Current Baseline
 
-The current shipped baseline is a runnable product track with Phase 2 complete.
+The current shipped baseline is a runnable product track with Phase 3 complete.
 
 Implemented today:
 
 - end-to-end local marketplace flow with deterministic service ownership preserved
 - opt-in Arachne runtime identity, packaged skills, and built-in resource-tool usage for the representative `ITEM_NOT_RECEIVED` path inside `workflow-service`
 - native Arachne interrupt and resume now back the finance-control approval boundary on the opt-in workflow path, including Redis-backed continuity across workflow-service replicas
+- operator-visible activity now includes native workflow streaming progress from packaged guidance lookup and settlement-policy review on the opt-in path
+- narrow tool-boundary steering now blocks the automatic settlement shortcut and redirects the workflow to finance-control approval while keeping the frontend thin
 - deterministic fallback still as the default path, with focused enabled-path tests and existing continuity coverage still green
 
 Not implemented yet in the product-track workflow itself:
 
-- operator-visible streaming progress, steering, and execution-context propagation
+- execution-context propagation
 - Bedrock-backed product-track runtime wiring
 
 ## Current Active Queue
@@ -77,31 +79,11 @@ These are the concrete tasks to execute in order.
 
 The current position is the first unchecked item below.
 
-- [ ] complete Phase 3 `Operator-Visible Streaming And Steering`
 - [ ] complete Phase 4 `Capability-Complete Closeout`
 
 ## Roadmap
 
 The roadmap below defines what each unchecked phase-completion item above means.
-
-### Phase 3: Operator-Visible Streaming And Steering
-
-Goal:
-
-Make operator-visible activity updates reflect streaming and add narrow steering for unsafe workflow paths.
-
-Definition of done:
-
-- [ ] streaming is visible in the case activity surface as incremental progress rather than only final deterministic events
-- [ ] steering visibly blocks or redirects at least one unsafe settlement shortcut
-- [ ] steering remains narrow and readable at model or tool boundaries
-- [ ] the frontend stays thin and does not absorb workflow logic
-
-Remaining implementation tasks for this phase:
-
-- stream operator-visible activity updates from the Arachne-native workflow path rather than only deterministic state transitions
-- add narrow steering for at least one unsafe settlement path and expose the redirected behavior in the operator-visible activity timeline
-- verify the thin frontend still talks only to `case-service` while surfacing the richer runtime behavior
 
 ### Phase 4: Capability-Complete Closeout
 

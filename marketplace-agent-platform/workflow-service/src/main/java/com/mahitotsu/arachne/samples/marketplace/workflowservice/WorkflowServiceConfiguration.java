@@ -19,7 +19,6 @@ import org.springframework.web.client.RestClient;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-
 import com.mahitotsu.arachne.strands.model.Model;
 import com.mahitotsu.arachne.strands.session.InMemorySessionManager;
 import com.mahitotsu.arachne.strands.session.SessionManager;
@@ -101,6 +100,11 @@ class WorkflowServiceConfiguration {
     }
 
     @Bean
+    MarketplaceSettlementShortcutSteering marketplaceSettlementShortcutSteering() {
+        return new MarketplaceSettlementShortcutSteering();
+    }
+
+    @Bean
     @ConditionalOnProperty(prefix = "workflow-session", name = "store", havingValue = "memory", matchIfMissing = true)
     SessionManager workflowArachneInMemorySessionManager() {
         return new InMemorySessionManager();
@@ -129,14 +133,16 @@ class WorkflowServiceConfiguration {
             @Qualifier("shipmentAgentSkills") List<Skill> shipmentSkills,
             @Qualifier("escrowAgentSkills") List<Skill> escrowSkills,
             @Qualifier("riskAgentSkills") List<Skill> riskSkills,
-            MarketplaceFinanceControlApprovalPlugin marketplaceFinanceControlApprovalPlugin) {
+            MarketplaceFinanceControlApprovalPlugin marketplaceFinanceControlApprovalPlugin,
+            MarketplaceSettlementShortcutSteering marketplaceSettlementShortcutSteering) {
         return new ArachneWorkflowRuntimeAdapter(
                 agentFactory,
                 caseWorkflowSkills,
                 shipmentSkills,
                 escrowSkills,
                 riskSkills,
-                marketplaceFinanceControlApprovalPlugin);
+                marketplaceFinanceControlApprovalPlugin,
+                marketplaceSettlementShortcutSteering);
     }
 
     @Bean

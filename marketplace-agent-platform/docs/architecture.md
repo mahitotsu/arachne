@@ -219,7 +219,7 @@ The Arachne-native path should enter the product track inside `workflow-service`
 The current implementation preserves this split:
 
 - `WorkflowApplicationService` remains the Spring-owned start, continue, and resume seam
-- a workflow-runtime adapter inside `workflow-service` invokes the `case-workflow-agent`, packaged skills, visible resource-tool reads, and the native finance-control approval interrupt path
+- a workflow-runtime adapter inside `workflow-service` invokes the `case-workflow-agent`, packaged skills, visible resource-tool reads, operator-visible progress capture from tool-boundary observation, narrow settlement-shortcut steering, and the native finance-control approval interrupt path
 - downstream services continue to own their business APIs and may introduce their service-local agent wiring behind those APIs without leaking agent protocol details into cross-service contracts
 - `case-service` remains the durable owner of operator-facing projections and activity history
 - `escrow-service` remains the deterministic owner of settlement-changing transactions and authorization checks
@@ -234,7 +234,7 @@ That means:
 
 - the current deterministic path remains the default runtime behavior
 - the current Arachne-native path remains opt-in behind a product-track property
-- the enabled path now covers recommendation shaping plus native approval interrupt/resume, while still using a deterministic in-process model first so tests and local runs stay repeatable
+- the enabled path now covers recommendation shaping, operator-visible progress capture from resource-tool activity, narrow tool-boundary steering for the unsafe automatic settlement shortcut, and native approval interrupt/resume, while still using a deterministic in-process model first so tests and local runs stay repeatable
 - later Bedrock-backed support can be layered onto the same service-local ownership map without changing API or persistence boundaries
 
 ### Communication Shape

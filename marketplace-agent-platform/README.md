@@ -22,9 +22,9 @@ The current implementation modules are:
 
 ## Current State
 
-This product track currently ships a working deterministic first slice for the representative `ITEM_NOT_RECEIVED` marketplace workflow, plus an opt-in Arachne-native workflow path in `workflow-service`.
+This product track currently ships a working Phase 3 slice for the representative `ITEM_NOT_RECEIVED` marketplace workflow.
 
-That baseline includes the full composed service shape, a thin operator console, PostgreSQL-backed business persistence, Redis-backed workflow continuity, representative `REFUND` plus `CONTINUED_HOLD` outcomes, named agents, packaged skills, built-in resource tools, and a Phase 2 approval path where finance-control pause/resume runs through Arachne-native interrupt handling while Spring services keep state-transition ownership.
+That baseline includes the full composed service shape, a thin operator console, PostgreSQL-backed business persistence, Redis-backed workflow continuity, representative `REFUND` plus `CONTINUED_HOLD` outcomes, named agents, packaged skills, built-in resource tools, native finance-control pause and resume on the opt-in Arachne path, operator-visible streaming progress from packaged guidance lookup, and narrow tool-boundary steering that redirects an unsafe automatic settlement shortcut while Spring services keep deterministic state-transition ownership.
 
 The detailed implemented boundary, remaining gaps, and capability-complete target now live only in `docs/roadmap.md`.
 

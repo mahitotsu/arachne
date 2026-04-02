@@ -6,6 +6,7 @@ import java.time.OffsetDateTime;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.hasItem;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -102,15 +103,35 @@ class WorkflowServiceArachneApiTest {
                         .content(startWorkflowRequest("case-arachne-refund", BigDecimal.valueOf(49.95), "USD")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.currentRecommendation").value("REFUND"))
-                .andExpect(jsonPath("$.activities[4].source").value("case-workflow-agent"));
+                .andExpect(jsonPath("$.activities[*].kind", hasItem("SETTLEMENT_SHORTCUT_ATTEMPTED")))
+                .andExpect(jsonPath("$.activities[*].kind", hasItem("STEERING_APPLIED")))
+                .andExpect(jsonPath("$.activities[*].message", hasItem("Automatic settlement is blocked on the workflow path. Redirect the case to finance control approval before any settlement-changing action.")));
 
         assertThat(shipmentServer.takeRequest(1, TimeUnit.SECONDS)).isNotNull();
         assertThat(escrowServer.takeRequest(1, TimeUnit.SECONDS)).isNotNull();
         assertThat(riskServer.takeRequest(1, TimeUnit.SECONDS)).isNotNull();
     }
 
-        @Test
-        void approvalResumePreservesCompletedOutcomeOnEnabledArachnePath() throws Exception {
+    @Test
+    void startWorkflowPublishesStreamingActivitiesFromNativeWorkflowPath() throws Exception {
+        enqueueStandardEvidenceResponses(BigDecimal.valueOf(149.95), "USD");
+
+        mockMvc.perform(post("/internal/workflows")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(startWorkflowRequest("case-arachne-stream", BigDecimal.valueOf(149.95), "USD")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.activities[*].message", hasItem("case-workflow-agent listed the packaged marketplace guidance before updating the recommendation.")))
+                .andExpect(jsonPath("$.activities[*].message", hasItem("case-workflow-agent consulted the item-not-received runbook for the active case.")))
+                .andExpect(jsonPath("$.activities[*].message", hasItem("case-workflow-agent reviewed the packaged settlement policy summary.")))
+                .andExpect(jsonPath("$.activities[*].message", hasItem("case-workflow-agent reviewed finance-control thresholds before any settlement-changing action.")));
+
+        assertThat(shipmentServer.takeRequest(1, TimeUnit.SECONDS)).isNotNull();
+        assertThat(escrowServer.takeRequest(1, TimeUnit.SECONDS)).isNotNull();
+        assertThat(riskServer.takeRequest(1, TimeUnit.SECONDS)).isNotNull();
+    }
+
+    @Test
+    void approvalResumePreservesCompletedOutcomeOnEnabledArachnePath() throws Exception {
         enqueueStandardEvidenceResponses(BigDecimal.valueOf(49.95), "USD");
 
         mockMvc.perform(post("/internal/workflows")
@@ -152,10 +173,10 @@ class WorkflowServiceArachneApiTest {
 
         assertThat(escrowServer.takeRequest(1, TimeUnit.SECONDS)).isNotNull();
         assertThat(notificationServer.takeRequest(1, TimeUnit.SECONDS)).isNotNull();
-        }
+    }
 
-        @Test
-        void approvalRejectionPreservesEvidenceGatheringOutcomeOnEnabledArachnePath() throws Exception {
+    @Test
+    void approvalRejectionPreservesEvidenceGatheringOutcomeOnEnabledArachnePath() throws Exception {
         enqueueStandardEvidenceResponses(BigDecimal.valueOf(149.95), "USD");
 
         mockMvc.perform(post("/internal/workflows")
@@ -184,7 +205,7 @@ class WorkflowServiceArachneApiTest {
 
         assertThat(escrowServer.takeRequest(100, TimeUnit.MILLISECONDS)).isNull();
         assertThat(notificationServer.takeRequest(100, TimeUnit.MILLISECONDS)).isNull();
-        }
+    }
 
     private void enqueueStandardEvidenceResponses(BigDecimal amount, String currency) throws Exception {
         enqueueJson(shipmentServer, new DownstreamContracts.ShipmentEvidenceSummary(

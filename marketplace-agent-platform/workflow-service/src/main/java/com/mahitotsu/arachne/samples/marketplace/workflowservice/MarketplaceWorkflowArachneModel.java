@@ -86,6 +86,7 @@ final class MarketplaceWorkflowArachneModel implements Model {
         }
 
         Map<String, String> prompt = promptValues(messages);
+        ToolOutcome shortcutOutcome = latestToolOutcome(messages, "workflow-shortcut");
         if ("approval-start".equalsIgnoreCase(prompt.get("mode"))) {
             if (!hasSkillActivation(messages, "approval-escalation-and-resume")) {
                 return toolUse("workflow-skill-3", "activate_skill", Map.of("name", "approval-escalation-and-resume"));
@@ -132,15 +133,30 @@ final class MarketplaceWorkflowArachneModel implements Model {
         }
 
         Recommendation recommendation = recommendation(prompt.get("caseType"), prompt.get("amount"));
+        if (recommendation == Recommendation.REFUND && shortcutOutcome == null) {
+            return toolUse(
+                "workflow-shortcut",
+                MarketplaceSettlementShortcutSteering.TOOL_NAME,
+                Map.of(
+                    "caseId", prompt.get("caseId"),
+                    "path", "instant_refund",
+                    "recommendation", recommendation.name(),
+                    "amount", prompt.get("amount")));
+        }
+        boolean shortcutRedirected = shortcutOutcome != null && "error".equalsIgnoreCase(shortcutOutcome.status());
         String recommendationMessage = recommendation == Recommendation.REFUND
-                ? "case-workflow-agent recommends a refund after reviewing packaged guidance, downstream evidence, and the low-value dispute path."
+            ? shortcutRedirected
+                ? "case-workflow-agent kept the refund recommendation but redirected the case away from the automatic settlement shortcut to finance control approval."
+                : "case-workflow-agent recommends a refund after reviewing packaged guidance, downstream evidence, and the low-value dispute path."
                 : "case-workflow-agent recommends keeping the hold until finance control confirms the next step under the packaged settlement policy.";
         return structuredOutput(
                 "workflow-decision",
                 Map.of(
                         "recommendation", recommendation.name(),
                         "recommendationMessage", recommendationMessage,
-                        "approvalMessage", "Finance control approval is required for settlement progression after the workflow reviewed the packaged threshold reference.",
+                "approvalMessage", shortcutRedirected
+                    ? "Finance control approval is required because workflow steering blocked the automatic settlement shortcut and redirected the case to the approval path."
+                    : "Finance control approval is required for settlement progression after the workflow reviewed the packaged threshold reference.",
                         "policyReference", WorkflowRuntimeAdapter.POLICY_REFERENCE));
     }
 
@@ -236,6 +252,18 @@ final class MarketplaceWorkflowArachneModel implements Model {
         return null;
     }
 
+    private ToolOutcome latestToolOutcome(List<Message> messages, String toolUseId) {
+        for (int index = messages.size() - 1; index >= 0; index--) {
+            Message message = messages.get(index);
+            for (ContentBlock block : message.content()) {
+                if (block instanceof ContentBlock.ToolResult toolResult && toolUseId.equals(toolResult.toolUseId())) {
+                    return new ToolOutcome(toolResult.status(), toolResult.content());
+                }
+            }
+        }
+        return null;
+    }
+
     private String resourceContent(List<Message> messages, String location) {
         for (int index = messages.size() - 1; index >= 0; index--) {
             Message message = messages.get(index);
@@ -301,5 +329,8 @@ final class MarketplaceWorkflowArachneModel implements Model {
 
     private String stringValue(Object value) {
         return value == null ? null : String.valueOf(value);
+    }
+
+    private record ToolOutcome(String status, Object content) {
     }
 }
