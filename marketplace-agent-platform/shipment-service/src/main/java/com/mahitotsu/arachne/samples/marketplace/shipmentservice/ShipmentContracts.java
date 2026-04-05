@@ -8,6 +8,7 @@ final class ShipmentContracts {
     record ShipmentEvidenceRequest(
             String caseId,
             String caseType,
+            String disputeSummary,
             String orderId) {
     }
 

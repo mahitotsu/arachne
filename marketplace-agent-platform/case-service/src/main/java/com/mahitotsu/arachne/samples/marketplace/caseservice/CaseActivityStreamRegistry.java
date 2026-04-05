@@ -17,12 +17,22 @@ class CaseActivityStreamRegistry {
     private final Map<String, CopyOnWriteArrayList<SseEmitter>> emittersByCaseId = new ConcurrentHashMap<>();
 
     SseEmitter register(String caseId) {
-        var emitter = new SseEmitter(0L);
+        var emitter = newEmitter();
         addEmitter(caseId, emitter);
         emitter.onCompletion(() -> remove(caseId, emitter));
         emitter.onTimeout(() -> remove(caseId, emitter));
         emitter.onError(ignored -> remove(caseId, emitter));
+        try {
+            emitter.send(SseEmitter.event().comment("connected"));
+        }
+        catch (IOException | IllegalStateException exception) {
+            discard(caseId, emitter);
+        }
         return emitter;
+    }
+
+    SseEmitter newEmitter() {
+        return new SseEmitter(0L);
     }
 
     void publish(String caseId, List<ActivityEvent> events) {

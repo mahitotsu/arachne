@@ -131,9 +131,6 @@ final class MarketplaceWorkflowArachneModel implements Model {
         if (!hasSkillActivation(messages, "item-not-received-investigation")) {
             return toolUse("workflow-skill-2", "activate_skill", Map.of("name", "item-not-received-investigation"));
         }
-        if (!hasSkillActivation(messages, "approval-escalation-and-resume")) {
-            return toolUse("workflow-skill-3", "activate_skill", Map.of("name", "approval-escalation-and-resume"));
-        }
         if (toolNames.contains("resource_list") && latestToolResult(messages, "resource_list") == null) {
             return toolUse(
                     "workflow-resources",
@@ -176,7 +173,19 @@ final class MarketplaceWorkflowArachneModel implements Model {
                     Map.of("probe", "risk-delegation"))));
         }
 
-        Recommendation recommendation = recommendation(prompt.get("caseType"), prompt.get("amount"));
+        ScenarioDrivenRecommendation.Assessment assessment = ScenarioDrivenRecommendation.assess(
+            prompt.get("caseType"),
+            amount(prompt.get("amount")),
+            prompt.get("shipmentDeliveryConfidence"),
+            prompt.get("shipmentMilestoneSummary"),
+            prompt.get("shipmentExceptionSummary"),
+            prompt.get("escrowHoldState"),
+            prompt.get("escrowPriorSettlementStatus"),
+            Boolean.parseBoolean(blankSafe(prompt.get("riskManualReviewRequired"))),
+            promptFlags(prompt.get("riskPolicyFlags")),
+            prompt.get("riskIndicatorSummary"),
+            prompt.get("riskSummary"));
+        Recommendation recommendation = assessment.recommendation();
         if (recommendation == Recommendation.REFUND && shortcutOutcome == null) {
             return toolUse(
                 "workflow-shortcut",
@@ -191,16 +200,18 @@ final class MarketplaceWorkflowArachneModel implements Model {
         String recommendationMessage = recommendation == Recommendation.REFUND
             ? shortcutRedirected
                 ? "case-workflow-agent kept the refund recommendation but redirected the case away from the automatic settlement shortcut to finance control approval."
-                : "case-workflow-agent recommends a refund after reviewing packaged guidance, downstream evidence, and the low-value dispute path."
-                : "case-workflow-agent recommends keeping the hold until finance control confirms the next step under the packaged settlement policy.";
+                : assessment.message()
+            : assessment.message();
         return structuredOutput(
                 "workflow-decision",
                 Map.of(
                         "recommendation", recommendation.name(),
                         "recommendationMessage", recommendationMessage,
-                "approvalMessage", shortcutRedirected
-                    ? "Finance control approval is required because workflow steering blocked the automatic settlement shortcut and redirected the case to the approval path."
-                    : "Finance control approval is required for settlement progression after the workflow reviewed the packaged threshold reference.",
+                "approvalMessage", assessment.approvalRequired()
+                    ? shortcutRedirected
+                        ? "Finance control approval is required because workflow steering blocked the automatic settlement shortcut and redirected the case to the approval path."
+                        : "Finance control approval is required for settlement progression after the workflow reviewed the packaged threshold reference."
+                    : "",
                         "policyReference", WorkflowRuntimeAdapter.POLICY_REFERENCE));
     }
 
@@ -227,17 +238,21 @@ final class MarketplaceWorkflowArachneModel implements Model {
                 new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
     }
 
-    private Recommendation recommendation(String caseType, String amountText) {
-        if (!"ITEM_NOT_RECEIVED".equalsIgnoreCase(caseType)) {
-            return Recommendation.CONTINUED_HOLD;
-        }
+    private BigDecimal amount(String amountText) {
         if (amountText == null || amountText.isBlank()) {
-            return Recommendation.CONTINUED_HOLD;
+            return null;
         }
-        BigDecimal amount = new BigDecimal(amountText);
-        return amount.compareTo(WorkflowRuntimeAdapter.AUTOMATED_REFUND_THRESHOLD) <= 0
-                ? Recommendation.REFUND
-                : Recommendation.CONTINUED_HOLD;
+        return new BigDecimal(amountText);
+    }
+
+    private List<String> promptFlags(String value) {
+        if (value == null || value.isBlank()) {
+            return List.of();
+        }
+        return java.util.Arrays.stream(value.split(","))
+                .map(String::trim)
+                .filter(flag -> !flag.isEmpty())
+                .toList();
     }
 
     private Iterable<ModelEvent> toolUse(String toolUseId, String toolName, Map<String, Object> input) {

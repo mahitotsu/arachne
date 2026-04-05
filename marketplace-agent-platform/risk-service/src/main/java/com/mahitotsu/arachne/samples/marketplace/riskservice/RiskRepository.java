@@ -7,6 +7,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -20,7 +21,7 @@ class RiskRepository {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    void ensureRiskReview(String caseId, String orderId, String operatorRole) {
+    void ensureRiskReview(String caseId, String orderId, String caseType, String disputeSummary, String operatorRole) {
         var count = jdbcTemplate.queryForObject(
                 "select count(*) from risk_reviews where case_id = ?",
                 Integer.class,
@@ -28,15 +29,16 @@ class RiskRepository {
         if (count != null && count > 0) {
             return;
         }
+        RiskScenario scenario = scenario(caseType, disputeSummary);
         jdbcTemplate.update(
                 "insert into risk_reviews (case_id, order_id, operator_role, indicator_summary, manual_review_required, policy_flags, summary, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?)",
                 caseId,
                 orderId,
                 operatorRole,
-                "No elevated fraud signal detected for the current order.",
-                true,
-                "FINANCE_CONTROL_REVIEW_REQUIRED",
-                "Risk review found no elevated fraud signal but requires finance control confirmation for settlement-changing actions.",
+                scenario.indicatorSummary(),
+                scenario.manualReviewRequired(),
+                String.join(",", scenario.policyFlags()),
+                scenario.summary(),
                 timestamp(OffsetDateTime.now(ZoneOffset.UTC)));
     }
 
@@ -82,6 +84,48 @@ class RiskRepository {
         var value = rs.getTimestamp(column);
         return value == null ? null : value.toInstant().atOffset(ZoneOffset.UTC);
     }
+
+    private RiskScenario scenario(String caseType, String disputeSummary) {
+        String normalizedCaseType = normalize(caseType);
+        String normalizedSummary = normalize(disputeSummary);
+        if (normalizedCaseType.contains("high_risk_settlement_hold")) {
+            return new RiskScenario(
+                    "Elevated fraud and account-takeover indicators are present for the current order.",
+                    true,
+                    List.of("HIGH_RISK_SETTLEMENT_HOLD", "ACCOUNT_TAKEOVER_REVIEW", "FINANCE_CONTROL_REVIEW_REQUIRED"),
+                    "Risk review identified elevated fraud indicators and requires a settlement hold until controls are cleared.");
+        }
+        if (normalizedCaseType.contains("delivered_but_damaged")) {
+            return new RiskScenario(
+                    "No elevated fraud signal detected, but the damage dispute needs seller and inspection evidence.",
+                    false,
+                    List.of("DAMAGE_EVIDENCE_REQUIRED"),
+                    "Risk review found no fraud escalation, but the damage claim still needs corroborating evidence before settlement changes.");
+        }
+        if (normalizedCaseType.contains("seller_cancellation_after_authorization") || normalizedSummary.contains("cancel")) {
+            return new RiskScenario(
+                    "No elevated fraud signal detected for the cancelled fulfillment path.",
+                    false,
+                    List.of("SELLER_OPERATIONS_REVIEW"),
+                    "Risk review found no elevated fraud signal and the cancellation pattern aligns with a seller-side fulfillment failure.");
+        }
+        return new RiskScenario(
+                "No elevated fraud signal detected for the current order.",
+                true,
+                List.of("FINANCE_CONTROL_REVIEW_REQUIRED"),
+                "Risk review found no elevated fraud signal but requires finance control confirmation for settlement-changing actions.");
+    }
+
+    private String normalize(String value) {
+        return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
+    }
+}
+
+record RiskScenario(
+        String indicatorSummary,
+        boolean manualReviewRequired,
+        List<String> policyFlags,
+        String summary) {
 }
 
 record RiskReviewRecord(

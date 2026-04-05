@@ -92,4 +92,23 @@ class RiskServiceApiTest {
                 .andExpect(jsonPath("$.indicatorSummary").value("No elevated fraud signal detected for the current order."))
                 .andExpect(jsonPath("$.policyFlags[0]").value("FINANCE_CONTROL_REVIEW_REQUIRED"));
     }
+
+    @Test
+    void caseReviewReflectsHighRiskSettlementScenario() throws Exception {
+        mockMvc.perform(post("/internal/risk/case-review")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "caseId": "case-risk",
+                                  "caseType": "HIGH_RISK_SETTLEMENT_HOLD",
+                                  "orderId": "order-risk-1",
+                                  "disputeSummary": "Risk controls flagged unusual account activity.",
+                                  "operatorRole": "CASE_OPERATOR"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.manualReviewRequired").value(true))
+                .andExpect(jsonPath("$.policyFlags[0]").value("HIGH_RISK_SETTLEMENT_HOLD"))
+                .andExpect(jsonPath("$.indicatorSummary").value("Elevated fraud and account-takeover indicators are present for the current order."));
+    }
 }

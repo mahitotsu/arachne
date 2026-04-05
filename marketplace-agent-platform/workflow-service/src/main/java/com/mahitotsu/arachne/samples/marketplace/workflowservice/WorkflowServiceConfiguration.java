@@ -72,8 +72,15 @@ class WorkflowServiceConfiguration {
         return List.of();
     }
 
-    @Bean(name = "caseWorkflowAgentSkills")
-    List<Skill> caseWorkflowAgentSkills(SkillParser skillParser) {
+    @Bean(name = "caseWorkflowAssessmentSkills")
+    List<Skill> caseWorkflowAssessmentSkills(SkillParser skillParser) {
+        return List.of(
+                parseSkill(skillParser, "skills/marketplace-dispute-intake/SKILL.md"),
+                parseSkill(skillParser, "skills/item-not-received-investigation/SKILL.md"));
+    }
+
+    @Bean(name = "caseWorkflowApprovalSkills")
+    List<Skill> caseWorkflowApprovalSkills(SkillParser skillParser) {
         return List.of(
                 parseSkill(skillParser, "skills/marketplace-dispute-intake/SKILL.md"),
                 parseSkill(skillParser, "skills/item-not-received-investigation/SKILL.md"),
@@ -158,7 +165,8 @@ class WorkflowServiceConfiguration {
     @ConditionalOnProperty(prefix = "marketplace.workflow-runtime.arachne", name = "enabled", havingValue = "true")
     WorkflowRuntimeAdapter arachneWorkflowRuntimeAdapter(
             AgentFactory agentFactory,
-            @Qualifier("caseWorkflowAgentSkills") List<Skill> caseWorkflowSkills,
+            @Qualifier("caseWorkflowAssessmentSkills") List<Skill> caseWorkflowAssessmentSkills,
+            @Qualifier("caseWorkflowApprovalSkills") List<Skill> caseWorkflowApprovalSkills,
             @Qualifier("shipmentAgentSkills") List<Skill> shipmentSkills,
             @Qualifier("escrowAgentSkills") List<Skill> escrowSkills,
             @Qualifier("riskAgentSkills") List<Skill> riskSkills,
@@ -167,7 +175,8 @@ class WorkflowServiceConfiguration {
             MarketplaceSettlementShortcutSteering marketplaceSettlementShortcutSteering) {
         return new ArachneWorkflowRuntimeAdapter(
                 agentFactory,
-                caseWorkflowSkills,
+            caseWorkflowAssessmentSkills,
+            caseWorkflowApprovalSkills,
                 shipmentSkills,
                 escrowSkills,
                 riskSkills,

@@ -18,6 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -55,6 +56,9 @@ class CaseServiceApiTest {
     @Autowired
     private CaseProjectionRepository repository;
 
+        @Autowired
+        private JdbcTemplate jdbcTemplate;
+
         @BeforeAll
         static void startInfrastructure() throws IOException {
                 postgres.start();
@@ -77,8 +81,9 @@ class CaseServiceApiTest {
         }
 
     @BeforeEach
-    void resetRepository() {
+        void resetRepository() throws InterruptedException {
         repository.deleteAll();
+                drainWorkflowRequests();
     }
 
     @Test
@@ -170,6 +175,43 @@ class CaseServiceApiTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.caseStatus").value("COMPLETED"))
                 .andExpect(jsonPath("$.outcome.outcomeType").value("CONTINUED_HOLD_RECORDED"));
+    }
+
+    @Test
+        void messageProjectionStoresLongMarkdownResponsesOnCurrentSchema() throws Exception {
+        enqueueWorkflowStartResponse();
+        var caseId = createCase();
+
+        workflowServiceServer.takeRequest();
+
+        enqueueWorkflowLongMarkdownProgressResponse();
+
+        mockMvc.perform(post("/api/cases/{caseId}/messages", caseId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "message": "Please explain the current recommendation in detail.",
+                                  "operatorId": "operator-1",
+                                  "operatorRole": "CASE_OPERATOR"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.caseId").value(caseId))
+                .andExpect(jsonPath("$.activityHistory", hasSize(greaterThanOrEqualTo(8))));
+
+        Integer messageLength = jdbcTemplate.queryForObject(
+                "select length(message) from case_activity where case_id = ? and kind = 'AGENT_RESPONSE' order by event_timestamp desc limit 1",
+                Integer.class,
+                caseId);
+        Integer payloadLength = jdbcTemplate.queryForObject(
+                "select length(structured_payload) from case_activity where case_id = ? and kind = 'AGENT_RESPONSE' order by event_timestamp desc limit 1",
+                Integer.class,
+                caseId);
+
+        assertThat(messageLength).isNotNull();
+        assertThat(messageLength).isGreaterThan(1000);
+        assertThat(payloadLength).isNotNull();
+        assertThat(payloadLength).isGreaterThan(2000);
     }
 
     @Test
@@ -481,6 +523,65 @@ class CaseServiceApiTest {
         enqueueJson(response);
     }
 
+    private void enqueueWorkflowLongMarkdownProgressResponse() throws Exception {
+        var now = OffsetDateTime.parse("2026-03-30T12:10:00Z");
+        String longMarkdown = "### Current Status\n"
+                + "- Case remains in `AWAITING_APPROVAL`.\n"
+                + "- Finance control still needs to review the recommendation.\n\n"
+                + "### Specialist Notes\n"
+                + repeatedLine("- Shipment agent confirms there is still no final delivery scan and no proof of receipt.", 18)
+                + "\n### Next Action\n"
+                + "1. Keep the current continued hold in place.\n"
+                + "2. Wait for finance control approval before any settlement-changing action.\n";
+        String longPayload = objectMapper.writeValueAsString(java.util.Map.of(
+                "type", "agent_response",
+                "agent", "workflow-service",
+                "summary", longMarkdown,
+                "instruction", repeatedLine("Explain the recommendation in full markdown detail.", 60)));
+
+        var response = new WorkflowContracts.WorkflowProgressUpdate(
+                CaseContracts.CaseStatus.AWAITING_APPROVAL,
+                CaseContracts.Recommendation.CONTINUED_HOLD,
+                new CaseContracts.EvidenceView(
+                        "Carrier tracking shows label creation but no confirmed delivery scan for the order.",
+                        "Escrow still holds the authorized funds and no prior refund has been executed.",
+                        "Risk review found no elevated fraud signal but requires finance control confirmation for settlement-changing actions.",
+                        "policy://marketplace/disputes/item-not-received"),
+                new CaseContracts.ApprovalStateView(
+                        true,
+                        CaseContracts.ApprovalStatus.PENDING_FINANCE_CONTROL,
+                        "FINANCE_CONTROL",
+                        now,
+                        null,
+                        null,
+                        null),
+                null,
+                java.util.List.of(
+                        new WorkflowContracts.WorkflowActivity(
+                                "OPERATOR_INSTRUCTION_RECEIVED",
+                                "workflow-service",
+                                "Workflow service accepted the operator instruction.",
+                                "{}",
+                                now),
+                        new WorkflowContracts.WorkflowActivity(
+                                "AGENT_RESPONSE",
+                                "workflow-service",
+                                longMarkdown,
+                                longPayload,
+                                now.plusSeconds(1)),
+                        new WorkflowContracts.WorkflowActivity(
+                                "OPERATOR_REQUEST_COMPLETED",
+                                "workflow-service",
+                                "Workflow completed the operator follow-up and kept the case on the continued hold path.",
+                                "{}",
+                                now.plusSeconds(2))));
+        enqueueJson(response);
+    }
+
+    private String repeatedLine(String line, int count) {
+        return (line + "\n").repeat(count);
+    }
+
     private void enqueueWorkflowRefundStartResponse() throws Exception {
         var now = OffsetDateTime.parse("2026-03-30T12:00:00Z");
         var response = new WorkflowContracts.WorkflowStartResult(
@@ -607,4 +708,10 @@ class CaseServiceApiTest {
                 .addHeader("Content-Type", MediaType.APPLICATION_JSON_VALUE)
                 .setBody(objectMapper.writeValueAsString(body)));
     }
+
+        private void drainWorkflowRequests() throws InterruptedException {
+                while (workflowServiceServer.takeRequest(10, TimeUnit.MILLISECONDS) != null) {
+                        // Drain any leftover requests so each test observes only its own workflow traffic.
+                }
+        }
 }

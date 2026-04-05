@@ -44,6 +44,7 @@ public class EventLoop {
 
     /** Maximum recursive cycles to prevent infinite tool-use loops. */
     static final int MAX_CYCLES = 10;
+    static final int STRUCTURED_OUTPUT_FORCE_CYCLE = MAX_CYCLES - 1;
 
     private final HookRegistry hooks;
     private final ToolExecutor toolExecutor;
@@ -231,6 +232,16 @@ public class EventLoop {
 
             if (structuredOutputContext != null && structuredOutputContext.isSatisfied()) {
                 return new EventLoopResult(text, stopReason, usage);
+            }
+
+            if (structuredOutputContext != null
+                    && !structuredOutputContext.isSatisfied()
+                    && !structuredOutputContext.forceAttempted()
+                    && cycleCount + 1 >= STRUCTURED_OUTPUT_FORCE_CYCLE) {
+                structuredOutputContext.markForceAttempted();
+                Message forcePromptMessage = Message.user(structuredOutputContext.forcePrompt());
+                messages.add(forcePromptMessage);
+                hooks.onMessageAdded(new MessageAddedEvent(forcePromptMessage, messages, state));
             }
 
             // Recurse for the next model turn

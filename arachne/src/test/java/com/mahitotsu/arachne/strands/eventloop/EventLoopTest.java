@@ -13,7 +13,9 @@ import com.mahitotsu.arachne.strands.hooks.HookProvider;
 import com.mahitotsu.arachne.strands.hooks.NoOpHookRegistry;
 import com.mahitotsu.arachne.strands.model.Model;
 import com.mahitotsu.arachne.strands.model.ModelEvent;
+import com.mahitotsu.arachne.strands.model.ToolSelection;
 import com.mahitotsu.arachne.strands.model.ToolSpec;
+import com.mahitotsu.arachne.strands.tool.StructuredOutputTool;
 import com.mahitotsu.arachne.strands.tool.Tool;
 import com.mahitotsu.arachne.strands.tool.ToolResult;
 import com.mahitotsu.arachne.strands.types.ContentBlock;
@@ -144,6 +146,71 @@ class EventLoopTest {
     }
 
     @Test
+    void structuredOutputRunForcesFinalToolBeforeToolLoopHitsMaxCycles() {
+        StructuredOutputTool<WeatherSummary> structuredOutputTool = new StructuredOutputTool<>(WeatherSummary.class);
+        StructuredOutputContext<WeatherSummary> structuredOutputContext = new StructuredOutputContext<>(structuredOutputTool);
+        Tool noopTool = new Tool() {
+            @Override
+            public ToolSpec spec() {
+                return new ToolSpec("lookup", "lookup", null);
+            }
+
+            @Override
+            public ToolResult invoke(Object input) {
+                return ToolResult.success("lookup-id", "ok");
+            }
+        };
+        List<Message> messages = new ArrayList<>();
+        messages.add(Message.user("Return a structured summary"));
+        int[] forcedCalls = {0};
+        Model model = new Model() {
+            @Override
+            public Iterable<ModelEvent> converse(List<Message> messages, List<ToolSpec> tools) {
+                throw new AssertionError("Expected the tool-selection-aware overload");
+            }
+
+            @Override
+            public Iterable<ModelEvent> converse(
+                    List<Message> messages,
+                    List<ToolSpec> tools,
+                    String systemPrompt,
+                    ToolSelection toolSelection) {
+                if (toolSelection != null && structuredOutputTool.toolName().equals(toolSelection.toolName())) {
+                    forcedCalls[0]++;
+                    return List.of(
+                            new ModelEvent.ToolUse(
+                                    "structured-1",
+                                    structuredOutputTool.toolName(),
+                                    java.util.Map.of("answer", "Tokyo", "confidence", 0.9)),
+                            new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
+                }
+                return List.of(
+                        new ModelEvent.ToolUse("lookup-1", "lookup", java.util.Map.of("query", "policy")),
+                        new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
+            }
+        };
+
+        EventLoopResult result = loop.run(
+                model,
+                messages,
+                List.of(noopTool, structuredOutputTool),
+                null,
+                structuredOutputContext,
+                new AgentState(),
+                0);
+
+        assertThat(result.stopReason()).isEqualTo("tool_use");
+        assertThat(forcedCalls[0]).isEqualTo(1);
+        assertThat(structuredOutputContext.requireValue().answer()).isEqualTo("Tokyo");
+        assertThat(messages).anyMatch(message -> message.role() == Message.Role.USER
+                && message.content().stream()
+                        .filter(ContentBlock.Text.class::isInstance)
+                        .map(ContentBlock.Text.class::cast)
+                        .map(ContentBlock.Text::text)
+                .anyMatch(text -> text.contains("structured_output tool")));
+    }
+
+    @Test
     void modelHooksCanRewriteSystemPromptAndAssistantMessage() {
         AgentState state = new AgentState();
         List<String> events = new ArrayList<>();
@@ -191,6 +258,9 @@ class EventLoopTest {
         String systemPrompt() {
             return systemPrompt;
         }
+    }
+
+    private record WeatherSummary(String answer, double confidence) {
     }
 
     @Test

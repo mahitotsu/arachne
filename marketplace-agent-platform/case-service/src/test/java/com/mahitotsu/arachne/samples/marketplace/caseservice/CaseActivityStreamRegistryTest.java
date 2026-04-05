@@ -12,6 +12,22 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 class CaseActivityStreamRegistryTest {
 
     @Test
+    void registerSendsInitialHandshakeEvent() {
+        RecordingEmitter emitter = new RecordingEmitter();
+        CaseActivityStreamRegistry registry = new CaseActivityStreamRegistry() {
+            @Override
+            SseEmitter newEmitter() {
+                return emitter;
+            }
+        };
+
+        registry.register("case-1");
+
+        assertThat(registry.emitterCount("case-1")).isEqualTo(1);
+        assertThat(emitter.sendCount).isEqualTo(1);
+    }
+
+    @Test
     void publishRemovesCompletedEmitterAndContinuesWithHealthySubscribers() throws Exception {
         CaseActivityStreamRegistry registry = new CaseActivityStreamRegistry();
         CompletedEmitter completedEmitter = new CompletedEmitter();

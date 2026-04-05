@@ -13,6 +13,7 @@ final class DownstreamContracts {
             String caseId,
             String caseType,
             String orderId,
+            String disputeSummary,
             BigDecimal amount,
             String currency,
             String operatorId,
@@ -48,6 +49,7 @@ final class DownstreamContracts {
     record ShipmentEvidenceRequest(
             String caseId,
             String caseType,
+            String disputeSummary,
             String orderId) {
     }
 
@@ -62,6 +64,7 @@ final class DownstreamContracts {
             String caseId,
             String caseType,
             String orderId,
+            String disputeSummary,
             String operatorRole) {
     }
 

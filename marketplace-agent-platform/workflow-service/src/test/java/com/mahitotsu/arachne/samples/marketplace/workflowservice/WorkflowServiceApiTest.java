@@ -8,9 +8,11 @@ import java.util.concurrent.TimeUnit;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -43,6 +45,18 @@ class WorkflowServiceApiTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @BeforeEach
+    void drainServers() throws Exception {
+        while (shipmentServer.takeRequest(10, TimeUnit.MILLISECONDS) != null) {
+        }
+        while (escrowServer.takeRequest(10, TimeUnit.MILLISECONDS) != null) {
+        }
+        while (riskServer.takeRequest(10, TimeUnit.MILLISECONDS) != null) {
+        }
+        while (notificationServer.takeRequest(10, TimeUnit.MILLISECONDS) != null) {
+        }
+    }
 
     @BeforeAll
     static void startServers() throws IOException {
@@ -109,6 +123,47 @@ class WorkflowServiceApiTest {
         assertThat(riskServer.takeRequest(1, TimeUnit.SECONDS)).isNotNull();
     }
 
+        @Test
+        void startWorkflowKeepsDeliveredDamagedCaseInEvidenceGathering() throws Exception {
+        enqueueJson(shipmentServer, new DownstreamContracts.ShipmentEvidenceSummary(
+            "TRACK-order-dmg-2007",
+            "Carrier tracking shows final delivery on the doorstep with photo proof captured the same day.",
+            "HIGH",
+            "Shipment was delivered, but the package exterior shows impact damage and moisture exposure."));
+        enqueueJson(escrowServer, new DownstreamContracts.EscrowEvidenceSummary(
+            "HELD",
+            "REQUIRES_DAMAGE_REVIEW",
+            BigDecimal.valueOf(189.00),
+            "USD",
+            "NO_PRIOR_REFUND",
+            "Escrow still holds the funds while damage evidence and seller response are collected."));
+        enqueueJson(riskServer, new DownstreamContracts.RiskReviewSummary(
+            "No elevated fraud signal detected, but the damage dispute needs seller and inspection evidence.",
+            false,
+            java.util.List.of("DAMAGE_EVIDENCE_REQUIRED"),
+            "Risk review found no fraud escalation, but the damage claim still needs corroborating evidence before settlement changes."));
+
+        mockMvc.perform(post("/internal/workflows")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(startWorkflowRequest(
+                "case-damaged-start",
+                "DELIVERED_BUT_DAMAGED",
+                "order-dmg-2007",
+                BigDecimal.valueOf(189.00),
+                "USD",
+                "Buyer says the package arrived crushed and wet and asks what evidence is still needed.")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.workflowStatus").value("GATHERING_EVIDENCE"))
+            .andExpect(jsonPath("$.currentRecommendation").value("PENDING_MORE_EVIDENCE"))
+            .andExpect(jsonPath("$.approvalState.approvalRequired").value(false))
+            .andExpect(jsonPath("$.approvalState.approvalStatus").value("NOT_REQUIRED"))
+            .andExpect(jsonPath("$.activities[*].kind", hasItem("RECOMMENDATION_UPDATED")));
+
+        assertThat(shipmentServer.takeRequest(1, TimeUnit.SECONDS)).isNotNull();
+        assertThat(escrowServer.takeRequest(1, TimeUnit.SECONDS)).isNotNull();
+        assertThat(riskServer.takeRequest(1, TimeUnit.SECONDS)).isNotNull();
+        }
+
     @Test
         void continueWorkflowUsesPersistedSessionState() throws Exception {
         enqueueStandardEvidenceResponses(BigDecimal.valueOf(149.95), "USD");
@@ -135,7 +190,8 @@ class WorkflowServiceApiTest {
                     .andExpect(jsonPath("$.approvalState.requestedRole").value("FINANCE_CONTROL"))
                     .andExpect(jsonPath("$.activities[0].kind").value("OPERATOR_INSTRUCTION_RECEIVED"))
                     .andExpect(jsonPath("$.activities[1].kind").value("AGENT_RESPONSE"))
-                    .andExpect(jsonPath("$.activities[2].kind").value("OPERATOR_REQUEST_COMPLETED"))
+                    .andExpect(jsonPath("$.activities[2].kind").value("AGENT_RESPONSE"))
+                    .andExpect(jsonPath("$.activities[3].kind").value("OPERATOR_REQUEST_COMPLETED"))
                     .andExpect(jsonPath("$.activities[*].message", hasItem(containsString("kept the case on the continued hold path"))))
                     .andExpect(jsonPath("$.activities[0].structuredPayload").value(containsString("shipment-agent")));
 
@@ -239,6 +295,48 @@ class WorkflowServiceApiTest {
     }
 
     @Test
+    void continueWorkflowAggregatesResolutionGuidanceAcrossSpecialistsWhileAwaitingApproval() throws Exception {
+        enqueueStandardEvidenceResponses(BigDecimal.valueOf(149.95), "USD");
+
+        mockMvc.perform(post("/internal/workflows")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(startWorkflowRequest("case-resolution-guidance", BigDecimal.valueOf(149.95), "USD")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.workflowStatus").value("AWAITING_APPROVAL"));
+
+        drainStartRequests();
+
+        mockMvc.perform(post("/internal/workflows/{caseId}/messages", "case-resolution-guidance")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "message": "How do we resolve this case?",
+                      "operatorId": "operator-1",
+                      "operatorRole": "CASE_OPERATOR",
+                      "requestedAt": "2026-03-30T12:03:00Z"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.activities", hasSize(5)))
+            .andExpect(jsonPath("$.activities[0].structuredPayload", containsString("shipment-agent")))
+            .andExpect(jsonPath("$.activities[0].structuredPayload", containsString("escrow-agent")))
+            .andExpect(jsonPath("$.activities[0].structuredPayload", containsString("risk-agent")))
+            .andExpect(jsonPath("$.activities[1].source").value("shipment-agent"))
+            .andExpect(jsonPath("$.activities[2].source").value("escrow-agent"))
+            .andExpect(jsonPath("$.activities[3].source").value("risk-agent"))
+            .andExpect(jsonPath("$.activities[4].kind").value("OPERATOR_REQUEST_COMPLETED"))
+            .andExpect(jsonPath("$.activities[4].message", containsString("After consulting shipment-agent, escrow-agent, risk-agent")))
+            .andExpect(jsonPath("$.activities[4].message", containsString("The next step to resolve this case is finance control approval.")))
+            .andExpect(jsonPath("$.activities[4].structuredPayload", containsString("shipment-agent")))
+            .andExpect(jsonPath("$.activities[4].structuredPayload", containsString("escrow-agent")))
+            .andExpect(jsonPath("$.activities[4].structuredPayload", containsString("risk-agent")));
+
+        assertThat(shipmentServer.takeRequest(100, TimeUnit.MILLISECONDS)).isNull();
+        assertThat(escrowServer.takeRequest(100, TimeUnit.MILLISECONDS)).isNull();
+        assertThat(riskServer.takeRequest(100, TimeUnit.MILLISECONDS)).isNull();
+    }
+
+    @Test
     void approvalRejectionReturnsWorkflowToEvidenceGatheringWithoutSettlement() throws Exception {
         enqueueStandardEvidenceResponses(BigDecimal.valueOf(149.95), "USD");
 
@@ -292,20 +390,36 @@ class WorkflowServiceApiTest {
                 "Risk review found no elevated fraud signal but requires finance control confirmation for settlement-changing actions."));
     }
 
-    private String startWorkflowRequest(String caseId, BigDecimal amount, String currency) {
-        return """
+        private String startWorkflowRequest(String caseId, BigDecimal amount, String currency) {
+                return startWorkflowRequest(
+                                caseId,
+                                "ITEM_NOT_RECEIVED",
+                                "order-1001",
+                                amount,
+                                currency,
+                                "Buyer reports item not received.");
+        }
+
+        private String startWorkflowRequest(
+                        String caseId,
+                        String caseType,
+                        String orderId,
+                        BigDecimal amount,
+                        String currency,
+                        String initialMessage) {
+                return """
                 {
                   "caseId": "%s",
-                  "caseType": "ITEM_NOT_RECEIVED",
-                  "orderId": "order-1001",
+                                    "caseType": "%s",
+                                    "orderId": "%s",
                   "amount": %s,
                   "currency": "%s",
-                  "initialMessage": "Buyer reports item not received.",
+                                    "initialMessage": "%s",
                   "operatorId": "operator-1",
                   "operatorRole": "CASE_OPERATOR",
                   "requestedAt": "2026-03-30T12:00:00Z"
                 }
-                """.formatted(caseId, amount, currency);
+                                """.formatted(caseId, caseType, orderId, amount, currency, initialMessage);
     }
 
     private void drainStartRequests() throws InterruptedException {

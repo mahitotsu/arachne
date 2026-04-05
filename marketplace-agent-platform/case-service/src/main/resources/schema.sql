@@ -13,15 +13,15 @@ create table if not exists cases (
     requested_at timestamp with time zone,
     decision_at timestamp with time zone,
     decision_by varchar(128),
-    approval_comment varchar(1000),
+    approval_comment text,
     outcome_type varchar(64),
     outcome_status varchar(64),
     settled_at timestamp with time zone,
     settlement_reference varchar(128),
-    outcome_summary varchar(1000),
-    shipment_evidence varchar(1000) not null,
-    escrow_evidence varchar(1000) not null,
-    risk_evidence varchar(1000) not null,
+    outcome_summary text,
+    shipment_evidence text not null,
+    escrow_evidence text not null,
+    risk_evidence text not null,
     policy_reference varchar(255) not null,
     created_at timestamp with time zone not null,
     updated_at timestamp with time zone not null
@@ -33,8 +33,8 @@ create table if not exists case_activity (
     event_timestamp timestamp with time zone not null,
     kind varchar(64) not null,
     source varchar(64) not null,
-    message varchar(1000) not null,
-    structured_payload varchar(2000),
+    message text not null,
+    structured_payload text,
     constraint fk_case_activity_case
         foreign key (case_id) references cases(case_id)
 );

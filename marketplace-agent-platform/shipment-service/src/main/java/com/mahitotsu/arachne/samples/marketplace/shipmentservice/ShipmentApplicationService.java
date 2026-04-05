@@ -12,7 +12,7 @@ class ShipmentApplicationService {
     }
 
     ShipmentContracts.ShipmentEvidenceSummary evidenceSummary(ShipmentContracts.ShipmentEvidenceRequest request) {
-        repository.ensureShipmentRecord(request.caseId(), request.orderId());
+        repository.ensureShipmentRecord(request.caseId(), request.orderId(), request.caseType(), request.disputeSummary());
         var record = repository.findShipmentRecord(request.caseId())
                 .orElseThrow(() -> new IllegalStateException("Shipment record missing after initialization for case " + request.caseId()));
         return new ShipmentContracts.ShipmentEvidenceSummary(

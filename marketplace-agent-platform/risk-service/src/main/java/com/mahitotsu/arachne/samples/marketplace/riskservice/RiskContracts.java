@@ -11,6 +11,7 @@ final class RiskContracts {
             String caseId,
             String caseType,
             String orderId,
+            String disputeSummary,
             String operatorRole) {
     }
 

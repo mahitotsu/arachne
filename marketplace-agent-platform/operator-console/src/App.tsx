@@ -1,7 +1,9 @@
 import { FormEvent, startTransition, useEffect, useMemo, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkBreaks from 'remark-breaks';
+import remarkGfm from 'remark-gfm';
 import {
   ActivityEvent,
-  ActivityCategory,
   ApprovalSubmissionResult,
   CaseDetailView,
   CaseListItem,
@@ -26,45 +28,131 @@ const CASE_STATUS_FILTERS: CaseStatus[] = [
   'COMPLETED',
 ];
 
-const currencyFormatter = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-});
+type ScenarioPreset = {
+  id: string;
+  label: string;
+  caseType: CaseType;
+  orderId: string;
+  amount: string;
+  currency: string;
+  initialMessage: string;
+};
+
+const SCENARIO_PRESETS: ScenarioPreset[] = [
+  {
+    id: 'item-not-received-hold',
+    label: 'Item Not Received: high-value hold',
+    caseType: 'ITEM_NOT_RECEIVED',
+    orderId: 'order-1001',
+    amount: '149.95',
+    currency: 'USD',
+    initialMessage: 'Buyer reports item not received and asks why the shipment has stalled in transit.',
+  },
+  {
+    id: 'item-not-received-refund',
+    label: 'Item Not Received: low-value refund path',
+    caseType: 'ITEM_NOT_RECEIVED',
+    orderId: 'order-1049',
+    amount: '49.95',
+    currency: 'USD',
+    initialMessage: 'Buyer reports item not received, no carrier delivery scan is visible, and asks for a refund review.',
+  },
+  {
+    id: 'delivered-damaged',
+    label: 'Delivered But Damaged: gather more evidence',
+    caseType: 'DELIVERED_BUT_DAMAGED',
+    orderId: 'order-dmg-2007',
+    amount: '189.00',
+    currency: 'USD',
+    initialMessage: 'Buyer says the package was delivered crushed and wet and asks what evidence is needed to resolve the damage claim.',
+  },
+  {
+    id: 'high-risk-hold',
+    label: 'High Risk Settlement Hold: keep funds frozen',
+    caseType: 'HIGH_RISK_SETTLEMENT_HOLD',
+    orderId: 'order-risk-3012',
+    amount: '249.00',
+    currency: 'USD',
+    initialMessage: 'Risk flagged unusual account activity and the operator needs to know whether funds should stay on hold.',
+  },
+  {
+    id: 'seller-cancelled-refund',
+    label: 'Seller Cancellation: refund path',
+    caseType: 'SELLER_CANCELLATION_AFTER_AUTHORIZATION',
+    orderId: 'order-cancel-4101',
+    amount: '129.00',
+    currency: 'USD',
+    initialMessage: 'Seller cancelled the order after authorization but before carrier handoff and the buyer is asking for a refund.',
+  },
+];
+
+const DEFAULT_SCENARIO_ID = 'item-not-received-hold';
+
+type ViewMode = 'list' | 'detail';
+type InboxFilter = 'all' | 'needs-action' | 'in-flight' | 'completed';
+type TimelineKind = 'conversation' | 'system';
+
+type TimelineEntry = {
+  id: string;
+  actorName: string;
+  actorRole: string;
+  kind: TimelineKind;
+  summary: string;
+  body: string;
+  timestamp: string;
+  emphasis?: string;
+  meta?: string[];
+};
+
+type ConversationThread = {
+  id: string;
+  title: string;
+  subtitle: string;
+  root: TimelineEntry;
+  replies: TimelineEntry[];
+  systemEntries: TimelineEntry[];
+  participants: string[];
+  lastTimestamp: string;
+};
 
 function App() {
   const apiEndpointLabel = API_BASE_URL || window.location.origin;
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [cases, setCases] = useState<CaseListItem[]>([]);
-  const [selectedCaseId, setSelectedCaseId] = useState<string>('');
+  const [selectedCaseId, setSelectedCaseId] = useState('');
   const [selectedCase, setSelectedCase] = useState<CaseDetailView | null>(null);
-  const [searchText, setSearchText] = useState('');
   const [searchDraft, setSearchDraft] = useState('');
-  const [caseTypeFilter, setCaseTypeFilter] = useState<string>('');
-  const [caseStatusFilter, setCaseStatusFilter] = useState<string>('');
+  const [searchText, setSearchText] = useState('');
+  const [caseTypeFilter, setCaseTypeFilter] = useState('');
+  const [caseStatusFilter, setCaseStatusFilter] = useState('');
+  const [inboxFilter, setInboxFilter] = useState<InboxFilter>('all');
   const [isLoadingCases, setIsLoadingCases] = useState(true);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [isSubmittingCreate, setIsSubmittingCreate] = useState(false);
   const [isSubmittingMessage, setIsSubmittingMessage] = useState(false);
   const [isSubmittingApproval, setIsSubmittingApproval] = useState(false);
-  const [activityFilter, setActivityFilter] = useState<'all' | ActivityCategory>('all');
-  const [errorMessage, setErrorMessage] = useState<string>('');
-  const [flashMessage, setFlashMessage] = useState<string>('');
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [collapsedThreads, setCollapsedThreads] = useState<Record<string, boolean>>({});
+  const [errorMessage, setErrorMessage] = useState('');
+  const [flashMessage, setFlashMessage] = useState('');
+  const [createScenarioId, setCreateScenarioId] = useState(DEFAULT_SCENARIO_ID);
   const [createForm, setCreateForm] = useState({
     caseType: 'ITEM_NOT_RECEIVED' as CaseType,
     orderId: 'order-1001',
     amount: '149.95',
     currency: 'USD',
-    initialMessage: 'Buyer reports item not received.',
+    initialMessage: 'Buyer reports item not received and requests an investigation.',
     operatorId: 'operator-1',
     operatorRole: 'CASE_OPERATOR',
   });
   const [messageForm, setMessageForm] = useState({
-    message: 'Please summarize the shipment evidence.',
+    message: 'Please explain the latest recommendation in plain language.',
     operatorId: 'operator-1',
     operatorRole: 'CASE_OPERATOR',
   });
   const [approvalForm, setApprovalForm] = useState({
     decision: 'APPROVE',
-    comment: 'Proceed with the current recommendation.',
+    comment: 'Approved based on the current evidence and recommendation.',
     actorId: 'finance-1',
     actorRole: 'FINANCE_CONTROL',
   });
@@ -82,9 +170,10 @@ function App() {
   }, [selectedCaseId]);
 
   useEffect(() => {
-    if (!selectedCaseId) {
+    if (!selectedCaseId || viewMode !== 'detail') {
       return;
     }
+
     const eventSource = new EventSource(`${API_BASE_URL}/api/cases/${selectedCaseId}/activity-stream`);
 
     eventSource.addEventListener('activity', (event) => {
@@ -112,62 +201,49 @@ function App() {
     return () => {
       eventSource.close();
     };
-  }, [selectedCaseId]);
+  }, [selectedCaseId, viewMode]);
 
-  const groupedEvidence = useMemo(() => {
+  const filteredCases = useMemo(() => {
+    return cases.filter((item) => matchesInboxFilter(item, inboxFilter));
+  }, [cases, inboxFilter]);
+
+  const queueSummary = useMemo(() => buildQueueSummary(cases), [cases]);
+
+  const selectedCaseThreads = useMemo(() => {
     if (!selectedCase) {
-      return [];
+      return [] as ConversationThread[];
     }
-    return [
-      { label: 'Shipment', value: selectedCase.evidence.shipmentEvidence },
-      { label: 'Escrow', value: selectedCase.evidence.escrowEvidence },
-      { label: 'Risk', value: selectedCase.evidence.riskEvidence },
-      { label: 'Policy', value: selectedCase.evidence.policyReference },
-    ];
+    return buildConversationThreads(selectedCase.activityHistory, selectedCase);
   }, [selectedCase]);
 
-  const activityTimeline = useMemo(() => {
-    if (!selectedCase) {
-      return [] as Array<ActivityTimelineEntry>;
+  useEffect(() => {
+    if (!selectedCaseThreads.length) {
+      setCollapsedThreads({});
+      return;
     }
-    return selectedCase.activityHistory.map((event) => {
-      const payload = parseStructuredPayload(event.structuredPayload);
-      return {
-        event,
-        payload,
-        category: classifyActivity(event, payload),
-      };
+
+    setCollapsedThreads((current) => {
+      const next: Record<string, boolean> = {};
+      for (const thread of selectedCaseThreads) {
+        next[thread.id] = current[thread.id] ?? false;
+      }
+      return next;
     });
+  }, [selectedCaseThreads]);
+
+  const agentRoster = useMemo(() => {
+    if (!selectedCase) {
+      return [] as Array<{ name: string; role: string; status: string }>;
+    }
+    return buildAgentRoster(selectedCase.activityHistory);
   }, [selectedCase]);
 
-  const activityCounts = useMemo(() => countActivityCategories(activityTimeline), [activityTimeline]);
-
-  const delegationTrace = useMemo(() => buildDelegationTrace(activityTimeline), [activityTimeline]);
-
-  const filteredActivityTimeline = useMemo(() => {
-    if (activityFilter === 'all') {
-      return activityTimeline;
+  const aiBrief = useMemo(() => {
+    if (!selectedCase) {
+      return [] as string[];
     }
-    return activityTimeline.filter((entry) => entry.category === activityFilter);
-  }, [activityFilter, activityTimeline]);
-
-  const displayedActivityTimeline = useMemo(
-    () => collapseDuplicateActivities(filteredActivityTimeline),
-    [filteredActivityTimeline],
-  );
-
-  const activityBlocks = useMemo(() => buildActivityBlocks(displayedActivityTimeline), [displayedActivityTimeline]);
-
-  const filteredDelegationTrace = useMemo(() => {
-    if (activityFilter === 'all') {
-      return delegationTrace;
-    }
-    return delegationTrace.filter((entry) => entry.category === activityFilter);
-  }, [activityFilter, delegationTrace]);
-
-  const latestWorkflowCompletion = useMemo(() => {
-    return [...activityTimeline].reverse().find((entry) => entry.payload?.type === 'workflow_completion') ?? null;
-  }, [activityTimeline]);
+    return buildAiBrief(selectedCase);
+  }, [selectedCase]);
 
   async function loadCases(preserveSelection = true) {
     setIsLoadingCases(true);
@@ -182,22 +258,27 @@ function App() {
       if (caseStatusFilter) {
         params.set('caseStatus', caseStatusFilter);
       }
+
       const response = await fetch(`${API_BASE_URL}/api/cases${params.size ? `?${params.toString()}` : ''}`);
       if (!response.ok) {
         throw new Error(`Case list request failed with status ${response.status}.`);
       }
+
       const payload = (await response.json()) as CaseListItem[];
       setCases(payload);
+
       if (!preserveSelection && payload.length > 0) {
         startTransition(() => setSelectedCaseId(payload[0].caseId));
         return;
       }
+
       if (selectedCaseId && payload.every((item) => item.caseId !== selectedCaseId)) {
-        startTransition(() => setSelectedCaseId(payload[0]?.caseId ?? ''));
+        startTransition(() => {
+          setSelectedCaseId(payload[0]?.caseId ?? '');
+          setViewMode(payload[0] ? 'detail' : 'list');
+        });
       }
-      if (!selectedCaseId && payload.length > 0) {
-        startTransition(() => setSelectedCaseId(payload[0].caseId));
-      }
+
       setErrorMessage('');
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to load cases.');
@@ -210,11 +291,13 @@ function App() {
     if (showBusy) {
       setIsLoadingDetail(true);
     }
+
     try {
       const response = await fetch(`${API_BASE_URL}/api/cases/${caseId}`);
       if (!response.ok) {
         throw new Error(`Case detail request failed with status ${response.status}.`);
       }
+
       const payload = (await response.json()) as CaseDetailView;
       setSelectedCase(payload);
       setErrorMessage('');
@@ -230,6 +313,7 @@ function App() {
   async function handleCreateCase(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSubmittingCreate(true);
+
     try {
       const response = await fetch(`${API_BASE_URL}/api/cases`, {
         method: 'POST',
@@ -239,13 +323,19 @@ function App() {
           amount: Number(createForm.amount),
         }),
       });
+
       if (!response.ok) {
         throw new Error(`Create case request failed with status ${response.status}.`);
       }
+
       const payload = (await response.json()) as CaseDetailView;
       setSelectedCase(payload);
-      startTransition(() => setSelectedCaseId(payload.caseId));
+      startTransition(() => {
+        setSelectedCaseId(payload.caseId);
+        setViewMode('detail');
+      });
       await loadCases(false);
+      setIsCreateModalOpen(false);
       setFlashMessage(`Case ${payload.caseId} created.`);
       setErrorMessage('');
     } catch (error) {
@@ -261,19 +351,23 @@ function App() {
     if (!selectedCaseId) {
       return;
     }
+
     setIsSubmittingMessage(true);
+
     try {
       const response = await fetch(`${API_BASE_URL}/api/cases/${selectedCaseId}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(messageForm),
       });
+
       if (!response.ok) {
         throw new Error(`Add message request failed with status ${response.status}.`);
       }
+
       const payload = (await response.json()) as CaseDetailView;
       setSelectedCase(payload);
-      setFlashMessage(`Case ${payload.caseId} updated with a new operator message.`);
+      setFlashMessage(`Sent a new case instruction for ${payload.caseId}.`);
       setErrorMessage('');
       await loadCases();
     } catch (error) {
@@ -289,16 +383,20 @@ function App() {
     if (!selectedCaseId) {
       return;
     }
+
     setIsSubmittingApproval(true);
+
     try {
       const response = await fetch(`${API_BASE_URL}/api/cases/${selectedCaseId}/approvals`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(approvalForm),
       });
+
       if (!response.ok) {
         throw new Error(`Approval request failed with status ${response.status}.`);
       }
+
       const payload = (await response.json()) as ApprovalSubmissionResult;
       setFlashMessage(payload.message);
       setErrorMessage('');
@@ -313,622 +411,953 @@ function App() {
   }
 
   return (
-    <div className="shell">
-      <header className="topbar">
-        <div>
-          <p className="eyebrow">Marketplace Agent Platform</p>
+    <div className="app-shell">
+      <header className="hero">
+        <div className="hero-copy">
+          <p className="kicker">Marketplace Agent Platform</p>
           <h1>Operator Console</h1>
+          <p className="hero-text">
+            Ticket-style case handling with AI search, agent-visible collaboration, and approval history that reads like an operational workflow instead of a raw trace.
+          </p>
         </div>
-        <div className="endpoint-card">
-          <span>Console origin</span>
-          <strong>{apiEndpointLabel}</strong>
+        <div className="hero-meta">
+          <div className="hero-meta-card">
+            <span>Console origin</span>
+            <strong>{apiEndpointLabel}</strong>
+          </div>
+          <button type="button" className="primary-button" onClick={() => setIsCreateModalOpen(true)}>
+            New case
+          </button>
         </div>
       </header>
 
       {(errorMessage || flashMessage) && (
         <section className="banner-row">
-          {errorMessage && <div className="banner banner-error">{errorMessage}</div>}
-          {!errorMessage && flashMessage && <div className="banner banner-success">{flashMessage}</div>}
+          {errorMessage ? <div className="banner banner-error">{errorMessage}</div> : null}
+          {!errorMessage && flashMessage ? <div className="banner banner-success">{flashMessage}</div> : null}
         </section>
       )}
 
-      <main className="workspace">
-        <section className="panel panel-list">
-          <div className="panel-header">
-            <div>
-              <p className="eyebrow">Case List</p>
-              <h2>Operator queue</h2>
+      {viewMode === 'list' ? (
+        <main className="dashboard">
+          <section className="dashboard-top">
+            <div className="insight-card insight-card-strong">
+              <span className="insight-label">Needs action</span>
+              <strong>{queueSummary.needsAction}</strong>
+              <p>Cases blocked on approval or still gathering evidence.</p>
             </div>
-            <span className="status-chip">{isLoadingCases ? 'Refreshing' : `${cases.length} in queue`}</span>
-          </div>
-
-          <form
-            className="search-form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              setSearchText(searchDraft);
-            }}
-          >
-            <input
-              value={searchDraft}
-              onChange={(event) => setSearchDraft(event.target.value)}
-              placeholder="Search by case id, order id, state, recommendation, or outcome"
-            />
-            <select value={caseTypeFilter} onChange={(event) => setCaseTypeFilter(event.target.value)}>
-              <option value="">All types</option>
-              {CASE_TYPES.map((caseType) => (
-                <option key={caseType} value={caseType}>{formatLabel(caseType)}</option>
-              ))}
-            </select>
-            <select value={caseStatusFilter} onChange={(event) => setCaseStatusFilter(event.target.value)}>
-              <option value="">All workflow states</option>
-              {CASE_STATUS_FILTERS.map((caseStatus) => (
-                <option key={caseStatus} value={caseStatus}>{formatLabel(caseStatus)}</option>
-              ))}
-            </select>
-            <button type="submit">Search</button>
-            <button
-              type="button"
-              className="search-reset"
-              onClick={() => {
-                setSearchDraft('');
-                setSearchText('');
-                setCaseTypeFilter('');
-                setCaseStatusFilter('');
-              }}
-            >
-              Clear
-            </button>
-          </form>
-
-          <div className="case-list" role="list">
-            {cases.map((item) => (
-              <button
-                type="button"
-                key={item.caseId}
-                className={`case-card ${item.caseId === selectedCaseId ? 'case-card-active' : ''}`}
-                onClick={() => startTransition(() => setSelectedCaseId(item.caseId))}
-              >
-                <div className="case-card-top">
-                  <strong>{item.caseType}</strong>
-                  <span className={`pill pill-${item.caseStatus.toLowerCase()}`}>{formatLabel(item.caseStatus)}</span>
-                </div>
-                <p>{item.caseId}</p>
-                <p>Order {item.orderId}</p>
-                <div className="case-card-state-row">
-                  <span className="case-state-label">Recommendation {formatLabel(item.currentRecommendation)}</span>
-                  <span className={`pill pill-${item.approvalStatus.toLowerCase()}`}>{formatApprovalState(item)}</span>
-                </div>
-                {item.outcomeType && (
-                  <div className="case-card-state-row">
-                    <span className="case-state-label">Outcome {formatLabel(item.outcomeType)}</span>
-                  </div>
-                )}
-                <div className="case-card-bottom">
-                  <span>{formatCurrency(item.amount, item.currency)}</span>
-                  <span>{formatDate(item.updatedAt)}</span>
-                </div>
-              </button>
-            ))}
-            {!cases.length && !isLoadingCases && <div className="empty-state">No cases loaded yet. Create the first operator case below.</div>}
-          </div>
-
-          <div className="panel-divider" />
-
-          <div className="panel-header compact">
-            <div>
-              <p className="eyebrow">New Case</p>
-              <h3>Case intake</h3>
+            <div className="insight-card">
+              <span className="insight-label">In flight</span>
+              <strong>{queueSummary.inFlight}</strong>
+              <p>Active investigations with agent activity still unfolding.</p>
             </div>
-          </div>
-
-          <form className="form-grid" onSubmit={handleCreateCase}>
-            <label>
-              Case type
-              <select
-                value={createForm.caseType}
-                onChange={(event) => setCreateForm((current) => ({ ...current, caseType: event.target.value as CaseType }))}
-              >
-                {CASE_TYPES.map((caseType) => (
-                  <option key={caseType} value={caseType}>{caseType}</option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Order id
-              <input value={createForm.orderId} onChange={(event) => setCreateForm((current) => ({ ...current, orderId: event.target.value }))} />
-            </label>
-            <label>
-              Amount
-              <input value={createForm.amount} onChange={(event) => setCreateForm((current) => ({ ...current, amount: event.target.value }))} />
-            </label>
-            <label>
-              Currency
-              <input value={createForm.currency} onChange={(event) => setCreateForm((current) => ({ ...current, currency: event.target.value.toUpperCase() }))} />
-            </label>
-            <label>
-              Operator id
-              <input value={createForm.operatorId} onChange={(event) => setCreateForm((current) => ({ ...current, operatorId: event.target.value }))} />
-            </label>
-            <label>
-              Operator role
-              <select
-                value={createForm.operatorRole}
-                onChange={(event) => setCreateForm((current) => ({ ...current, operatorRole: event.target.value }))}
-              >
-                <option value="CASE_OPERATOR">CASE_OPERATOR</option>
-                <option value="FINANCE_CONTROL">FINANCE_CONTROL</option>
-              </select>
-            </label>
-            <label className="field-span-2">
-              Initial message
-              <textarea
-                rows={4}
-                value={createForm.initialMessage}
-                onChange={(event) => setCreateForm((current) => ({ ...current, initialMessage: event.target.value }))}
-              />
-            </label>
-            <button className="primary-action" type="submit" disabled={isSubmittingCreate}>
-              {isSubmittingCreate ? 'Creating case...' : 'Create case'}
-            </button>
-          </form>
-        </section>
-
-        <section className="panel panel-detail">
-          <div className="panel-header">
-            <div>
-              <p className="eyebrow">Case Detail</p>
-              <h2>{selectedCase ? selectedCase.caseType : 'Select a case'}</h2>
+            <div className="insight-card">
+              <span className="insight-label">Completed today</span>
+              <strong>{queueSummary.completed}</strong>
+              <p>Resolved cases with recorded outcomes and audit history.</p>
             </div>
-            {selectedCase && <span className="status-chip">{selectedCase.caseId}</span>}
-          </div>
+            <div className="insight-card insight-card-accent">
+              <span className="insight-label">AI search</span>
+              <strong>Natural language queue search</strong>
+              <p>Type business intent such as refund hold, shipment evidence, or approval needed.</p>
+            </div>
+          </section>
 
-          {!selectedCase && !isLoadingDetail && <div className="empty-state large">Pick a case from the queue or create a new one to inspect the full workflow state.</div>}
+          <section className="list-layout">
+            <div className="panel panel-listing">
+              <div className="section-header">
+                <div>
+                  <p className="kicker">Case Inbox</p>
+                  <h2>Cases</h2>
+                </div>
+                <span className="section-chip">{isLoadingCases ? 'Refreshing' : `${filteredCases.length} visible`}</span>
+              </div>
 
-          {selectedCase && (
-            <div className="detail-layout">
-              <section className="detail-card detail-card-wide">
-                <div className="card-header">
-                  <h3>Case Summary</h3>
-                  <span className={`pill pill-${selectedCase.caseStatus.toLowerCase()}`}>{formatLabel(selectedCase.caseStatus)}</span>
-                </div>
-                <div className="summary-grid">
-                  <SummaryField label="Case id" value={selectedCase.caseId} />
-                  <SummaryField label="Order id" value={selectedCase.orderId} />
-                  <SummaryField label="Transaction id" value={selectedCase.transactionId} />
-                  <SummaryField label="Workflow status" value={formatLabel(selectedCase.caseStatus)} />
-                  <SummaryField label="Recommendation" value={formatLabel(selectedCase.currentRecommendation)} />
-                  <SummaryField label="Amount" value={formatCurrency(selectedCase.amount, selectedCase.currency)} />
-                  <SummaryField label="Approval status" value={formatLabel(selectedCase.approvalState.approvalStatus)} />
-                  <SummaryField label="Approval required" value={selectedCase.approvalState.approvalRequired ? 'Yes' : 'No'} />
-                  <SummaryField label="Outcome" value={selectedCase.outcome ? formatLabel(selectedCase.outcome.outcomeType) : 'Pending'} />
-                </div>
-              </section>
-
-              <section className="detail-card detail-card-wide">
-                <div className="card-header">
-                  <h3>Evidence</h3>
-                  <span className="subtle-label">Structured output</span>
-                </div>
-                <div className="evidence-grid">
-                  {groupedEvidence.map((item) => (
-                    <article key={item.label} className="evidence-item">
-                      <p className="evidence-label">{item.label}</p>
-                      <p>{item.value}</p>
-                    </article>
+              <form
+                className="search-bar"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  setSearchText(searchDraft);
+                }}
+              >
+                <input
+                  value={searchDraft}
+                  onChange={(event) => setSearchDraft(event.target.value)}
+                  placeholder="Search cases in natural language: refund approval, shipment proof, policy exception"
+                />
+                <select value={caseTypeFilter} onChange={(event) => setCaseTypeFilter(event.target.value)}>
+                  <option value="">All case types</option>
+                  {CASE_TYPES.map((caseType) => (
+                    <option key={caseType} value={caseType}>{formatLabel(caseType)}</option>
                   ))}
-                </div>
-              </section>
+                </select>
+                <select value={caseStatusFilter} onChange={(event) => setCaseStatusFilter(event.target.value)}>
+                  <option value="">All statuses</option>
+                  {CASE_STATUS_FILTERS.map((caseStatus) => (
+                    <option key={caseStatus} value={caseStatus}>{formatLabel(caseStatus)}</option>
+                  ))}
+                </select>
+                <button type="submit" className="primary-button">Search</button>
+              </form>
 
-              <section className="detail-card">
-                <div className="card-header">
-                  <h3>Operator Instruction</h3>
-                  <span className="subtle-label">workflow-agent delegation</span>
-                </div>
-                <p className="instruction-hint">The workflow-agent routes this instruction to shipment-agent, escrow-agent, or risk-agent and records the delegation trail below.</p>
-                <form className="stack-form" onSubmit={handleAddMessage}>
-                  <label>
-                    Message
-                    <textarea
-                      rows={5}
-                      value={messageForm.message}
-                      onChange={(event) => setMessageForm((current) => ({ ...current, message: event.target.value }))}
-                    />
-                  </label>
-                  <label>
-                    Operator id
-                    <input value={messageForm.operatorId} onChange={(event) => setMessageForm((current) => ({ ...current, operatorId: event.target.value }))} />
-                  </label>
-                  <label>
-                    Operator role
-                    <select
-                      value={messageForm.operatorRole}
-                      onChange={(event) => setMessageForm((current) => ({ ...current, operatorRole: event.target.value }))}
-                    >
-                      <option value="CASE_OPERATOR">CASE_OPERATOR</option>
-                      <option value="FINANCE_CONTROL">FINANCE_CONTROL</option>
-                    </select>
-                  </label>
-                  <button className="secondary-action" type="submit" disabled={isSubmittingMessage}>
-                    {isSubmittingMessage ? 'Delegating...' : 'Delegate via workflow-agent'}
-                  </button>
-                </form>
-              </section>
+              <div className="segmented-row" role="tablist" aria-label="Inbox views">
+                <SegmentButton label="All" current={inboxFilter} target="all" onChange={setInboxFilter} />
+                <SegmentButton label="Needs Action" current={inboxFilter} target="needs-action" onChange={setInboxFilter} />
+                <SegmentButton label="In Flight" current={inboxFilter} target="in-flight" onChange={setInboxFilter} />
+                <SegmentButton label="Completed" current={inboxFilter} target="completed" onChange={setInboxFilter} />
+              </div>
 
-              <section className="detail-card">
-                <div className="card-header">
-                  <h3>Agent Orchestration</h3>
-                  <span className="subtle-label">Latest completion</span>
+              <div className="ticket-table">
+                <div className="ticket-table-head">
+                  <span>Case</span>
+                  <span>Status</span>
+                  <span>Recommendation</span>
+                  <span>Approval</span>
+                  <span>Updated</span>
                 </div>
-                {latestWorkflowCompletion ? (
-                  <div className="orchestration-card">
-                    <p className="eyebrow">workflow-agent summary</p>
-                    <p className="orchestration-message">{latestWorkflowCompletion.event.message}</p>
-                    <div className="payload-grid">
-                      <PayloadRow label="Delegated by" value={latestWorkflowCompletion.payload?.delegatedBy} />
-                      <PayloadRow label="Agents" value={latestWorkflowCompletion.payload?.delegatedAgents} />
-                      <PayloadRow label="Recommendation" value={latestWorkflowCompletion.payload?.recommendation} />
-                      <PayloadRow label="Approval status" value={latestWorkflowCompletion.payload?.approvalStatus} />
+                {filteredCases.map((item) => (
+                  <button
+                    key={item.caseId}
+                    type="button"
+                    className="ticket-row"
+                    onClick={() => {
+                      startTransition(() => {
+                        setSelectedCaseId(item.caseId);
+                        setViewMode('detail');
+                      });
+                    }}
+                  >
+                    <div className="ticket-primary">
+                      <strong>{item.caseId}</strong>
+                      <span>{formatLabel(item.caseType)}</span>
+                      <span>Order {item.orderId}</span>
                     </div>
-                  </div>
-                ) : (
-                  <div className="empty-state">Submit an operator instruction to see which agents the workflow-agent selected and how it closed the request.</div>
-                )}
-              </section>
+                    <div><StatusBadge value={item.caseStatus} variant="status" /></div>
+                    <div><StatusBadge value={item.currentRecommendation} variant="recommendation" /></div>
+                    <div><StatusBadge value={formatApprovalState(item)} variant="approval" /></div>
+                    <div className="ticket-updated">
+                      <strong>{formatRelativeDate(item.updatedAt)}</strong>
+                      <span>{formatCurrency(item.amount, item.currency)}</span>
+                    </div>
+                  </button>
+                ))}
+                {!filteredCases.length && !isLoadingCases ? (
+                  <div className="empty-panel">No cases match the current filters.</div>
+                ) : null}
+              </div>
+            </div>
 
-              <section className="detail-card">
-                <div className="card-header">
-                  <h3>Delegation Trace</h3>
-                  <span className="subtle-label">agent runtime tool hook</span>
+            <aside className="panel panel-side">
+              <div className="section-header compact-header">
+                <div>
+                  <p className="kicker">Demo Story</p>
+                  <h2>Why this view works</h2>
                 </div>
-                {filteredDelegationTrace.length ? (
-                  <div className="trace-stack">
-                    {filteredDelegationTrace.map((entry) => (
-                      <article key={entry.eventId} className="trace-item">
-                        <div className="trace-header">
-                          <span className={`category-pill category-${entry.category}`}>{entry.category}</span>
-                          <strong>{entry.title}</strong>
-                        </div>
-                        <div className="trace-lane">
-                          <div className="trace-node trace-node-source">
-                            <span className="trace-node-label">Source</span>
-                            <strong>{entry.source}</strong>
+              </div>
+              <div className="side-stack">
+                <article className="note-card">
+                  <h3>Familiar structure</h3>
+                  <p>The inbox behaves like a ticketing tool: search, filter, inspect, then act in detail view.</p>
+                </article>
+                <article className="note-card">
+                  <h3>Agent collaboration is visible</h3>
+                  <p>In detail view, specialists appear as participants in the activity feed rather than raw runtime events.</p>
+                </article>
+                <article className="note-card">
+                  <h3>AI remains legible</h3>
+                  <p>The queue accepts natural-language search and each case has an AI brief that explains the latest state.</p>
+                </article>
+              </div>
+            </aside>
+          </section>
+        </main>
+      ) : (
+        <main className="detail-page">
+          <div className="detail-topbar">
+            <button type="button" className="ghost-button" onClick={() => setViewMode('list')}>
+              Back to inbox
+            </button>
+            {selectedCase ? (
+              <div className="detail-title-group">
+                <div>
+                  <p className="kicker">Case Detail</p>
+                  <h2>{selectedCase.caseId}</h2>
+                </div>
+                <StatusBadge value={selectedCase.caseStatus} variant="status" />
+              </div>
+            ) : null}
+          </div>
+
+          {!selectedCase && !isLoadingDetail ? (
+            <div className="empty-panel empty-panel-large">Select a case from the inbox to inspect the workflow.</div>
+          ) : null}
+
+          {selectedCase ? (
+            <div className="detail-grid">
+              <section className="detail-main">
+                <div className="ticket-header-card">
+                  <div>
+                    <p className="kicker">{formatLabel(selectedCase.caseType)}</p>
+                    <h3>{buildCaseHeadline(selectedCase)}</h3>
+                    <p className="ticket-summary-text">{buildCaseSummary(selectedCase)}</p>
+                  </div>
+                  <div className="ticket-header-metrics">
+                    <Metric label="Recommendation" value={formatLabel(selectedCase.currentRecommendation)} />
+                    <Metric label="Amount" value={formatCurrency(selectedCase.amount, selectedCase.currency)} />
+                    <Metric label="Approval" value={formatLabel(selectedCase.approvalState.approvalStatus)} />
+                  </div>
+                </div>
+
+                <div className="panel conversation-panel">
+                  <div className="section-header">
+                    <div>
+                      <p className="kicker">Activity</p>
+                      <h2>Comments and history</h2>
+                    </div>
+                    <span className="section-chip">{selectedCaseThreads.length} threads</span>
+                  </div>
+
+                  <div className="conversation-feed">
+                    {selectedCaseThreads.map((thread) => (
+                      <article key={thread.id} className="thread-card">
+                        <div className="thread-header">
+                          <div>
+                            <p className="kicker">{thread.subtitle}</p>
+                            <h3>{thread.title}</h3>
                           </div>
-                          <div className="trace-arrow" aria-hidden="true">→</div>
-                          <div className="trace-node trace-node-target">
-                            <span className="trace-node-label">Target</span>
-                            <strong>{entry.target}</strong>
+                          <div className="thread-header-meta">
+                            <span className="section-chip">{thread.replies.length} replies</span>
+                            <time>{formatDate(thread.lastTimestamp)}</time>
+                            <button
+                              type="button"
+                              className="thread-toggle"
+                              aria-expanded={!collapsedThreads[thread.id]}
+                              onClick={() => {
+                                setCollapsedThreads((current) => ({
+                                  ...current,
+                                  [thread.id]: !current[thread.id],
+                                }));
+                              }}
+                            >
+                              {collapsedThreads[thread.id] ? 'Expand thread' : 'Collapse thread'}
+                            </button>
                           </div>
                         </div>
-                        {entry.highlight ? <p className="trace-highlight">{entry.highlight}</p> : null}
-                        <p>{entry.description}</p>
+
+                        <div className="thread-root">
+                          <ConversationBubble entry={thread.root} tone="root" />
+                        </div>
+
+                        {collapsedThreads[thread.id] ? (
+                          <div className="thread-collapsed-summary">
+                            <span>{thread.replies.length} replies hidden</span>
+                            <span>{thread.systemEntries.length} system notes hidden</span>
+                            <span>{thread.participants.length} participants</span>
+                          </div>
+                        ) : (
+                          <>
+                            {thread.replies.length ? (
+                              <div className="thread-replies">
+                                {thread.replies.map((entry) => (
+                                  <ConversationBubble key={entry.id} entry={entry} tone={entry.kind === 'system' ? 'system' : 'reply'} />
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="thread-empty">No replies recorded yet for this request.</div>
+                            )}
+
+                            <div className="thread-footer">
+                              <div className="meta-pill-row">
+                                {thread.participants.map((participant) => (
+                                  <span key={`${thread.id}-${participant}`} className="meta-pill">{participant}</span>
+                                ))}
+                              </div>
+                              {thread.systemEntries.length ? (
+                                <details className="thread-system-details">
+                                  <summary>{thread.systemEntries.length} system notes</summary>
+                                  <div className="thread-system-list">
+                                    {thread.systemEntries.map((entry) => (
+                                      <ConversationBubble key={entry.id} entry={entry} tone="system" compact />
+                                    ))}
+                                  </div>
+                                </details>
+                              ) : null}
+                            </div>
+                          </>
+                        )}
                       </article>
                     ))}
                   </div>
-                ) : (
-                  <div className="empty-state">No delegation entries match the current category filter.</div>
-                )}
-              </section>
 
-              <section className="detail-card">
-                <div className="card-header">
-                  <h3>Approval And Outcome</h3>
-                  <span className="subtle-label">Finance control gate</span>
-                </div>
-                <div className="approval-block">
-                  <SummaryField label="Requested role" value={selectedCase.approvalState.requestedRole ?? 'Not required'} />
-                  <SummaryField label="Requested at" value={formatDate(selectedCase.approvalState.requestedAt)} />
-                  <SummaryField label="Decision by" value={selectedCase.approvalState.decisionBy ?? 'Pending'} />
-                  <SummaryField label="Decision at" value={formatDate(selectedCase.approvalState.decisionAt)} />
-                  <SummaryField label="Approval comment" value={selectedCase.approvalState.comment ?? 'No decision comment'} />
-                </div>
-                {selectedCase.approvalState.approvalRequired && selectedCase.approvalState.approvalStatus === 'PENDING_FINANCE_CONTROL' && (
-                  <form className="stack-form" onSubmit={handleApproval}>
-                    <label>
-                      Decision
-                      <select
-                        value={approvalForm.decision}
-                        onChange={(event) => setApprovalForm((current) => ({ ...current, decision: event.target.value }))}
-                      >
-                        <option value="APPROVE">APPROVE</option>
-                        <option value="REJECT">REJECT</option>
-                      </select>
-                    </label>
-                    <label>
-                      Comment
+                  <form className="composer" onSubmit={handleAddMessage}>
+                    <label className="composer-field composer-field-full">
+                      <span>Operator message</span>
                       <textarea
                         rows={4}
-                        value={approvalForm.comment}
-                        onChange={(event) => setApprovalForm((current) => ({ ...current, comment: event.target.value }))}
+                        value={messageForm.message}
+                        onChange={(event) => setMessageForm((current) => ({ ...current, message: event.target.value }))}
                       />
                     </label>
-                    <label>
-                      Actor id
-                      <input value={approvalForm.actorId} onChange={(event) => setApprovalForm((current) => ({ ...current, actorId: event.target.value }))} />
+                    <label className="composer-field">
+                      <span>Operator id</span>
+                      <input
+                        value={messageForm.operatorId}
+                        onChange={(event) => setMessageForm((current) => ({ ...current, operatorId: event.target.value }))}
+                      />
                     </label>
-                    <label>
-                      Actor role
+                    <label className="composer-field">
+                      <span>Role</span>
                       <select
-                        value={approvalForm.actorRole}
-                        onChange={(event) => setApprovalForm((current) => ({ ...current, actorRole: event.target.value }))}
+                        value={messageForm.operatorRole}
+                        onChange={(event) => setMessageForm((current) => ({ ...current, operatorRole: event.target.value }))}
                       >
+                        <option value="CASE_OPERATOR">CASE_OPERATOR</option>
                         <option value="FINANCE_CONTROL">FINANCE_CONTROL</option>
                       </select>
                     </label>
-                    <button className="primary-action" type="submit" disabled={isSubmittingApproval}>
-                      {isSubmittingApproval ? 'Submitting approval...' : 'Submit approval'}
+                    <button type="submit" className="primary-button" disabled={isSubmittingMessage}>
+                      {isSubmittingMessage ? 'Sending...' : 'Send instruction'}
                     </button>
                   </form>
-                )}
-                {!selectedCase.outcome && selectedCase.approvalState.approvalStatus === 'REJECTED' && (
-                  <div className="outcome-card">
-                    <p className="eyebrow">Outcome</p>
-                    <h4>Pending further evidence</h4>
-                    <p>Finance control rejected the current recommendation. The workflow returned this case to evidence gathering and no settlement has been recorded yet.</p>
-                  </div>
-                )}
-                {selectedCase.outcome && (
-                  <div className="outcome-card">
-                    <p className="eyebrow">Outcome</p>
-                    <h4>{selectedCase.outcome.outcomeType.replaceAll('_', ' ')}</h4>
-                    <p>{selectedCase.outcome.summary}</p>
-                    <div className="summary-grid narrow">
-                      <SummaryField label="Status" value={selectedCase.outcome.outcomeStatus} />
-                      <SummaryField label="Settlement reference" value={selectedCase.outcome.settlementReference} />
-                      <SummaryField label="Settled at" value={formatDate(selectedCase.outcome.settledAt)} />
-                    </div>
-                  </div>
-                )}
+                </div>
               </section>
 
-              <section className="detail-card detail-card-wide">
-                <div className="card-header">
-                  <h3>Activity History</h3>
-                  <span className="subtle-label">SSE-fed agent timeline</span>
-                </div>
-                <div className="activity-guide">
-                  <div className="activity-guide-header">
-                    <strong>How to read this timeline</strong>
-                    <span className="subtle-label">top to bottom in time order</span>
+              <aside className="detail-sidebar">
+                <div className="panel side-card">
+                  <div className="section-header compact-header">
+                    <div>
+                      <p className="kicker">AI Brief</p>
+                      <h2>What matters now</h2>
+                    </div>
                   </div>
-                  <div className="activity-guide-grid">
-                    <article className="activity-guide-card">
-                      <span className="activity-guide-step">1</span>
-                      <strong>Who acted</strong>
-                      <p>The source tells you which agent, runtime component, tool, or hook produced the entry.</p>
-                    </article>
-                    <article className="activity-guide-card">
-                      <span className="activity-guide-step">2</span>
-                      <strong>What kind of action</strong>
-                      <p>The category pill shows whether the entry is an agent action, runtime control step, tool call, or hook intervention.</p>
-                    </article>
-                    <article className="activity-guide-card">
-                      <span className="activity-guide-step">3</span>
-                      <strong>Why it matters</strong>
-                      <p>The fact pills surface the key fields first, such as delegated agent, tool name, focus, recommendation, or approval gate.</p>
-                    </article>
-                    <article className="activity-guide-card">
-                      <span className="activity-guide-step">4</span>
-                      <strong>Turn boundary</strong>
-                      <p>Each block groups one operator turn or one workflow phase. Open the nested steps only when you need event-level detail.</p>
-                    </article>
+                  <ul className="brief-list">
+                    {aiBrief.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="panel side-card">
+                  <div className="section-header compact-header">
+                    <div>
+                      <p className="kicker">Participants</p>
+                      <h2>Agents on this case</h2>
+                    </div>
                   </div>
-                </div>
-                <div className="filter-bar" role="tablist" aria-label="Activity categories">
-                  <FilterChip
-                    label="All"
-                    value={activityFilter}
-                    target="all"
-                    onSelect={setActivityFilter}
-                    count={collapseDuplicateActivities(activityTimeline).length}
-                  />
-                  <FilterChip
-                    label="Agent"
-                    value={activityFilter}
-                    target="agent"
-                    onSelect={setActivityFilter}
-                    count={activityCounts.agent}
-                  />
-                  <FilterChip
-                    label="Runtime"
-                    value={activityFilter}
-                    target="runtime"
-                    onSelect={setActivityFilter}
-                    count={activityCounts.runtime}
-                  />
-                  <FilterChip
-                    label="Tool"
-                    value={activityFilter}
-                    target="tool"
-                    onSelect={setActivityFilter}
-                    count={activityCounts.tool}
-                  />
-                  <FilterChip
-                    label="Hook"
-                    value={activityFilter}
-                    target="hook"
-                    onSelect={setActivityFilter}
-                    count={activityCounts.hook}
-                  />
-                </div>
-                <div className="category-summary-row">
-                  <SummaryPill label="Agent" value={activityCounts.agent} category="agent" />
-                  <SummaryPill label="Runtime" value={activityCounts.runtime} category="runtime" />
-                  <SummaryPill label="Tool" value={activityCounts.tool} category="tool" />
-                  <SummaryPill label="Hook" value={activityCounts.hook} category="hook" />
-                </div>
-                <div className="timeline">
-                  {activityBlocks.map((block) => (
-                    <section key={block.id} className="activity-block">
-                      <div className="activity-block-header">
+                  <div className="roster-list">
+                    {agentRoster.map((agent) => (
+                      <article key={`${agent.name}-${agent.status}`} className="roster-item">
                         <div>
-                          <p className="eyebrow">{block.phaseLabel}</p>
-                          <h4>{block.title}</h4>
+                          <strong>{agent.name}</strong>
+                          <span>{agent.role}</span>
                         </div>
-                        <div className="activity-block-meta">
-                          <span className="status-chip">{block.entries.length} steps</span>
-                          <span>{formatDate(block.entries[0]?.event.timestamp ?? null)}</span>
-                        </div>
-                      </div>
-                      {block.subtitle ? <p className="activity-block-subtitle">{block.subtitle}</p> : null}
-                      <div className="activity-step-list">
-                        {block.entries.map(({ event, payload, category, duplicateCount }) => {
-                          const payloadType = typeof payload?.type === 'string' ? payload.type : null;
-                          return (
-                            <article key={event.eventId} className="timeline-item timeline-item-nested">
-                              <div className="timeline-meta">
-                                <strong>{friendlyKindLabel(event.kind)}</strong>
-                                <span>{event.source}</span>
-                                <span className={`category-pill category-${category}`} title={categoryDescription(category)}>{category}</span>
-                                {payloadType ? <span className="subtle-label timeline-label">{formatLabel(payloadType)}</span> : null}
-                                {duplicateCount > 1 ? <span className="duplicate-pill">shown {duplicateCount}x</span> : null}
-                              </div>
-                              {payload && timelineKeyFacts(payload).length ? (
-                                <div className="timeline-facts">
-                                  {timelineKeyFacts(payload).map((fact) => (
-                                    <span key={`${event.eventId}-${fact.label}`} className="timeline-fact">
-                                      <span>{fact.label}</span>
-                                      <strong>{fact.value}</strong>
-                                    </span>
-                                  ))}
-                                </div>
-                              ) : null}
-                              <p>{event.message}</p>
-                              {payload && hasPayloadFields(payload) ? <PayloadDetails payload={payload} /> : null}
-                            </article>
-                          );
-                        })}
-                      </div>
-                    </section>
-                  ))}
-                  {!activityBlocks.length && <div className="empty-state">No activity entries match the current category filter.</div>}
+                        <StatusBadge value={agent.status} variant="agent" />
+                      </article>
+                    ))}
+                  </div>
                 </div>
-              </section>
+
+                <div className="panel side-card">
+                  <div className="section-header compact-header">
+                    <div>
+                      <p className="kicker">Evidence</p>
+                      <h2>Case record</h2>
+                    </div>
+                  </div>
+                  <div className="evidence-stack">
+                    <EvidenceCard label="Shipment" value={selectedCase.evidence.shipmentEvidence} />
+                    <EvidenceCard label="Escrow" value={selectedCase.evidence.escrowEvidence} />
+                    <EvidenceCard label="Risk" value={selectedCase.evidence.riskEvidence} />
+                    <EvidenceCard label="Policy" value={selectedCase.evidence.policyReference} />
+                  </div>
+                </div>
+
+                <div className="panel side-card">
+                  <div className="section-header compact-header">
+                    <div>
+                      <p className="kicker">Approval</p>
+                      <h2>Decision trail</h2>
+                    </div>
+                  </div>
+                  <div className="approval-summary">
+                    <Metric label="Requested role" value={selectedCase.approvalState.requestedRole ?? 'Not required'} />
+                    <Metric label="Requested at" value={formatDateOrPending(selectedCase.approvalState.requestedAt)} />
+                    <Metric label="Decision by" value={selectedCase.approvalState.decisionBy ?? 'Pending'} />
+                    <Metric label="Decision at" value={formatDateOrPending(selectedCase.approvalState.decisionAt)} />
+                  </div>
+                  {selectedCase.approvalState.comment ? (
+                    <div className="approval-comment">{selectedCase.approvalState.comment}</div>
+                  ) : null}
+                  {selectedCase.approvalState.approvalRequired
+                  && selectedCase.approvalState.approvalStatus === 'PENDING_FINANCE_CONTROL' ? (
+                    <form className="approval-form" onSubmit={handleApproval}>
+                      <label>
+                        <span>Decision</span>
+                        <select
+                          value={approvalForm.decision}
+                          onChange={(event) => setApprovalForm((current) => ({ ...current, decision: event.target.value }))}
+                        >
+                          <option value="APPROVE">APPROVE</option>
+                          <option value="REJECT">REJECT</option>
+                        </select>
+                      </label>
+                      <label>
+                        <span>Comment</span>
+                        <textarea
+                          rows={4}
+                          value={approvalForm.comment}
+                          onChange={(event) => setApprovalForm((current) => ({ ...current, comment: event.target.value }))}
+                        />
+                      </label>
+                      <label>
+                        <span>Actor id</span>
+                        <input
+                          value={approvalForm.actorId}
+                          onChange={(event) => setApprovalForm((current) => ({ ...current, actorId: event.target.value }))}
+                        />
+                      </label>
+                      <button type="submit" className="primary-button" disabled={isSubmittingApproval}>
+                        {isSubmittingApproval ? 'Submitting...' : 'Submit approval'}
+                      </button>
+                    </form>
+                  ) : null}
+
+                  {selectedCase.outcome ? (
+                    <div className="outcome-card">
+                      <p className="kicker">Outcome</p>
+                      <h3>{formatLabel(selectedCase.outcome.outcomeType)}</h3>
+                      <p>{selectedCase.outcome.summary}</p>
+                    </div>
+                  ) : null}
+                </div>
+              </aside>
             </div>
-          )}
-        </section>
-      </main>
+          ) : null}
+        </main>
+      )}
+
+      {isCreateModalOpen ? (
+        <div className="modal-backdrop" role="presentation" onClick={() => setIsCreateModalOpen(false)}>
+          <div className="modal-card" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+            <div className="section-header">
+              <div>
+                <p className="kicker">New Case</p>
+                <h2>Create intake ticket</h2>
+              </div>
+              <button type="button" className="ghost-button" onClick={() => setIsCreateModalOpen(false)}>
+                Close
+              </button>
+            </div>
+            <form className="create-form" onSubmit={handleCreateCase}>
+              <label>
+                <span>Scenario preset</span>
+                <select
+                  value={createScenarioId}
+                  onChange={(event) => {
+                    const nextScenario = SCENARIO_PRESETS.find((scenario) => scenario.id === event.target.value);
+                    if (!nextScenario) {
+                      return;
+                    }
+                    setCreateScenarioId(nextScenario.id);
+                    setCreateForm((current) => ({
+                      ...current,
+                      caseType: nextScenario.caseType,
+                      orderId: nextScenario.orderId,
+                      amount: nextScenario.amount,
+                      currency: nextScenario.currency,
+                      initialMessage: nextScenario.initialMessage,
+                    }));
+                  }}
+                >
+                  {SCENARIO_PRESETS.map((scenario) => (
+                    <option key={scenario.id} value={scenario.id}>{scenario.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Case type</span>
+                <select
+                  value={createForm.caseType}
+                  onChange={(event) => setCreateForm((current) => ({ ...current, caseType: event.target.value as CaseType }))}
+                >
+                  {CASE_TYPES.map((caseType) => (
+                    <option key={caseType} value={caseType}>{formatLabel(caseType)}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Order id</span>
+                <input
+                  value={createForm.orderId}
+                  onChange={(event) => setCreateForm((current) => ({ ...current, orderId: event.target.value }))}
+                />
+              </label>
+              <label>
+                <span>Amount</span>
+                <input
+                  value={createForm.amount}
+                  onChange={(event) => setCreateForm((current) => ({ ...current, amount: event.target.value }))}
+                />
+              </label>
+              <label>
+                <span>Currency</span>
+                <input
+                  value={createForm.currency}
+                  onChange={(event) => setCreateForm((current) => ({ ...current, currency: event.target.value.toUpperCase() }))}
+                />
+              </label>
+              <label>
+                <span>Operator id</span>
+                <input
+                  value={createForm.operatorId}
+                  onChange={(event) => setCreateForm((current) => ({ ...current, operatorId: event.target.value }))}
+                />
+              </label>
+              <label>
+                <span>Operator role</span>
+                <select
+                  value={createForm.operatorRole}
+                  onChange={(event) => setCreateForm((current) => ({ ...current, operatorRole: event.target.value }))}
+                >
+                  <option value="CASE_OPERATOR">CASE_OPERATOR</option>
+                  <option value="FINANCE_CONTROL">FINANCE_CONTROL</option>
+                </select>
+              </label>
+              <label className="create-form-full">
+                <span>Initial case summary</span>
+                <textarea
+                  rows={5}
+                  value={createForm.initialMessage}
+                  onChange={(event) => setCreateForm((current) => ({ ...current, initialMessage: event.target.value }))}
+                />
+              </label>
+              <button type="submit" className="primary-button" disabled={isSubmittingCreate}>
+                {isSubmittingCreate ? 'Creating...' : 'Create case'}
+              </button>
+            </form>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
 
-function FilterChip({
+function SegmentButton({
   label,
-  value,
+  current,
   target,
-  onSelect,
-  count,
+  onChange,
 }: {
   label: string;
-  value: 'all' | ActivityCategory;
-  target: 'all' | ActivityCategory;
-  onSelect: (next: 'all' | ActivityCategory) => void;
-  count: number;
+  current: InboxFilter;
+  target: InboxFilter;
+  onChange: (value: InboxFilter) => void;
 }) {
-  const active = value === target;
+  const active = current === target;
   return (
     <button
       type="button"
-      className={`filter-chip ${active ? 'filter-chip-active' : ''}`}
-      onClick={() => onSelect(target)}
+      className={`segment-button ${active ? 'segment-button-active' : ''}`}
       aria-pressed={active}
+      onClick={() => onChange(target)}
     >
-      <span>{label}</span>
-      <strong>{count}</strong>
+      {label}
     </button>
   );
 }
 
-function SummaryPill({ label, value, category }: { label: string; value: number; category: ActivityCategory }) {
-  return (
-    <div className="summary-pill">
-      <span>{label}</span>
-      <strong className={`category-pill category-${category}`}>{value}</strong>
-    </div>
-  );
+function StatusBadge({ value, variant }: { value: string; variant: 'status' | 'recommendation' | 'approval' | 'agent' }) {
+  return <span className={`status-badge status-badge-${variant}`}>{value}</span>;
 }
 
-function SummaryField({ label, value }: { label: string; value: string }) {
+function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="summary-field">
+    <div className="metric-card">
       <span>{label}</span>
       <strong>{value}</strong>
     </div>
   );
 }
 
-function PayloadDetails({ payload }: { payload: Record<string, unknown> }) {
-  const entries = orderedPayloadEntries(payload);
-
-  if (!entries.length) {
-    return null;
-  }
-
+function EvidenceCard({ label, value }: { label: string; value: string }) {
   return (
-    <details className="payload-details">
-      <summary>Structured details</summary>
-      <div className="payload-grid">
-        {entries.map(([label, value]) => (
-          <PayloadRow key={label} label={formatLabel(label)} value={value} />
-        ))}
-      </div>
-    </details>
+    <article className="evidence-card">
+      <span>{label}</span>
+      <p>{value}</p>
+    </article>
   );
 }
 
-function PayloadRow({ label, value }: { label: string; value: unknown }) {
-  if (value == null || value === '') {
-    return null;
-  }
-
-  if (Array.isArray(value)) {
-    return (
-      <div className="payload-row">
-        <span>{label}</span>
-        <div className="payload-pill-row">
-          {value.map((item) => (
-            <strong key={`${label}-${String(item)}`} className="payload-pill">{formatValue(item)}</strong>
-          ))}
+function ConversationBubble({
+  entry,
+  tone,
+  compact = false,
+}: {
+  entry: TimelineEntry;
+  tone: 'root' | 'reply' | 'system';
+  compact?: boolean;
+}) {
+  return (
+    <article className={`conversation-entry conversation-entry-${tone} ${compact ? 'conversation-entry-compact' : ''}`}>
+      <div className="conversation-avatar">{initials(entry.actorName)}</div>
+      <div className="conversation-body">
+        <div className="conversation-head">
+          <strong>{entry.actorName}</strong>
+          <span>{entry.actorRole}</span>
+          <time>{formatDate(entry.timestamp)}</time>
         </div>
+        <h4>{entry.summary}</h4>
+        <MarkdownText value={entry.body} />
+        {entry.emphasis ? <div className="emphasis-line"><MarkdownText value={entry.emphasis} inline /></div> : null}
+        {entry.meta?.length ? (
+          <div className="meta-pill-row">
+            {entry.meta.map((item) => (
+              <span key={`${entry.id}-${item}`} className="meta-pill">{item}</span>
+            ))}
+          </div>
+        ) : null}
       </div>
-    );
-  }
+    </article>
+  );
+}
+
+function MarkdownText({ value, inline = false }: { value: string; inline?: boolean }) {
+  const normalized = normalizeMarkdown(value);
 
   return (
-    <div className="payload-row">
-      <span>{label}</span>
-      <strong>{formatValue(value)}</strong>
+    <div className={`markdown-content ${inline ? 'markdown-content-inline' : ''}`}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkBreaks]}
+        components={{
+          a: ({ node: _node, ...props }) => <a {...props} target="_blank" rel="noreferrer" />,
+        }}
+      >
+        {normalized}
+      </ReactMarkdown>
     </div>
   );
 }
 
-function formatCurrency(amount: number, currency: string) {
-  try {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount);
-  } catch {
-    return `${currencyFormatter.format(amount)} ${currency}`;
+function buildQueueSummary(items: CaseListItem[]) {
+  return {
+    needsAction: items.filter((item) => item.pendingApproval || item.caseStatus === 'GATHERING_EVIDENCE').length,
+    inFlight: items.filter((item) => item.caseStatus !== 'COMPLETED').length,
+    completed: items.filter((item) => item.caseStatus === 'COMPLETED').length,
+  };
+}
+
+function matchesInboxFilter(item: CaseListItem, filter: InboxFilter) {
+  if (filter === 'all') {
+    return true;
+  }
+  if (filter === 'needs-action') {
+    return item.pendingApproval || item.caseStatus === 'GATHERING_EVIDENCE';
+  }
+  if (filter === 'in-flight') {
+    return item.caseStatus !== 'COMPLETED' && !item.pendingApproval;
+  }
+  return item.caseStatus === 'COMPLETED';
+}
+
+function buildCaseHeadline(caseDetail: CaseDetailView) {
+  return `${formatLabel(caseDetail.caseType)} for order ${caseDetail.orderId}`;
+}
+
+function buildCaseSummary(caseDetail: CaseDetailView) {
+  const parts = [
+    `Current recommendation: ${formatLabel(caseDetail.currentRecommendation)}.`,
+    `Workflow status: ${formatLabel(caseDetail.caseStatus)}.`,
+  ];
+
+  if (caseDetail.approvalState.approvalRequired) {
+    parts.push(`Approval status: ${formatLabel(caseDetail.approvalState.approvalStatus)}.`);
+  }
+
+  if (caseDetail.outcome) {
+    parts.push(`Outcome recorded: ${formatLabel(caseDetail.outcome.outcomeType)}.`);
+  }
+
+  return parts.join(' ');
+}
+
+function buildAiBrief(caseDetail: CaseDetailView) {
+  const latestEvent = [...caseDetail.activityHistory].pop();
+  const brief = [
+    `${formatLabel(caseDetail.caseStatus)} is the current workflow state for ${caseDetail.caseId}.`,
+    `${formatLabel(caseDetail.currentRecommendation)} is the latest recommendation against ${formatCurrency(caseDetail.amount, caseDetail.currency)}.`,
+  ];
+
+  if (caseDetail.approvalState.approvalRequired) {
+    brief.push(`Finance control is ${formatLabel(caseDetail.approvalState.approvalStatus)} for this case.`);
+  }
+
+  if (latestEvent) {
+    brief.push(`Latest activity: ${latestEvent.message}`);
+  }
+
+  if (caseDetail.outcome) {
+    brief.push(`Recorded outcome: ${formatLabel(caseDetail.outcome.outcomeType)}.`);
+  }
+
+  return brief;
+}
+
+function buildAgentRoster(events: ActivityEvent[]) {
+  const seen = new Map<string, { name: string; role: string; status: string }>();
+
+  for (const event of events) {
+    const actor = toActorLabel(event.source);
+    if (!actor.isAgent) {
+      continue;
+    }
+    seen.set(actor.name, {
+      name: actor.name,
+      role: actor.role,
+      status: activityStateLabel(event),
+    });
+  }
+
+  return Array.from(seen.values());
+}
+
+function buildTimelineEntries(events: ActivityEvent[], caseDetail: CaseDetailView): TimelineEntry[] {
+  const sorted = [...events].sort((left, right) => left.timestamp.localeCompare(right.timestamp));
+
+  const entries = sorted.map((event) => {
+    const payload = parseStructuredPayload(event.structuredPayload);
+    const actor = toActorLabel(event.source);
+    const meta = timelineMeta(event, payload);
+    return {
+      id: event.eventId,
+      actorName: actor.name,
+      actorRole: actor.role,
+      kind: actor.isSystem ? 'system' : 'conversation',
+      summary: timelineSummary(event, payload),
+      body: timelineBody(event, payload),
+      timestamp: event.timestamp,
+      emphasis: timelineEmphasis(payload),
+      meta,
+    } satisfies TimelineEntry;
+  });
+
+  if (!entries.length) {
+    return [
+      {
+        id: `${caseDetail.caseId}-empty`,
+        actorName: 'Case system',
+        actorRole: 'workflow',
+        kind: 'system',
+        summary: 'No activity yet',
+        body: 'This case has not produced any activity history yet.',
+        timestamp: new Date().toISOString(),
+      },
+    ];
+  }
+
+  return entries;
+}
+
+function buildConversationThreads(events: ActivityEvent[], caseDetail: CaseDetailView): ConversationThread[] {
+  const entries = buildTimelineEntries(events, caseDetail);
+  if (!entries.length) {
+    return [];
+  }
+
+  const eventById = new Map(events.map((event) => [event.eventId, event]));
+  const threads: ConversationThread[] = [];
+  let current: ConversationThread | null = null;
+
+  for (const entry of entries) {
+    const rawEvent = eventById.get(entry.id);
+    const startsThread = rawEvent ? isThreadRootEvent(rawEvent) : false;
+
+    if (!current || startsThread) {
+      if (current) {
+        finalizeThread(current);
+        threads.push(current);
+      }
+      current = {
+        id: entry.id,
+        title: threadTitle(entry, rawEvent),
+        subtitle: threadSubtitle(rawEvent),
+        root: entry,
+        replies: [],
+        systemEntries: [],
+        participants: [entry.actorName],
+        lastTimestamp: entry.timestamp,
+      };
+      continue;
+    }
+
+    current.lastTimestamp = entry.timestamp;
+    if (!current.participants.includes(entry.actorName)) {
+      current.participants.push(entry.actorName);
+    }
+
+    if (entry.kind === 'system') {
+      current.systemEntries.push(entry);
+      continue;
+    }
+
+    current.replies.push(entry);
+  }
+
+  if (current) {
+    finalizeThread(current);
+    threads.push(current);
+  }
+
+  return threads;
+}
+
+function isThreadRootEvent(event: ActivityEvent) {
+  return event.kind === 'DELEGATION_STARTED' || event.kind === 'OPERATOR_INSTRUCTION_RECEIVED';
+}
+
+function threadTitle(entry: TimelineEntry, event: ActivityEvent | undefined) {
+  if (!event) {
+    return entry.summary;
+  }
+  if (event.kind === 'DELEGATION_STARTED') {
+    return entry.body;
+  }
+  if (event.kind === 'OPERATOR_INSTRUCTION_RECEIVED') {
+    return entry.body;
+  }
+  return entry.summary;
+}
+
+function threadSubtitle(event: ActivityEvent | undefined) {
+  if (!event) {
+    return 'Case thread';
+  }
+  if (event.kind === 'DELEGATION_STARTED') {
+    return 'Case intake';
+  }
+  if (event.kind === 'OPERATOR_INSTRUCTION_RECEIVED') {
+    return 'Follow-up request';
+  }
+  return friendlyKindLabel(event.kind);
+}
+
+function finalizeThread(thread: ConversationThread) {
+  if (!thread.replies.length && thread.systemEntries.length) {
+    const firstVisibleSystemEntry = thread.systemEntries.shift();
+    if (firstVisibleSystemEntry) {
+      thread.replies.push(firstVisibleSystemEntry);
+      if (!thread.participants.includes(firstVisibleSystemEntry.actorName)) {
+        thread.participants.push(firstVisibleSystemEntry.actorName);
+      }
+    }
   }
 }
 
-function formatApprovalState(item: CaseListItem) {
-  if (item.pendingApproval && item.requestedRole) {
-    return `${formatLabel(item.approvalStatus)} · ${formatLabel(item.requestedRole)}`;
+function timelineSummary(event: ActivityEvent, payload: Record<string, unknown> | null) {
+  const kind = event.kind;
+  if (kind === 'OPERATOR_INSTRUCTION_RECEIVED') {
+    return 'Operator sent a new request';
   }
-  return formatLabel(item.approvalStatus);
+  if (kind === 'DELEGATION_STARTED') {
+    return 'Case started with the intake request';
+  }
+  if (kind === 'APPROVAL_REQUESTED') {
+    return 'Finance control approval requested';
+  }
+  if (kind === 'OPERATOR_REQUEST_COMPLETED') {
+    return 'Workflow agent posted a case update';
+  }
+  if (typeof payload?.type === 'string' && payload.type === 'agent_response') {
+    return 'Specialist agent responded';
+  }
+  if (typeof payload?.type === 'string' && payload.type === 'tool_call') {
+    return 'Tool execution recorded';
+  }
+  return formatLabel(kind);
 }
 
-function formatLabel(value: string) {
-  return value.replaceAll('_', ' ');
+function timelineBody(event: ActivityEvent, payload: Record<string, unknown> | null) {
+  const instruction = payloadInstruction(payload);
+  if ((event.kind === 'OPERATOR_INSTRUCTION_RECEIVED' || event.kind === 'DELEGATION_STARTED') && instruction) {
+    return instruction;
+  }
+  return event.message;
 }
 
-function formatDate(value: string | null) {
-  if (!value) {
-    return 'Pending';
+function timelineEmphasis(payload: Record<string, unknown> | null) {
+  if (!payload) {
+    return undefined;
   }
-  return new Intl.DateTimeFormat('en-US', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(new Date(value));
+
+  const keys = ['recommendation', 'approvalStatus', 'agent', 'toolName', 'requestedRole', 'focus'];
+  for (const key of keys) {
+    const value = payload[key];
+    if (typeof value === 'string' && value) {
+      return `${formatLabel(key)}: ${formatLabel(value)}`;
+    }
+  }
+
+  if (Array.isArray(payload.delegatedAgents) && payload.delegatedAgents.length) {
+    return `delegated agents: ${payload.delegatedAgents.map((item) => formatValue(item)).join(', ')}`;
+  }
+
+  return undefined;
+}
+
+function payloadInstruction(payload: Record<string, unknown> | null) {
+  const instruction = payload?.instruction;
+  return typeof instruction === 'string' && instruction.trim() ? instruction.trim() : null;
+}
+
+function timelineMeta(event: ActivityEvent, payload: Record<string, unknown> | null) {
+  const meta = [friendlyKindLabel(event.kind)];
+
+  const toolName = typeof payload?.toolName === 'string' ? payload.toolName : null;
+  if (toolName) {
+    meta.push(`tool ${formatLabel(toolName)}`);
+  }
+
+  const requestedRole = typeof payload?.requestedRole === 'string' ? payload.requestedRole : null;
+  if (requestedRole) {
+    meta.push(`role ${formatLabel(requestedRole)}`);
+  }
+
+  return meta;
+}
+
+function toActorLabel(source: string) {
+  const normalized = source.toLowerCase();
+  if (normalized.includes('shipment-agent')) {
+    return { name: 'Shipment Agent', role: 'service agent', isAgent: true, isSystem: false };
+  }
+  if (normalized.includes('escrow-agent')) {
+    return { name: 'Escrow Agent', role: 'service agent', isAgent: true, isSystem: false };
+  }
+  if (normalized.includes('risk-agent')) {
+    return { name: 'Risk Agent', role: 'service agent', isAgent: true, isSystem: false };
+  }
+  if (normalized.includes('case-workflow-agent') || normalized.includes('workflow-agent')) {
+    return { name: 'Workflow Agent', role: 'coordinator', isAgent: true, isSystem: false };
+  }
+  if (normalized.includes('hook')) {
+    return { name: 'Approval Hook', role: 'policy control', isAgent: false, isSystem: true };
+  }
+  if (normalized.includes('runtime') || normalized.includes('steering') || normalized.includes('security')) {
+    return { name: 'Runtime', role: 'system', isAgent: false, isSystem: true };
+  }
+  return { name: formatSourceName(source), role: 'activity source', isAgent: false, isSystem: true };
+}
+
+function activityStateLabel(event: ActivityEvent) {
+  if (event.kind === 'APPROVAL_REQUESTED') {
+    return 'awaiting approval';
+  }
+  if (event.kind === 'OPERATOR_REQUEST_COMPLETED') {
+    return 'responded';
+  }
+  if (event.kind.includes('TOOL')) {
+    return 'used tools';
+  }
+  return 'active';
 }
 
 function parseStructuredPayload(payload: string): Record<string, unknown> | null {
@@ -944,364 +1373,121 @@ function parseStructuredPayload(payload: string): Record<string, unknown> | null
   }
 }
 
-function classifyActivity(event: ActivityEvent, payload: Record<string, unknown> | null): ActivityCategory {
-  const payloadType = typeof payload?.type === 'string' ? payload.type : '';
-  const source = event.source.toLowerCase();
-  const kind = event.kind.toUpperCase();
-
-  if (payloadType === 'hook_event' || kind.includes('HOOK')) {
-    return 'hook';
+function formatApprovalState(item: CaseListItem) {
+  if (item.pendingApproval && item.requestedRole) {
+    return `${formatLabel(item.approvalStatus)} / ${formatLabel(item.requestedRole)}`;
   }
-  if (payloadType === 'tool_call' || payloadType === 'tool_result' || kind.includes('TOOL') || kind.includes('STEERING')) {
-    return 'tool';
-  }
-  if (payloadType === 'runtime_event' || source.includes('workflow-runtime') || source.includes('workflow-security') || source.includes('workflow-steering')) {
-    return 'runtime';
-  }
-  return 'agent';
+  return formatLabel(item.approvalStatus);
 }
 
-function categoryDescription(category: ActivityCategory) {
-  switch (category) {
-    case 'agent':
-      return 'agent action';
-    case 'runtime':
-      return 'runtime control';
-    case 'tool':
-      return 'tool call';
-    case 'hook':
-      return 'hook intervention';
-    default:
-      return category;
-  }
+function formatLabel(value: string) {
+  return value.replaceAll('_', ' ');
+}
+
+function formatSourceName(source: string) {
+  return source
+    .split(/[-_]/g)
+    .filter(Boolean)
+    .map((token) => token.charAt(0).toUpperCase() + token.slice(1))
+    .join(' ');
 }
 
 function friendlyKindLabel(kind: string) {
   switch (kind) {
     case 'OPERATOR_INSTRUCTION_RECEIVED':
-      return 'Operator request received';
+      return 'operator request';
     case 'DELEGATION_ROUTED':
-      return 'Delegation routed';
+      return 'delegation';
     case 'AGENT_RESPONSE':
-      return 'Specialist response';
+      return 'agent response';
     case 'OPERATOR_REQUEST_COMPLETED':
-      return 'Operator request completed';
+      return 'completed update';
     case 'DELEGATION_STARTED':
-      return 'Case intake started';
+      return 'case intake';
     case 'EVIDENCE_RECEIVED':
-      return 'Evidence received';
+      return 'evidence received';
     case 'STREAM_PROGRESS':
-      return 'Workflow consulted guidance';
+      return 'streaming progress';
     case 'HOOK_FORCED_TOOL_SELECTION':
-      return 'Hook forced tool choice';
+      return 'policy intervention';
     case 'TOOL_CALL_RECORDED':
-      return 'Tool invoked';
+      return 'tool call';
     case 'APPROVAL_INTERRUPT_REGISTERED':
-      return 'Approval pause registered';
+      return 'approval pause';
     case 'APPROVAL_REQUESTED':
-      return 'Approval requested';
+      return 'approval requested';
     case 'RECOMMENDATION_UPDATED':
-      return 'Recommendation updated';
+      return 'recommendation updated';
     default:
       return formatLabel(kind);
   }
 }
 
-function countActivityCategories(entries: ActivityTimelineEntry[]) {
-  return collapseDuplicateActivities(entries).reduce(
-    (counts, entry) => {
-      counts[entry.category] += 1;
-      return counts;
-    },
-    { agent: 0, runtime: 0, tool: 0, hook: 0 } as Record<ActivityCategory, number>,
-  );
+function formatCurrency(amount: number, currency: string) {
+  try {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount);
+  } catch {
+    return `${amount.toFixed(2)} ${currency}`;
+  }
 }
 
-function buildDelegationTrace(entries: ActivityTimelineEntry[]) {
-  return entries
-    .filter(({ payload, event }) => {
-      const payloadType = typeof payload?.type === 'string' ? payload.type : '';
-      return payloadType === 'delegation_start'
-        || payloadType === 'operator_instruction'
-        || payloadType === 'delegation_assignment'
-        || payloadType === 'agent_response'
-        || payloadType === 'workflow_completion'
-        || payloadType === 'tool_call'
-        || payloadType === 'tool_result'
-        || payloadType === 'hook_event'
-        || payloadType === 'runtime_event'
-        || event.kind === 'APPROVAL_REQUESTED';
-    })
-    .map(({ event, payload, category }) => ({
-      eventId: event.eventId,
-      category,
-      title: traceTitle(event, payload),
-      source: traceSource(event, payload),
-      target: traceTarget(event, payload),
-      highlight: traceHighlight(payload),
-      description: event.message,
-    }));
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat('en-US', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(new Date(value));
 }
 
-function traceTitle(event: ActivityEvent, payload: Record<string, unknown> | null) {
-  const payloadType = typeof payload?.type === 'string' ? payload.type : '';
-  if (payloadType === 'delegation_assignment') {
-    return `${formatValue(payload?.delegatedBy)} -> ${formatValue(payload?.agent)}`;
+function formatDateOrPending(value: string | null) {
+  if (!value) {
+    return 'Pending';
   }
-  if (payloadType === 'delegation_start') {
-    return `${formatValue(payload?.delegatedBy)} -> ${formatValue(payload?.delegatedAgents)}`;
-  }
-  if (payloadType === 'hook_event') {
-    return `Hook forced ${formatValue(payload?.toolName)}`;
-  }
-  if (payloadType === 'tool_call' || payloadType === 'tool_result') {
-    return `${formatValue(payload?.toolName)} via ${event.source}`;
-  }
-  if (payloadType === 'workflow_completion') {
-    return `${formatValue(payload?.delegatedBy)} completed operator request`;
-  }
-  return `${event.source} ${formatLabel(event.kind).toLowerCase()}`;
+  return formatDate(value);
 }
 
-function traceSource(event: ActivityEvent, payload: Record<string, unknown> | null) {
-  const delegatedBy = payloadValue(payload?.delegatedBy);
-  if (delegatedBy) {
-    return delegatedBy;
-  }
-  if (typeof payload?.hookName === 'string') {
-    return formatLabel(payload.hookName);
-  }
-  return event.source;
-}
+function formatRelativeDate(value: string) {
+  const date = new Date(value);
+  const diffMinutes = Math.round((date.getTime() - Date.now()) / 60000);
+  const formatter = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
 
-function traceTarget(event: ActivityEvent, payload: Record<string, unknown> | null) {
-  const agent = payloadValue(payload?.agent);
-  if (agent) {
-    return agent;
+  if (Math.abs(diffMinutes) < 60) {
+    return formatter.format(diffMinutes, 'minute');
   }
-  const toolName = payloadValue(payload?.toolName);
-  if (toolName) {
-    return toolName;
-  }
-  const delegatedAgents = payloadValue(payload?.delegatedAgents);
-  if (delegatedAgents) {
-    return delegatedAgents;
-  }
-  if (event.kind === 'APPROVAL_REQUESTED') {
-    return payloadValue(payload?.requestedRole) || 'approval gate';
-  }
-  return event.source;
-}
 
-function traceHighlight(payload: Record<string, unknown> | null) {
-  if (!payload) {
-    return null;
+  const diffHours = Math.round(diffMinutes / 60);
+  if (Math.abs(diffHours) < 24) {
+    return formatter.format(diffHours, 'hour');
   }
-  return payloadValue(payload.focus)
-    || payloadValue(payload.instruction)
-    || payloadValue(payload.recommendation)
-    || payloadValue(payload.approvalStatus)
-    || null;
-}
 
-function timelineKeyFacts(payload: Record<string, unknown>) {
-  const keys = ['agent', 'delegatedBy', 'toolName', 'requestedRole', 'focus', 'recommendation', 'approvalStatus'];
-  return keys
-    .map((key) => ({ label: formatLabel(key), raw: payload[key] }))
-    .map(({ label, raw }) => ({ label, value: payloadValue(raw) }))
-    .filter((entry): entry is { label: string; value: string } => Boolean(entry.value));
-}
-
-function payloadValue(value: unknown): string | null {
-  if (value == null || value === '') {
-    return null;
-  }
-  if (Array.isArray(value)) {
-    return value.map((item) => formatValue(item)).join(' -> ');
-  }
-  return formatValue(value);
-}
-
-function hasPayloadFields(payload: Record<string, unknown>) {
-  return orderedPayloadEntries(payload).length > 0;
-}
-
-function orderedPayloadEntries(payload: Record<string, unknown>) {
-  const order = [
-    'delegatedBy',
-    'agent',
-    'focus',
-    'delegatedAgents',
-    'recommendation',
-    'approvalStatus',
-    'requestedRole',
-    'operatorId',
-    'operatorRole',
-    'instruction',
-    'summary',
-    'policyReference',
-    'toolName',
-    'location',
-    'probe',
-    'status',
-    'content',
-    'rawPayload',
-    'shipmentEvidence',
-    'escrowEvidence',
-    'riskEvidence',
-    'delegateSummaries',
-  ];
-
-  return Object.entries(payload)
-    .filter(([key, value]) => key !== 'type' && value != null && value !== '')
-    .sort(([left], [right]) => {
-      const leftIndex = order.indexOf(left);
-      const rightIndex = order.indexOf(right);
-      if (leftIndex === -1 && rightIndex === -1) {
-        return left.localeCompare(right);
-      }
-      if (leftIndex === -1) {
-        return 1;
-      }
-      if (rightIndex === -1) {
-        return -1;
-      }
-      return leftIndex - rightIndex;
-    });
+  const diffDays = Math.round(diffHours / 24);
+  return formatter.format(diffDays, 'day');
 }
 
 function formatValue(value: unknown): string {
   if (Array.isArray(value)) {
-    return value.map((item) => formatValue(item)).join(' -> ');
+    return value.map((item) => formatValue(item)).join(', ');
   }
   if (typeof value === 'string') {
     return formatLabel(value);
   }
-  if (typeof value === 'object') {
-    return JSON.stringify(value);
-  }
   return String(value);
 }
 
-function collapseDuplicateActivities(entries: ActivityTimelineEntry[]): DisplayActivityTimelineEntry[] {
-  const grouped = new Map<string, DisplayActivityTimelineEntry>();
-
-  for (const entry of entries) {
-    const key = `${entry.event.kind}|${entry.event.source}|${entry.event.message}|${entry.event.structuredPayload}`;
-    const existing = grouped.get(key);
-    if (existing) {
-      existing.duplicateCount += 1;
-      continue;
-    }
-    grouped.set(key, {
-      ...entry,
-      duplicateCount: 1,
-    });
+function initials(value: string) {
+  const tokens = value.split(' ').filter(Boolean).slice(0, 2);
+  if (!tokens.length) {
+    return 'AC';
   }
-
-  return Array.from(grouped.values());
+  return tokens.map((token) => token.charAt(0).toUpperCase()).join('');
 }
 
-function buildActivityBlocks(entries: DisplayActivityTimelineEntry[]): ActivityBlock[] {
-  const blocks: ActivityBlock[] = [];
-  let current: ActivityBlock | null = null;
-
-  for (const entry of entries) {
-    if (startsNewBlock(entry, current)) {
-      if (current) {
-        blocks.push(current);
-      }
-      current = createActivityBlock(entry);
-      if (current.phaseLabel === 'Workflow Update') {
-        blocks.push(current);
-        current = null;
-      }
-      continue;
-    }
-
-    if (current) {
-      current.entries.push(entry);
-      if (endsBlock(entry, current)) {
-        blocks.push(current);
-        current = null;
-      }
-      continue;
-    }
-
-    blocks.push(createActivityBlock(entry));
-  }
-
-  if (current) {
-    blocks.push(current);
-  }
-
-  return blocks;
+function normalizeMarkdown(value: string) {
+  return value
+    .replace(/\\n/g, '\n')
+    .replace(/([^\n])\s(?=#{1,6}\s)/g, '$1\n\n')
+    .replace(/([^\n])\s(?=-\s+(?:\*\*|`|[A-Za-z0-9\u3040-\u30ff\u3400-\u9fff]))/g, '$1\n')
+    .replace(/([^\n])\s(?=\d+\.\s)/g, '$1\n')
+    .trim();
 }
-
-function startsNewBlock(entry: DisplayActivityTimelineEntry, current: ActivityBlock | null) {
-  if (!current) {
-    return true;
-  }
-  return entry.event.kind === 'DELEGATION_STARTED' || entry.event.kind === 'OPERATOR_INSTRUCTION_RECEIVED';
-}
-
-function endsBlock(entry: DisplayActivityTimelineEntry, current: ActivityBlock) {
-  if (current.phaseLabel === 'Operator Turn') {
-    return entry.event.kind === 'OPERATOR_REQUEST_COMPLETED';
-  }
-  if (current.phaseLabel === 'Case Intake') {
-    return entry.event.kind === 'APPROVAL_REQUESTED';
-  }
-  return true;
-}
-
-function createActivityBlock(entry: DisplayActivityTimelineEntry): ActivityBlock {
-  const payload = entry.payload;
-  if (entry.event.kind === 'OPERATOR_INSTRUCTION_RECEIVED') {
-    return {
-      id: entry.event.eventId,
-      phaseLabel: 'Operator Turn',
-      title: payloadValue(payload?.instruction) || 'Operator follow-up',
-      subtitle: 'workflow-agent received one operator request and delegated the necessary follow-up steps below.',
-      entries: [entry],
-    };
-  }
-
-  if (entry.event.kind === 'DELEGATION_STARTED') {
-    return {
-      id: entry.event.eventId,
-      phaseLabel: 'Case Intake',
-      title: payloadValue(payload?.instruction) || 'Initial case assessment',
-      subtitle: 'This block covers the first investigation pass from intake through recommendation and approval gate setup.',
-      entries: [entry],
-    };
-  }
-
-  return {
-    id: entry.event.eventId,
-    phaseLabel: 'Workflow Update',
-    title: friendlyKindLabel(entry.event.kind),
-    subtitle: entry.event.message,
-    entries: [entry],
-  };
-}
-
-type ActivityTimelineEntry = {
-  event: ActivityEvent;
-  payload: Record<string, unknown> | null;
-  category: ActivityCategory;
-};
-
-type DisplayActivityTimelineEntry = ActivityTimelineEntry & {
-  duplicateCount: number;
-};
-
-type ActivityBlock = {
-  id: string;
-  phaseLabel: string;
-  title: string;
-  subtitle: string;
-  entries: DisplayActivityTimelineEntry[];
-};
 
 export default App;

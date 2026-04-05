@@ -89,4 +89,21 @@ class ShipmentServiceApiTest {
                 .andExpect(jsonPath("$.trackingNumber").value("TRACK-order-2001"))
                 .andExpect(jsonPath("$.shippingExceptionSummary").value("Shipment remains in a not-delivered state for the current case."));
     }
+
+    @Test
+    void evidenceSummaryReflectsDeliveredButDamagedScenario() throws Exception {
+        mockMvc.perform(post("/internal/shipment/evidence-summary")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "caseId": "case-damaged",
+                                  "caseType": "DELIVERED_BUT_DAMAGED",
+                                  "disputeSummary": "Buyer says the package arrived crushed and wet.",
+                                  "orderId": "order-dmg-1"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.deliveryConfidence").value("HIGH"))
+                .andExpect(jsonPath("$.shippingExceptionSummary").value("Shipment was delivered, but the package exterior shows impact damage and moisture exposure."));
+    }
 }

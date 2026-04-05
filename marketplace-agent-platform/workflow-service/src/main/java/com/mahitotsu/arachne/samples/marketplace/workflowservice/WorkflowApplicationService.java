@@ -57,6 +57,7 @@ class WorkflowApplicationService {
                 command.caseId(),
                 command.caseType(),
                 command.orderId(),
+                command.initialMessage(),
                 command.amount(),
                 command.currency(),
                 command.operatorId(),
@@ -65,10 +66,13 @@ class WorkflowApplicationService {
                 command.operatorId(),
                 command.operatorRole(),
                 () -> workflowRuntimeAdapter.assessStart(command, rawEvidence, now));
-        var approvalPause = withOperatorAuthorizationContext(
-                command.operatorId(),
-                command.operatorRole(),
-                () -> workflowRuntimeAdapter.pauseForApproval(command, assessment).orElse(null));
+        boolean approvalRequired = assessment.recommendation() != Recommendation.PENDING_MORE_EVIDENCE;
+        var approvalPause = approvalRequired
+                ? withOperatorAuthorizationContext(
+                        command.operatorId(),
+                        command.operatorRole(),
+                        () -> workflowRuntimeAdapter.pauseForApproval(command, assessment).orElse(null))
+                : null;
                 List<WorkflowActivity> startActivities = assessment.activities();
                 if (approvalPause != null && !approvalPause.activities().isEmpty()) {
                         startActivities = new java.util.ArrayList<>(assessment.activities());
@@ -80,10 +84,10 @@ class WorkflowApplicationService {
                 command.orderId(),
                 command.amount(),
                 command.currency(),
-                WorkflowStatus.AWAITING_APPROVAL,
+                approvalRequired ? WorkflowStatus.AWAITING_APPROVAL : WorkflowStatus.GATHERING_EVIDENCE,
                 assessment.recommendation(),
                 assessment.evidence(),
-                pendingApproval(now),
+                approvalRequired ? pendingApproval(now) : approvalNotRequired(),
                 null,
                 approvalPause == null ? null : approvalPause.sessionId(),
                 approvalPause == null ? null : approvalPause.interruptId());
@@ -226,26 +230,32 @@ class WorkflowApplicationService {
             String caseId,
             String caseType,
             String orderId,
+                    String disputeSummary,
             BigDecimal amount,
             String currency,
             String operatorId,
             String operatorRole) {
-        var shipment = downstreamGateway.shipmentEvidence(new DownstreamContracts.ShipmentEvidenceRequest(caseId, caseType, orderId));
+                var shipment = downstreamGateway.shipmentEvidence(new DownstreamContracts.ShipmentEvidenceRequest(caseId, caseType, disputeSummary, orderId));
         var escrow = downstreamGateway.escrowEvidence(new DownstreamContracts.EscrowEvidenceRequest(
                 caseId,
                 caseType,
                 orderId,
+                        disputeSummary,
                 amount,
                 currency,
                 operatorId,
                 operatorRole));
-        var risk = downstreamGateway.riskReview(new DownstreamContracts.RiskCaseReviewRequest(caseId, caseType, orderId, operatorRole));
+                var risk = downstreamGateway.riskReview(new DownstreamContracts.RiskCaseReviewRequest(caseId, caseType, orderId, disputeSummary, operatorRole));
         return new WorkflowRuntimeAdapter.RawEvidence(shipment, escrow, risk);
     }
 
     private ApprovalStateView pendingApproval(OffsetDateTime now) {
         return new ApprovalStateView(true, ApprovalStatus.PENDING_FINANCE_CONTROL, "FINANCE_CONTROL", now, null, null, null);
     }
+
+        private ApprovalStateView approvalNotRequired() {
+                return new ApprovalStateView(false, ApprovalStatus.NOT_REQUIRED, null, null, null, null, null);
+        }
 
     private String settlementMessage(Recommendation recommendation) {
         if (recommendation == Recommendation.REFUND) {

@@ -12,6 +12,7 @@ final class EscrowContracts {
             String caseId,
             String caseType,
             String orderId,
+            String disputeSummary,
             BigDecimal amount,
             String currency,
             String operatorId,

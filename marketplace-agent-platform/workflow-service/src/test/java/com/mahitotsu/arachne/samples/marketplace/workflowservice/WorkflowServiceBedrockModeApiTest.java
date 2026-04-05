@@ -2,6 +2,8 @@ package com.mahitotsu.arachne.samples.marketplace.workflowservice;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -25,6 +27,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mahitotsu.arachne.strands.model.Model;
+import com.mahitotsu.arachne.strands.model.ModelEvent;
+import com.mahitotsu.arachne.strands.model.ToolSelection;
+import com.mahitotsu.arachne.strands.model.ToolSpec;
+import com.mahitotsu.arachne.strands.types.ContentBlock;
+import com.mahitotsu.arachne.strands.types.Message;
 
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
@@ -87,7 +94,9 @@ class WorkflowServiceBedrockModeApiTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.workflowStatus").value("AWAITING_APPROVAL"))
                 .andExpect(jsonPath("$.activities[0].source").value("case-workflow-agent"))
-                .andExpect(jsonPath("$.evidence.policyReference").value("policy://marketplace/disputes/item-not-received"));
+            .andExpect(jsonPath("$.evidence.policyReference").value("policy://marketplace/disputes/item-not-received"))
+            .andExpect(jsonPath("$.activities[*].kind").value(org.hamcrest.Matchers.hasItem("STREAM_PROGRESS")))
+            .andExpect(jsonPath("$.activities[*].message").value(org.hamcrest.Matchers.hasItem("case-workflow-agent listed the packaged marketplace guidance before updating the recommendation.")));
 
         assertThat(shipmentServer.takeRequest(1, TimeUnit.SECONDS)).isNotNull();
         assertThat(escrowServer.takeRequest(1, TimeUnit.SECONDS)).isNotNull();
@@ -142,7 +151,116 @@ class WorkflowServiceBedrockModeApiTest {
         @Bean
         @Primary
         Model alternateWorkflowModeModel() {
-            return new MarketplaceWorkflowArachneModel();
+            return new LoopingWorkflowModel();
+        }
+    }
+
+    private static final class LoopingWorkflowModel implements Model {
+
+        @Override
+        public Iterable<ModelEvent> converse(List<Message> messages, List<ToolSpec> tools) {
+            throw new AssertionError("Expected the system-prompt-aware overload");
+        }
+
+        @Override
+        public Iterable<ModelEvent> converse(List<Message> messages, List<ToolSpec> tools, String systemPrompt) {
+            return converse(messages, tools, systemPrompt, null);
+        }
+
+        @Override
+        public Iterable<ModelEvent> converse(
+                List<Message> messages,
+                List<ToolSpec> tools,
+                String systemPrompt,
+                ToolSelection toolSelection) {
+            String agentName = agentName(systemPrompt, latestUserText(messages));
+            return switch (agentName) {
+                case "shipment-agent" -> specialistSummary("shipment-summary", toolSelection, "Shipment remains in a not-delivered state for the current case.");
+                case "escrow-agent" -> specialistSummary("escrow-summary", toolSelection, "Escrow still holds the authorized funds and no prior refund has been executed.");
+                case "risk-agent" -> specialistSummary("risk-summary", toolSelection, "Risk review found no elevated fraud signal but requires finance control confirmation for settlement-changing actions.");
+                default -> workflowDecision(messages, toolSelection);
+            };
+        }
+
+        private Iterable<ModelEvent> specialistSummary(String toolUseId, ToolSelection toolSelection, String summary) {
+            if (toolSelection == null) {
+                return List.of(
+                        new ModelEvent.TextDelta("Draft"),
+                        new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
+            }
+            return List.of(
+                    new ModelEvent.ToolUse(toolUseId, toolSelection.toolName(), Map.of("summary", summary)),
+                    new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
+        }
+
+        private Iterable<ModelEvent> workflowDecision(List<Message> messages, ToolSelection toolSelection) {
+            if (toolSelection != null) {
+                return List.of(
+                        new ModelEvent.ToolUse(
+                                "workflow-decision",
+                                toolSelection.toolName(),
+                                Map.of(
+                                        "recommendation", "CONTINUED_HOLD",
+                                        "recommendationMessage", "case-workflow-agent recommends keeping the hold until finance control confirms the next step under the packaged settlement policy.",
+                                        "approvalMessage", "Finance control approval is required for settlement progression after the workflow reviewed the packaged threshold reference.",
+                                        "policyReference", WorkflowRuntimeAdapter.POLICY_REFERENCE)),
+                        new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
+            }
+
+            int toolResultsSeen = countToolResults(messages);
+            if (toolResultsSeen == 0) {
+                return List.of(
+                        new ModelEvent.ToolUse(
+                                "workflow-resources",
+                                "resource_list",
+                                Map.of("location", "classpath:/marketplace-workflow/", "pattern", "**/*.md")),
+                        new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
+            }
+
+            return List.of(
+                    new ModelEvent.ToolUse(
+                            "workflow-loop-" + toolResultsSeen,
+                            "resource_reader",
+                            Map.of("location", "classpath:/marketplace-workflow/policies/settlement-policy-summary.md")),
+                    new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
+        }
+
+        private int countToolResults(List<Message> messages) {
+            int count = 0;
+            for (Message message : messages) {
+                for (ContentBlock block : message.content()) {
+                    if (block instanceof ContentBlock.ToolResult) {
+                        count++;
+                    }
+                }
+            }
+            return count;
+        }
+
+        private String latestUserText(List<Message> messages) {
+            for (int index = messages.size() - 1; index >= 0; index--) {
+                Message message = messages.get(index);
+                for (ContentBlock block : message.content()) {
+                    if (block instanceof ContentBlock.Text text) {
+                        return text.text();
+                    }
+                }
+            }
+            return "";
+        }
+
+        private String agentName(String systemPrompt, String latestUserText) {
+            String combined = (systemPrompt == null ? "" : systemPrompt) + "\n" + latestUserText;
+            if (combined.contains("shipment-agent")) {
+                return "shipment-agent";
+            }
+            if (combined.contains("escrow-agent")) {
+                return "escrow-agent";
+            }
+            if (combined.contains("risk-agent")) {
+                return "risk-agent";
+            }
+            return "case-workflow-agent";
         }
     }
 }

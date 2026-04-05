@@ -32,7 +32,8 @@ import com.mahitotsu.arachne.strands.tool.ToolExecutionMode;
 final class ArachneWorkflowRuntimeAdapter implements WorkflowRuntimeAdapter {
 
     private final AgentFactory agentFactory;
-    private final List<Skill> caseWorkflowSkills;
+    private final List<Skill> caseWorkflowAssessmentSkills;
+    private final List<Skill> caseWorkflowApprovalSkills;
     private final List<Skill> shipmentSkills;
     private final List<Skill> escrowSkills;
     private final List<Skill> riskSkills;
@@ -42,7 +43,8 @@ final class ArachneWorkflowRuntimeAdapter implements WorkflowRuntimeAdapter {
 
     ArachneWorkflowRuntimeAdapter(
             AgentFactory agentFactory,
-            @Qualifier("caseWorkflowAgentSkills") List<Skill> caseWorkflowSkills,
+            @Qualifier("caseWorkflowAssessmentSkills") List<Skill> caseWorkflowAssessmentSkills,
+            @Qualifier("caseWorkflowApprovalSkills") List<Skill> caseWorkflowApprovalSkills,
             @Qualifier("shipmentAgentSkills") List<Skill> shipmentSkills,
             @Qualifier("escrowAgentSkills") List<Skill> escrowSkills,
                         @Qualifier("riskAgentSkills") List<Skill> riskSkills,
@@ -50,7 +52,8 @@ final class ArachneWorkflowRuntimeAdapter implements WorkflowRuntimeAdapter {
                         MarketplaceOperatorContextPlugin marketplaceOperatorContextPlugin,
                         MarketplaceSettlementShortcutSteering marketplaceSettlementShortcutSteering) {
         this.agentFactory = agentFactory;
-        this.caseWorkflowSkills = caseWorkflowSkills;
+        this.caseWorkflowAssessmentSkills = caseWorkflowAssessmentSkills;
+        this.caseWorkflowApprovalSkills = caseWorkflowApprovalSkills;
         this.shipmentSkills = shipmentSkills;
         this.escrowSkills = escrowSkills;
         this.riskSkills = riskSkills;
@@ -74,14 +77,14 @@ final class ArachneWorkflowRuntimeAdapter implements WorkflowRuntimeAdapter {
                 .build()
                 .run(riskPrompt(command, rawEvidence), AgentEvidenceSummary.class);
         List<WorkflowActivity> workflowProgressActivities = new ArrayList<>();
-        WorkflowDecision decision = agentFactory.builder("case-workflow-agent")
-                .skills(caseWorkflowSkills)
+            WorkflowDecision decision = agentFactory.builder("case-workflow-agent")
+                .skills(caseWorkflowAssessmentSkills)
                 .plugins(marketplaceOperatorContextPlugin)
                 .steeringHandlers(marketplaceSettlementShortcutSteering)
                 .toolExecutionMode(ToolExecutionMode.PARALLEL)
                 .hooks(workflowProgressHook(workflowProgressActivities, now.plusSeconds(4)))
                 .build()
-                .run(workflowPrompt(command, shipment, escrow, risk), WorkflowDecision.class);
+                .run(workflowPrompt(command, rawEvidence, shipment, escrow, risk), WorkflowDecision.class);
         List<WorkflowActivity> activities = new ArrayList<>();
         activities.add(activity(
             now,
@@ -135,15 +138,17 @@ final class ArachneWorkflowRuntimeAdapter implements WorkflowRuntimeAdapter {
                 "type", "workflow_decision",
                 "recommendation", decision.recommendation().name(),
                 "policyReference", decision.policyReference())));
-        activities.add(activity(
-            finalTimestamp.plusSeconds(1),
-            "APPROVAL_REQUESTED",
-            "case-workflow-agent",
-            decision.approvalMessage(),
-            Map.of(
-                "type", "approval_gate",
-                "requestedRole", "FINANCE_CONTROL",
-                "recommendation", decision.recommendation().name())));
+        if (!decision.approvalMessage().isBlank()) {
+            activities.add(activity(
+                finalTimestamp.plusSeconds(1),
+                "APPROVAL_REQUESTED",
+                "case-workflow-agent",
+                decision.approvalMessage(),
+                Map.of(
+                    "type", "approval_gate",
+                    "requestedRole", "FINANCE_CONTROL",
+                    "recommendation", decision.recommendation().name())));
+        }
 
         return new StartAssessment(
                 decision.recommendation(),
@@ -153,13 +158,16 @@ final class ArachneWorkflowRuntimeAdapter implements WorkflowRuntimeAdapter {
 
             @Override
             public FollowUpAssessment continueWorkflow(WorkflowSessionState state, ContinueWorkflowCommand command, OffsetDateTime now) {
-            List<DelegationTarget> selectedTargets = selectDelegates(command.message());
+            boolean resolutionGuidanceRequest = isResolutionGuidanceRequest(command.message());
+            List<DelegationTarget> selectedTargets = selectDelegates(state, command.message(), resolutionGuidanceRequest);
             List<WorkflowActivity> activities = new ArrayList<>();
             activities.add(activity(
                 now,
                 "OPERATOR_INSTRUCTION_RECEIVED",
                 "case-workflow-agent",
-                "case-workflow-agent accepted the operator instruction and started targeted delegation.",
+                selectedTargets.isEmpty()
+                    ? "case-workflow-agent accepted the operator instruction and prepared a workflow answer from the current case state."
+                    : "case-workflow-agent accepted the operator instruction and started targeted delegation.",
                 Map.of(
                     "type", "operator_instruction",
                     "delegatedBy", "case-workflow-agent",
@@ -203,7 +211,7 @@ final class ArachneWorkflowRuntimeAdapter implements WorkflowRuntimeAdapter {
                 now.plusSeconds(activityOffset),
                 "OPERATOR_REQUEST_COMPLETED",
                 "case-workflow-agent",
-                completionMessage(state.currentRecommendation(), state.approvalState().approvalStatus().name(), selectedTargets),
+                completionMessage(state, command.message(), selectedTargets, delegateSummaries),
                 Map.of(
                     "type", "workflow_completion",
                     "delegatedBy", "case-workflow-agent",
@@ -216,8 +224,18 @@ final class ArachneWorkflowRuntimeAdapter implements WorkflowRuntimeAdapter {
             return new FollowUpAssessment(state.currentRecommendation(), activities);
             }
 
+    private List<DelegationTarget> selectDelegates(WorkflowSessionState state, String message, boolean resolutionGuidanceRequest) {
+        if (resolutionGuidanceRequest) {
+            return resolutionGuidanceTargets(state);
+        }
+        return selectDelegates(message);
+    }
+
     @Override
     public Optional<ApprovalPause> pauseForApproval(StartWorkflowCommand command, StartAssessment assessment) {
+        if (assessment.recommendation() == Recommendation.PENDING_MORE_EVIDENCE) {
+            return Optional.empty();
+        }
         String sessionId = approvalSessionId(command.caseId());
         List<WorkflowActivity> approvalActivities = new ArrayList<>();
         OffsetDateTime approvalTimestamp = command.requestedAt() == null
@@ -311,11 +329,13 @@ final class ArachneWorkflowRuntimeAdapter implements WorkflowRuntimeAdapter {
 
     private String workflowPrompt(
             StartWorkflowCommand command,
+            RawEvidence rawEvidence,
             AgentEvidenceSummary shipment,
             AgentEvidenceSummary escrow,
             AgentEvidenceSummary risk) {
         return String.join("\n",
                 "agent=case-workflow-agent",
+            "mode=start-assessment",
                 "caseId=" + command.caseId(),
                 "caseType=" + command.caseType(),
                 "orderId=" + command.orderId(),
@@ -324,7 +344,16 @@ final class ArachneWorkflowRuntimeAdapter implements WorkflowRuntimeAdapter {
                 "initialMessage=" + blankSafe(command.initialMessage()),
                 "shipmentSummary=" + shipment.summary(),
                 "escrowSummary=" + escrow.summary(),
-                "riskSummary=" + risk.summary());
+                "shipmentMilestoneSummary=" + rawEvidence.shipment().milestoneSummary(),
+                "shipmentExceptionSummary=" + rawEvidence.shipment().shippingExceptionSummary(),
+                "shipmentDeliveryConfidence=" + rawEvidence.shipment().deliveryConfidence(),
+                "escrowHoldState=" + rawEvidence.escrow().holdState(),
+                "escrowPriorSettlementStatus=" + rawEvidence.escrow().priorSettlementStatus(),
+                "riskSummary=" + risk.summary(),
+                "riskIndicatorSummary=" + rawEvidence.risk().indicatorSummary(),
+                "riskManualReviewRequired=" + rawEvidence.risk().manualReviewRequired(),
+                "riskPolicyFlags=" + String.join(",", rawEvidence.risk().policyFlags()),
+                "instructions=Use each available resource tool at most once, do not repeat the same tool call with the same input, do not request finance_control_approval in this mode, and return the final structured workflow decision as soon as the packaged guidance has been reviewed.");
     }
 
     private HookProvider workflowProgressHook(List<WorkflowActivity> activities, OffsetDateTime startTimestamp) {
@@ -493,6 +522,7 @@ final class ArachneWorkflowRuntimeAdapter implements WorkflowRuntimeAdapter {
 
     private List<DelegationTarget> selectDelegates(String message) {
         String normalized = blankSafe(message).toLowerCase();
+        String compact = normalized.replaceAll("\\s+", "");
         if (containsAny(normalized, "shipment", "tracking", "carrier", "delivery")) {
             return List.of(new DelegationTarget("shipment-agent", "shipment evidence", "shipment"));
         }
@@ -502,9 +532,53 @@ final class ArachneWorkflowRuntimeAdapter implements WorkflowRuntimeAdapter {
         if (containsAny(normalized, "risk", "fraud", "policy", "manual review")) {
             return List.of(new DelegationTarget("risk-agent", "risk controls and policy flags", "risk"));
         }
+        if (containsAny(normalized,
+                "resolve",
+                "resolution",
+                "what next",
+                "next step",
+                "what should",
+                "how to",
+                "how do")
+                || containsAny(compact, "どうすれば", "どうしたら", "どうやって", "解決", "対応", "次に", "何をすれば")) {
+            return List.of(
+                    new DelegationTarget("shipment-agent", "shipment evidence", "shipment"),
+                    new DelegationTarget("escrow-agent", "escrow and settlement posture", "escrow"),
+                    new DelegationTarget("risk-agent", "risk controls and policy flags", "risk"));
+        }
         return List.of(
                 new DelegationTarget("shipment-agent", "shipment evidence", "shipment"),
                 new DelegationTarget("risk-agent", "risk controls and policy flags", "risk"));
+    }
+
+    private List<DelegationTarget> resolutionGuidanceTargets(WorkflowSessionState state) {
+        if (state.workflowStatus() == WorkflowContracts.WorkflowStatus.COMPLETED && state.outcome() != null) {
+            return List.of();
+        }
+        if (state.workflowStatus() == WorkflowContracts.WorkflowStatus.READY_FOR_SETTLEMENT) {
+            return List.of(
+                    new DelegationTarget("escrow-agent", "escrow and settlement posture", "escrow"),
+                    new DelegationTarget("risk-agent", "risk controls and policy flags", "risk"));
+        }
+        return List.of(
+                new DelegationTarget("shipment-agent", "shipment evidence", "shipment"),
+                new DelegationTarget("escrow-agent", "escrow and settlement posture", "escrow"),
+                new DelegationTarget("risk-agent", "risk controls and policy flags", "risk"));
+    }
+
+    private boolean isResolutionGuidanceRequest(String message) {
+        String normalized = blankSafe(message).toLowerCase();
+        String compact = normalized.replaceAll("\\s+", "");
+        return containsAny(normalized,
+                "resolve",
+                "resolution",
+                "what next",
+                "next step",
+                "what should",
+                "how to resolve",
+                "how can this be solved",
+                "how can it be solved")
+                || containsAny(compact, "どうすれば", "どうしたら", "どうやって", "解決", "対応", "次に", "何をすれば");
     }
 
     private boolean containsAny(String value, String... candidates) {
@@ -525,7 +599,11 @@ final class ArachneWorkflowRuntimeAdapter implements WorkflowRuntimeAdapter {
                 "orderId=" + state.orderId(),
                 "instruction=" + blankSafe(command.message()),
                 "focus=" + target.focusCode(),
+                "workflowStatus=" + state.workflowStatus().name(),
                 "currentRecommendation=" + state.currentRecommendation().name(),
+                "approvalStatus=" + state.approvalState().approvalStatus().name(),
+                "outcomeType=" + (state.outcome() == null ? "" : state.outcome().outcomeType().name()),
+                "outcomeSummary=" + (state.outcome() == null ? "" : blankSafe(state.outcome().summary())),
                 "existingEvidence=" + evidenceForTarget(state, target));
     }
 
@@ -538,7 +616,16 @@ final class ArachneWorkflowRuntimeAdapter implements WorkflowRuntimeAdapter {
         };
     }
 
-    private String completionMessage(Recommendation recommendation, String approvalStatus, List<DelegationTarget> targets) {
+    private String completionMessage(
+            WorkflowSessionState state,
+            String operatorMessage,
+            List<DelegationTarget> targets,
+            List<String> delegateSummaries) {
+        if (isResolutionGuidanceRequest(operatorMessage)) {
+            return resolutionGuidanceMessage(state, targets, delegateSummaries);
+        }
+        Recommendation recommendation = state.currentRecommendation();
+        String approvalStatus = state.approvalState().approvalStatus().name();
         return "case-workflow-agent delegated the operator instruction to "
                 + String.join(", ", targets.stream().map(DelegationTarget::agentName).toList())
                 + " and kept the case on the "
@@ -548,9 +635,57 @@ final class ArachneWorkflowRuntimeAdapter implements WorkflowRuntimeAdapter {
                 + ".";
     }
 
+    private String resolutionGuidanceMessage(
+            WorkflowSessionState state,
+            List<DelegationTarget> targets,
+            List<String> delegateSummaries) {
+        if (state.outcome() != null && state.workflowStatus() == WorkflowContracts.WorkflowStatus.COMPLETED) {
+            return "This case is already resolved. "
+                    + state.outcome().summary()
+                    + " No further workflow action is required unless new evidence is introduced.";
+        }
+        if (!targets.isEmpty()) {
+            return "After consulting "
+                    + String.join(", ", targets.stream().map(DelegationTarget::agentName).toList())
+                    + ", "
+                    + nextStepGuidance(state)
+                    + " "
+                    + aggregateDelegateInsights(targets, delegateSummaries);
+        }
+        return nextStepGuidance(state);
+    }
+
+    private String nextStepGuidance(WorkflowSessionState state) {
+        if (state.approvalState().approvalStatus() == WorkflowContracts.ApprovalStatus.PENDING_FINANCE_CONTROL) {
+            return "The next step to resolve this case is finance control approval. The workflow has already gathered shipment, escrow, and risk evidence, and settlement cannot proceed until finance control responds.";
+        }
+        if (state.approvalState().approvalStatus() == WorkflowContracts.ApprovalStatus.REJECTED) {
+            return "This case cannot be resolved yet because finance control rejected the previous recommendation. Gather more evidence before asking for another approval decision.";
+        }
+        if (state.currentRecommendation() == Recommendation.PENDING_MORE_EVIDENCE) {
+            return "The next step is to gather more evidence before the workflow can recommend a settlement path.";
+        }
+        return "The workflow currently recommends "
+                + state.currentRecommendation().name().toLowerCase().replace('_', ' ')
+                + ", and the next step depends on the current approval state of "
+                + state.approvalState().approvalStatus().name().toLowerCase().replace('_', ' ')
+                + ".";
+    }
+
+    private String aggregateDelegateInsights(List<DelegationTarget> targets, List<String> delegateSummaries) {
+        if (delegateSummaries.isEmpty()) {
+            return "";
+        }
+        List<String> insights = new ArrayList<>();
+        for (int index = 0; index < Math.min(targets.size(), delegateSummaries.size()); index++) {
+            insights.add(targets.get(index).agentName() + " reported: " + delegateSummaries.get(index));
+        }
+        return String.join(" ", insights);
+    }
+
     private Agent approvalAgent(String sessionId, java.util.function.Consumer<String> forcedToolRecorder, java.util.function.Consumer<Object> toolInputRecorder) {
         return agentFactory.builder("case-workflow-agent")
-                .skills(caseWorkflowSkills)
+            .skills(caseWorkflowApprovalSkills)
                 .plugins(new MarketplaceFinanceControlApprovalPlugin(toolInputRecorder))
                 .hooks(new MarketplaceApprovalInterruptHookProvider(forcedToolRecorder))
                 .sessionId(sessionId)

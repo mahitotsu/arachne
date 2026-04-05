@@ -13,7 +13,7 @@ class RiskApplicationService {
     }
 
     RiskContracts.RiskReviewSummary caseReview(RiskContracts.RiskCaseReviewRequest request) {
-        repository.ensureRiskReview(request.caseId(), request.orderId(), request.operatorRole());
+        repository.ensureRiskReview(request.caseId(), request.orderId(), request.caseType(), request.disputeSummary(), request.operatorRole());
         var review = repository.findRiskReview(request.caseId())
                 .orElseThrow(() -> new IllegalStateException("Risk review missing after initialization for case " + request.caseId()));
         return new RiskContracts.RiskReviewSummary(
