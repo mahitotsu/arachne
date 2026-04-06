@@ -247,6 +247,48 @@ class WorkflowServiceApiTest {
     }
 
     @Test
+    void approvalResumeAlsoAcceptsApprovedDecisionValue() throws Exception {
+        enqueueStandardEvidenceResponses(BigDecimal.valueOf(200.50), "EUR");
+
+        mockMvc.perform(post("/internal/workflows")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(startWorkflowRequest("case-approved", BigDecimal.valueOf(200.50), "EUR")))
+            .andExpect(status().isOk());
+
+        drainStartRequests();
+
+        enqueueJson(escrowServer, new DownstreamContracts.SettlementOutcome(
+                "CONTINUED_HOLD_RECORDED",
+                "SUCCEEDED",
+                OffsetDateTime.parse("2026-03-30T12:05:01Z"),
+                "hold-case-approved",
+                "Escrow recorded the continued hold after finance control approval."));
+        enqueueJson(notificationServer, new DownstreamContracts.NotificationDispatchResult(
+                "QUEUED",
+                "PENDING_DELIVERY",
+                "Notification service queued participant and operator notifications."));
+
+        mockMvc.perform(post("/internal/workflows/{caseId}/approvals", "case-approved")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "decision": "APPROVED",
+                                  "comment": "Proceed.",
+                                  "actorId": "finance-4",
+                                  "actorRole": "FINANCE_CONTROL",
+                                  "requestedAt": "2026-03-30T12:05:00Z"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.workflowStatus").value("COMPLETED"))
+                .andExpect(jsonPath("$.approvalState.approvalStatus").value("APPROVED"))
+                .andExpect(jsonPath("$.outcome.outcomeType").value("CONTINUED_HOLD_RECORDED"));
+
+        assertThat(escrowServer.takeRequest(1, TimeUnit.SECONDS)).isNotNull();
+        assertThat(notificationServer.takeRequest(1, TimeUnit.SECONDS)).isNotNull();
+    }
+
+    @Test
     void approvalResumeExecutesRefundWhenWorkflowRecommendedRefund() throws Exception {
         enqueueStandardEvidenceResponses(BigDecimal.valueOf(49.95), "USD");
 

@@ -708,7 +708,7 @@ final class ArachneWorkflowRuntimeAdapter implements WorkflowRuntimeAdapter {
     }
 
     private String approvalResumeMessage(ResumeWorkflowCommand command) {
-        boolean approved = "APPROVE".equalsIgnoreCase(blankSafe(command.decision()));
+        boolean approved = ApprovalDecisions.isApproved(blankSafe(command.decision()));
         String actorId = blankSafe(command.actorId());
         String actorText = actorId.isBlank() ? "" : " by " + actorId;
         if (approved) {

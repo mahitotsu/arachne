@@ -36,7 +36,7 @@ The first slice should expose one UI-facing API surface through `case-service`.
 | `GET /api/cases/{caseId}` | Fetch the current case detail view | Returns stable structured data for the full case detail screen |
 | `POST /api/cases/{caseId}/messages` | Continue a case with a new operator chat turn | Accepted by case-service and forwarded into workflow handling |
 | `GET /api/cases/{caseId}/activity-stream` | Subscribe to live case activity updates | SSE endpoint used for streaming activity history updates |
-| `POST /api/cases/{caseId}/approvals` | Submit an approval or rejection from finance control | Accepted by case-service and forwarded into the workflow resume path |
+| `POST /api/cases/{caseId}/approvals` | Submit an approval or rejection from finance control | Accepted by case-service and forwarded into the workflow resume path; current accepted decision values are `APPROVE`, `APPROVED`, and `REJECT` |
 
 ### Case-Service Responses
 

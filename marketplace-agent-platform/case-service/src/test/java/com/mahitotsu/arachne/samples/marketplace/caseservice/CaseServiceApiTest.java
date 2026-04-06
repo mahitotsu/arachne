@@ -178,6 +178,40 @@ class CaseServiceApiTest {
     }
 
     @Test
+    void approvedAliasDecisionUpdatesProjection() throws Exception {
+        enqueueWorkflowStartResponse();
+        var caseId = createCase();
+
+        workflowServiceServer.takeRequest();
+
+        enqueueWorkflowResumeResponse();
+
+        mockMvc.perform(post("/api/cases/{caseId}/approvals", caseId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "decision": "APPROVED",
+                                  "comment": "Continue the hold.",
+                                  "actorId": "finance-4",
+                                  "actorRole": "FINANCE_CONTROL"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.caseId").value(caseId))
+                .andExpect(jsonPath("$.approvalState.approvalStatus").value("APPROVED"))
+                .andExpect(jsonPath("$.workflowStatus").value("COMPLETED"));
+
+        var approvalRequest = workflowServiceServer.takeRequest();
+        assertThat(approvalRequest.getPath()).isEqualTo("/internal/workflows/" + caseId + "/approvals");
+        assertThat(approvalRequest.getBody().readUtf8()).contains("APPROVED", "finance-4", "FINANCE_CONTROL");
+
+        mockMvc.perform(get("/api/cases/{caseId}", caseId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.caseStatus").value("COMPLETED"))
+                .andExpect(jsonPath("$.outcome.outcomeType").value("CONTINUED_HOLD_RECORDED"));
+    }
+
+    @Test
         void messageProjectionStoresLongMarkdownResponsesOnCurrentSchema() throws Exception {
         enqueueWorkflowStartResponse();
         var caseId = createCase();

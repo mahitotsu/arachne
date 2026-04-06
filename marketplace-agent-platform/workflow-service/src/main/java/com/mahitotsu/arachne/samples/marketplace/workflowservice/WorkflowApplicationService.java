@@ -153,7 +153,7 @@ class WorkflowApplicationService {
                         resumeNativeApprovalIfPresent(state, command);
                         return null;
                 });
-        if ("APPROVE".equalsIgnoreCase(command.decision())) {
+        if (ApprovalDecisions.isApproved(command.decision())) {
             var settlementOutcome = downstreamGateway.executeSettlement(new DownstreamContracts.ExecuteSettlementCommand(
                     caseId,
                     state.currentRecommendation().name(),

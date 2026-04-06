@@ -263,7 +263,7 @@ final class MarketplaceWorkflowArachneModel implements Model {
     }
 
     private Iterable<ModelEvent> approvalCompleted(Map<String, Object> approvalResponse) {
-        boolean approved = "APPROVE".equalsIgnoreCase(stringValue(approvalResponse.get("decision")));
+        boolean approved = ApprovalDecisions.isApproved(stringValue(approvalResponse.get("decision")));
         String actorId = stringValue(approvalResponse.get("actorId"));
         String actorText = actorId == null || actorId.isBlank() ? "" : " by " + actorId;
         String message = approved

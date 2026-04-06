@@ -165,10 +165,16 @@ Suggested fields:
 - `actorId`
 - `actorRole`
 
-Suggested decision values:
+Accepted decision values:
 
 - `APPROVE`
+- `APPROVED`
 - `REJECT`
+
+Current interpretation:
+
+- `APPROVE` and `APPROVED` are accepted as approval
+- `REJECT` is the explicit rejection value
 
 ### `ApprovalSubmissionResult`
 

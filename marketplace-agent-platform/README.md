@@ -37,6 +37,7 @@ Use these documents by responsibility, not interchangeably.
 Treat this README as the public product-track overview.
 Treat the other `docs/*.md` files as concept, requirements, architecture, API, contract, and skill-boundary references.
 Treat `docs/requirements.md`, `docs/architecture.md`, `docs/apis.md`, `docs/contracts.md`, and `docs/skills.md` together as the source of truth for what is implemented today in this product track.
+Treat `BEDROCK-DEMO-REPORT.md` as the checked-in record of a live Bedrock-backed composed demo run for the current branch.
 
 Use these documents to understand the shipped shape of this product track:
 
@@ -46,6 +47,9 @@ Use these documents to understand the shipped shape of this product track:
 - `docs/apis.md`: minimal frontend/case-service, case-service/workflow-service, and workflow/downstream API boundaries
 - `docs/contracts.md`: minimal case-facing projections and approval-facing contract shapes
 - `docs/skills.md`: service-local skill boundaries, knowledge sources, and deterministic logic boundaries
+- `BEDROCK-DEMO-REPORT.md`: live Bedrock demo evidence, exercised commands, and observed runtime behavior
+
+For the current finance-control approval command values, use `docs/contracts.md` as the source of truth.
 
 Recommended reading order:
 
@@ -120,6 +124,8 @@ The console now makes the agent/runtime boundary visible instead of treating the
 - tool calls such as `resource_list`, `resource_reader`, `operator_authorization_probe`, and `finance_control_approval`
 - approval-start control points where the hook forces `finance_control_approval` and the runtime registers the interrupt
 - operator follow-up messages flowing back through `case-workflow-agent` before they are delegated
+
+For the current case-facing approval API, `APPROVE` and `APPROVED` are accepted as approval values, and `REJECT` is the explicit rejection value.
 
 Common local operations for this product track are exposed through `make` from `marketplace-agent-platform/`.
 Run `make help` there to see the current shortcuts.
