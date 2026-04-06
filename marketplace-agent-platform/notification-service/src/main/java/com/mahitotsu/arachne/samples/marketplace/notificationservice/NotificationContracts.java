@@ -17,4 +17,12 @@ final class NotificationContracts {
             String deliveryStatus,
             String summary) {
     }
+
+    record NotificationComposition(
+            String participantChannel,
+            String operatorChannel,
+            String participantSummary,
+            String operatorSummary,
+            String summary) {
+    }
 }

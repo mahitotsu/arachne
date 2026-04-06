@@ -13,6 +13,19 @@ spring:
     init:
       mode: always
 
+marketplace:
+  notification-runtime:
+    arachne:
+      model-mode: ${MARKETPLACE_NOTIFICATION_ARACHNE_MODEL_MODE:deterministic}
+
+arachne:
+  strands:
+    agents:
+      notification-agent:
+        system-prompt: "You are notification-agent inside notification-service. Query notification_template_lookup before producing structured notification composition for case outcomes."
+        built-ins:
+          inherit-defaults: false
+
 management:
   endpoint:
     health:

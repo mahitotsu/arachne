@@ -130,7 +130,7 @@ What these skills must not do:
 
 ### `notification-agent`
 
-This agent may remain intentionally thin in the first slice.
+This agent is intentionally thin in the current slice.
 
 Recommended skill family:
 
@@ -196,7 +196,7 @@ Minimum recommended set:
 - one escrow interpretation skill
 - one shipment interpretation skill
 - one risk interpretation skill
-- optional thin notification composition skill
+- thin notification composition skill
 
 This is enough to make skills visible and necessary without turning slice 1 into a skill taxonomy exercise.
 
@@ -220,7 +220,10 @@ For the current Phase 1 implementation, the representative `ITEM_NOT_RECEIVED` p
 Not yet required on the representative dispute-handling path:
 
 - `case-agent` search interpretation, which stays scoped to list and search behavior
-- `notification-agent` composition, which may remain deterministic until the post-settlement path is moved behind Arachne
+
+Implemented thin downstream composition on the post-settlement path:
+
+- `notification-agent` with `outcome-notification-composition`, which shapes structured notification inputs inside `notification-service` while dispatch persistence and delivery state remain deterministic service logic
 
 ### Resource-Tool Usage
 

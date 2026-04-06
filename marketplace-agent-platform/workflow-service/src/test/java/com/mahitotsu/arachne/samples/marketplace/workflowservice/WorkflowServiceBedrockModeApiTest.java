@@ -103,6 +103,72 @@ class WorkflowServiceBedrockModeApiTest {
         assertThat(riskServer.takeRequest(1, TimeUnit.SECONDS)).isNotNull();
     }
 
+    @Test
+    void alternateModelModeStillReturnsRefundForLowValueItemNotReceivedCase() throws Exception {
+        enqueueStandardEvidenceResponses(BigDecimal.valueOf(49.95), "USD");
+
+        mockMvc.perform(post("/internal/workflows")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(startWorkflowRequest("case-bedrock-refund", BigDecimal.valueOf(49.95), "USD")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.workflowStatus").value("AWAITING_APPROVAL"))
+                .andExpect(jsonPath("$.currentRecommendation").value("REFUND"))
+                .andExpect(jsonPath("$.approvalState.approvalStatus").value("PENDING_FINANCE_CONTROL"))
+                .andExpect(jsonPath("$.activities[*].kind").value(org.hamcrest.Matchers.hasItem("POLICY_CONSISTENCY_APPLIED")))
+                .andExpect(jsonPath("$.activities[*].message").value(org.hamcrest.Matchers.hasItem(org.hamcrest.Matchers.containsString("aligned the agent recommendation from CONTINUED_HOLD to REFUND"))));
+
+        assertThat(shipmentServer.takeRequest(1, TimeUnit.SECONDS)).isNotNull();
+        assertThat(escrowServer.takeRequest(1, TimeUnit.SECONDS)).isNotNull();
+        assertThat(riskServer.takeRequest(1, TimeUnit.SECONDS)).isNotNull();
+    }
+
+        @Test
+        void alternateModelModeCompletesRefundApprovalWithoutReenteringTheModelLoop() throws Exception {
+        enqueueStandardEvidenceResponses(BigDecimal.valueOf(49.95), "USD");
+
+        mockMvc.perform(post("/internal/workflows")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(startWorkflowRequest("case-bedrock-refund-approval", BigDecimal.valueOf(49.95), "USD")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.workflowStatus").value("AWAITING_APPROVAL"))
+            .andExpect(jsonPath("$.currentRecommendation").value("REFUND"));
+
+        assertThat(shipmentServer.takeRequest(1, TimeUnit.SECONDS)).isNotNull();
+        assertThat(escrowServer.takeRequest(1, TimeUnit.SECONDS)).isNotNull();
+        assertThat(riskServer.takeRequest(1, TimeUnit.SECONDS)).isNotNull();
+
+        enqueueJson(escrowServer, new DownstreamContracts.SettlementOutcome(
+            "REFUND_EXECUTED",
+            "SUCCEEDED",
+            java.time.OffsetDateTime.parse("2026-03-30T12:05:01Z"),
+            "refund-case-bedrock-refund-approval",
+            "Escrow executed a refund after finance control approval."));
+        enqueueJson(notificationServer, new DownstreamContracts.NotificationDispatchResult(
+            "QUEUED",
+            "PENDING_DELIVERY",
+            "Notification service queued participant and operator notifications."));
+
+        mockMvc.perform(post("/internal/workflows/{caseId}/approvals", "case-bedrock-refund-approval")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "decision": "APPROVE",
+                      "comment": "Refund the buyer.",
+                      "actorId": "finance-bedrock-1",
+                      "actorRole": "FINANCE_CONTROL",
+                      "requestedAt": "2026-03-30T12:05:00Z"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.workflowStatus").value("COMPLETED"))
+            .andExpect(jsonPath("$.currentRecommendation").value("REFUND"))
+            .andExpect(jsonPath("$.approvalState.approvalStatus").value("APPROVED"))
+            .andExpect(jsonPath("$.outcome.outcomeType").value("REFUND_EXECUTED"));
+
+        assertThat(escrowServer.takeRequest(1, TimeUnit.SECONDS)).isNotNull();
+        assertThat(notificationServer.takeRequest(1, TimeUnit.SECONDS)).isNotNull();
+        }
+
     private void enqueueStandardEvidenceResponses(BigDecimal amount, String currency) throws Exception {
         enqueueJson(shipmentServer, new DownstreamContracts.ShipmentEvidenceSummary(
                 "TRACK-order-1001",

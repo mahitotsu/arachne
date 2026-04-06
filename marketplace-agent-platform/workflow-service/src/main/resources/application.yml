@@ -20,7 +20,7 @@ arachne:
             - classpath:/marketplace-workflow/
     agents:
       case-workflow-agent:
-        system-prompt: "You are case-workflow-agent for the marketplace dispute workflow."
+        system-prompt: "You are case-workflow-agent for the marketplace dispute workflow. Keep settlement recommendation separate from approval gating: finance control approval may still be required even when the correct recommendation is REFUND. Follow the packaged marketplace runbook and policy references before choosing between REFUND and CONTINUED_HOLD."
         built-ins:
           inherit-defaults: false
           tool-groups:

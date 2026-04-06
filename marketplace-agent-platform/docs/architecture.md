@@ -209,7 +209,7 @@ Phase 1 implementation map:
 
 This mapping should stay explicit. The sample should not blur service boundaries by hiding several service concerns behind one agent.
 
-For the representative `ITEM_NOT_RECEIVED` flow, the first implementation focus is the `case-workflow-agent` plus the evidence-oriented downstream agents. `case-agent` remains narrow and search-oriented, and `notification-agent` can stay thin until the post-settlement path is moved behind Arachne.
+For the representative `ITEM_NOT_RECEIVED` flow, the first implementation focus is the `case-workflow-agent` plus the evidence-oriented downstream agents. `case-agent` remains narrow and search-oriented, and `notification-agent` now stays thin by composing structured notification inputs inside `notification-service` while deterministic dispatch persistence remains service-owned.
 
 ### Current Runtime Invocation Boundary
 
@@ -220,6 +220,7 @@ The current implementation preserves this split:
 - `WorkflowApplicationService` remains the Spring-owned start, continue, and resume seam
 - a workflow-runtime adapter inside `workflow-service` invokes the `case-workflow-agent`, packaged skills, visible resource-tool reads, operator-visible progress capture from tool-boundary observation, narrow settlement-shortcut steering, and the native finance-control approval interrupt path
 - downstream services own their business APIs and now execute their service-local specialist agents behind those APIs without leaking agent protocol details into cross-service contracts
+- `notification-service` now runs its own thin `notification-agent` behind `POST /internal/notifications/case-outcome` to compose notification inputs before deterministic dispatch persistence records them
 - workflow-service follow-up delegation stays explicit by calling downstream specialist-review APIs rather than constructing downstream specialists locally
 - `case-service` remains the durable owner of operator-facing projections and activity history
 - `escrow-service` remains the deterministic owner of settlement-changing transactions and authorization checks
@@ -358,6 +359,7 @@ The architecture should preserve these rules:
 - approval interrupts before deterministic settlement action
 - the paused state is queryable from the case detail view
 - resume happens through an explicit case-service endpoint that re-enters the existing Arachne resume path inside workflow-service
+- once finance input is accepted, deterministic settlement and notification progression remain service-owned rather than depending on another live-model completion turn
 
 The current opt-in workflow path now satisfies this boundary with a native Arachne interrupt stored in shared session state so approval resume can continue across workflow-service replica handoff.
 

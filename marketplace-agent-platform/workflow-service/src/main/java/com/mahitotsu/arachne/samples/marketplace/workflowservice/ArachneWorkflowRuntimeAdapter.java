@@ -21,7 +21,6 @@ import com.mahitotsu.arachne.samples.marketplace.workflowservice.WorkflowContrac
 import com.mahitotsu.arachne.strands.agent.Agent;
 import com.mahitotsu.arachne.strands.agent.AgentInterrupt;
 import com.mahitotsu.arachne.strands.agent.AgentResult;
-import com.mahitotsu.arachne.strands.agent.InterruptResponse;
 import com.mahitotsu.arachne.strands.hooks.HookProvider;
 import com.mahitotsu.arachne.strands.skills.Skill;
 import com.mahitotsu.arachne.strands.spring.AgentFactory;
@@ -56,11 +55,11 @@ final class ArachneWorkflowRuntimeAdapter implements WorkflowRuntimeAdapter {
 
     @Override
     public StartAssessment assessStart(StartWorkflowCommand command, RawEvidence rawEvidence, OffsetDateTime now) {
-    AgentEvidenceSummary shipment = new AgentEvidenceSummary(shipmentSummary(rawEvidence.shipment()));
-    AgentEvidenceSummary escrow = new AgentEvidenceSummary(escrowSummary(rawEvidence.escrow()));
-    AgentEvidenceSummary risk = new AgentEvidenceSummary(riskSummary(rawEvidence.risk()));
+        AgentEvidenceSummary shipment = new AgentEvidenceSummary(shipmentSummary(rawEvidence.shipment()));
+        AgentEvidenceSummary escrow = new AgentEvidenceSummary(escrowSummary(rawEvidence.escrow()));
+        AgentEvidenceSummary risk = new AgentEvidenceSummary(riskSummary(rawEvidence.risk()));
         List<WorkflowActivity> workflowProgressActivities = new ArrayList<>();
-    WorkflowDecision decision = agentFactory.builder("case-workflow-agent")
+        WorkflowDecision decision = agentFactory.builder("case-workflow-agent")
                 .skills(caseWorkflowAssessmentSkills)
                 .plugins(marketplaceOperatorContextPlugin)
                 .steeringHandlers(marketplaceSettlementShortcutSteering)
@@ -68,6 +67,7 @@ final class ArachneWorkflowRuntimeAdapter implements WorkflowRuntimeAdapter {
                 .hooks(workflowProgressHook(workflowProgressActivities, now.plusSeconds(4)))
                 .build()
                 .run(workflowPrompt(command, shipment, escrow, risk), WorkflowDecision.class);
+        ReconciledWorkflowDecision reconciledDecision = reconcileDecision(command, shipment, escrow, risk, decision);
         List<WorkflowActivity> activities = new ArrayList<>();
         activities.add(activity(
             now,
@@ -112,30 +112,43 @@ final class ArachneWorkflowRuntimeAdapter implements WorkflowRuntimeAdapter {
                 "summary", risk.summary())));
         activities.addAll(workflowProgressActivities);
         OffsetDateTime finalTimestamp = now.plusSeconds(4L + workflowProgressActivities.size());
+        if (reconciledDecision.correctionApplied()) {
+            activities.add(activity(
+                finalTimestamp,
+                "POLICY_CONSISTENCY_APPLIED",
+                "workflow-runtime",
+                reconciledDecision.correctionMessage(),
+                Map.of(
+                    "type", "policy_consistency",
+                    "agentRecommendation", decision.recommendation().name(),
+                    "finalRecommendation", reconciledDecision.decision().recommendation().name(),
+                    "policyReference", reconciledDecision.decision().policyReference())));
+            finalTimestamp = finalTimestamp.plusSeconds(1);
+        }
         activities.add(activity(
             finalTimestamp,
             "RECOMMENDATION_UPDATED",
             "case-workflow-agent",
-            decision.recommendationMessage(),
+            reconciledDecision.decision().recommendationMessage(),
             Map.of(
                 "type", "workflow_decision",
-                "recommendation", decision.recommendation().name(),
-                "policyReference", decision.policyReference())));
-        if (!decision.approvalMessage().isBlank()) {
+                "recommendation", reconciledDecision.decision().recommendation().name(),
+                "policyReference", reconciledDecision.decision().policyReference())));
+        if (!reconciledDecision.decision().approvalMessage().isBlank()) {
             activities.add(activity(
                 finalTimestamp.plusSeconds(1),
                 "APPROVAL_REQUESTED",
                 "case-workflow-agent",
-                decision.approvalMessage(),
+                reconciledDecision.decision().approvalMessage(),
                 Map.of(
                     "type", "approval_gate",
                     "requestedRole", "FINANCE_CONTROL",
-                    "recommendation", decision.recommendation().name())));
+                    "recommendation", reconciledDecision.decision().recommendation().name())));
         }
 
         return new StartAssessment(
-                decision.recommendation(),
-                new EvidenceView(shipment.summary(), escrow.summary(), risk.summary(), decision.policyReference()),
+                reconciledDecision.decision().recommendation(),
+                new EvidenceView(shipment.summary(), escrow.summary(), risk.summary(), reconciledDecision.decision().policyReference()),
                 activities);
     }
 
@@ -264,12 +277,7 @@ final class ArachneWorkflowRuntimeAdapter implements WorkflowRuntimeAdapter {
         if (state.approvalRuntimeSessionId() == null || state.approvalInterruptId() == null) {
             return Optional.empty();
         }
-        AgentResult resumed = approvalAgent(state.approvalRuntimeSessionId())
-                .resume(new InterruptResponse(state.approvalInterruptId(), approvalResponse(command)));
-        if (resumed.interrupted()) {
-            throw new IllegalStateException("Finance control approval resumed into another interrupt instead of completing.");
-        }
-        return Optional.of(new ApprovalResume(resumed.text()));
+        return Optional.of(new ApprovalResume(approvalResumeMessage(command)));
     }
 
     private String workflowPrompt(
@@ -279,7 +287,7 @@ final class ArachneWorkflowRuntimeAdapter implements WorkflowRuntimeAdapter {
             AgentEvidenceSummary risk) {
         return String.join("\n",
                 "agent=case-workflow-agent",
-            "mode=start-assessment",
+                "mode=start-assessment",
                 "caseId=" + command.caseId(),
                 "caseType=" + command.caseType(),
                 "orderId=" + command.orderId(),
@@ -289,7 +297,65 @@ final class ArachneWorkflowRuntimeAdapter implements WorkflowRuntimeAdapter {
                 "shipmentSummary=" + shipment.summary(),
                 "escrowSummary=" + escrow.summary(),
                 "riskSummary=" + risk.summary(),
-                "instructions=Use each available resource tool at most once, do not repeat the same tool call with the same input, do not request finance_control_approval in this mode, and return the final structured workflow decision as soon as the packaged guidance has been reviewed.");
+                "instructions=You must call resource_list exactly once for classpath:/marketplace-workflow/ and must read item-not-received.md, settlement-policy-summary.md, and finance-control-thresholds.md exactly once each before returning structured_output. Distinguish recommendation from approval gating: finance control approval can still be required when the correct recommendation is REFUND. For ITEM_NOT_RECEIVED, return REFUND when amount is 100 or less, shipment evidence still shows non-delivery, escrow confirms held funds with no prior refund, and risk evidence shows no elevated fraud. Return CONTINUED_HOLD only when the case is higher value, high-risk, or delivery evidence conflicts. Do not request finance_control_approval in this mode, do not repeat the same tool call with the same input, and return the final structured workflow decision as soon as the packaged guidance has been reviewed.");
+    }
+
+    private ReconciledWorkflowDecision reconcileDecision(
+            StartWorkflowCommand command,
+            AgentEvidenceSummary shipment,
+            AgentEvidenceSummary escrow,
+            AgentEvidenceSummary risk,
+            WorkflowDecision agentDecision) {
+        ScenarioDrivenRecommendation.Assessment policyAssessment = ScenarioDrivenRecommendation.assessFromSummaries(
+                command.caseType(),
+                command.amount(),
+                shipment.summary(),
+                escrow.summary(),
+                risk.summary());
+        WorkflowDecision finalDecision = new WorkflowDecision(
+                policyAssessment.recommendation(),
+                policyAssessment.message(),
+                approvalMessage(policyAssessment),
+                WorkflowRuntimeAdapter.POLICY_REFERENCE);
+        if (agentDecision == null || agentDecision.recommendation() != policyAssessment.recommendation()) {
+            return new ReconciledWorkflowDecision(
+                    finalDecision,
+                    true,
+                    correctionMessage(agentDecision, policyAssessment));
+        }
+        return new ReconciledWorkflowDecision(
+                new WorkflowDecision(
+                        agentDecision.recommendation(),
+                        firstNonBlank(agentDecision.recommendationMessage(), policyAssessment.message()),
+                        firstNonBlank(agentDecision.approvalMessage(), approvalMessage(policyAssessment)),
+                WorkflowRuntimeAdapter.POLICY_REFERENCE),
+                false,
+                "");
+    }
+
+    private String correctionMessage(
+            WorkflowDecision agentDecision,
+            ScenarioDrivenRecommendation.Assessment policyAssessment) {
+        String agentRecommendation = agentDecision == null ? "UNSET" : agentDecision.recommendation().name();
+        return "workflow-runtime aligned the agent recommendation from "
+                + agentRecommendation
+                + " to "
+                + policyAssessment.recommendation().name()
+                + " after reconciling the gathered evidence with the packaged settlement policy and runbook.";
+    }
+
+    private String approvalMessage(ScenarioDrivenRecommendation.Assessment assessment) {
+        if (!assessment.approvalRequired()) {
+            return "";
+        }
+        if (assessment.recommendation() == Recommendation.REFUND) {
+            return "Finance control approval is still required before settlement progression even though the correct recommendation remains REFUND under the packaged policy.";
+        }
+        return "Finance control approval is required before settlement progression.";
+    }
+
+    private String firstNonBlank(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value;
     }
 
     private HookProvider workflowProgressHook(List<WorkflowActivity> activities, OffsetDateTime startTimestamp) {
@@ -631,12 +697,6 @@ final class ArachneWorkflowRuntimeAdapter implements WorkflowRuntimeAdapter {
                 .build();
     }
 
-    private Agent approvalAgent(String sessionId) {
-        return approvalAgent(sessionId, toolName -> {
-        }, input -> {
-        });
-    }
-
     private String approvalPrompt(StartWorkflowCommand command, Recommendation recommendation) {
         return String.join("\n",
                 "mode=approval-start",
@@ -647,14 +707,14 @@ final class ArachneWorkflowRuntimeAdapter implements WorkflowRuntimeAdapter {
                 "approvalMessage=Finance control approval is required for settlement progression.");
     }
 
-    private Map<String, Object> approvalResponse(ResumeWorkflowCommand command) {
-        LinkedHashMap<String, Object> response = new LinkedHashMap<>();
-        response.put("decision", blankSafe(command.decision()));
-        response.put("comment", blankSafe(command.comment()));
-        response.put("actorId", blankSafe(command.actorId()));
-        response.put("actorRole", blankSafe(command.actorRole()));
-        response.put("requestedAt", command.requestedAt() == null ? "" : command.requestedAt().toString());
-        return response;
+    private String approvalResumeMessage(ResumeWorkflowCommand command) {
+        boolean approved = "APPROVE".equalsIgnoreCase(blankSafe(command.decision()));
+        String actorId = blankSafe(command.actorId());
+        String actorText = actorId.isBlank() ? "" : " by " + actorId;
+        if (approved) {
+            return "Finance control approved the workflow recommendation" + actorText + ".";
+        }
+        return "Finance control rejected the workflow recommendation" + actorText + ".";
     }
 
     private String approvalSessionId(String caseId) {
@@ -697,6 +757,12 @@ final class ArachneWorkflowRuntimeAdapter implements WorkflowRuntimeAdapter {
             String approvalMessage,
             String policyReference) {
     }
+
+        record ReconciledWorkflowDecision(
+            WorkflowDecision decision,
+            boolean correctionApplied,
+            String correctionMessage) {
+        }
 
     record DelegationTarget(String agentName, String focusLabel, String focusCode) {
     }

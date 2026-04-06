@@ -51,6 +51,7 @@ Each ADR lives at `docs/adr/NNNN-title.md` and must include at least:
 - [0017-built-in-tool-exposure-and-inheritance.md](0017-built-in-tool-exposure-and-inheritance.md) - define how framework-provided built-in tools are exposed, inherited, and kept separate from discovered tools
 - [0018-rest-backed-remote-agent-collaboration-boundary.md](0018-rest-backed-remote-agent-collaboration-boundary.md) - prefer REST-backed capability tools as the current boundary for cross-service agent collaboration and keep A2A deferred
 - [0019-agentfactory-internal-decomposition-boundary.md](0019-agentfactory-internal-decomposition-boundary.md) - keep `AgentFactory` as the public Spring entrypoint while defining the internal cleanup buckets for provider creation, named defaults, and runtime assembly
+- [0020-application-owned-post-resume-completion.md](0020-application-owned-post-resume-completion.md) - allow applications to own deterministic business completion after resume when the resumed input is already authoritative
 
 ## Future ADR Candidates
 

@@ -28,7 +28,7 @@ The current sample includes the full composed service shape, a thin operator con
 
 `workflow-service` supports both a deterministic Arachne model mode for repeatable local verification and an alternate Bedrock-backed model mode through the standard `arachne.strands.model.*` configuration surface, while `escrow-service`, `shipment-service`, and `risk-service` now host their own service-local specialist agents behind explicit internal APIs.
 
-The capability-complete flow is still the opt-in Arachne-native workflow path in `workflow-service`, and the finance-control pause/resume runs through Arachne-native interrupt handling.
+The capability-complete flow is still the opt-in Arachne-native workflow path in `workflow-service`, and the finance-control pause/resume runs through the Arachne-native interrupt boundary while post-resume settlement completion stays deterministic and Spring-owned once finance input has been accepted.
 
 ## Design Docs
 

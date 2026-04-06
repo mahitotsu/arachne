@@ -170,6 +170,7 @@ Purpose:
 
 - dispatch post-decision notifications after settlement completion
 - record notification delivery attempts and status
+- compose structured participant-facing and operator-facing notification inputs behind the service-local `notification-agent`
 - keep participant-facing and operator-facing notifications out of escrow mutation flow
 
 ## Minimal Request And Response Contracts

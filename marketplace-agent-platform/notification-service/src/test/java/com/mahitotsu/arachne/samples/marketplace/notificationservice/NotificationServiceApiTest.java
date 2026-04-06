@@ -62,11 +62,53 @@ class NotificationServiceApiTest {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.dispatchStatus").value("QUEUED"))
-                .andExpect(jsonPath("$.deliveryStatus").value("PENDING_DELIVERY"));
+                .andExpect(jsonPath("$.deliveryStatus").value("PENDING_DELIVERY"))
+                .andExpect(jsonPath("$.summary").value("Notification service queued participant and operator notifications for settlement reference hold-case-1."));
 
-                    var record = repository.findBySettlementReference("hold-case-1");
-                    assertThat(record).isPresent();
-                    assertThat(record.orElseThrow().caseId()).isEqualTo("case-1");
-                    assertThat(record.orElseThrow().deliveryStatus()).isEqualTo("PENDING_DELIVERY");
+        var record = repository.findBySettlementReference("hold-case-1");
+        assertThat(record).isPresent();
+        assertThat(record.orElseThrow().caseId()).isEqualTo("case-1");
+        assertThat(record.orElseThrow().deliveryStatus()).isEqualTo("PENDING_DELIVERY");
+        assertThat(record.orElseThrow().participantChannel()).isEqualTo("EMAIL");
+        assertThat(record.orElseThrow().operatorChannel()).isEqualTo("INTERNAL_DASHBOARD");
+        assertThat(record.orElseThrow().participantSummary()).contains("continued hold");
+        assertThat(record.orElseThrow().operatorSummary()).contains("continued hold");
+                }
+
+                @Test
+                void caseOutcomeIsIdempotentForExistingSettlementReference() throws Exception {
+        mockMvc.perform(post("/internal/notifications/case-outcome")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "caseId": "case-refund-1",
+                                  "outcomeType": "REFUND_EXECUTED",
+                                  "outcomeStatus": "SUCCEEDED",
+                                  "settlementReference": "refund-case-1"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.dispatchStatus").value("QUEUED"));
+
+        mockMvc.perform(post("/internal/notifications/case-outcome")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "caseId": "case-refund-1-updated",
+                                  "outcomeType": "CONTINUED_HOLD_RECORDED",
+                                  "outcomeStatus": "SUCCEEDED",
+                                  "settlementReference": "refund-case-1"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.dispatchStatus").value("QUEUED"))
+                .andExpect(jsonPath("$.deliveryStatus").value("PENDING_DELIVERY"))
+                .andExpect(jsonPath("$.summary").value("Notification service queued participant and operator notifications for settlement reference refund-case-1."));
+
+        var record = repository.findBySettlementReference("refund-case-1");
+        assertThat(record).isPresent();
+        assertThat(record.orElseThrow().caseId()).isEqualTo("case-refund-1");
+        assertThat(record.orElseThrow().participantSummary()).contains("refund");
+        assertThat(record.orElseThrow().operatorSummary()).contains("refund");
     }
 }
