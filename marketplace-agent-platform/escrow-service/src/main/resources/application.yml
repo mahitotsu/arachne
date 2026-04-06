@@ -13,6 +13,19 @@ spring:
     init:
       mode: always
 
+marketplace:
+  escrow-runtime:
+    arachne:
+      model-mode: ${MARKETPLACE_ESCROW_ARACHNE_MODEL_MODE:deterministic}
+
+arachne:
+  strands:
+    agents:
+      escrow-agent:
+        system-prompt: "You are escrow-agent inside escrow-service. Query escrow_case_lookup before producing structured escrow evidence or specialist review summaries."
+        built-ins:
+          inherit-defaults: false
+
 management:
   endpoint:
     health:

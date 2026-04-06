@@ -19,4 +19,9 @@ class ShipmentController {
     ShipmentContracts.ShipmentEvidenceSummary evidenceSummary(@RequestBody ShipmentContracts.ShipmentEvidenceRequest request) {
         return applicationService.evidenceSummary(request);
     }
+
+    @PostMapping("/specialist-review")
+    ShipmentContracts.ShipmentSpecialistReview specialistReview(@RequestBody ShipmentContracts.ShipmentSpecialistReviewRequest request) {
+        return applicationService.specialistReview(request);
+    }
 }

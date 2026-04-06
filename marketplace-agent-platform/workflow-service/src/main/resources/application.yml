@@ -8,8 +8,8 @@ spring:
 marketplace:
   workflow-runtime:
     arachne:
-      enabled: ${MARKETPLACE_WORKFLOW_ARACHNE_ENABLED:false}
-      model-mode: ${MARKETPLACE_WORKFLOW_ARACHNE_MODEL_MODE:deterministic}
+      enabled: ${MARKETPLACE_WORKFLOW_ARACHNE_ENABLED:true}
+      model-mode: ${MARKETPLACE_WORKFLOW_ARACHNE_MODEL_MODE:bedrock}
 
 arachne:
   strands:

@@ -20,6 +20,11 @@ class EscrowController {
         return applicationService.evidenceSummary(request);
     }
 
+    @PostMapping("/specialist-review")
+    EscrowContracts.EscrowSpecialistReview specialistReview(@RequestBody EscrowContracts.EscrowSpecialistReviewRequest request) {
+        return applicationService.specialistReview(request);
+    }
+
     @PostMapping("/settlement-actions")
     EscrowContracts.SettlementOutcome settlementActions(@RequestBody EscrowContracts.ExecuteSettlementCommand command) {
         return applicationService.executeSettlement(command);

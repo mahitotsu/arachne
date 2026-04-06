@@ -28,6 +28,22 @@ final class EscrowContracts {
             String summary) {
     }
 
+    record EscrowSpecialistReviewRequest(
+            String caseId,
+            String caseType,
+            String orderId,
+            String disputeSummary,
+            BigDecimal amount,
+            String currency,
+            String operatorId,
+            String operatorRole,
+            String instruction) {
+    }
+
+    record EscrowSpecialistReview(
+            String summary) {
+    }
+
     record ExecuteSettlementCommand(
             String caseId,
             String action,

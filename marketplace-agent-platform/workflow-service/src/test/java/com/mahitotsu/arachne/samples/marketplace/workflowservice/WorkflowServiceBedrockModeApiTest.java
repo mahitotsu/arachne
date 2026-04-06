@@ -175,22 +175,94 @@ class WorkflowServiceBedrockModeApiTest {
                 ToolSelection toolSelection) {
             String agentName = agentName(systemPrompt, latestUserText(messages));
             return switch (agentName) {
-                case "shipment-agent" -> specialistSummary("shipment-summary", toolSelection, "Shipment remains in a not-delivered state for the current case.");
-                case "escrow-agent" -> specialistSummary("escrow-summary", toolSelection, "Escrow still holds the authorized funds and no prior refund has been executed.");
-                case "risk-agent" -> specialistSummary("risk-summary", toolSelection, "Risk review found no elevated fraud signal but requires finance control confirmation for settlement-changing actions.");
+            case "shipment-agent" -> shipmentSummary(messages);
+            case "escrow-agent" -> escrowSummary(messages);
+            case "risk-agent" -> riskSummary(messages);
                 default -> workflowDecision(messages, toolSelection);
             };
         }
 
-        private Iterable<ModelEvent> specialistSummary(String toolUseId, ToolSelection toolSelection, String summary) {
-            if (toolSelection == null) {
-                return List.of(
-                        new ModelEvent.TextDelta("Draft"),
-                        new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
+        private Iterable<ModelEvent> shipmentSummary(List<Message> messages) {
+            Map<String, String> prompt = promptValues(messages);
+            Map<String, Object> evidence = latestToolContent(messages, "shipment-evidence-lookup");
+            if (evidence == null) {
+            return List.of(
+                new ModelEvent.ToolUse(
+                    "shipment-evidence-lookup",
+                    ShipmentEvidenceLookupTool.TOOL_NAME,
+                    Map.of(
+                        "caseId", prompt.getOrDefault("caseId", ""),
+                        "caseType", prompt.getOrDefault("caseType", ""),
+                        "orderId", prompt.getOrDefault("orderId", ""),
+                        "disputeSummary", prompt.getOrDefault("disputeSummary", ""))),
+                new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
             }
             return List.of(
-                    new ModelEvent.ToolUse(toolUseId, toolSelection.toolName(), Map.of("summary", summary)),
+                new ModelEvent.ToolUse(
+                    "shipment-summary",
+                    "structured_output",
+                    Map.of(
+                        "summary",
+                        evidence.get("milestoneSummary") + " Tracking number: " + evidence.get("trackingNumber") + ". "
+                            + evidence.get("shippingExceptionSummary"))),
                     new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
+        }
+
+        private Iterable<ModelEvent> escrowSummary(List<Message> messages) {
+            Map<String, String> prompt = promptValues(messages);
+            Map<String, Object> evidence = latestToolContent(messages, "escrow-evidence-lookup");
+            if (evidence == null) {
+            return List.of(
+                new ModelEvent.ToolUse(
+                    "escrow-evidence-lookup",
+                    EscrowEvidenceLookupTool.TOOL_NAME,
+                    Map.of(
+                        "caseId", prompt.getOrDefault("caseId", ""),
+                        "caseType", prompt.getOrDefault("caseType", ""),
+                        "orderId", prompt.getOrDefault("orderId", ""),
+                        "disputeSummary", prompt.getOrDefault("disputeSummary", ""),
+                        "amount", new BigDecimal(prompt.getOrDefault("amount", "0")),
+                        "currency", prompt.getOrDefault("currency", ""),
+                        "operatorId", prompt.getOrDefault("operatorId", ""),
+                        "operatorRole", prompt.getOrDefault("operatorRole", ""))),
+                new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
+            }
+            return List.of(
+                new ModelEvent.ToolUse(
+                    "escrow-summary",
+                    "structured_output",
+                    Map.of(
+                        "summary",
+                        evidence.get("summary") + " Hold state: " + evidence.get("holdState") + ". Eligibility: "
+                            + evidence.get("settlementEligibility") + ".")),
+                new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
+        }
+
+        private Iterable<ModelEvent> riskSummary(List<Message> messages) {
+            Map<String, String> prompt = promptValues(messages);
+            Map<String, Object> evidence = latestToolContent(messages, "risk-review-lookup");
+            if (evidence == null) {
+            return List.of(
+                new ModelEvent.ToolUse(
+                    "risk-review-lookup",
+                    RiskReviewLookupTool.TOOL_NAME,
+                    Map.of(
+                        "caseId", prompt.getOrDefault("caseId", ""),
+                        "caseType", prompt.getOrDefault("caseType", ""),
+                        "orderId", prompt.getOrDefault("orderId", ""),
+                        "disputeSummary", prompt.getOrDefault("disputeSummary", ""),
+                        "operatorRole", prompt.getOrDefault("operatorRole", ""))),
+                new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
+            }
+            return List.of(
+                new ModelEvent.ToolUse(
+                    "risk-summary",
+                    "structured_output",
+                    Map.of(
+                        "summary",
+                        evidence.get("summary") + " Indicators: " + evidence.get("indicatorSummary") + ". Flags: "
+                            + String.join(",", castList(evidence.get("policyFlags"))) + ".")),
+                new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
         }
 
         private Iterable<ModelEvent> workflowDecision(List<Message> messages, ToolSelection toolSelection) {
@@ -237,6 +309,35 @@ class WorkflowServiceBedrockModeApiTest {
             return count;
         }
 
+        private Map<String, String> promptValues(List<Message> messages) {
+            java.util.LinkedHashMap<String, String> values = new java.util.LinkedHashMap<>();
+            String text = latestUserText(messages);
+            for (String line : text.split("\\R")) {
+                int separator = line.indexOf('=');
+                if (separator <= 0) {
+                    continue;
+                }
+                values.put(line.substring(0, separator).trim(), line.substring(separator + 1).trim());
+            }
+            return values;
+        }
+
+        private Map<String, Object> latestToolContent(List<Message> messages, String toolUseId) {
+            for (int index = messages.size() - 1; index >= 0; index--) {
+                Message message = messages.get(index);
+                for (ContentBlock block : message.content()) {
+                    if (block instanceof ContentBlock.ToolResult toolResult
+                            && toolUseId.equals(toolResult.toolUseId())
+                            && toolResult.content() instanceof Map<?, ?> content) {
+                        java.util.LinkedHashMap<String, Object> values = new java.util.LinkedHashMap<>();
+                        content.forEach((key, value) -> values.put(String.valueOf(key), value));
+                        return values;
+                    }
+                }
+            }
+            return null;
+        }
+
         private String latestUserText(List<Message> messages) {
             for (int index = messages.size() - 1; index >= 0; index--) {
                 Message message = messages.get(index);
@@ -247,6 +348,13 @@ class WorkflowServiceBedrockModeApiTest {
                 }
             }
             return "";
+        }
+
+        private List<String> castList(Object value) {
+            if (value instanceof List<?> values) {
+                return values.stream().map(String::valueOf).toList();
+            }
+            return List.of();
         }
 
         private String agentName(String systemPrompt, String latestUserText) {

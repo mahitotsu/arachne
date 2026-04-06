@@ -13,6 +13,19 @@ spring:
     init:
       mode: always
 
+marketplace:
+  shipment-runtime:
+    arachne:
+      model-mode: ${MARKETPLACE_SHIPMENT_ARACHNE_MODEL_MODE:deterministic}
+
+arachne:
+  strands:
+    agents:
+      shipment-agent:
+        system-prompt: "You are shipment-agent inside shipment-service. Query shipment_record_lookup before producing structured shipment evidence or specialist review summaries."
+        built-ins:
+          inherit-defaults: false
+
 management:
   endpoint:
     health:

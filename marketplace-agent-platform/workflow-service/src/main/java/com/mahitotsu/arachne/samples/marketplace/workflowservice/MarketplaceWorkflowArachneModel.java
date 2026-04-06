@@ -1,6 +1,7 @@
 package com.mahitotsu.arachne.samples.marketplace.workflowservice;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -55,12 +56,24 @@ final class MarketplaceWorkflowArachneModel implements Model {
                         + "\" and focused on shipment evidence: "
                         + blankSafe(prompt.get("existingEvidence"))));
         }
+                ToolOutcome lookup = latestToolOutcome(messages, "shipment-evidence-lookup");
+                if (lookup == null) {
+                    return toolUse(
+                        "shipment-evidence-lookup",
+                        ShipmentEvidenceLookupTool.TOOL_NAME,
+                        Map.of(
+                            "caseId", blankSafe(prompt.get("caseId")),
+                            "caseType", blankSafe(prompt.get("caseType")),
+                            "orderId", blankSafe(prompt.get("orderId")),
+                            "disputeSummary", blankSafe(prompt.get("disputeSummary"))));
+                }
+                Map<String, Object> evidence = toolContent(lookup);
         return structuredOutput(
                 "shipment-summary",
                 Map.of(
                         "summary",
-                        prompt.get("milestoneSummary") + " Tracking number: " + prompt.get("trackingNumber") + ". "
-                                + prompt.get("shippingExceptionSummary")));
+                        stringValue(evidence.get("milestoneSummary")) + " Tracking number: " + stringValue(evidence.get("trackingNumber")) + ". "
+                            + stringValue(evidence.get("shippingExceptionSummary"))));
     }
 
     private Iterable<ModelEvent> escrowResponse(List<Message> messages) {
@@ -78,12 +91,28 @@ final class MarketplaceWorkflowArachneModel implements Model {
                         + "\" and focused on settlement posture: "
                         + blankSafe(prompt.get("existingEvidence"))));
         }
+                ToolOutcome lookup = latestToolOutcome(messages, "escrow-evidence-lookup");
+                if (lookup == null) {
+                    return toolUse(
+                        "escrow-evidence-lookup",
+                        EscrowEvidenceLookupTool.TOOL_NAME,
+                        Map.of(
+                            "caseId", blankSafe(prompt.get("caseId")),
+                            "caseType", blankSafe(prompt.get("caseType")),
+                            "orderId", blankSafe(prompt.get("orderId")),
+                            "disputeSummary", blankSafe(prompt.get("disputeSummary")),
+                            "amount", amount(prompt.get("amount")),
+                            "currency", blankSafe(prompt.get("currency")),
+                            "operatorId", blankSafe(prompt.get("operatorId")),
+                            "operatorRole", blankSafe(prompt.get("operatorRole"))));
+                }
+                Map<String, Object> evidence = toolContent(lookup);
         return structuredOutput(
                 "escrow-summary",
                 Map.of(
                         "summary",
-                        prompt.get("summary") + " Hold state: " + prompt.get("holdState") + ". Eligibility: "
-                                + prompt.get("settlementEligibility") + "."));
+                        stringValue(evidence.get("summary")) + " Hold state: " + stringValue(evidence.get("holdState")) + ". Eligibility: "
+                            + stringValue(evidence.get("settlementEligibility")) + "."));
     }
 
     private Iterable<ModelEvent> riskResponse(List<Message> messages) {
@@ -101,12 +130,25 @@ final class MarketplaceWorkflowArachneModel implements Model {
                         + "\" and focused on risk controls: "
                         + blankSafe(prompt.get("existingEvidence"))));
         }
+                ToolOutcome lookup = latestToolOutcome(messages, "risk-review-lookup");
+                if (lookup == null) {
+                    return toolUse(
+                        "risk-review-lookup",
+                        RiskReviewLookupTool.TOOL_NAME,
+                        Map.of(
+                            "caseId", blankSafe(prompt.get("caseId")),
+                            "caseType", blankSafe(prompt.get("caseType")),
+                            "orderId", blankSafe(prompt.get("orderId")),
+                            "disputeSummary", blankSafe(prompt.get("disputeSummary")),
+                            "operatorRole", blankSafe(prompt.get("operatorRole"))));
+                }
+                Map<String, Object> evidence = toolContent(lookup);
         return structuredOutput(
                 "risk-summary",
                 Map.of(
                         "summary",
-                        prompt.get("summary") + " Indicators: " + prompt.get("indicatorSummary") + ". Flags: "
-                                + prompt.get("policyFlags") + "."));
+                        stringValue(evidence.get("summary")) + " Indicators: " + stringValue(evidence.get("indicatorSummary")) + ". Flags: "
+                            + String.join(",", stringList(evidence.get("policyFlags"))) + "."));
     }
 
     private Iterable<ModelEvent> workflowResponse(List<Message> messages, List<ToolSpec> tools) {
@@ -173,17 +215,11 @@ final class MarketplaceWorkflowArachneModel implements Model {
                     Map.of("probe", "risk-delegation"))));
         }
 
-        ScenarioDrivenRecommendation.Assessment assessment = ScenarioDrivenRecommendation.assess(
+        ScenarioDrivenRecommendation.Assessment assessment = ScenarioDrivenRecommendation.assessFromSummaries(
             prompt.get("caseType"),
             amount(prompt.get("amount")),
-            prompt.get("shipmentDeliveryConfidence"),
-            prompt.get("shipmentMilestoneSummary"),
-            prompt.get("shipmentExceptionSummary"),
-            prompt.get("escrowHoldState"),
-            prompt.get("escrowPriorSettlementStatus"),
-            Boolean.parseBoolean(blankSafe(prompt.get("riskManualReviewRequired"))),
-            promptFlags(prompt.get("riskPolicyFlags")),
-            prompt.get("riskIndicatorSummary"),
+            prompt.get("shipmentSummary"),
+            prompt.get("escrowSummary"),
             prompt.get("riskSummary"));
         Recommendation recommendation = assessment.recommendation();
         if (recommendation == Recommendation.REFUND && shortcutOutcome == null) {
@@ -243,16 +279,6 @@ final class MarketplaceWorkflowArachneModel implements Model {
             return null;
         }
         return new BigDecimal(amountText);
-    }
-
-    private List<String> promptFlags(String value) {
-        if (value == null || value.isBlank()) {
-            return List.of();
-        }
-        return java.util.Arrays.stream(value.split(","))
-                .map(String::trim)
-                .filter(flag -> !flag.isEmpty())
-                .toList();
     }
 
     private Iterable<ModelEvent> toolUse(String toolUseId, String toolName, Map<String, Object> input) {
@@ -329,6 +355,15 @@ final class MarketplaceWorkflowArachneModel implements Model {
         return null;
     }
 
+    private Map<String, Object> toolContent(ToolOutcome outcome) {
+        if (outcome != null && outcome.content() instanceof Map<?, ?> content) {
+            LinkedHashMap<String, Object> values = new LinkedHashMap<>();
+            content.forEach((key, value) -> values.put(String.valueOf(key), value));
+            return values;
+        }
+        return Map.of();
+    }
+
     private String resourceContent(List<Message> messages, String location) {
         for (int index = messages.size() - 1; index >= 0; index--) {
             Message message = messages.get(index);
@@ -394,6 +429,17 @@ final class MarketplaceWorkflowArachneModel implements Model {
 
     private String stringValue(Object value) {
         return value == null ? null : String.valueOf(value);
+    }
+
+    private List<String> stringList(Object value) {
+        if (value instanceof List<?> values) {
+            ArrayList<String> normalized = new ArrayList<>();
+            for (Object entry : values) {
+                normalized.add(String.valueOf(entry));
+            }
+            return normalized;
+        }
+        return List.of();
     }
 
     private String blankSafe(String value) {

@@ -111,4 +111,23 @@ class RiskServiceApiTest {
                 .andExpect(jsonPath("$.policyFlags[0]").value("HIGH_RISK_SETTLEMENT_HOLD"))
                 .andExpect(jsonPath("$.indicatorSummary").value("Elevated fraud and account-takeover indicators are present for the current order."));
     }
+
+    @Test
+    void specialistReviewUsesRiskAgentInsideRiskService() throws Exception {
+        mockMvc.perform(post("/internal/risk/specialist-review")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "caseId": "case-risk-review",
+                                  "caseType": "ITEM_NOT_RECEIVED",
+                                  "orderId": "order-1001",
+                                  "disputeSummary": "Buyer reports item not received.",
+                                  "operatorRole": "CASE_OPERATOR",
+                                  "instruction": "Please summarize the risk view."
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.summary").value(org.hamcrest.Matchers.containsString("risk-agent reviewed the operator instruction")))
+                .andExpect(jsonPath("$.summary").value(org.hamcrest.Matchers.containsString("FINANCE_CONTROL_REVIEW_REQUIRED")));
+    }
 }

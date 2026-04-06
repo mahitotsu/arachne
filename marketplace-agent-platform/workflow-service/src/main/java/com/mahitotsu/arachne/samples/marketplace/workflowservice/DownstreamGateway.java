@@ -2,14 +2,20 @@ package com.mahitotsu.arachne.samples.marketplace.workflowservice;
 
 import com.mahitotsu.arachne.samples.marketplace.workflowservice.DownstreamContracts.EscrowEvidenceRequest;
 import com.mahitotsu.arachne.samples.marketplace.workflowservice.DownstreamContracts.EscrowEvidenceSummary;
+import com.mahitotsu.arachne.samples.marketplace.workflowservice.DownstreamContracts.EscrowSpecialistReview;
+import com.mahitotsu.arachne.samples.marketplace.workflowservice.DownstreamContracts.EscrowSpecialistReviewRequest;
 import com.mahitotsu.arachne.samples.marketplace.workflowservice.DownstreamContracts.ExecuteSettlementCommand;
 import com.mahitotsu.arachne.samples.marketplace.workflowservice.DownstreamContracts.NotificationDispatchCommand;
 import com.mahitotsu.arachne.samples.marketplace.workflowservice.DownstreamContracts.NotificationDispatchResult;
 import com.mahitotsu.arachne.samples.marketplace.workflowservice.DownstreamContracts.RiskCaseReviewRequest;
 import com.mahitotsu.arachne.samples.marketplace.workflowservice.DownstreamContracts.RiskReviewSummary;
+import com.mahitotsu.arachne.samples.marketplace.workflowservice.DownstreamContracts.RiskSpecialistReview;
+import com.mahitotsu.arachne.samples.marketplace.workflowservice.DownstreamContracts.RiskSpecialistReviewRequest;
 import com.mahitotsu.arachne.samples.marketplace.workflowservice.DownstreamContracts.SettlementOutcome;
 import com.mahitotsu.arachne.samples.marketplace.workflowservice.DownstreamContracts.ShipmentEvidenceRequest;
 import com.mahitotsu.arachne.samples.marketplace.workflowservice.DownstreamContracts.ShipmentEvidenceSummary;
+import com.mahitotsu.arachne.samples.marketplace.workflowservice.DownstreamContracts.ShipmentSpecialistReview;
+import com.mahitotsu.arachne.samples.marketplace.workflowservice.DownstreamContracts.ShipmentSpecialistReviewRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -20,9 +26,15 @@ interface DownstreamGateway {
 
     ShipmentEvidenceSummary shipmentEvidence(ShipmentEvidenceRequest request);
 
+    ShipmentSpecialistReview shipmentSpecialistReview(ShipmentSpecialistReviewRequest request);
+
     EscrowEvidenceSummary escrowEvidence(EscrowEvidenceRequest request);
 
+    EscrowSpecialistReview escrowSpecialistReview(EscrowSpecialistReviewRequest request);
+
     RiskReviewSummary riskReview(RiskCaseReviewRequest request);
+
+    RiskSpecialistReview riskSpecialistReview(RiskSpecialistReviewRequest request);
 
     SettlementOutcome executeSettlement(ExecuteSettlementCommand command);
 
@@ -59,6 +71,16 @@ class HttpDownstreamGateway implements DownstreamGateway {
     }
 
     @Override
+    public ShipmentSpecialistReview shipmentSpecialistReview(ShipmentSpecialistReviewRequest request) {
+        return requireBody(shipmentRestClient.post()
+                .uri("/internal/shipment/specialist-review")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(request)
+                .retrieve()
+                .body(ShipmentSpecialistReview.class));
+    }
+
+    @Override
     public EscrowEvidenceSummary escrowEvidence(EscrowEvidenceRequest request) {
         return requireBody(escrowRestClient.post()
                 .uri("/internal/escrow/evidence-summary")
@@ -69,6 +91,16 @@ class HttpDownstreamGateway implements DownstreamGateway {
     }
 
     @Override
+    public EscrowSpecialistReview escrowSpecialistReview(EscrowSpecialistReviewRequest request) {
+        return requireBody(escrowRestClient.post()
+                .uri("/internal/escrow/specialist-review")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(request)
+                .retrieve()
+                .body(EscrowSpecialistReview.class));
+    }
+
+    @Override
     public RiskReviewSummary riskReview(RiskCaseReviewRequest request) {
         return requireBody(riskRestClient.post()
                 .uri("/internal/risk/case-review")
@@ -76,6 +108,16 @@ class HttpDownstreamGateway implements DownstreamGateway {
                 .body(request)
                 .retrieve()
                 .body(RiskReviewSummary.class));
+    }
+
+    @Override
+    public RiskSpecialistReview riskSpecialistReview(RiskSpecialistReviewRequest request) {
+        return requireBody(riskRestClient.post()
+                .uri("/internal/risk/specialist-review")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(request)
+                .retrieve()
+                .body(RiskSpecialistReview.class));
     }
 
     @Override

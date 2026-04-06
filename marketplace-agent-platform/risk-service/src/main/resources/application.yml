@@ -13,6 +13,19 @@ spring:
     init:
       mode: always
 
+marketplace:
+  risk-runtime:
+    arachne:
+      model-mode: ${MARKETPLACE_RISK_ARACHNE_MODEL_MODE:deterministic}
+
+arachne:
+  strands:
+    agents:
+      risk-agent:
+        system-prompt: "You are risk-agent inside risk-service. Query risk_review_lookup before producing structured risk evidence or specialist review summaries."
+        built-ins:
+          inherit-defaults: false
+
 management:
   endpoint:
     health:

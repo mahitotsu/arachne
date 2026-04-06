@@ -20,6 +20,10 @@ interface WorkflowRuntimeAdapter {
     String POLICY_REFERENCE = "policy://marketplace/disputes/item-not-received";
     BigDecimal AUTOMATED_REFUND_THRESHOLD = BigDecimal.valueOf(100);
 
+        default boolean requiresPrefetchedEvidence() {
+                return true;
+        }
+
     StartAssessment assessStart(StartWorkflowCommand command, RawEvidence rawEvidence, OffsetDateTime now);
 
         default FollowUpAssessment continueWorkflow(WorkflowSessionState state, ContinueWorkflowCommand command, OffsetDateTime now) {

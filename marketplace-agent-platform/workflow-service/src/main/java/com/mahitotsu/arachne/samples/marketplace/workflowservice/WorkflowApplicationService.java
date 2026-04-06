@@ -53,15 +53,17 @@ class WorkflowApplicationService {
 
     WorkflowStartResult start(StartWorkflowCommand command) {
         var now = now();
-        var rawEvidence = collectRawEvidence(
-                command.caseId(),
-                command.caseType(),
-                command.orderId(),
-                command.initialMessage(),
-                command.amount(),
-                command.currency(),
-                command.operatorId(),
-                command.operatorRole());
+        var rawEvidence = workflowRuntimeAdapter.requiresPrefetchedEvidence()
+                ? collectRawEvidence(
+                        command.caseId(),
+                        command.caseType(),
+                        command.orderId(),
+                        command.initialMessage(),
+                        command.amount(),
+                        command.currency(),
+                        command.operatorId(),
+                        command.operatorRole())
+                : null;
         var assessment = withOperatorAuthorizationContext(
                 command.operatorId(),
                 command.operatorRole(),

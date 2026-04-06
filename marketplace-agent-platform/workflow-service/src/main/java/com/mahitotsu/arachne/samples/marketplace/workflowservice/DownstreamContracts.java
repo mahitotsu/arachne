@@ -29,6 +29,22 @@ final class DownstreamContracts {
             String summary) {
     }
 
+    record EscrowSpecialistReviewRequest(
+            String caseId,
+            String caseType,
+            String orderId,
+            String disputeSummary,
+            BigDecimal amount,
+            String currency,
+            String operatorId,
+            String operatorRole,
+            String instruction) {
+    }
+
+    record EscrowSpecialistReview(
+            String summary) {
+    }
+
     record ExecuteSettlementCommand(
             String caseId,
             String action,
@@ -60,6 +76,18 @@ final class DownstreamContracts {
             String shippingExceptionSummary) {
     }
 
+    record ShipmentSpecialistReviewRequest(
+            String caseId,
+            String caseType,
+            String disputeSummary,
+            String orderId,
+            String instruction) {
+    }
+
+    record ShipmentSpecialistReview(
+            String summary) {
+    }
+
     record RiskCaseReviewRequest(
             String caseId,
             String caseType,
@@ -72,6 +100,19 @@ final class DownstreamContracts {
             String indicatorSummary,
             boolean manualReviewRequired,
             List<String> policyFlags,
+            String summary) {
+    }
+
+    record RiskSpecialistReviewRequest(
+            String caseId,
+            String caseType,
+            String orderId,
+            String disputeSummary,
+            String operatorRole,
+            String instruction) {
+    }
+
+    record RiskSpecialistReview(
             String summary) {
     }
 

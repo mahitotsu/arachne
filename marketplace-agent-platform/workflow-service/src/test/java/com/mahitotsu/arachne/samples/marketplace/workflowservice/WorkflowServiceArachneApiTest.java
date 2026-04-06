@@ -322,6 +322,8 @@ class WorkflowServiceArachneApiTest {
                 .andExpect(jsonPath("$.workflowStatus").value("AWAITING_APPROVAL"));
 
         drainStartRequests();
+    enqueueJson(shipmentServer, new DownstreamContracts.ShipmentSpecialistReview(
+        "shipment-agent reviewed the operator instruction \"Please summarize the shipment evidence.\" against shipment-service records: Carrier tracking shows label creation and in-transit milestones but no final delivery scan. Tracking number: TRACK-order-1001. Shipment remains in a not-delivered state for the current case."));
 
         mockMvc.perform(post("/internal/workflows/{caseId}/messages", "case-arachne-follow-up")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -343,7 +345,7 @@ class WorkflowServiceArachneApiTest {
                 .andExpect(jsonPath("$.activities[0].structuredPayload", containsString("shipment-agent")))
                 .andExpect(jsonPath("$.activities[3].structuredPayload", containsString("workflow_completion")));
 
-        assertThat(shipmentServer.takeRequest(100, TimeUnit.MILLISECONDS)).isNull();
+            assertThat(shipmentServer.takeRequest(1, TimeUnit.SECONDS)).isNotNull();
         assertThat(escrowServer.takeRequest(100, TimeUnit.MILLISECONDS)).isNull();
         assertThat(riskServer.takeRequest(100, TimeUnit.MILLISECONDS)).isNull();
     }
@@ -359,6 +361,12 @@ class WorkflowServiceArachneApiTest {
                 .andExpect(jsonPath("$.workflowStatus").value("AWAITING_APPROVAL"));
 
         drainStartRequests();
+    enqueueJson(shipmentServer, new DownstreamContracts.ShipmentSpecialistReview(
+        "shipment-agent reviewed the operator instruction \"どうしたら解決できますか。\" against shipment-service records: Carrier tracking shows label creation and in-transit milestones but no final delivery scan. Tracking number: TRACK-order-1001. Shipment remains in a not-delivered state for the current case."));
+    enqueueJson(escrowServer, new DownstreamContracts.EscrowSpecialistReview(
+        "escrow-agent reviewed the operator instruction \"どうしたら解決できますか。\" against escrow-service records: Escrow still holds the authorized funds and no prior refund has been executed. Hold state: HELD. Eligibility: ELIGIBLE_FOR_CONTINUED_HOLD."));
+    enqueueJson(riskServer, new DownstreamContracts.RiskSpecialistReview(
+        "risk-agent reviewed the operator instruction \"どうしたら解決できますか。\" against risk-service records: Risk review found no elevated fraud signal but requires finance control confirmation for settlement-changing actions. Indicators: No elevated fraud signal detected for the current order.. Flags: FINANCE_CONTROL_REVIEW_REQUIRED."));
 
         mockMvc.perform(post("/internal/workflows/{caseId}/messages", "case-arachne-resolution-active")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -389,9 +397,9 @@ class WorkflowServiceArachneApiTest {
                 .andExpect(jsonPath("$.activities[7].message", containsString("escrow-agent reported:")))
                 .andExpect(jsonPath("$.activities[7].message", containsString("risk-agent reported:")));
 
-        assertThat(shipmentServer.takeRequest(100, TimeUnit.MILLISECONDS)).isNull();
-        assertThat(escrowServer.takeRequest(100, TimeUnit.MILLISECONDS)).isNull();
-        assertThat(riskServer.takeRequest(100, TimeUnit.MILLISECONDS)).isNull();
+            assertThat(shipmentServer.takeRequest(1, TimeUnit.SECONDS)).isNotNull();
+            assertThat(escrowServer.takeRequest(1, TimeUnit.SECONDS)).isNotNull();
+            assertThat(riskServer.takeRequest(1, TimeUnit.SECONDS)).isNotNull();
     }
 
     @Test

@@ -19,4 +19,9 @@ class RiskController {
     RiskContracts.RiskReviewSummary caseReview(@RequestBody RiskContracts.RiskCaseReviewRequest request) {
         return applicationService.caseReview(request);
     }
+
+    @PostMapping("/specialist-review")
+    RiskContracts.RiskSpecialistReview specialistReview(@RequestBody RiskContracts.RiskSpecialistReviewRequest request) {
+        return applicationService.specialistReview(request);
+    }
 }

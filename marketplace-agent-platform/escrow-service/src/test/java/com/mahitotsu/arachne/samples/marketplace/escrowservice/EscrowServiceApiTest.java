@@ -135,4 +135,26 @@ class EscrowServiceApiTest {
                 .andExpect(jsonPath("$.currency").value("EUR"))
                 .andExpect(jsonPath("$.priorSettlementStatus").value("CONTINUED_HOLD_RECORDED"));
     }
+
+    @Test
+    void specialistReviewUsesEscrowAgentInsideEscrowService() throws Exception {
+        mockMvc.perform(post("/internal/escrow/specialist-review")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "caseId": "case-review-2",
+                                  "caseType": "ITEM_NOT_RECEIVED",
+                                  "orderId": "order-1002",
+                                  "disputeSummary": "Buyer reports item not received.",
+                                  "amount": 149.95,
+                                  "currency": "USD",
+                                  "operatorId": "operator-1",
+                                  "operatorRole": "CASE_OPERATOR",
+                                  "instruction": "What is the escrow posture?"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.summary").value(org.hamcrest.Matchers.containsString("escrow-agent reviewed the operator instruction")))
+                .andExpect(jsonPath("$.summary").value(org.hamcrest.Matchers.containsString("Hold state: HELD")));
+    }
 }

@@ -102,6 +102,7 @@ Escrow owns both evidence about settlement state and the final settlement mutati
 Read-oriented endpoint:
 
 - `POST /internal/escrow/evidence-summary`
+- `POST /internal/escrow/specialist-review`
 
 Purpose:
 
@@ -109,6 +110,7 @@ Purpose:
 - return settlement eligibility summary
 - return amount and currency facts
 - return prior settlement or refund facts relevant to the case
+- answer workflow follow-up delegation through the service-local `escrow-agent`
 
 Mutation-oriented endpoint:
 
@@ -129,6 +131,7 @@ Shipment is read-oriented in the first slice.
 Endpoint:
 
 - `POST /internal/shipment/evidence-summary`
+- `POST /internal/shipment/specialist-review`
 
 Purpose:
 
@@ -136,6 +139,7 @@ Purpose:
 - return tracking facts
 - return delivery-confidence summary
 - return shipping exception interpretation for the current case
+- answer workflow follow-up delegation through the service-local `shipment-agent`
 
 ### Risk Service
 
@@ -144,6 +148,7 @@ Risk is read-oriented in the first slice.
 Endpoint:
 
 - `POST /internal/risk/case-review`
+- `POST /internal/risk/specialist-review`
 
 Purpose:
 
@@ -151,6 +156,7 @@ Purpose:
 - return manual-review triggers
 - return threshold or policy flags relevant to the case
 - return a structured risk review summary for recommendation building
+- answer workflow follow-up delegation through the service-local `risk-agent`
 
 ### Notification Service
 

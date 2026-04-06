@@ -106,4 +106,22 @@ class ShipmentServiceApiTest {
                 .andExpect(jsonPath("$.deliveryConfidence").value("HIGH"))
                 .andExpect(jsonPath("$.shippingExceptionSummary").value("Shipment was delivered, but the package exterior shows impact damage and moisture exposure."));
     }
+
+    @Test
+    void specialistReviewUsesShipmentAgentInsideShipmentService() throws Exception {
+        mockMvc.perform(post("/internal/shipment/specialist-review")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "caseId": "case-review-1",
+                                  "caseType": "ITEM_NOT_RECEIVED",
+                                  "disputeSummary": "Buyer reports item not received.",
+                                  "orderId": "order-1001",
+                                  "instruction": "Please summarize the shipment evidence."
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.summary").value(org.hamcrest.Matchers.containsString("shipment-agent reviewed the operator instruction")))
+                .andExpect(jsonPath("$.summary").value(org.hamcrest.Matchers.containsString("Tracking number: TRACK-order-1001")));
+    }
 }

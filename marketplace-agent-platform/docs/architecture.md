@@ -219,7 +219,8 @@ The current implementation preserves this split:
 
 - `WorkflowApplicationService` remains the Spring-owned start, continue, and resume seam
 - a workflow-runtime adapter inside `workflow-service` invokes the `case-workflow-agent`, packaged skills, visible resource-tool reads, operator-visible progress capture from tool-boundary observation, narrow settlement-shortcut steering, and the native finance-control approval interrupt path
-- downstream services continue to own their business APIs and may introduce their service-local agent wiring behind those APIs without leaking agent protocol details into cross-service contracts
+- downstream services own their business APIs and now execute their service-local specialist agents behind those APIs without leaking agent protocol details into cross-service contracts
+- workflow-service follow-up delegation stays explicit by calling downstream specialist-review APIs rather than constructing downstream specialists locally
 - `case-service` remains the durable owner of operator-facing projections and activity history
 - `escrow-service` remains the deterministic owner of settlement-changing transactions and authorization checks
 

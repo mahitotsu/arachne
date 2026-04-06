@@ -18,4 +18,16 @@ final class ShipmentContracts {
             String deliveryConfidence,
             String shippingExceptionSummary) {
     }
+
+    record ShipmentSpecialistReviewRequest(
+            String caseId,
+            String caseType,
+            String disputeSummary,
+            String orderId,
+            String instruction) {
+    }
+
+    record ShipmentSpecialistReview(
+            String summary) {
+    }
 }

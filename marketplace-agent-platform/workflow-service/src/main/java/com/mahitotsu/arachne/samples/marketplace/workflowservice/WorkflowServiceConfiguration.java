@@ -87,21 +87,6 @@ class WorkflowServiceConfiguration {
                 parseSkill(skillParser, "skills/approval-escalation-and-resume/SKILL.md"));
     }
 
-    @Bean(name = "shipmentAgentSkills")
-    List<Skill> shipmentAgentSkills(SkillParser skillParser) {
-        return List.of(parseSkill(skillParser, "skills/shipment-evidence-review/SKILL.md"));
-    }
-
-    @Bean(name = "escrowAgentSkills")
-    List<Skill> escrowAgentSkills(SkillParser skillParser) {
-        return List.of(parseSkill(skillParser, "skills/settlement-eligibility-summary/SKILL.md"));
-    }
-
-    @Bean(name = "riskAgentSkills")
-    List<Skill> riskAgentSkills(SkillParser skillParser) {
-        return List.of(parseSkill(skillParser, "skills/risk-review-summary/SKILL.md"));
-    }
-
     @Bean
     MarketplaceFinanceControlApprovalPlugin marketplaceFinanceControlApprovalPlugin() {
         return new MarketplaceFinanceControlApprovalPlugin();
@@ -165,21 +150,17 @@ class WorkflowServiceConfiguration {
     @ConditionalOnProperty(prefix = "marketplace.workflow-runtime.arachne", name = "enabled", havingValue = "true")
     WorkflowRuntimeAdapter arachneWorkflowRuntimeAdapter(
             AgentFactory agentFactory,
+            DownstreamGateway downstreamGateway,
             @Qualifier("caseWorkflowAssessmentSkills") List<Skill> caseWorkflowAssessmentSkills,
             @Qualifier("caseWorkflowApprovalSkills") List<Skill> caseWorkflowApprovalSkills,
-            @Qualifier("shipmentAgentSkills") List<Skill> shipmentSkills,
-            @Qualifier("escrowAgentSkills") List<Skill> escrowSkills,
-            @Qualifier("riskAgentSkills") List<Skill> riskSkills,
             ObjectMapper objectMapper,
             MarketplaceOperatorContextPlugin marketplaceOperatorContextPlugin,
             MarketplaceSettlementShortcutSteering marketplaceSettlementShortcutSteering) {
         return new ArachneWorkflowRuntimeAdapter(
                 agentFactory,
-            caseWorkflowAssessmentSkills,
-            caseWorkflowApprovalSkills,
-                shipmentSkills,
-                escrowSkills,
-                riskSkills,
+                downstreamGateway,
+                caseWorkflowAssessmentSkills,
+                caseWorkflowApprovalSkills,
                 objectMapper,
                 marketplaceOperatorContextPlugin,
                 marketplaceSettlementShortcutSteering);

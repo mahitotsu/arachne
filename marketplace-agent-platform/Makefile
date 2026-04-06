@@ -6,13 +6,12 @@ BEDROCK_MODEL_PROVIDER ?= bedrock
 AWS_EXPORT_CREDENTIALS_CMD = aws configure export-credentials --format env-no-export $(if $(AWS_PROFILE),--profile $(AWS_PROFILE),)
 COMPOSE_PARALLEL_LIMIT ?= 1
 
-.PHONY: help up up-arachne up-bedrock down reset ps logs test ui-install ui-build ui-dev check-bedrock-env
+.PHONY: help up-arachne up-bedrock down reset ps logs test ui-install ui-build ui-dev check-bedrock-env
 
 help:
 	@printf "Marketplace Agent Platform commands:\n"
-	@printf "  make up         Start the composed runtime in detached mode with rebuild\n"
-	@printf "  make up-arachne Start the composed runtime with the deterministic Arachne workflow path enabled\n"
-	@printf "  make up-bedrock Start the composed runtime with the Bedrock-backed Arachne workflow path enabled\n"
+	@printf "  make up-bedrock Start the composed runtime for the recommended Bedrock-backed demo path\n"
+	@printf "  make up-arachne Start the deterministic Arachne workflow path for test/debug only\n"
 	@printf "  make down       Stop the composed runtime\n"
 	@printf "  make reset      Stop the composed runtime and remove volumes\n"
 	@printf "  make ps         Show compose service status\n"
@@ -21,9 +20,6 @@ help:
 	@printf "  make ui-install Install operator-console dependencies\n"
 	@printf "  make ui-build   Build the operator-console bundle\n"
 	@printf "  make ui-dev     Start the operator-console Vite dev server\n"
-
-up:
-	cd $(PROJECT_DIR) && COMPOSE_PARALLEL_LIMIT=$(COMPOSE_PARALLEL_LIMIT) $(COMPOSE) up -d --build
 
 up-arachne:
 	cd $(PROJECT_DIR) && COMPOSE_PARALLEL_LIMIT=$(COMPOSE_PARALLEL_LIMIT) MARKETPLACE_WORKFLOW_ARACHNE_ENABLED=true MARKETPLACE_WORKFLOW_ARACHNE_MODEL_MODE=deterministic $(COMPOSE) up -d --build

@@ -26,7 +26,7 @@ This product track ships a capability-complete marketplace workflow sample for t
 
 The current sample includes the full composed service shape, a thin operator console, PostgreSQL-backed business persistence, Redis-backed workflow continuity across workflow-service replicas, representative `REFUND` plus `CONTINUED_HOLD` outcomes, named agents, service-local delegation, structured output, packaged skills, built-in resource tools, native finance-control pause and resume, operator-visible streaming progress, steering that redirects the unsafe settlement shortcut, and execution-context propagation of operator authorization into parallel delegated tool execution while Spring services keep deterministic state-transition ownership.
 
-`workflow-service` supports both a deterministic Arachne model mode for repeatable local verification and an alternate Bedrock-backed model mode through the standard `arachne.strands.model.*` configuration surface.
+`workflow-service` supports both a deterministic Arachne model mode for repeatable local verification and an alternate Bedrock-backed model mode through the standard `arachne.strands.model.*` configuration surface, while `escrow-service`, `shipment-service`, and `risk-service` now host their own service-local specialist agents behind explicit internal APIs.
 
 The capability-complete flow is still the opt-in Arachne-native workflow path in `workflow-service`, and the finance-control pause/resume runs through Arachne-native interrupt handling.
 
@@ -116,7 +116,7 @@ The thin frontend now lives under `operator-console/` and is intentionally limit
 The console now makes the agent/runtime boundary visible instead of treating the workflow as a flat chat log. The case detail view shows:
 
 - activity categories for `agent`, `runtime`, `tool`, and `hook`
-- a delegation trace from `case-workflow-agent` to specialist agents
+- a delegation trace from `case-workflow-agent` to downstream specialist services and their service-local agents
 - tool calls such as `resource_list`, `resource_reader`, `operator_authorization_probe`, and `finance_control_approval`
 - approval-start control points where the hook forces `finance_control_approval` and the runtime registers the interrupt
 - operator follow-up messages flowing back through `case-workflow-agent` before they are delegated
@@ -126,9 +126,8 @@ Run `make help` there to see the current shortcuts.
 
 The main startup modes are:
 
-- `make up`: composed runtime with the default deterministic workflow path
-- `make up-arachne`: composed runtime with the deterministic Arachne-native workflow path enabled
-- `make up-bedrock`: composed runtime with the Bedrock-backed Arachne workflow path enabled
+- `make up-bedrock`: composed runtime for the recommended Bedrock-backed Arachne demo path
+- `make up-arachne`: deterministic Arachne-native runtime kept only for test and debug work without an LLM
 
 Run it with:
 
@@ -167,14 +166,13 @@ It starts:
 Start it with:
 
 ```bash
-docker compose -f marketplace-agent-platform/compose.yml up --build
+export ARACHNE_STRANDS_MODEL_ID=your-bedrock-model-id
+export ARACHNE_STRANDS_MODEL_REGION=us-east-1
+make up-bedrock
 ```
 
-Or from `marketplace-agent-platform/` use:
-
-```bash
-make up
-```
+The plain `docker compose -f marketplace-agent-platform/compose.yml up --build` path remains available only as a lower-level development/debug entrypoint.
+It does not represent the recommended demo contract by itself because it does not perform the Bedrock credential preflight and does not make the intended demo mode explicit.
 
 The `make` entrypoints keep using `docker compose up --build`, but they now set `COMPOSE_PARALLEL_LIMIT=1` by default.
 That keeps build and startup integrated while reducing local BuildKit snapshot failures that can happen when all marketplace service images build at once from the shared Dockerfile setup.
@@ -184,7 +182,10 @@ If your Docker setup is stable under more concurrency, you can override that lim
 COMPOSE_PARALLEL_LIMIT=4 make up-bedrock
 ```
 
-To enable the deterministic Arachne-native path instead of the default workflow path, use:
+The deterministic Arachne-native path is retained only to test non-LLM runtime boundaries while Arachne wiring is enabled.
+It is not the recommended product demo path.
+
+Use it only when you explicitly want deterministic test/debug behavior:
 
 ```bash
 make up-arachne
@@ -208,7 +209,7 @@ If you want to force a specific profile, pass `AWS_PROFILE=...` to the make comm
 AWS_PROFILE=my-sso-profile make up-bedrock
 ```
 
-The target sets `MARKETPLACE_WORKFLOW_ARACHNE_ENABLED=true`, switches the workflow runtime to `bedrock`, and forwards the model plus resolved AWS credential environment variables into both workflow-service replicas.
+The target sets `MARKETPLACE_WORKFLOW_ARACHNE_ENABLED=true`, switches the workflow runtime to `bedrock`, and forwards the model plus resolved AWS credential environment variables into both workflow-service replicas and the downstream specialist services.
 
 Before compose starts, `make up-bedrock` now fails fast unless all of the following pass on the host shell:
 

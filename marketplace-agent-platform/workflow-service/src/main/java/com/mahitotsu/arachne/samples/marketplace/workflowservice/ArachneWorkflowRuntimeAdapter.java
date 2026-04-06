@@ -10,8 +10,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.springframework.beans.factory.annotation.Qualifier;
-
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mahitotsu.arachne.samples.marketplace.workflowservice.WorkflowContracts.ContinueWorkflowCommand;
@@ -32,59 +30,44 @@ import com.mahitotsu.arachne.strands.tool.ToolExecutionMode;
 final class ArachneWorkflowRuntimeAdapter implements WorkflowRuntimeAdapter {
 
     private final AgentFactory agentFactory;
+    private final DownstreamGateway downstreamGateway;
     private final List<Skill> caseWorkflowAssessmentSkills;
     private final List<Skill> caseWorkflowApprovalSkills;
-    private final List<Skill> shipmentSkills;
-    private final List<Skill> escrowSkills;
-    private final List<Skill> riskSkills;
-        private final ObjectMapper objectMapper;
-        private final MarketplaceOperatorContextPlugin marketplaceOperatorContextPlugin;
-        private final MarketplaceSettlementShortcutSteering marketplaceSettlementShortcutSteering;
+    private final ObjectMapper objectMapper;
+    private final MarketplaceOperatorContextPlugin marketplaceOperatorContextPlugin;
+    private final MarketplaceSettlementShortcutSteering marketplaceSettlementShortcutSteering;
 
     ArachneWorkflowRuntimeAdapter(
             AgentFactory agentFactory,
-            @Qualifier("caseWorkflowAssessmentSkills") List<Skill> caseWorkflowAssessmentSkills,
-            @Qualifier("caseWorkflowApprovalSkills") List<Skill> caseWorkflowApprovalSkills,
-            @Qualifier("shipmentAgentSkills") List<Skill> shipmentSkills,
-            @Qualifier("escrowAgentSkills") List<Skill> escrowSkills,
-                        @Qualifier("riskAgentSkills") List<Skill> riskSkills,
-                        ObjectMapper objectMapper,
-                        MarketplaceOperatorContextPlugin marketplaceOperatorContextPlugin,
-                        MarketplaceSettlementShortcutSteering marketplaceSettlementShortcutSteering) {
+        DownstreamGateway downstreamGateway,
+        List<Skill> caseWorkflowAssessmentSkills,
+        List<Skill> caseWorkflowApprovalSkills,
+        ObjectMapper objectMapper,
+        MarketplaceOperatorContextPlugin marketplaceOperatorContextPlugin,
+        MarketplaceSettlementShortcutSteering marketplaceSettlementShortcutSteering) {
         this.agentFactory = agentFactory;
+    this.downstreamGateway = downstreamGateway;
         this.caseWorkflowAssessmentSkills = caseWorkflowAssessmentSkills;
         this.caseWorkflowApprovalSkills = caseWorkflowApprovalSkills;
-        this.shipmentSkills = shipmentSkills;
-        this.escrowSkills = escrowSkills;
-        this.riskSkills = riskSkills;
-                this.objectMapper = objectMapper;
-                this.marketplaceOperatorContextPlugin = marketplaceOperatorContextPlugin;
-                this.marketplaceSettlementShortcutSteering = marketplaceSettlementShortcutSteering;
+    this.objectMapper = objectMapper;
+    this.marketplaceOperatorContextPlugin = marketplaceOperatorContextPlugin;
+    this.marketplaceSettlementShortcutSteering = marketplaceSettlementShortcutSteering;
     }
 
     @Override
     public StartAssessment assessStart(StartWorkflowCommand command, RawEvidence rawEvidence, OffsetDateTime now) {
-        AgentEvidenceSummary shipment = agentFactory.builder("shipment-agent")
-                .skills(shipmentSkills)
-                .build()
-                .run(shipmentPrompt(command, rawEvidence), AgentEvidenceSummary.class);
-        AgentEvidenceSummary escrow = agentFactory.builder("escrow-agent")
-                .skills(escrowSkills)
-                .build()
-                .run(escrowPrompt(command, rawEvidence), AgentEvidenceSummary.class);
-        AgentEvidenceSummary risk = agentFactory.builder("risk-agent")
-                .skills(riskSkills)
-                .build()
-                .run(riskPrompt(command, rawEvidence), AgentEvidenceSummary.class);
+    AgentEvidenceSummary shipment = new AgentEvidenceSummary(shipmentSummary(rawEvidence.shipment()));
+    AgentEvidenceSummary escrow = new AgentEvidenceSummary(escrowSummary(rawEvidence.escrow()));
+    AgentEvidenceSummary risk = new AgentEvidenceSummary(riskSummary(rawEvidence.risk()));
         List<WorkflowActivity> workflowProgressActivities = new ArrayList<>();
-            WorkflowDecision decision = agentFactory.builder("case-workflow-agent")
+    WorkflowDecision decision = agentFactory.builder("case-workflow-agent")
                 .skills(caseWorkflowAssessmentSkills)
                 .plugins(marketplaceOperatorContextPlugin)
                 .steeringHandlers(marketplaceSettlementShortcutSteering)
                 .toolExecutionMode(ToolExecutionMode.PARALLEL)
                 .hooks(workflowProgressHook(workflowProgressActivities, now.plusSeconds(4)))
                 .build()
-                .run(workflowPrompt(command, rawEvidence, shipment, escrow, risk), WorkflowDecision.class);
+                .run(workflowPrompt(command, shipment, escrow, risk), WorkflowDecision.class);
         List<WorkflowActivity> activities = new ArrayList<>();
         activities.add(activity(
             now,
@@ -156,73 +139,73 @@ final class ArachneWorkflowRuntimeAdapter implements WorkflowRuntimeAdapter {
                 activities);
     }
 
-            @Override
-            public FollowUpAssessment continueWorkflow(WorkflowSessionState state, ContinueWorkflowCommand command, OffsetDateTime now) {
-            boolean resolutionGuidanceRequest = isResolutionGuidanceRequest(command.message());
-            List<DelegationTarget> selectedTargets = selectDelegates(state, command.message(), resolutionGuidanceRequest);
-            List<WorkflowActivity> activities = new ArrayList<>();
-            activities.add(activity(
+    @Override
+    public FollowUpAssessment continueWorkflow(WorkflowSessionState state, ContinueWorkflowCommand command, OffsetDateTime now) {
+        boolean resolutionGuidanceRequest = isResolutionGuidanceRequest(command.message());
+        List<DelegationTarget> selectedTargets = selectDelegates(state, command.message(), resolutionGuidanceRequest);
+        List<WorkflowActivity> activities = new ArrayList<>();
+        activities.add(activity(
                 now,
                 "OPERATOR_INSTRUCTION_RECEIVED",
                 "case-workflow-agent",
                 selectedTargets.isEmpty()
-                    ? "case-workflow-agent accepted the operator instruction and prepared a workflow answer from the current case state."
-                    : "case-workflow-agent accepted the operator instruction and started targeted delegation.",
+                        ? "case-workflow-agent accepted the operator instruction and prepared a workflow answer from the current case state."
+                        : "case-workflow-agent accepted the operator instruction and started targeted delegation.",
                 Map.of(
-                    "type", "operator_instruction",
-                    "delegatedBy", "case-workflow-agent",
-                    "instruction", blankSafe(command.message()),
-                    "operatorId", blankSafe(command.operatorId()),
-                    "operatorRole", blankSafe(command.operatorRole()),
-                    "delegatedAgents", selectedTargets.stream().map(DelegationTarget::agentName).toList(),
-                    "recommendation", state.currentRecommendation().name())));
+                        "type", "operator_instruction",
+                        "delegatedBy", "case-workflow-agent",
+                        "instruction", blankSafe(command.message()),
+                        "operatorId", blankSafe(command.operatorId()),
+                        "operatorRole", blankSafe(command.operatorRole()),
+                        "delegatedAgents", selectedTargets.stream().map(DelegationTarget::agentName).toList(),
+                        "recommendation", state.currentRecommendation().name())));
 
-            List<String> delegateSummaries = new ArrayList<>();
-            int activityOffset = 1;
-            for (DelegationTarget target : selectedTargets) {
-                activities.add(activity(
+        List<String> delegateSummaries = new ArrayList<>();
+        int activityOffset = 1;
+        for (DelegationTarget target : selectedTargets) {
+            activities.add(activity(
                     now.plusSeconds(activityOffset++),
                     "DELEGATION_ROUTED",
                     "case-workflow-agent",
                     "case-workflow-agent delegated the operator follow-up to " + target.agentName() + ".",
                     Map.of(
-                        "type", "delegation_assignment",
-                        "delegatedBy", "case-workflow-agent",
-                        "agent", target.agentName(),
-                        "focus", target.focusLabel(),
-                        "instruction", blankSafe(command.message()))));
+                            "type", "delegation_assignment",
+                            "delegatedBy", "case-workflow-agent",
+                            "agent", target.agentName(),
+                            "focus", target.focusLabel(),
+                            "instruction", blankSafe(command.message()))));
 
-                AgentEvidenceSummary summary = runDelegate(state, command, target);
-                delegateSummaries.add(summary.summary());
-                activities.add(activity(
+            AgentEvidenceSummary summary = runDelegate(state, command, target);
+            delegateSummaries.add(summary.summary());
+            activities.add(activity(
                     now.plusSeconds(activityOffset++),
                     "AGENT_RESPONSE",
                     target.agentName(),
                     summary.summary(),
                     Map.of(
-                        "type", "agent_response",
-                        "agent", target.agentName(),
-                        "focus", target.focusLabel(),
-                        "summary", summary.summary(),
-                        "instruction", blankSafe(command.message()))));
-            }
+                            "type", "agent_response",
+                            "agent", target.agentName(),
+                            "focus", target.focusLabel(),
+                            "summary", summary.summary(),
+                            "instruction", blankSafe(command.message()))));
+        }
 
-            activities.add(activity(
+        activities.add(activity(
                 now.plusSeconds(activityOffset),
                 "OPERATOR_REQUEST_COMPLETED",
                 "case-workflow-agent",
                 completionMessage(state, command.message(), selectedTargets, delegateSummaries),
                 Map.of(
-                    "type", "workflow_completion",
-                    "delegatedBy", "case-workflow-agent",
-                    "delegatedAgents", selectedTargets.stream().map(DelegationTarget::agentName).toList(),
-                    "instruction", blankSafe(command.message()),
-                    "recommendation", state.currentRecommendation().name(),
-                    "approvalStatus", state.approvalState().approvalStatus().name(),
-                    "delegateSummaries", delegateSummaries)));
+                        "type", "workflow_completion",
+                        "delegatedBy", "case-workflow-agent",
+                        "delegatedAgents", selectedTargets.stream().map(DelegationTarget::agentName).toList(),
+                        "instruction", blankSafe(command.message()),
+                        "recommendation", state.currentRecommendation().name(),
+                        "approvalStatus", state.approvalState().approvalStatus().name(),
+                        "delegateSummaries", delegateSummaries)));
 
-            return new FollowUpAssessment(state.currentRecommendation(), activities);
-            }
+        return new FollowUpAssessment(state.currentRecommendation(), activities);
+    }
 
     private List<DelegationTarget> selectDelegates(WorkflowSessionState state, String message, boolean resolutionGuidanceRequest) {
         if (resolutionGuidanceRequest) {
@@ -289,47 +272,8 @@ final class ArachneWorkflowRuntimeAdapter implements WorkflowRuntimeAdapter {
         return Optional.of(new ApprovalResume(resumed.text()));
     }
 
-    private String shipmentPrompt(StartWorkflowCommand command, RawEvidence rawEvidence) {
-        return String.join("\n",
-                "agent=shipment-agent",
-                "caseId=" + command.caseId(),
-                "caseType=" + command.caseType(),
-                "orderId=" + command.orderId(),
-                "trackingNumber=" + rawEvidence.shipment().trackingNumber(),
-                "milestoneSummary=" + rawEvidence.shipment().milestoneSummary(),
-                "shippingExceptionSummary=" + rawEvidence.shipment().shippingExceptionSummary(),
-                "deliveryConfidence=" + rawEvidence.shipment().deliveryConfidence());
-    }
-
-    private String escrowPrompt(StartWorkflowCommand command, RawEvidence rawEvidence) {
-        return String.join("\n",
-                "agent=escrow-agent",
-                "caseId=" + command.caseId(),
-                "caseType=" + command.caseType(),
-                "orderId=" + command.orderId(),
-                "amount=" + command.amount(),
-                "currency=" + command.currency(),
-                "holdState=" + rawEvidence.escrow().holdState(),
-                "settlementEligibility=" + rawEvidence.escrow().settlementEligibility(),
-                "priorSettlementStatus=" + rawEvidence.escrow().priorSettlementStatus(),
-                "summary=" + rawEvidence.escrow().summary());
-    }
-
-    private String riskPrompt(StartWorkflowCommand command, RawEvidence rawEvidence) {
-        return String.join("\n",
-                "agent=risk-agent",
-                "caseId=" + command.caseId(),
-                "caseType=" + command.caseType(),
-                "orderId=" + command.orderId(),
-                "manualReviewRequired=" + rawEvidence.risk().manualReviewRequired(),
-                "policyFlags=" + String.join(",", rawEvidence.risk().policyFlags()),
-                "indicatorSummary=" + rawEvidence.risk().indicatorSummary(),
-                "summary=" + rawEvidence.risk().summary());
-    }
-
     private String workflowPrompt(
             StartWorkflowCommand command,
-            RawEvidence rawEvidence,
             AgentEvidenceSummary shipment,
             AgentEvidenceSummary escrow,
             AgentEvidenceSummary risk) {
@@ -344,15 +288,7 @@ final class ArachneWorkflowRuntimeAdapter implements WorkflowRuntimeAdapter {
                 "initialMessage=" + blankSafe(command.initialMessage()),
                 "shipmentSummary=" + shipment.summary(),
                 "escrowSummary=" + escrow.summary(),
-                "shipmentMilestoneSummary=" + rawEvidence.shipment().milestoneSummary(),
-                "shipmentExceptionSummary=" + rawEvidence.shipment().shippingExceptionSummary(),
-                "shipmentDeliveryConfidence=" + rawEvidence.shipment().deliveryConfidence(),
-                "escrowHoldState=" + rawEvidence.escrow().holdState(),
-                "escrowPriorSettlementStatus=" + rawEvidence.escrow().priorSettlementStatus(),
                 "riskSummary=" + risk.summary(),
-                "riskIndicatorSummary=" + rawEvidence.risk().indicatorSummary(),
-                "riskManualReviewRequired=" + rawEvidence.risk().manualReviewRequired(),
-                "riskPolicyFlags=" + String.join(",", rawEvidence.risk().policyFlags()),
                 "instructions=Use each available resource tool at most once, do not repeat the same tool call with the same input, do not request finance_control_approval in this mode, and return the final structured workflow decision as soon as the packaged guidance has been reviewed.");
     }
 
@@ -504,18 +440,35 @@ final class ArachneWorkflowRuntimeAdapter implements WorkflowRuntimeAdapter {
 
     private AgentEvidenceSummary runDelegate(WorkflowSessionState state, ContinueWorkflowCommand command, DelegationTarget target) {
         return switch (target.agentName()) {
-            case "shipment-agent" -> agentFactory.builder(target.agentName())
-                    .skills(shipmentSkills)
-                    .build()
-                    .run(followUpPrompt(state, command, target), AgentEvidenceSummary.class);
-            case "escrow-agent" -> agentFactory.builder(target.agentName())
-                    .skills(escrowSkills)
-                    .build()
-                    .run(followUpPrompt(state, command, target), AgentEvidenceSummary.class);
-            case "risk-agent" -> agentFactory.builder(target.agentName())
-                    .skills(riskSkills)
-                    .build()
-                    .run(followUpPrompt(state, command, target), AgentEvidenceSummary.class);
+            case "shipment-agent" -> new AgentEvidenceSummary(downstreamGateway.shipmentSpecialistReview(
+                new DownstreamContracts.ShipmentSpecialistReviewRequest(
+                    state.caseId(),
+                    state.caseType(),
+                    command.message(),
+                    state.orderId(),
+                    command.message()))
+                .summary());
+            case "escrow-agent" -> new AgentEvidenceSummary(downstreamGateway.escrowSpecialistReview(
+                new DownstreamContracts.EscrowSpecialistReviewRequest(
+                    state.caseId(),
+                    state.caseType(),
+                    state.orderId(),
+                    command.message(),
+                    state.amount(),
+                    state.currency(),
+                    command.operatorId(),
+                    command.operatorRole(),
+                    command.message()))
+                .summary());
+            case "risk-agent" -> new AgentEvidenceSummary(downstreamGateway.riskSpecialistReview(
+                new DownstreamContracts.RiskSpecialistReviewRequest(
+                    state.caseId(),
+                    state.caseType(),
+                    state.orderId(),
+                    command.message(),
+                    command.operatorRole(),
+                    command.message()))
+                .summary());
             default -> throw new IllegalArgumentException("Unsupported delegation target: " + target.agentName());
         };
     }
@@ -590,30 +543,16 @@ final class ArachneWorkflowRuntimeAdapter implements WorkflowRuntimeAdapter {
         return false;
     }
 
-    private String followUpPrompt(WorkflowSessionState state, ContinueWorkflowCommand command, DelegationTarget target) {
-        return String.join("\n",
-                "agent=" + target.agentName(),
-                "mode=operator-follow-up",
-                "caseId=" + state.caseId(),
-                "caseType=" + state.caseType(),
-                "orderId=" + state.orderId(),
-                "instruction=" + blankSafe(command.message()),
-                "focus=" + target.focusCode(),
-                "workflowStatus=" + state.workflowStatus().name(),
-                "currentRecommendation=" + state.currentRecommendation().name(),
-                "approvalStatus=" + state.approvalState().approvalStatus().name(),
-                "outcomeType=" + (state.outcome() == null ? "" : state.outcome().outcomeType().name()),
-                "outcomeSummary=" + (state.outcome() == null ? "" : blankSafe(state.outcome().summary())),
-                "existingEvidence=" + evidenceForTarget(state, target));
+    private String shipmentSummary(DownstreamContracts.ShipmentEvidenceSummary shipment) {
+        return shipment.milestoneSummary() + " Tracking number: " + shipment.trackingNumber() + ". " + shipment.shippingExceptionSummary();
     }
 
-    private String evidenceForTarget(WorkflowSessionState state, DelegationTarget target) {
-        return switch (target.agentName()) {
-            case "shipment-agent" -> state.evidence().shipmentEvidence();
-            case "escrow-agent" -> state.evidence().escrowEvidence();
-            case "risk-agent" -> state.evidence().riskEvidence();
-            default -> state.evidence().policyReference();
-        };
+    private String escrowSummary(DownstreamContracts.EscrowEvidenceSummary escrow) {
+        return escrow.summary() + " Hold state: " + escrow.holdState() + ". Eligibility: " + escrow.settlementEligibility() + ".";
+    }
+
+    private String riskSummary(DownstreamContracts.RiskReviewSummary risk) {
+        return risk.summary() + " Indicators: " + risk.indicatorSummary() + ". Flags: " + String.join(",", risk.policyFlags()) + ".";
     }
 
     private String completionMessage(

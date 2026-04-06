@@ -21,4 +21,17 @@ final class RiskContracts {
             List<String> policyFlags,
             String summary) {
     }
+
+    record RiskSpecialistReviewRequest(
+            String caseId,
+            String caseType,
+            String orderId,
+            String disputeSummary,
+            String operatorRole,
+            String instruction) {
+    }
+
+    record RiskSpecialistReview(
+            String summary) {
+    }
 }
