@@ -7,6 +7,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Locale;
 import java.util.Optional;
+
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -27,7 +28,13 @@ class ShipmentRepository {
         if (count != null && count > 0) {
             return;
         }
-        ShipmentScenario scenario = scenario(caseType, orderId, disputeSummary);
+        ShipmentScenario scenario = findOrderTemplate(orderId)
+            .map(template -> new ShipmentScenario(
+                template.trackingNumber(),
+                template.milestoneSummary(),
+                template.deliveryConfidence(),
+                template.shippingExceptionSummary()))
+            .orElseGet(() -> scenario(caseType, orderId, disputeSummary));
         jdbcTemplate.update(
                 "insert into shipment_cases (case_id, order_id, tracking_number, milestone_summary, delivery_confidence, shipping_exception_summary, updated_at) values (?, ?, ?, ?, ?, ?, ?)",
                 caseId,
@@ -49,6 +56,21 @@ class ShipmentRepository {
 
     void deleteAll() {
         jdbcTemplate.update("delete from shipment_cases");
+    }
+
+    private Optional<ShipmentOrderTemplate> findOrderTemplate(String orderId) {
+        var records = jdbcTemplate.query(
+                "select * from shipment_order_templates where order_id = ?",
+                (rs, rowNum) -> new ShipmentOrderTemplate(
+                        rs.getString("order_id"),
+                        rs.getString("case_type"),
+                        rs.getString("tracking_number"),
+                        rs.getString("milestone_summary"),
+                        rs.getString("delivery_confidence"),
+                        rs.getString("shipping_exception_summary"),
+                        offsetDateTime(rs, "updated_at")),
+                orderId);
+        return records.stream().findFirst();
     }
 
     private ShipmentRecord mapShipmentRecord(ResultSet rs) throws SQLException {
@@ -112,6 +134,16 @@ record ShipmentScenario(
         String milestoneSummary,
         String deliveryConfidence,
         String shippingExceptionSummary) {
+}
+
+record ShipmentOrderTemplate(
+    String orderId,
+    String caseType,
+    String trackingNumber,
+    String milestoneSummary,
+    String deliveryConfidence,
+    String shippingExceptionSummary,
+    OffsetDateTime updatedAt) {
 }
 
 record ShipmentRecord(

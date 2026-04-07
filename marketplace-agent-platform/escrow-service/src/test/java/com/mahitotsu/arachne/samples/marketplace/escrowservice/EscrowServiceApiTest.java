@@ -1,7 +1,7 @@
 package com.mahitotsu.arachne.samples.marketplace.escrowservice;
 
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -134,6 +134,47 @@ class EscrowServiceApiTest {
                 .andExpect(jsonPath("$.amount").value(200.50))
                 .andExpect(jsonPath("$.currency").value("EUR"))
                 .andExpect(jsonPath("$.priorSettlementStatus").value("CONTINUED_HOLD_RECORDED"));
+    }
+
+    @Test
+    void evidenceSummaryUsesSeededDemoTemplatesForPresetOrders() throws Exception {
+        mockMvc.perform(post("/internal/escrow/evidence-summary")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "caseId": "case-demo-escrow-1",
+                                  "caseType": "ITEM_NOT_RECEIVED",
+                                  "orderId": "ord-demo-001",
+                                  "amount": 1.00,
+                                  "currency": "JPY",
+                                  "operatorId": "operator-1",
+                                  "operatorRole": "CASE_OPERATOR"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.holdState").value("HELD"))
+                .andExpect(jsonPath("$.amount").value(199.99))
+                .andExpect(jsonPath("$.currency").value("USD"))
+                .andExpect(jsonPath("$.priorSettlementStatus").value("NO_PRIOR_REFUND"));
+
+        mockMvc.perform(post("/internal/escrow/evidence-summary")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "caseId": "case-demo-escrow-2",
+                                  "caseType": "HIGH_RISK_SETTLEMENT_HOLD",
+                                  "orderId": "order-risk-1",
+                                  "amount": 12.34,
+                                  "currency": "EUR",
+                                  "operatorId": "operator-2",
+                                  "operatorRole": "CASE_OPERATOR"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.holdState").value("HELD"))
+                .andExpect(jsonPath("$.amount").value(1499.00))
+                .andExpect(jsonPath("$.currency").value("USD"))
+                .andExpect(jsonPath("$.settlementEligibility").value("RESTRICTED_PENDING_RISK_CLEARANCE"));
     }
 
     @Test

@@ -19,4 +19,14 @@ create table if not exists escrow_settlement_audit (
         foreign key (case_id) references escrow_cases(case_id)
 );
 
+create table if not exists escrow_order_templates (
+    order_id varchar(64) primary key,
+    case_type varchar(64) not null,
+    hold_state varchar(64) not null,
+    amount decimal(19, 2) not null,
+    currency varchar(16) not null,
+    prior_settlement_status varchar(64) not null,
+    updated_at timestamp with time zone not null
+);
+
 create index if not exists idx_escrow_settlement_case on escrow_settlement_audit(case_id, settled_at);

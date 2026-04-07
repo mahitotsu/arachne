@@ -9,6 +9,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -29,12 +30,19 @@ class RiskRepository {
         if (count != null && count > 0) {
             return;
         }
-        RiskScenario scenario = scenario(caseType, disputeSummary);
+        RiskReviewTemplate template = findReviewTemplate(orderId).orElse(null);
+        RiskScenario scenario = template != null
+            ? new RiskScenario(
+                template.indicatorSummary(),
+                template.manualReviewRequired(),
+                template.policyFlags(),
+                template.summary())
+            : scenario(caseType, disputeSummary);
         jdbcTemplate.update(
                 "insert into risk_reviews (case_id, order_id, operator_role, indicator_summary, manual_review_required, policy_flags, summary, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?)",
                 caseId,
                 orderId,
-                operatorRole,
+            template != null ? template.operatorRole() : operatorRole,
                 scenario.indicatorSummary(),
                 scenario.manualReviewRequired(),
                 String.join(",", scenario.policyFlags()),
@@ -52,6 +60,22 @@ class RiskRepository {
 
     void deleteAll() {
         jdbcTemplate.update("delete from risk_reviews");
+    }
+
+    private Optional<RiskReviewTemplate> findReviewTemplate(String orderId) {
+        var records = jdbcTemplate.query(
+                "select * from risk_review_templates where order_id = ?",
+                (rs, rowNum) -> new RiskReviewTemplate(
+                        rs.getString("order_id"),
+                        rs.getString("case_type"),
+                        rs.getString("operator_role"),
+                        rs.getString("indicator_summary"),
+                        rs.getBoolean("manual_review_required"),
+                        parseFlags(rs.getString("policy_flags")),
+                        rs.getString("summary"),
+                        offsetDateTime(rs, "updated_at")),
+                orderId);
+        return records.stream().findFirst();
     }
 
     private RiskReviewRecord mapRiskReview(ResultSet rs) throws SQLException {
@@ -126,6 +150,17 @@ record RiskScenario(
         boolean manualReviewRequired,
         List<String> policyFlags,
         String summary) {
+}
+
+record RiskReviewTemplate(
+    String orderId,
+    String caseType,
+    String operatorRole,
+    String indicatorSummary,
+    boolean manualReviewRequired,
+    List<String> policyFlags,
+    String summary,
+    OffsetDateTime updatedAt) {
 }
 
 record RiskReviewRecord(

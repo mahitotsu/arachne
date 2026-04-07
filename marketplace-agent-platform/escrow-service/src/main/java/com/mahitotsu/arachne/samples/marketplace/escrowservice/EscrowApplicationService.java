@@ -3,11 +3,12 @@ package com.mahitotsu.arachne.samples.marketplace.escrowservice;
 import java.time.Clock;
 import java.time.OffsetDateTime;
 
-import com.mahitotsu.arachne.strands.spring.AgentFactory;
-import com.mahitotsu.arachne.strands.tool.Tool;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
+
+import com.mahitotsu.arachne.strands.spring.AgentFactory;
+import com.mahitotsu.arachne.strands.tool.Tool;
 
 @Service
 class EscrowApplicationService {
@@ -25,7 +26,7 @@ class EscrowApplicationService {
     }
 
     EscrowContracts.EscrowEvidenceSummary evidenceSummary(EscrowContracts.EscrowEvidenceRequest request) {
-        repository.ensureCaseRecord(request.caseId(), request.amount(), request.currency());
+        repository.ensureCaseRecord(request.caseId(), request.orderId(), request.amount(), request.currency());
         return agentFactory.builder("escrow-agent")
                 .tools(escrowCaseLookupTool)
                 .build()
@@ -33,7 +34,7 @@ class EscrowApplicationService {
     }
 
     EscrowContracts.EscrowSpecialistReview specialistReview(EscrowContracts.EscrowSpecialistReviewRequest request) {
-        repository.ensureCaseRecord(request.caseId(), request.amount(), request.currency());
+        repository.ensureCaseRecord(request.caseId(), request.orderId(), request.amount(), request.currency());
         return agentFactory.builder("escrow-agent")
                 .tools(escrowCaseLookupTool)
                 .build()
@@ -44,7 +45,7 @@ class EscrowApplicationService {
         if (!"FINANCE_CONTROL".equalsIgnoreCase(command.actorRole())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "FINANCE_CONTROL role required for settlement actions");
         }
-        repository.ensureCaseRecord(command.caseId(), command.amount(), command.currency());
+        repository.ensureCaseRecord(command.caseId(), null, command.amount(), command.currency());
         var now = OffsetDateTime.now(clock);
         if ("REFUND".equalsIgnoreCase(command.action())) {
             var outcome = new EscrowContracts.SettlementOutcome(

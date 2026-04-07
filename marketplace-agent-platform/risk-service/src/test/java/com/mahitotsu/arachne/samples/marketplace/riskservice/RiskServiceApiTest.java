@@ -1,9 +1,5 @@
 package com.mahitotsu.arachne.samples.marketplace.riskservice;
 
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,6 +9,9 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import org.testcontainers.containers.PostgreSQLContainer;
 
 @SpringBootTest
@@ -110,6 +109,39 @@ class RiskServiceApiTest {
                 .andExpect(jsonPath("$.manualReviewRequired").value(true))
                 .andExpect(jsonPath("$.policyFlags[0]").value("HIGH_RISK_SETTLEMENT_HOLD"))
                 .andExpect(jsonPath("$.indicatorSummary").value("Elevated fraud and account-takeover indicators are present for the current order."));
+    }
+
+    @Test
+    void caseReviewUsesSeededDemoTemplatesForPresetOrders() throws Exception {
+        mockMvc.perform(post("/internal/risk/case-review")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "caseId": "case-demo-risk-1",
+                                  "caseType": "ITEM_NOT_RECEIVED",
+                                  "orderId": "ord-demo-002",
+                                  "operatorRole": "CASE_OPERATOR"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.indicatorSummary").value("No elevated fraud signal detected for the current order."))
+                .andExpect(jsonPath("$.manualReviewRequired").value(true))
+                .andExpect(jsonPath("$.policyFlags[0]").value("FINANCE_CONTROL_REVIEW_REQUIRED"));
+
+        mockMvc.perform(post("/internal/risk/case-review")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "caseId": "case-demo-risk-2",
+                                  "caseType": "DELIVERED_BUT_DAMAGED",
+                                  "orderId": "order-dmg-1",
+                                  "operatorRole": "CASE_OPERATOR"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.indicatorSummary").value("No elevated fraud signal detected, but the damage dispute needs seller and inspection evidence."))
+                .andExpect(jsonPath("$.manualReviewRequired").value(false))
+                .andExpect(jsonPath("$.policyFlags[0]").value("DAMAGE_EVIDENCE_REQUIRED"));
     }
 
     @Test

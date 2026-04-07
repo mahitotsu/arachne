@@ -1,9 +1,5 @@
 package com.mahitotsu.arachne.samples.marketplace.shipmentservice;
 
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,6 +9,9 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import org.testcontainers.containers.PostgreSQLContainer;
 
 @SpringBootTest
@@ -105,6 +104,36 @@ class ShipmentServiceApiTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.deliveryConfidence").value("HIGH"))
                 .andExpect(jsonPath("$.shippingExceptionSummary").value("Shipment was delivered, but the package exterior shows impact damage and moisture exposure."));
+    }
+
+    @Test
+    void evidenceSummaryUsesSeededDemoTemplatesForPresetOrders() throws Exception {
+        mockMvc.perform(post("/internal/shipment/evidence-summary")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "caseId": "case-demo-1",
+                                  "caseType": "ITEM_NOT_RECEIVED",
+                                  "orderId": "ord-demo-001"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.trackingNumber").value("TRACK-ord-demo-001"))
+                .andExpect(jsonPath("$.deliveryConfidence").value("LOW"));
+
+        mockMvc.perform(post("/internal/shipment/evidence-summary")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "caseId": "case-demo-2",
+                                  "caseType": "HIGH_RISK_SETTLEMENT_HOLD",
+                                  "orderId": "order-risk-1"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.trackingNumber").value("TRACK-order-risk-1"))
+                .andExpect(jsonPath("$.deliveryConfidence").value("MEDIUM"))
+                .andExpect(jsonPath("$.shippingExceptionSummary").value("Shipment completed, but delivery evidence is unusual enough to support a settlement hold pending risk review."));
     }
 
     @Test

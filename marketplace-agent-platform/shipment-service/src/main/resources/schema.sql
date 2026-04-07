@@ -7,3 +7,13 @@ create table if not exists shipment_cases (
     shipping_exception_summary varchar(1000) not null,
     updated_at timestamp with time zone not null
 );
+
+create table if not exists shipment_order_templates (
+    order_id varchar(64) primary key,
+    case_type varchar(64) not null,
+    tracking_number varchar(64) not null,
+    milestone_summary varchar(1000) not null,
+    delivery_confidence varchar(32) not null,
+    shipping_exception_summary varchar(1000) not null,
+    updated_at timestamp with time zone not null
+);
