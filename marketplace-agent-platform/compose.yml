@@ -6,6 +6,20 @@ services:
     depends_on:
       case-service:
         condition: service_healthy
+      workflow-load-balancer:
+        condition: service_healthy
+      workflow-service-1:
+        condition: service_healthy
+      workflow-service-2:
+        condition: service_healthy
+      escrow-service:
+        condition: service_healthy
+      shipment-service:
+        condition: service_healthy
+      risk-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/healthz || exit 1"]
       interval: 5s
@@ -30,8 +44,6 @@ services:
       SPRING_DATASOURCE_PASSWORD: marketplace
     depends_on:
       postgres:
-        condition: service_healthy
-      workflow-load-balancer:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:8080/actuator/health >/dev/null || exit 1"]
@@ -71,14 +83,6 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-      escrow-service:
-        condition: service_healthy
-      shipment-service:
-        condition: service_healthy
-      risk-service:
-        condition: service_healthy
-      notification-service:
-        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:8080/actuator/health >/dev/null || exit 1"]
       interval: 5s
@@ -115,14 +119,6 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-      escrow-service:
-        condition: service_healthy
-      shipment-service:
-        condition: service_healthy
-      risk-service:
-        condition: service_healthy
-      notification-service:
-        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:8080/actuator/health >/dev/null || exit 1"]
       interval: 5s
@@ -133,10 +129,20 @@ services:
   workflow-load-balancer:
     image: nginx:1.27-alpine
     depends_on:
+      case-service:
+        condition: service_started
       workflow-service-1:
-        condition: service_healthy
+        condition: service_started
       workflow-service-2:
-        condition: service_healthy
+        condition: service_started
+      escrow-service:
+        condition: service_started
+      shipment-service:
+        condition: service_started
+      risk-service:
+        condition: service_started
+      notification-service:
+        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/actuator/health || exit 1"]
       interval: 5s

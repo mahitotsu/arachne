@@ -180,12 +180,12 @@ make up-bedrock
 The plain `docker compose -f marketplace-agent-platform/compose.yml up --build` path remains available only as a lower-level development/debug entrypoint.
 It does not represent the recommended demo contract by itself because it does not perform the Bedrock credential preflight and does not make the intended demo mode explicit.
 
-The `make` entrypoints keep using `docker compose up --build`, but they now set `COMPOSE_PARALLEL_LIMIT=1` by default.
-That keeps build and startup integrated while reducing local BuildKit snapshot failures that can happen when all marketplace service images build at once from the shared Dockerfile setup.
-If your Docker setup is stable under more concurrency, you can override that limit when launching make.
+The `make` entrypoints keep using `docker compose up --build`, and they now set `COMPOSE_PARALLEL_LIMIT=4` by default.
+That allows independent image builds and service startups to proceed in parallel while still letting compose respect the declared dependency graph.
+If your local Docker setup becomes unstable under that load, you can override the limit when launching make.
 
 ```bash
-COMPOSE_PARALLEL_LIMIT=4 make up-bedrock
+COMPOSE_PARALLEL_LIMIT=1 make up-bedrock
 ```
 
 The deterministic Arachne-native path is retained only to test non-LLM runtime boundaries while Arachne wiring is enabled.
@@ -232,11 +232,13 @@ Java service image builds share a Docker BuildKit Maven cache instead of bind-mo
 That keeps repeated dependency downloads down across service builds without leaving root-owned artifacts under your host user home.
 If Docker BuildKit is disabled in your shell, enable it for this command with `DOCKER_BUILDKIT=1`.
 
-Compose startup is health-gated rather than start-order-only:
+Compose startup now uses a staged dependency policy:
 
-- `postgres` and `redis` must become healthy before dependent backend services start
-- Spring backend services expose `/actuator/health` for local container health checks
-- `case-service`, the workflow load balancer, and `operator-console` wait on healthy upstream services rather than only waiting for container process start
+- `postgres` and `redis` must become healthy before dependent application services start
+- `escrow-service`, `notification-service`, `risk-service`, `shipment-service`, both `workflow-service` replicas, and `case-service` are then started in parallel
+- `workflow-load-balancer` starts after that application tier has started
+- `operator-console` starts last, after all backend application services and the workflow load balancer report healthy
+- Spring backend services still expose `/actuator/health` for local container health checks, but most application-tier ordering now uses start order instead of waiting for every upstream to become healthy first
 
 The main local endpoints are:
 
