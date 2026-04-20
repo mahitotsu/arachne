@@ -22,7 +22,7 @@ Create an ADR when a change or decision does any of the following:
 
 ## Minimum Format
 
-Each ADR lives at `docs/adr/NNNN-title.md` and must include at least:
+Each ADR lives at `arachne/docs/adr/NNNN-title.md` and must include at least:
 
 - Status
 - Context

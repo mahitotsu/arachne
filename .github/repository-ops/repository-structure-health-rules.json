@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "metrics": [
+    {
+      "id": "snapshot_line_count",
+      "label": "Repository snapshot line count",
+      "warning": 120,
+      "critical": 160
+    },
+    {
+      "id": "reading_guide_line_count",
+      "label": "Repository reading guide line count",
+      "warning": 260,
+      "critical": 340
+    },
+    {
+      "id": "reading_guide_section_count",
+      "label": "Reading guide section count",
+      "warning": 8,
+      "critical": 10
+    },
+    {
+      "id": "reading_guide_max_entrypoints_per_section",
+      "label": "Max entry points in one reading-guide section",
+      "warning": 12,
+      "critical": 16
+    },
+    {
+      "id": "reading_guide_max_minimal_read_set_per_section",
+      "label": "Max bounded read set size in one reading-guide section",
+      "warning": 9,
+      "critical": 12
+    }
+  ]
+}

@@ -24,7 +24,7 @@ class DocumentedYamlExamplesTest {
     void documentedArachneYamlExamplesRemainParseable() throws IOException {
         List<Path> markdownFiles = List.of(
                 REPOSITORY_ROOT.resolve("README.md"),
-                REPOSITORY_ROOT.resolve("docs/user-guide.md"),
+            REPOSITORY_ROOT.resolve("arachne/docs/user-guide.md"),
                 REPOSITORY_ROOT.resolve("samples/conversation-basics/README.md"),
                 REPOSITORY_ROOT.resolve("samples/tool-delegation/README.md"),
                 REPOSITORY_ROOT.resolve("samples/tool-execution-context/README.md"),

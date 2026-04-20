@@ -8,7 +8,7 @@ Use it to answer these questions:
 - what sample demonstrates it?
 - what constraints should I account for before integrating it?
 
-For full usage details, see [docs/user-guide.md](user-guide.md).
+For full usage details, see [user-guide.md](user-guide.md).
 
 ## Available Today
 

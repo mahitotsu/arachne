@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "metrics": [
+    {
+      "id": "library_test_status",
+      "label": "Library Maven test status",
+      "category": "build",
+      "evaluation": "pass-fail",
+      "collection": "mvn -f arachne/pom.xml test"
+    },
+    {
+      "id": "jacoco_line_coverage",
+      "label": "Library JaCoCo line coverage",
+      "category": "coverage",
+      "evaluation": "minimum",
+      "unit": "ratio",
+      "warning": 0.85,
+      "critical": 0.75,
+      "source": "arachne/target/site/jacoco/jacoco.csv"
+    },
+    {
+      "id": "jacoco_branch_coverage",
+      "label": "Library JaCoCo branch coverage",
+      "category": "coverage",
+      "evaluation": "minimum",
+      "unit": "ratio",
+      "warning": 0.70,
+      "critical": 0.60,
+      "source": "arachne/target/site/jacoco/jacoco.csv"
+    },
+    {
+      "id": "spotbugs_total_bugs",
+      "label": "Library SpotBugs total bug count",
+      "category": "static-analysis",
+      "evaluation": "maximum",
+      "warning": 110,
+      "critical": 140,
+      "source": "arachne/target/spotbugsXml.xml"
+    },
+    {
+      "id": "pmd_violation_count",
+      "label": "Library PMD violation count",
+      "category": "static-analysis",
+      "evaluation": "maximum",
+      "warning": 0,
+      "critical": 0,
+      "source": "arachne/target/pmd.xml"
+    },
+    {
+      "id": "cpd_duplication_group_count",
+      "label": "Library CPD duplication-group count",
+      "category": "static-analysis",
+      "evaluation": "maximum",
+      "warning": 0,
+      "critical": 0,
+      "source": "arachne/target/cpd.xml"
+    },
+    {
+      "id": "library_main_java_file_count",
+      "label": "Library main Java file count",
+      "category": "size",
+      "evaluation": "report-only",
+      "source": "arachne/src/main/java"
+    },
+    {
+      "id": "library_test_java_file_count",
+      "label": "Library test Java file count",
+      "category": "size",
+      "evaluation": "report-only",
+      "source": "arachne/src/test/java"
+    },
+    {
+      "id": "sample_readme_count",
+      "label": "Sample README count",
+      "category": "size",
+      "evaluation": "report-only",
+      "scope": "optional",
+      "source": "samples/**/README.md"
+    },
+    {
+      "id": "operator_console_ts_file_count",
+      "label": "Operator console TypeScript source-file count",
+      "category": "size",
+      "evaluation": "report-only",
+      "scope": "optional",
+      "source": "marketplace-agent-platform/operator-console/src"
+    }
+  ]
+}

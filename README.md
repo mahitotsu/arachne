@@ -13,13 +13,13 @@ Arachne currently provides a Bedrock-backed agent runtime with Spring Boot auto-
 
 If you are evaluating or integrating Arachne, read these first:
 
-1. [docs/user-guide.md](docs/user-guide.md)
-2. [docs/project-status.md](docs/project-status.md)
+1. [arachne/docs/user-guide.md](arachne/docs/user-guide.md)
+2. [arachne/docs/project-status.md](arachne/docs/project-status.md)
 3. [samples/README.md](samples/README.md)
 
 Use those documents for the detailed API, configuration surface, current constraints, and runnable sample selection.
 
-Treat [docs/project-status.md](docs/project-status.md) as the canonical source of truth for feature availability, shipped boundaries, and current constraints on this branch.
+Treat [arachne/docs/project-status.md](arachne/docs/project-status.md) as the canonical source of truth for feature availability, shipped boundaries, and current constraints on this branch.
 
 ## Repository Layout
 
@@ -27,7 +27,7 @@ Treat [docs/project-status.md](docs/project-status.md) as the canonical source o
 - `arachne/`: main library module published as `com.mahitotsu.arachne:arachne`
 - `marketplace-agent-platform/`: independent multi-module product track for the marketplace backend/frontend slice
 - `samples/`: runnable sample reactor and sample applications
-- `docs/`: repository and usage documentation
+- `arachne/docs/`: library and architecture documentation for the published Arachne module
 
 ## Quick Start
 
@@ -84,7 +84,7 @@ class ChatService {
 
 ## What Is Available Now
 
-This section is a convenience summary. For the authoritative shipped boundary, use [docs/project-status.md](docs/project-status.md).
+This section is a convenience summary. For the authoritative shipped boundary, use [arachne/docs/project-status.md](arachne/docs/project-status.md).
 
 - `AgentFactory.builder()` and `AgentFactory.builder("name")`
 - `Agent.run(String)` and `Agent.run(String, Class<T>)`
@@ -95,16 +95,15 @@ This section is a convenience summary. For the authoritative shipped boundary, u
 - packaged skills with delayed activation
 - callback-based streaming and runtime-local steering
 
-For the current shipped surface and constraints, see [docs/project-status.md](docs/project-status.md).
+For the current shipped surface and constraints, see [arachne/docs/project-status.md](arachne/docs/project-status.md).
 
 ## Documentation
 
-- [docs/user-guide.md](docs/user-guide.md): setup, configuration, runtime usage, tools, sessions, skills, streaming, and steering
-- [docs/project-status.md](docs/project-status.md): current shipped features, sample map, and constraints
-- [docs/tool-catalog.md](docs/tool-catalog.md): current tool surface and tool-design cautions
-- [docs/repository-facts.md](docs/repository-facts.md): repository layout, package map, and verification commands
-- [docs/closeout-and-readiness.md](docs/closeout-and-readiness.md): maintainer workflow for task closeout and readiness recovery
-- [docs/adr/README.md](docs/adr/README.md): architecture decisions behind the current model
+- [arachne/docs/user-guide.md](arachne/docs/user-guide.md): setup, configuration, runtime usage, tools, sessions, skills, streaming, and steering
+- [arachne/docs/project-status.md](arachne/docs/project-status.md): current shipped features, sample map, and constraints
+- [arachne/docs/tool-catalog.md](arachne/docs/tool-catalog.md): current tool surface and tool-design cautions
+- [arachne/docs/repository-facts.md](arachne/docs/repository-facts.md): repository layout, package map, and verification commands
+- [arachne/docs/adr/README.md](arachne/docs/adr/README.md): architecture decisions behind the current model
 
 ## Samples
 
@@ -121,7 +120,7 @@ mvn test
 mvn -Pquality-security verify
 ```
 
-Repository maintenance workflows live under `.github/prompts`, including focused checks for quality, alignment, readiness, and end-of-task closeout.
+Repository workflow surfaces live under `.github/prompts` and `.github/skills`, centered on `close-action`, `locality-check`, `repository-metrics`, `ship-changes`, `session-handoff`, `repository-ops`, `repo-snapshot`, and `repository-structure-health`.
 
 Bedrock smoke verification is opt-in:
 

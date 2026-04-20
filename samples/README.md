@@ -2,7 +2,7 @@
 
 This directory contains runnable samples for the features that Arachne provides now.
 
-Use [docs/project-status.md](../docs/project-status.md) as the canonical source of truth for whether a capability is shipped. This page is the sample-selection and sample-verification map for that shipped surface.
+Use [arachne/docs/project-status.md](../arachne/docs/project-status.md) as the canonical source of truth for whether a capability is shipped. This page is the sample-selection and sample-verification map for that shipped surface.
 
 `marketplace-agent-platform` has moved out of `samples/` and now lives at the repository root as its own multi-module product track.
 

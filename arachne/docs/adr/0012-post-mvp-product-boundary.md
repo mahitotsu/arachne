@@ -23,8 +23,8 @@ The project therefore needs a stable way to describe three things without relyin
 
 Arachne adopts the following post-MVP documentation and planning boundary.
 
-- The shipped contract is documented through `README.md`, `docs/user-guide.md`, and `docs/project-status.md` rather than a repository roadmap file.
-- `docs/project-status.md` is the canonical snapshot for supported scope, current constraints, and deliberately deferred features.
+- The shipped contract is documented through `README.md`, `arachne/docs/user-guide.md`, and `arachne/docs/project-status.md` rather than a repository roadmap file.
+- `arachne/docs/project-status.md` is the canonical snapshot for supported scope, current constraints, and deliberately deferred features.
 - ADRs remain the canonical place for design decisions that affect public API, Spring integration, lifecycle, provider boundaries, extension boundaries, or other cross-cutting contracts.
 - The current shipped scope remains the Bedrock-backed runtime with annotation-driven tools, structured output, named-agent defaults, retry, conversation/session management, hooks/plugins, interrupts, skills, streaming, and steering.
 - The following areas remain deliberately deferred until separately proposed and accepted: provider expansion beyond Bedrock, bidirectional realtime/audio streaming, MCP, multi-agent orchestration, A2A, Guardrails, Agent Config, Evals SDK, and remote skill distribution.

@@ -28,7 +28,7 @@ Use it when you need to know:
 
 - `arachne/src/main/java`: main library implementation
 - `arachne/src/test/java`: library test suite
-- `docs`: usage, status, repository map, and ADRs
+- `arachne/docs`: library usage, status, repository map, and ADRs
 - `marketplace-agent-platform`: root-level product track with service modules, operator console, and composed runtime wiring
 - `samples`: runnable reference applications for shipped capabilities
 - `refs/sdk-python`: behavioral reference material for the Python SDK lineage
@@ -60,7 +60,7 @@ Top-level packages under `arachne/src/main/java/com/mahitotsu/arachne/strands`:
 - sessions and persistence: `arachne/src/main/java/com/mahitotsu/arachne/strands/session`
 - skills: `arachne/src/main/java/com/mahitotsu/arachne/strands/skills`
 - steering: `arachne/src/main/java/com/mahitotsu/arachne/strands/steering`
-- architectural decisions: `docs/adr`
+- architectural decisions: `arachne/docs/adr`
 
 ## Sample Map
 
@@ -127,8 +127,8 @@ When work changes Bedrock-specific runtime behavior, Bedrock-facing sample wirin
 ## Current Reference Documents
 
 - `README.md`: top-level entry point
-- `docs/user-guide.md`: primary usage guide
-- `docs/project-status.md`: current shipped surface and constraints
-- `docs/tool-catalog.md`: current tool surface
-- `docs/adr/README.md`: architecture decisions
+- `arachne/docs/user-guide.md`: primary usage guide
+- `arachne/docs/project-status.md`: current shipped surface and constraints
+- `arachne/docs/tool-catalog.md`: current tool surface
+- `arachne/docs/adr/README.md`: architecture decisions
 - `samples/README.md`: runnable sample catalog

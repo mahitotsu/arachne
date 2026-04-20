@@ -4,6 +4,13 @@
 Arachne is a Java port of the Strands Agents Python SDK with Spring Boot integration.
 Treat `refs/sdk-python` as behavioral reference material and do not edit it unless the user asks explicitly.
 
+## Repository Operations
+- Treat `.github/repository-ops/` as the source of truth for repo restart, reading guidance, repository-structure-health policy, and repository metrics policy.
+- When the task is repo-wide, workflow-oriented, or you need to re-establish current state, read `.github/repository-ops/repository-snapshot.md` and `/memories/repo/status.md` before widening. Read `.github/repository-ops/repository-reading-guide.md` only when you need detailed entry points.
+- Use `.github/skills/repository-ops/SKILL.md` as the umbrella entry point when the right repository workflow is unclear.
+- Use `.github/prompts/close-action.prompt.md`, `.github/prompts/locality-check.prompt.md`, `.github/prompts/repository-metrics.prompt.md`, `.github/prompts/session-handoff.prompt.md`, and `.github/prompts/ship-changes.prompt.md` for operational preflight, locality checks, quantitative repository evaluation, handoff generation, and commit/push execution.
+- Keep `.github/repository-ops/`, related prompts and skills, and this file synchronized when the operating flow changes.
+
 ## Implementation Rules
 - Do not treat work as complete until it satisfies the published current scope and the task's explicit conditions.
 - Keep changes minimal and scoped to the active implementation theme. Avoid speculative abstractions for later work.
@@ -37,19 +44,19 @@ Treat `refs/sdk-python` as behavioral reference material and do not edit it unle
 - Keep instruction filenames, descriptions, and `applyTo` scopes aligned to their real coverage. Do not leave marketplace- or phase-specific naming on files that now apply broadly.
 - When theme-specific files are needed, keep at most one implementation instruction file and one test-strategy instruction file for that theme, and give them narrow `applyTo` scopes.
 - Before starting a new implementation theme, review whether the existing scoped instruction files are sufficient. If not, update or replace them for the new theme and remove stale constraints from the previous one.
-- During that review, check consistency with `docs/project-status.md`, relevant ADRs, test emphasis, and completion conditions.
+- During that review, check consistency with `arachne/docs/project-status.md`, relevant ADRs, test emphasis, and completion conditions.
 
 ## ADR Workflow
-- Record important architectural decisions as ADRs under `docs/adr/`. This includes both new decisions and already adopted decisions that remain important assumptions.
+- Record important architectural decisions as ADRs under `arachne/docs/adr/`. This includes both new decisions and already adopted decisions that remain important assumptions.
 - When a change affects public API, Spring integration, session persistence, tool binding or validation, execution backend, or another cross-cutting boundary, consider adding or updating an ADR in the same turn.
 - Even when a decision is deferred, record rejected alternatives or the reason for deferral so later work can reuse that context.
 
 ## Exploration Discipline
 - For normal implementation and test work, begin from the smallest trusted surface that can identify the target area.
-- Start with `docs/project-status.md`, this file, and the relevant active `.github/instructions/*.instructions.md` file before widening to implementation, tests, samples, or ADRs.
+- Start with `arachne/docs/project-status.md`, this file, and the relevant active `.github/instructions/*.instructions.md` file before widening to implementation, tests, samples, or ADRs.
 - In multi-module Java work, identify the owning Maven module, package, or service first. Read its nearest implementation and matching tests before tracing adjacent modules.
 - Use the nearest `pom.xml`, module-local `src/main`, and module-local `src/test` trees as the default first-pass scope unless the task clearly crosses a published contract boundary.
-- Use broad guides such as `docs/user-guide.md` and `docs/README.md` as maps or follow-up references, not as default front-to-back first-pass reading.
+- Use broad guides such as `arachne/docs/user-guide.md` and `arachne/docs/README.md` as maps or follow-up references, not as default front-to-back first-pass reading.
 - Expand context only when the current surface cannot answer a concrete implementation, contract, or verification question.
 
 ## Coding Conventions

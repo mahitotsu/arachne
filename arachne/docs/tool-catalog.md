@@ -9,7 +9,7 @@ Use it when you need to answer these questions:
 - how are built-ins, discovered tools, and runtime-local tools combined?
 - what limits should I account for when designing tools?
 
-For setup and end-to-end usage, see [docs/user-guide.md](user-guide.md).
+For setup and end-to-end usage, see [user-guide.md](user-guide.md).
 
 ## Built-In Tools Available Today
 

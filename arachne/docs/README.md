@@ -4,10 +4,10 @@ This directory contains the documents that explain what Arachne provides now, ho
 
 Repository layout note:
 
-- the repository root `pom.xml` is a reactor only
-- the published library module lives under `../arachne/`
+- the repository root `../../pom.xml` is a reactor only
+- the published library module lives under `../`
 - the independent `marketplace-agent-platform/` product track lives at the repository root and is not part of the runnable sample catalog
-- runnable sample applications live under `../samples/`
+- runnable sample applications live under `../../samples/`
 
 ## Start Here
 
@@ -15,7 +15,7 @@ If you are new to Arachne, read these in order:
 
 1. `user-guide.md`
 2. `project-status.md`
-3. `../samples/README.md`
+3. `../../samples/README.md`
 
 That path gives you:
 
@@ -32,7 +32,6 @@ Open the document that matches the question you have now.
 - `project-status.md`: canonical source of truth for shipped features, sample map, and current constraints on the current branch
 - `tool-catalog.md`: current built-in tools, tool authoring surfaces, and tool-related cautions
 - `repository-facts.md`: repository layout, verification commands, sample/module map, and code-location guide
-- `closeout-and-readiness.md`: local maintainer workflow for task closeout and later readiness recovery
 - `adr/`: architecture decisions that explain why the current public model looks the way it does
 
 ## Recommended Reading Paths
@@ -41,20 +40,20 @@ Open the document that matches the question you have now.
 
 1. `user-guide.md`
 2. `project-status.md`
-3. `../samples/conversation-basics/README.md`
+3. `../../samples/conversation-basics/README.md`
 
 ### I need tools
 
 1. `tool-catalog.md`
-2. `../samples/built-in-tools/README.md`
-3. `../samples/tool-delegation/README.md`
-4. `../samples/tool-execution-context/README.md`
+2. `../../samples/built-in-tools/README.md`
+3. `../../samples/tool-delegation/README.md`
+4. `../../samples/tool-execution-context/README.md`
 
 ### I need stateful backend behavior
 
 1. `user-guide.md`
-2. `../samples/stateful-backend-operations/README.md`
-3. `../samples/session-jdbc/README.md` or `../samples/session-redis/README.md`
+2. `../../samples/stateful-backend-operations/README.md`
+3. `../../samples/session-jdbc/README.md` or `../../samples/session-redis/README.md`
 
 ### I need architecture background
 
@@ -70,4 +69,4 @@ Open the document that matches the question you have now.
 
 ## Samples
 
-Runnable sample selection lives in [samples/README.md](../samples/README.md).
+Runnable sample selection lives in [samples/README.md](../../samples/README.md).
