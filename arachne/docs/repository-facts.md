@@ -21,7 +21,7 @@ Use it when you need to know:
 
 - `pom.xml`: repository reactor
 - `arachne/pom.xml`: main library module
-- `marketplace-agent-platform/pom.xml`: independent multi-module product track for the marketplace implementation slice
+- `marketplace-agent-platform/pom.xml`: independent multi-module food-delivery demo with service-local agents behind Spring microservices
 - `samples/pom.xml`: runnable sample reactor
 
 ## Main Directories
@@ -29,7 +29,7 @@ Use it when you need to know:
 - `arachne/src/main/java`: main library implementation
 - `arachne/src/test/java`: library test suite
 - `arachne/docs`: library usage, status, repository map, and ADRs
-- `marketplace-agent-platform`: root-level product track with service modules, operator console, and composed runtime wiring
+- `marketplace-agent-platform`: root-level food-delivery product track with service modules, a Next.js chat console, and composed runtime wiring
 - `samples`: runnable reference applications for shipped capabilities
 - `refs/sdk-python`: behavioral reference material for the Python SDK lineage
 - `target`: local build output and generated reports

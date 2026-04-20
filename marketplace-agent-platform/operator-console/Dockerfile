@@ -2,16 +2,18 @@ FROM node:22-alpine AS build
 
 WORKDIR /app
 
-COPY marketplace-agent-platform/operator-console/package.json ./
-COPY marketplace-agent-platform/operator-console/package-lock.json ./
-RUN npm ci
+ARG BACKEND_ORIGIN=http://localhost:8080
+ENV BACKEND_ORIGIN=$BACKEND_ORIGIN
 
-COPY marketplace-agent-platform/operator-console/ ./
+COPY marketplace-agent-platform/operator-console/package*.json ./
+RUN --mount=type=cache,id=food-delivery-operator-console-npm,target=/root/.npm,sharing=locked npm ci
+
+COPY marketplace-agent-platform/operator-console ./
 RUN npm run build
 
-FROM nginx:1.27-alpine AS runtime
+EXPOSE 3000
 
-COPY marketplace-agent-platform/operator-console/nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=build /app/dist /usr/share/nginx/html
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
 
-EXPOSE 8080
+CMD ["node", ".next/standalone/server.js"]

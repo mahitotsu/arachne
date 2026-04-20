@@ -1,0 +1,16 @@
+spring:
+  application:
+    name: order-service
+  sql:
+    init:
+      mode: always
+
+delivery:
+  order:
+    session-store: ${DELIVERY_ORDER_SESSION_STORE:redis}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

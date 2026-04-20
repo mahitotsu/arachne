@@ -10,7 +10,7 @@ Use `repository-reading-guide.md` only when you need a deeper entry-point map.
 
 - `arachne/` is the main library module. It currently ships Spring Boot auto-configuration, `AgentFactory`, Bedrock-backed `Model` integration, tools and structured output, sessions, hooks and plugins, interrupts and resume, packaged skills, callback streaming, and steering.
 - `samples/` is the runnable sample catalog for the shipped library surface. Sample-side verification requires refreshing the local `arachne` snapshot first.
-- `marketplace-agent-platform/` is an independent multi-module product track with Spring services and a thin React + TypeScript operator console. It is not part of the runnable sample catalog.
+- `marketplace-agent-platform/` is an independent multi-module food-delivery product track with Spring services and a thin Next.js operator console. It is not part of the runnable sample catalog.
 - `refs/sdk-python/` remains behavioral reference material only.
 - `.github/` now uses a single repo-ops workflow layer: `repository-ops`, `repo-snapshot`, `repository-structure-health`, `repository-metrics`, `close-action`, `locality-check`, `ship-changes`, and `session-handoff`.
 
@@ -62,7 +62,7 @@ Use `repository-reading-guide.md` only when you need a deeper entry-point map.
 
 ### Marketplace Agent Platform
 
-- Status: the product track ships a multi-service marketplace workflow sample with a thin operator console and its own design docs. It is not the same surface as `samples/`.
+- Status: the product track now ships a food-delivery demo where each Spring microservice owns a service-local agent behind plain HTTP APIs, plus a thin chat-first operator console. It is not the same surface as `samples/`.
 - Start here: `marketplace-agent-platform/README.md`, `marketplace-agent-platform/docs/architecture.md`, `marketplace-agent-platform/operator-console/README.md`
 - Verification: `mvn -f marketplace-agent-platform/pom.xml test`; in `marketplace-agent-platform/operator-console`, run `npm ci` and `npm run build`
 

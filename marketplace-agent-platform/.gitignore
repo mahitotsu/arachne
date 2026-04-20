@@ -1,0 +1,8 @@
+operator-console/.next/
+operator-console/coverage/
+operator-console/.turbo/
+operator-console/.vercel/
+
+.env
+.env.*
+*.local

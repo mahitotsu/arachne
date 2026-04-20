@@ -1,42 +1,23 @@
 # Operator Console
 
-This directory contains the thin `React + TypeScript + Vite` operator console for the marketplace agent platform.
+This Next.js app is the customer-facing UI for the food delivery demo.
 
-The UI talks only to `case-service` and covers the current first-slice flows:
+It keeps the ordering interaction chat-first, but it also shows:
 
-- case creation
-- case list and search
-- case detail inspection
-- follow-up operator messages
-- activity history updates through SSE
-- finance control approval submission
+- the current order draft
+- estimated delivery timing
+- payment state
+- the service-local agent trace behind the reply
 
-## Run
-
-Install dependencies:
+Run locally:
 
 ```bash
 npm ci
-```
-
-Start the development server:
-
-```bash
 npm run dev
 ```
 
-The Vite dev server listens on `http://localhost:3000` and proxies `/api` to `http://localhost:8080`.
+The app proxies `/api/backend/*` to `order-service` through `BACKEND_ORIGIN`.
 
-The default console configuration uses same-origin requests, so the browser talks to `http://localhost:3000` only and the dev proxy or compose Nginx forwards `/api` to `case-service`.
+For container builds, `BACKEND_ORIGIN` must be set at build time so Next.js bakes the correct rewrite target into the standalone output. The compose setup passes `http://order-service:8080` for Docker and keeps `http://localhost:8080` as the default for local development.
 
-Override that with:
-
-```bash
-VITE_CASE_SERVICE_BASE_URL=http://localhost:8080 npm run dev
-```
-
-## Current Limits
-
-- authentication is modeled through explicit operator id and role inputs rather than a real login flow
-- the UI assumes the current backend slice and contract shapes under `case-service`
-- the runtime still depends on the backend services and workflow load balancer being available separately even though the browser now sees a single console origin
+The food-delivery services default to `DELIVERY_MODEL_MODE=deterministic` for repeatable local verification. For Bedrock-backed runs, use `make up-bedrock` so the host's temporary AWS credentials are exported into compose along with `ARACHNE_STRANDS_MODEL_ID` and `ARACHNE_STRANDS_MODEL_REGION`.
