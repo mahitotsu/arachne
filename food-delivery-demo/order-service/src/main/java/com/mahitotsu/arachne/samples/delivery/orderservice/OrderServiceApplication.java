@@ -18,6 +18,8 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -159,23 +161,56 @@ class OrderApplicationService {
                 capturedSelectedDelivery, capturedPaymentResponse, serviceTraces);
 
         String draftContext = existingSession.draft().items().isEmpty() ? ""
-                : "\n\nCurrent draft: " + existingSession.draft().items().stream()
-                        .map(i -> i.quantity() + "x " + i.name())
+                : "\n\nCurrent draft order: " + existingSession.draft().items().stream()
+                        .map(i -> i.quantity() + "x " + i.name() + " (¥" + i.unitPrice() + " each)")
                         .reduce((a, b) -> a + ", " + b).orElse("")
-                        + " | status: " + existingSession.draft().status();
+                        + " | status: " + existingSession.draft().status()
+                        + " | total: ¥" + existingSession.draft().total();
 
         String assistantMessage = agentFactory.builder()
                 .systemPrompt("""
-                        You are the order coordinator for a food delivery service, like a receptionist working with specialized staff.
+                        You are the order coordinator for a food delivery service.
+                        Your job is to help the customer build and confirm their order by calling the right tools in sequence.
 
-                        Available staff (tools):
-                        - suggest_menu: The menu team. Call when the customer wants food options or recommendations.
-                        - check_kitchen: The kitchen staff. Call with item IDs from suggest_menu to check availability and prep time.
-                        - quote_delivery: The logistics team. Call with item names from check_kitchen to get delivery options.
-                        - prepare_payment: The cashier. Call last. Set confirmRequested=true ONLY when the customer explicitly asks to place, confirm, or submit the order. Set fastestDelivery=true when they want the quickest option.
-                        - recent_order_lookup: Check the customer's order history when they reference a previous order.
+                        ## Tools — when and how to call them
 
-                        For questions unrelated to ordering, respond directly without calling any tool.
+                        suggest_menu
+                        - Call when the customer asks for food options, recommendations, or anything to eat.
+                        - Call when the customer wants to MODIFY the current order (e.g. "double it", "倍にして", "量を増やして", "add one more", "もう一つ追加して").
+                          In that case, pass a message that describes the modification in terms of the existing items,
+                          e.g. "Return the same items as the current draft but double all quantities: 1x Crispy Chicken Box → 2x".
+                        - Call when the customer references a past order to re-order it.
+                        - ALWAYS call check_kitchen immediately after suggest_menu, using the itemIds returned.
+
+                        check_kitchen
+                        - Call immediately after suggest_menu with the itemIds from that result.
+                        - ALWAYS call quote_delivery immediately after check_kitchen, using the itemNames returned.
+
+                        quote_delivery
+                        - Call immediately after check_kitchen with the itemNames from that result.
+                        - After this, either prepare_payment (if the customer wants to see totals or confirm) or summarise the options to the customer.
+
+                        prepare_payment
+                        - Call when you have delivery options and the customer wants a cost summary or is ready to pay.
+                        - Set confirmRequested=true ONLY when the customer explicitly says to place, confirm, or submit the order (e.g. "注文確定して", "confirm", "place the order").
+                        - Set fastestDelivery=true when the customer asks for the fastest option (e.g. "最速", "urgent", "急ぎ").
+
+                        recent_order_lookup
+                        - Call when the customer refers to a previous order (e.g. "前回と同じ", "same as last time").
+
+                        ## Rules
+
+                        TOOL CHAIN: suggest_menu → check_kitchen → quote_delivery → (prepare_payment if needed).
+                        Never skip steps. Never call a later tool without calling earlier ones first.
+
+                        ANSWER THE ACTUAL REQUEST: Read what the customer wrote carefully. If they said "倍にして" (double it), double the quantities. If they said "子ども向け" (for kids), pick child-friendly items. Always address the customer's specific request, not a generic response.
+
+                        LANGUAGE: Always reply in the same language the customer used. Japanese input → Japanese reply. English input → English reply.
+
+                        CLARIFICATION: When the customer's intent is genuinely ambiguous, ask a short question and append choices at the very end of your reply using this exact format (no text after it):
+                        [CHOICES: "Option A", "Option B", "Option C"]
+
+                        DIRECT ANSWERS: For questions unrelated to ordering, answer directly without calling any tool.
                         """)
                 .tools(menuTool, kitchenTool, deliveryTool, paymentTool, recentOrderLookupTool)
                 .build()
@@ -219,20 +254,36 @@ class OrderApplicationService {
                 paymentResponse != null ? paymentResponse.selectedMethod() : existingSession.draft().paymentMethod(),
                 orderId);
 
-        conversation.add(new ConversationMessage("assistant", assistantMessage));
+        // Parse [CHOICES: "A", "B", "C"] block from the assistant message
+        List<String> choices = List.of();
+        String displayMessage = assistantMessage;
+        Pattern choicesPattern = Pattern.compile("\\[CHOICES:\\s*((?:\"[^\"]+\"(?:,\\s*)?)+)\\]");
+        Matcher choicesMatcher = choicesPattern.matcher(assistantMessage);
+        if (choicesMatcher.find()) {
+            String raw = choicesMatcher.group(1);
+            choices = java.util.Arrays.stream(raw.split(",\\s*"))
+                    .map(s -> s.trim().replaceAll("^\"|\"$", ""))
+                    .filter(s -> !s.isEmpty())
+                    .toList();
+            displayMessage = assistantMessage.substring(0, choicesMatcher.start()).trim();
+        }
+
+        conversation.add(new ConversationMessage("assistant", displayMessage));
         OrderChatSession updated = new OrderChatSession(sessionId, List.copyOf(conversation), draft);
         sessionStore.save(updated);
 
         serviceTraces.add(new ServiceTrace("order-service", "order-agent",
                 status.equals("CONFIRMED") ? "order-agent finalized the order" : "order-agent coordinated the services",
-                assistantMessage));
+                displayMessage));
 
-        return new ChatResponse(sessionId, updated.conversation(), assistantMessage, draft, List.copyOf(serviceTraces), defaultSuggestions());
+        return new ChatResponse(sessionId, updated.conversation(), displayMessage, draft, List.copyOf(serviceTraces),
+                contextualSuggestions(updated), choices);
     }
 
     ChatResponse session(String sessionId) {
         OrderChatSession session = sessionStore.load(sessionId).orElse(emptySession(sessionId));
-        return new ChatResponse(session.sessionId(), session.conversation(), "", session.draft(), List.of(), defaultSuggestions());
+        return new ChatResponse(session.sessionId(), session.conversation(), "", session.draft(), List.of(),
+                contextualSuggestions(session), List.of());
     }
 
     private List<OrderLineItem> buildLineItems(List<MenuItemView> menuItems, List<KitchenItemStatusView> statuses) {
@@ -475,7 +526,30 @@ class OrderApplicationService {
         return new OrderDraft("EMPTY", List.of(), BigDecimal.ZERO, BigDecimal.ZERO, "", "PENDING", "", "");
     }
 
-    private List<String> defaultSuggestions() {
+    private List<String> contextualSuggestions(OrderChatSession session) {
+        String status = session.draft().status();
+        if ("CONFIRMED".equals(status)) {
+            return List.of(
+                    "配送状況を教えて",
+                    "新しい注文を始めたい",
+                    "別のメニューを見せて");
+        }
+        if ("DRAFT_READY".equals(status)) {
+            return List.of(
+                    "この内容で注文確定して",
+                    "最速配送にして",
+                    "量を倍にして",
+                    "ドリンクも追加して");
+        }
+        // Extract last assistant message to derive hints
+        List<ConversationMessage> conv = session.conversation();
+        if (!conv.isEmpty()) {
+            return List.of(
+                    "2人分でスパイシー少なめのおすすめを見せて",
+                    "子ども向けセットを教えて",
+                    "前回と同じ内容で頼みたい",
+                    "今の時間帯のおすすめは？");
+        }
         return List.of(
                 "2人分でスパイシー少なめのおすすめを見せて",
                 "子ども向けセットを足して",
@@ -853,7 +927,8 @@ record ChatResponse(
         String assistantMessage,
         OrderDraft draft,
         List<ServiceTrace> trace,
-        List<String> suggestions) {}
+        List<String> suggestions,
+        List<String> choices) {}
 
 record ConversationMessage(String role, String text) {}
 

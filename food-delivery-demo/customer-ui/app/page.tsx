@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 
 type ConversationMessage = {
   role: string;
@@ -39,6 +39,7 @@ type ChatResponse = {
   draft: OrderDraft;
   trace: ServiceTrace[];
   suggestions: string[];
+  choices: string[];
 };
 
 const EMPTY_DRAFT: OrderDraft = {
@@ -60,8 +61,16 @@ export default function HomePage() {
   const [traceMemory, setTraceMemory] = useState<Record<string, ServiceTrace>>({});
   const [activeTurn, setActiveTurn] = useState<Set<string>>(new Set());
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [choices, setChoices] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const messageListEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (messageListEndRef.current) {
+      messageListEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [conversation, loading]);
 
   useEffect(() => {
     const savedSessionId = window.localStorage.getItem('delivery-demo-session-id');
@@ -78,6 +87,7 @@ export default function HomePage() {
         setConversation(payload.conversation ?? []);
         setDraft(payload.draft ?? EMPTY_DRAFT);
         setSuggestions(payload.suggestions ?? []);
+        setChoices(payload.choices ?? []);
       })
       .catch(() => {
         window.localStorage.removeItem('delivery-demo-session-id');
@@ -90,6 +100,13 @@ export default function HomePage() {
   );
 
   async function sendChat(nextMessage: string) {
+    // Show user message immediately (optimistic update)
+    const optimisticConversation: ConversationMessage[] = [
+      ...conversation,
+      { role: 'user', text: nextMessage }
+    ];
+    setConversation(optimisticConversation);
+    setChoices([]);
     setLoading(true);
     setError('');
     try {
@@ -117,12 +134,28 @@ export default function HomePage() {
       });
       setActiveTurn(new Set((payload.trace ?? []).map(e => e.service)));
       setSuggestions(payload.suggestions ?? []);
+      setChoices(payload.choices ?? []);
       setMessage('');
     } catch (nextError) {
+      // Roll back optimistic message on error
+      setConversation(conversation);
       setError(nextError instanceof Error ? nextError.message : 'chat request failed');
     } finally {
       setLoading(false);
     }
+  }
+
+  function startNewOrder() {
+    window.localStorage.removeItem('delivery-demo-session-id');
+    setSessionId('');
+    setConversation([]);
+    setDraft(EMPTY_DRAFT);
+    setTraceMemory({});
+    setActiveTurn(new Set());
+    setSuggestions([]);
+    setChoices([]);
+    setMessage('');
+    setError('');
   }
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -146,6 +179,14 @@ export default function HomePage() {
           <span className="session-dot" />
           <span>{sessionId ? `session · ${sessionId.slice(-8)}` : 'new session'}</span>
         </div>
+        <button
+          type="button"
+          className="new-order-btn"
+          onClick={startNewOrder}
+          disabled={loading}
+        >
+          ＋ 新しい注文
+        </button>
       </header>
 
       {/* ── Hero ── */}
@@ -194,7 +235,25 @@ export default function HomePage() {
                 <span className="typing-dot" />
               </div>
             )}
+
+            <div ref={messageListEndRef} />
           </div>
+
+          {choices.length > 0 && (
+            <div className="choices">
+              {choices.map((choice) => (
+                <button
+                  key={choice}
+                  type="button"
+                  className="choice-btn"
+                  onClick={() => { setChoices([]); void sendChat(choice); }}
+                  disabled={loading}
+                >
+                  {choice}
+                </button>
+              ))}
+            </div>
+          )}
 
           {suggestions.length > 0 && (
             <div className="suggestions">
