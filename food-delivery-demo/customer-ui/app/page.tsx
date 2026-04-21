@@ -135,117 +135,175 @@ export default function HomePage() {
 
   return (
     <main className="shell">
+      {/* ── Top navigation bar ── */}
+      <header className="topbar">
+        <div className="brand">
+          <span className="brand-icon">🍜</span>
+          <span className="brand-name">Arachne Food</span>
+          <span className="brand-tagline">multi-agent delivery</span>
+        </div>
+        <div className="session-pill">
+          <span className="session-dot" />
+          <span>{sessionId ? `session · ${sessionId.slice(-8)}` : 'new session'}</span>
+        </div>
+      </header>
+
+      {/* ── Hero ── */}
       <section className="hero">
-        <div>
-          <p className="eyebrow">Arachne x Spring Boot</p>
-          <h1>Food Delivery Agent Platform</h1>
-          <p className="lede">
-            The UI looks like a normal delivery chat. Under the hood, each backend service owns a service-local Arachne agent.
-          </p>
-        </div>
-        <div className="hero-card">
-          <span>Current session</span>
-          <strong>{sessionId || 'new-session'}</strong>
-          <small>Redis keeps the chat session warm while PostgreSQL stores confirmed orders.</small>
-        </div>
+        <h1>注文は、<span className="gradient-text">会話</span>で。</h1>
+        <p className="lede">
+          チャットするだけで複数のAIエージェントが裏で連携し、メニュー選定・支払い・配送をまとめて処理します。
+        </p>
       </section>
 
+      {/* ── Main workspace ── */}
       <section className="workspace">
+        {/* Chat panel */}
         <div className="panel chat-panel">
           <div className="panel-header">
             <div>
-              <p className="panel-label">Customer Chat</p>
-              <h2>Order with natural language</h2>
+              <p className="panel-label">🗨 Customer Chat</p>
+              <h2>自然言語で注文する</h2>
             </div>
           </div>
 
           <div className="message-list">
             {conversation.length === 0 ? (
               <div className="message system">
-                Ask for something like 2 people, kids friendly, or fastest delivery. The trace panel will show which backend agents responded.
+                「2人分で辛さ控えめ」「子ども向けで最速配送」など自然に話しかけてください。
+                右のトレースパネルに各バックエンドエージェントの動きが表示されます。
               </div>
             ) : null}
 
             {conversation.map((entry, index) => (
-              <div className={`message ${entry.role === 'assistant' ? 'assistant' : 'user'}`} key={`${entry.role}-${index}`}>
-                <span>{entry.role === 'assistant' ? 'Arachne order-agent' : 'Customer'}</span>
+              <div
+                className={`message ${entry.role === 'assistant' ? 'assistant' : 'user'}`}
+                key={`${entry.role}-${index}`}
+              >
+                <span className="message-role">
+                  {entry.role === 'assistant' ? '🤖 Arachne order-agent' : '🙋 Customer'}
+                </span>
                 <p>{entry.text}</p>
               </div>
             ))}
+
+            {loading && (
+              <div className="typing-indicator">
+                <span className="typing-dot" />
+                <span className="typing-dot" />
+                <span className="typing-dot" />
+              </div>
+            )}
           </div>
 
-          <div className="suggestions">
-            {suggestions.map((suggestion) => (
-              <button key={suggestion} type="button" onClick={() => void sendChat(suggestion)} disabled={loading}>
-                {suggestion}
-              </button>
-            ))}
-          </div>
+          {suggestions.length > 0 && (
+            <div className="suggestions">
+              {suggestions.map((suggestion) => (
+                <button
+                  key={suggestion}
+                  type="button"
+                  onClick={() => void sendChat(suggestion)}
+                  disabled={loading}
+                >
+                  {suggestion}
+                </button>
+              ))}
+            </div>
+          )}
 
           <form className="composer" onSubmit={onSubmit}>
             <textarea
               value={message}
               onChange={(event) => setMessage(event.target.value)}
               placeholder="例: 2人分で辛さ控えめ。前回みたいに最速で。"
-              rows={4}
+              rows={3}
             />
             <div className="composer-footer">
               <div>
-                {error ? <span className="error">{error}</span> : <span>Chat-first on the surface, multi-agent behind the APIs.</span>}
+                {error
+                  ? <span className="error">⚠ {error}</span>
+                  : <span>マルチエージェントが裏で連携中</span>
+                }
               </div>
-              <button type="submit" disabled={loading || !message.trim()}>
-                {loading ? 'Thinking...' : 'Send'}
+              <button type="submit" className="send-btn" disabled={loading || !message.trim()}>
+                送信 →
               </button>
             </div>
           </form>
         </div>
 
-        <div className="sidebar">
+        {/* Sidebar */}
+        <aside className="sidebar">
+          {/* Live draft */}
           <div className="panel draft-panel">
             <div className="panel-header compact">
               <div>
-                <p className="panel-label">Live Draft</p>
+                <p className="panel-label">🛒 Live Draft</p>
                 <h2>{draft.status}</h2>
               </div>
               <span className="badge">{totalItems} items</span>
             </div>
+
             <ul className="draft-list">
-              {draft.items.length === 0 ? <li>No items yet.</li> : null}
+              {draft.items.length === 0
+                ? <li className="draft-empty">まだアイテムがありません</li>
+                : null}
               {draft.items.map((item) => (
                 <li key={`${item.name}-${item.note}`}>
                   <div>
-                    <strong>{item.quantity}x {item.name}</strong>
+                    <strong>{item.quantity}× {item.name}</strong>
                     <span>{item.note}</span>
                   </div>
                   <em>¥{(item.unitPrice * item.quantity).toFixed(0)}</em>
                 </li>
               ))}
             </ul>
-            <div className="draft-summary">
-              <div><span>ETA</span><strong>{draft.etaLabel || 'Pending'}</strong></div>
-              <div><span>Subtotal</span><strong>¥{draft.subtotal.toFixed(0)}</strong></div>
-              <div><span>Total</span><strong>¥{draft.total.toFixed(0)}</strong></div>
-              <div><span>Payment</span><strong>{draft.paymentStatus} {draft.paymentMethod ? `• ${draft.paymentMethod}` : ''}</strong></div>
-              {draft.orderId ? <div><span>Order ID</span><strong>{draft.orderId}</strong></div> : null}
-            </div>
+
+            {(draft.items.length > 0 || draft.etaLabel) && (
+              <div className="draft-summary">
+                {draft.etaLabel
+                  ? <div><span>🕐 ETA</span><strong>{draft.etaLabel}</strong></div>
+                  : null}
+                <div><span>小計</span><strong>¥{draft.subtotal.toFixed(0)}</strong></div>
+                <div className="total-row">
+                  <span>合計</span><strong>¥{draft.total.toFixed(0)}</strong>
+                </div>
+                <div>
+                  <span>支払い</span>
+                  <strong>
+                    {draft.paymentStatus}{draft.paymentMethod ? ` · ${draft.paymentMethod}` : ''}
+                  </strong>
+                </div>
+                {draft.orderId
+                  ? <div><span>Order ID</span><strong>{draft.orderId}</strong></div>
+                  : null}
+              </div>
+            )}
           </div>
 
+          {/* Trace panel */}
           <div className="panel trace-panel">
             <div className="panel-header compact">
               <div>
-                <p className="panel-label">Service Mesh Trace</p>
-                <h2>Hidden agents</h2>
+                <p className="panel-label">⚡ Service Mesh Trace</p>
+                <h2>裏で動くエージェント</h2>
               </div>
             </div>
+
             <div className="trace-list">
-              {Object.keys(traceMemory).length === 0 ? <p>No trace yet.</p> : null}
+              {Object.keys(traceMemory).length === 0
+                ? <p className="trace-empty">まだトレースがありません</p>
+                : null}
               {Object.values(traceMemory).map((entry) => {
                 const isActive = activeTurn.has(entry.service);
                 return (
-                  <article key={entry.service} className={`trace-card${isActive ? '' : ' trace-card--stale'}`}>
+                  <article
+                    key={entry.service}
+                    className={`trace-card${isActive ? ' trace-card--active' : ' trace-card--stale'}`}
+                  >
                     <div className="trace-meta">
-                      <span>{entry.service}</span>
-                      <strong>{entry.agent}</strong>
+                      <span className="trace-service">{entry.service}</span>
+                      <span className="trace-agent">{entry.agent}</span>
                       {!isActive && <em className="stale-label">前回</em>}
                     </div>
                     <h3>{entry.headline}</h3>
@@ -255,7 +313,7 @@ export default function HomePage() {
               })}
             </div>
           </div>
-        </div>
+        </aside>
       </section>
     </main>
   );
