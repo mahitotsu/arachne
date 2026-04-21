@@ -9,15 +9,15 @@ WORKDIR /workspace
 
 COPY pom.xml pom.xml
 COPY arachne/pom.xml arachne/pom.xml
-COPY marketplace-agent-platform/pom.xml marketplace-agent-platform/pom.xml
-COPY marketplace-agent-platform/order-service/pom.xml marketplace-agent-platform/order-service/pom.xml
-COPY marketplace-agent-platform/menu-service/pom.xml marketplace-agent-platform/menu-service/pom.xml
-COPY marketplace-agent-platform/kitchen-service/pom.xml marketplace-agent-platform/kitchen-service/pom.xml
-COPY marketplace-agent-platform/delivery-service/pom.xml marketplace-agent-platform/delivery-service/pom.xml
-COPY marketplace-agent-platform/payment-service/pom.xml marketplace-agent-platform/payment-service/pom.xml
+COPY food-delivery-demo/pom.xml food-delivery-demo/pom.xml
+COPY food-delivery-demo/order-service/pom.xml food-delivery-demo/order-service/pom.xml
+COPY food-delivery-demo/menu-service/pom.xml food-delivery-demo/menu-service/pom.xml
+COPY food-delivery-demo/kitchen-service/pom.xml food-delivery-demo/kitchen-service/pom.xml
+COPY food-delivery-demo/delivery-service/pom.xml food-delivery-demo/delivery-service/pom.xml
+COPY food-delivery-demo/payment-service/pom.xml food-delivery-demo/payment-service/pom.xml
 
 RUN --mount=type=cache,id=arachne-delivery-m2,target=/root/.m2,sharing=locked \
-	mvn -B -ntp -f marketplace-agent-platform/pom.xml \
+	mvn -B -ntp -f food-delivery-demo/pom.xml \
 		-pl menu-service,kitchen-service,delivery-service,payment-service,order-service \
 		-am dependency:go-offline -DskipTests
 

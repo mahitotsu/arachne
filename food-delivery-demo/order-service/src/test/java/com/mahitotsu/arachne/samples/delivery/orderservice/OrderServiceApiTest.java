@@ -21,6 +21,7 @@ import okhttp3.mockwebserver.MockWebServer;
 @SpringBootTest(
         webEnvironment = WebEnvironment.RANDOM_PORT,
         properties = {
+                "delivery.model.mode=deterministic",
                 "delivery.order.session-store=in-memory",
                 "spring.datasource.url=jdbc:h2:mem:orders;MODE=PostgreSQL;DB_CLOSE_DELAY=-1",
                 "spring.datasource.driver-class-name=org.h2.Driver",

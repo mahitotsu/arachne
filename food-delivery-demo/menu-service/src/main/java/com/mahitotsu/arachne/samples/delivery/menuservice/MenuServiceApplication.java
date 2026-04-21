@@ -194,7 +194,7 @@ class MenuArachneConfiguration {
     }
 
     @Bean
-    @ConditionalOnProperty(name = "delivery.model.mode", havingValue = "deterministic", matchIfMissing = true)
+    @ConditionalOnProperty(name = "delivery.model.mode", havingValue = "deterministic", matchIfMissing = false)
     Model menuDeterministicModel() {
         return new MenuDeterministicModel();
     }

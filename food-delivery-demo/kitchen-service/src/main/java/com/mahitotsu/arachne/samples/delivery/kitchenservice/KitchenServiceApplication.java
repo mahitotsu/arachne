@@ -152,7 +152,7 @@ class KitchenArachneConfiguration {
     }
 
     @Bean
-    @ConditionalOnProperty(name = "delivery.model.mode", havingValue = "deterministic", matchIfMissing = true)
+    @ConditionalOnProperty(name = "delivery.model.mode", havingValue = "deterministic", matchIfMissing = false)
     Model kitchenDeterministicModel() {
         return new KitchenDeterministicModel();
     }

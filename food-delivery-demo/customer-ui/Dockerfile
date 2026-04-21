@@ -5,10 +5,10 @@ WORKDIR /app
 ARG BACKEND_ORIGIN=http://localhost:8080
 ENV BACKEND_ORIGIN=$BACKEND_ORIGIN
 
-COPY marketplace-agent-platform/operator-console/package*.json ./
-RUN --mount=type=cache,id=food-delivery-operator-console-npm,target=/root/.npm,sharing=locked npm ci
+COPY food-delivery-demo/customer-ui/package*.json ./
+RUN --mount=type=cache,id=food-delivery-customer-ui-npm,target=/root/.npm,sharing=locked npm ci
 
-COPY marketplace-agent-platform/operator-console ./
+COPY food-delivery-demo/customer-ui ./
 RUN npm run build
 
 EXPOSE 3000
@@ -16,4 +16,11 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 
-CMD ["node", ".next/standalone/server.js"]
+FROM node:22-alpine AS runtime
+
+WORKDIR /app
+
+COPY --from=build /app/.next/standalone ./
+COPY --from=build /app/.next/static ./.next/static
+
+CMD ["node", "server.js"]

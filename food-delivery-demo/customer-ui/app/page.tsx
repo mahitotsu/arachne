@@ -57,7 +57,8 @@ export default function HomePage() {
   const [message, setMessage] = useState('');
   const [conversation, setConversation] = useState<ConversationMessage[]>([]);
   const [draft, setDraft] = useState<OrderDraft>(EMPTY_DRAFT);
-  const [trace, setTrace] = useState<ServiceTrace[]>([]);
+  const [traceMemory, setTraceMemory] = useState<Record<string, ServiceTrace>>({});
+  const [activeTurn, setActiveTurn] = useState<Set<string>>(new Set());
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -107,7 +108,14 @@ export default function HomePage() {
       window.localStorage.setItem('delivery-demo-session-id', payload.sessionId);
       setConversation(payload.conversation ?? []);
       setDraft(payload.draft ?? EMPTY_DRAFT);
-      setTrace(payload.trace ?? []);
+      setTraceMemory(prev => {
+        const next = { ...prev };
+        for (const entry of payload.trace ?? []) {
+          next[entry.service] = entry;
+        }
+        return next;
+      });
+      setActiveTurn(new Set((payload.trace ?? []).map(e => e.service)));
       setSuggestions(payload.suggestions ?? []);
       setMessage('');
     } catch (nextError) {
@@ -230,17 +238,21 @@ export default function HomePage() {
               </div>
             </div>
             <div className="trace-list">
-              {trace.length === 0 ? <p>No trace yet.</p> : null}
-              {trace.map((entry) => (
-                <article key={`${entry.service}-${entry.headline}`} className="trace-card">
-                  <div className="trace-meta">
-                    <span>{entry.service}</span>
-                    <strong>{entry.agent}</strong>
-                  </div>
-                  <h3>{entry.headline}</h3>
-                  <p>{entry.detail}</p>
-                </article>
-              ))}
+              {Object.keys(traceMemory).length === 0 ? <p>No trace yet.</p> : null}
+              {Object.values(traceMemory).map((entry) => {
+                const isActive = activeTurn.has(entry.service);
+                return (
+                  <article key={entry.service} className={`trace-card${isActive ? '' : ' trace-card--stale'}`}>
+                    <div className="trace-meta">
+                      <span>{entry.service}</span>
+                      <strong>{entry.agent}</strong>
+                      {!isActive && <em className="stale-label">前回</em>}
+                    </div>
+                    <h3>{entry.headline}</h3>
+                    <p>{entry.detail}</p>
+                  </article>
+                );
+              })}
             </div>
           </div>
         </div>

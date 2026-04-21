@@ -288,6 +288,18 @@ textarea {
   border-radius: 20px;
   background: #fffdf9;
   border: 1px solid var(--border);
+  transition: opacity 0.3s, border-color 0.3s;
+}
+
+.trace-card--stale {
+  opacity: 0.5;
+  border-style: dashed;
+}
+
+.stale-label {
+  font-style: normal;
+  font-size: 0.75rem;
+  color: var(--muted);
 }
 
 .trace-meta {

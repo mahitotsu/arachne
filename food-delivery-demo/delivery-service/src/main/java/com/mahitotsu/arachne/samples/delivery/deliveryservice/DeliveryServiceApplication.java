@@ -137,7 +137,7 @@ class DeliveryArachneConfiguration {
     }
 
     @Bean
-    @ConditionalOnProperty(name = "delivery.model.mode", havingValue = "deterministic", matchIfMissing = true)
+    @ConditionalOnProperty(name = "delivery.model.mode", havingValue = "deterministic", matchIfMissing = false)
     Model deliveryDeterministicModel() {
         return new DeliveryDeterministicModel();
     }

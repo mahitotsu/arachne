@@ -8,6 +8,7 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -16,6 +17,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -143,34 +145,60 @@ class OrderApplicationService {
         ArrayList<ConversationMessage> conversation = new ArrayList<>(existingSession.conversation());
         conversation.add(new ConversationMessage("user", request.message()));
 
-        InterpretedRequest interpreted = InterpretedRequest.from(request.message());
-        Optional<StoredOrder> recentOrder = orderRepository.findLatestOrderForUser(DEMO_CUSTOMER_ID);
-        String workingMessage = interpreted.repeatLastOrder() && recentOrder.isPresent()
-                ? request.message() + " | previous-order=" + recentOrder.get().itemSummary()
-                : request.message();
+        List<ServiceTrace> serviceTraces = Collections.synchronizedList(new ArrayList<>());
+        AtomicReference<List<MenuItemView>> capturedMenuItems = new AtomicReference<>(List.of());
+        AtomicReference<List<OrderLineItem>> capturedLineItems = new AtomicReference<>(List.of());
+        AtomicReference<List<DeliveryOptionView>> capturedDeliveryOptions = new AtomicReference<>(List.of());
+        AtomicReference<DeliveryOptionView> capturedSelectedDelivery = new AtomicReference<>(null);
+        AtomicReference<PaymentPrepareResponse> capturedPaymentResponse = new AtomicReference<>(null);
 
-        MenuSuggestionResponse menuResponse = menuGateway.suggest(new MenuSuggestionRequest(sessionId, workingMessage));
-        KitchenCheckResponse kitchenResponse = kitchenGateway.check(new KitchenCheckRequest(
-                sessionId,
-                request.message(),
-                menuResponse.items().stream().map(MenuItemView::id).toList()));
-        List<OrderLineItem> lineItems = buildLineItems(menuResponse.items(), kitchenResponse.items());
-        DeliveryQuoteResponse deliveryResponse = deliveryGateway.quote(new DeliveryQuoteRequest(
-                sessionId,
-                request.message(),
-                lineItems.stream().map(OrderLineItem::name).toList()));
-        DeliveryOptionView selectedDelivery = selectDeliveryOption(deliveryResponse.options(), interpreted.fastestDelivery());
+        Tool menuTool = buildMenuTool(sessionId, capturedMenuItems, serviceTraces);
+        Tool kitchenTool = buildKitchenTool(sessionId, capturedMenuItems, capturedLineItems, serviceTraces);
+        Tool deliveryTool = buildDeliveryTool(sessionId, capturedDeliveryOptions, serviceTraces);
+        Tool paymentTool = buildPaymentTool(sessionId, capturedLineItems, capturedDeliveryOptions,
+                capturedSelectedDelivery, capturedPaymentResponse, serviceTraces);
+
+        String draftContext = existingSession.draft().items().isEmpty() ? ""
+                : "\n\nCurrent draft: " + existingSession.draft().items().stream()
+                        .map(i -> i.quantity() + "x " + i.name())
+                        .reduce((a, b) -> a + ", " + b).orElse("")
+                        + " | status: " + existingSession.draft().status();
+
+        String assistantMessage = agentFactory.builder()
+                .systemPrompt("""
+                        You are the order coordinator for a food delivery service, like a receptionist working with specialized staff.
+
+                        Available staff (tools):
+                        - suggest_menu: The menu team. Call when the customer wants food options or recommendations.
+                        - check_kitchen: The kitchen staff. Call with item IDs from suggest_menu to check availability and prep time.
+                        - quote_delivery: The logistics team. Call with item names from check_kitchen to get delivery options.
+                        - prepare_payment: The cashier. Call last. Set confirmRequested=true ONLY when the customer explicitly asks to place, confirm, or submit the order. Set fastestDelivery=true when they want the quickest option.
+                        - recent_order_lookup: Check the customer's order history when they reference a previous order.
+
+                        For questions unrelated to ordering, respond directly without calling any tool.
+                        """)
+                .tools(menuTool, kitchenTool, deliveryTool, paymentTool, recentOrderLookupTool)
+                .build()
+                .run(request.message() + draftContext)
+                .text();
+
+        List<OrderLineItem> lineItems = capturedLineItems.get().isEmpty()
+                ? existingSession.draft().items()
+                : capturedLineItems.get();
+        PaymentPrepareResponse paymentResponse = capturedPaymentResponse.get();
+        DeliveryOptionView selectedDelivery = capturedSelectedDelivery.get() != null
+                ? capturedSelectedDelivery.get()
+                : (capturedDeliveryOptions.get().isEmpty()
+                        ? new DeliveryOptionView("standard", "Standard route", 27, new BigDecimal("180.00"))
+                        : capturedDeliveryOptions.get().get(0));
         BigDecimal subtotal = subtotal(lineItems);
-        BigDecimal total = subtotal.add(selectedDelivery.fee()).setScale(2, RoundingMode.HALF_UP);
-        PaymentPrepareResponse paymentResponse = paymentGateway.prepare(new PaymentPrepareRequest(
-                sessionId,
-                request.message(),
-                total,
-                interpreted.confirmRequested()));
+        BigDecimal total = paymentResponse != null
+                ? paymentResponse.total()
+                : subtotal.add(selectedDelivery.fee()).setScale(2, RoundingMode.HALF_UP);
 
         String orderId = existingSession.draft().orderId();
-        String status = "DRAFT_READY";
-        if (paymentResponse.charged()) {
+        String status = lineItems.isEmpty() ? existingSession.draft().status() : "DRAFT_READY";
+        if (paymentResponse != null && paymentResponse.charged()) {
             orderId = orderRepository.saveConfirmedOrder(
                     DEMO_CUSTOMER_ID,
                     lineItems,
@@ -187,29 +215,19 @@ class OrderApplicationService {
                 subtotal,
                 total,
                 selectedDelivery.etaMinutes() + " min via " + selectedDelivery.label(),
-                paymentResponse.paymentStatus(),
-                paymentResponse.selectedMethod(),
+                paymentResponse != null ? paymentResponse.paymentStatus() : existingSession.draft().paymentStatus(),
+                paymentResponse != null ? paymentResponse.selectedMethod() : existingSession.draft().paymentMethod(),
                 orderId);
-
-        String assistantMessage = agentFactory.builder()
-                .systemPrompt("You are the order-agent. Summarize the multi-service plan in clear customer-facing language.")
-                .tools(recentOrderLookupTool)
-                .build()
-                .run(buildAgentPrompt(request.message(), draft, interpreted, recentOrder.isPresent()))
-                .text();
 
         conversation.add(new ConversationMessage("assistant", assistantMessage));
         OrderChatSession updated = new OrderChatSession(sessionId, List.copyOf(conversation), draft);
         sessionStore.save(updated);
 
-        List<ServiceTrace> trace = List.of(
-                new ServiceTrace(menuResponse.service(), menuResponse.agent(), menuResponse.headline(), menuResponse.summary()),
-                new ServiceTrace(kitchenResponse.service(), kitchenResponse.agent(), kitchenResponse.headline(), kitchenResponse.summary()),
-                new ServiceTrace(deliveryResponse.service(), deliveryResponse.agent(), deliveryResponse.headline(), deliveryResponse.summary()),
-                new ServiceTrace(paymentResponse.service(), paymentResponse.agent(), paymentResponse.headline(), paymentResponse.summary()),
-                new ServiceTrace("order-service", "order-agent", status.equals("CONFIRMED") ? "order-agent finalized the order" : "order-agent assembled the draft", assistantMessage));
+        serviceTraces.add(new ServiceTrace("order-service", "order-agent",
+                status.equals("CONFIRMED") ? "order-agent finalized the order" : "order-agent coordinated the services",
+                assistantMessage));
 
-        return new ChatResponse(sessionId, updated.conversation(), assistantMessage, draft, trace, defaultSuggestions());
+        return new ChatResponse(sessionId, updated.conversation(), assistantMessage, draft, List.copyOf(serviceTraces), defaultSuggestions());
     }
 
     ChatResponse session(String sessionId) {
@@ -260,21 +278,193 @@ class OrderApplicationService {
                 .setScale(2, RoundingMode.HALF_UP);
     }
 
-    private String buildAgentPrompt(String message, OrderDraft draft, InterpretedRequest interpreted, boolean historyAvailable) {
-        String draftSummary = draft.items().stream()
-                .map(item -> item.quantity() + "x " + item.name())
-                .reduce((left, right) -> left + ", " + right)
-                .orElse("draft pending");
-        return String.join("\n",
-                "historyRequested=" + interpreted.repeatLastOrder(),
-                "historyAvailable=" + historyAvailable,
-                "userMessage=" + message,
-                "draftSummary=" + draftSummary,
-                "eta=" + draft.etaLabel(),
-                "paymentStatus=" + draft.paymentStatus(),
-                "paymentMethod=" + draft.paymentMethod(),
-                "confirmed=" + "CONFIRMED".equals(draft.status()),
-                "total=" + draft.total());
+    private Tool buildMenuTool(String sessionId,
+            AtomicReference<List<MenuItemView>> capturedMenuItems,
+            List<ServiceTrace> serviceTraces) {
+        return new Tool() {
+            @Override
+            public ToolSpec spec() {
+                ObjectNode root = JsonNodeFactory.instance.objectNode();
+                root.put("type", "object");
+                ObjectNode props = root.putObject("properties");
+                props.putObject("message").put("type", "string")
+                        .put("description", "The customer's request for menu suggestions");
+                root.putArray("required").add("message");
+                root.put("additionalProperties", false);
+                return new ToolSpec("suggest_menu",
+                        "Ask the menu team for food recommendations matching the customer's request.", root);
+            }
+
+            @Override
+            public ToolResult invoke(Object input) {
+                return invoke(input, new ToolInvocationContext("suggest_menu", null, input, null));
+            }
+
+            @Override
+            public ToolResult invoke(Object input, ToolInvocationContext context) {
+                String message = String.valueOf(inputMap(input).getOrDefault("message", ""));
+                MenuSuggestionResponse response = menuGateway.suggest(new MenuSuggestionRequest(sessionId, message));
+                capturedMenuItems.set(response.items());
+                serviceTraces.add(new ServiceTrace(response.service(), response.agent(), response.headline(), response.summary()));
+                return ToolResult.success(context.toolUseId(), Map.of(
+                        "summary", response.summary(),
+                        "itemIds", response.items().stream().map(MenuItemView::id).toList(),
+                        "itemNames", response.items().stream().map(MenuItemView::name).toList()));
+            }
+        };
+    }
+
+    private Tool buildKitchenTool(String sessionId,
+            AtomicReference<List<MenuItemView>> capturedMenuItems,
+            AtomicReference<List<OrderLineItem>> capturedLineItems,
+            List<ServiceTrace> serviceTraces) {
+        return new Tool() {
+            @Override
+            public ToolSpec spec() {
+                ObjectNode root = JsonNodeFactory.instance.objectNode();
+                root.put("type", "object");
+                ObjectNode props = root.putObject("properties");
+                ObjectNode itemIdsNode = props.putObject("itemIds");
+                itemIdsNode.put("type", "array");
+                itemIdsNode.putObject("items").put("type", "string");
+                itemIdsNode.put("description", "Item IDs from suggest_menu to check availability");
+                props.putObject("message").put("type", "string");
+                root.putArray("required").add("itemIds").add("message");
+                root.put("additionalProperties", false);
+                return new ToolSpec("check_kitchen",
+                        "Check with the kitchen for item availability, prep time, and substitutions.", root);
+            }
+
+            @Override
+            public ToolResult invoke(Object input) {
+                return invoke(input, new ToolInvocationContext("check_kitchen", null, input, null));
+            }
+
+            @Override
+            public ToolResult invoke(Object input, ToolInvocationContext context) {
+                Map<String, Object> args = inputMap(input);
+                List<String> itemIds = stringList(args.get("itemIds"));
+                String message = String.valueOf(args.getOrDefault("message", ""));
+                KitchenCheckResponse response = kitchenGateway.check(new KitchenCheckRequest(sessionId, message, itemIds));
+                List<OrderLineItem> lineItems = buildLineItems(capturedMenuItems.get(), response.items());
+                capturedLineItems.set(lineItems);
+                serviceTraces.add(new ServiceTrace(response.service(), response.agent(), response.headline(), response.summary()));
+                return ToolResult.success(context.toolUseId(), Map.of(
+                        "summary", response.summary(),
+                        "itemNames", lineItems.stream().map(OrderLineItem::name).toList(),
+                        "readyInMinutes", response.readyInMinutes()));
+            }
+        };
+    }
+
+    private Tool buildDeliveryTool(String sessionId,
+            AtomicReference<List<DeliveryOptionView>> capturedDeliveryOptions,
+            List<ServiceTrace> serviceTraces) {
+        return new Tool() {
+            @Override
+            public ToolSpec spec() {
+                ObjectNode root = JsonNodeFactory.instance.objectNode();
+                root.put("type", "object");
+                ObjectNode props = root.putObject("properties");
+                ObjectNode itemNamesNode = props.putObject("itemNames");
+                itemNamesNode.put("type", "array");
+                itemNamesNode.putObject("items").put("type", "string");
+                itemNamesNode.put("description", "Item names from check_kitchen to route for delivery");
+                props.putObject("message").put("type", "string");
+                root.putArray("required").add("itemNames").add("message");
+                root.put("additionalProperties", false);
+                return new ToolSpec("quote_delivery",
+                        "Get delivery options and ETA estimates from the logistics team.", root);
+            }
+
+            @Override
+            public ToolResult invoke(Object input) {
+                return invoke(input, new ToolInvocationContext("quote_delivery", null, input, null));
+            }
+
+            @Override
+            public ToolResult invoke(Object input, ToolInvocationContext context) {
+                Map<String, Object> args = inputMap(input);
+                List<String> itemNames = stringList(args.get("itemNames"));
+                String message = String.valueOf(args.getOrDefault("message", ""));
+                DeliveryQuoteResponse response = deliveryGateway.quote(new DeliveryQuoteRequest(sessionId, message, itemNames));
+                capturedDeliveryOptions.set(response.options());
+                serviceTraces.add(new ServiceTrace(response.service(), response.agent(), response.headline(), response.summary()));
+                List<Map<String, Object>> options = response.options().stream()
+                        .<Map<String, Object>>map(o -> Map.of(
+                                "code", o.code(), "label", o.label(),
+                                "etaMinutes", o.etaMinutes(), "fee", o.fee()))
+                        .toList();
+                return ToolResult.success(context.toolUseId(), Map.of(
+                        "summary", response.summary(),
+                        "options", options));
+            }
+        };
+    }
+
+    private Tool buildPaymentTool(String sessionId,
+            AtomicReference<List<OrderLineItem>> capturedLineItems,
+            AtomicReference<List<DeliveryOptionView>> capturedDeliveryOptions,
+            AtomicReference<DeliveryOptionView> capturedSelectedDelivery,
+            AtomicReference<PaymentPrepareResponse> capturedPaymentResponse,
+            List<ServiceTrace> serviceTraces) {
+        return new Tool() {
+            @Override
+            public ToolSpec spec() {
+                ObjectNode root = JsonNodeFactory.instance.objectNode();
+                root.put("type", "object");
+                ObjectNode props = root.putObject("properties");
+                props.putObject("confirmRequested").put("type", "boolean")
+                        .put("description", "True only when the customer explicitly asks to place or confirm the order");
+                props.putObject("fastestDelivery").put("type", "boolean")
+                        .put("description", "True when the customer wants the fastest delivery option");
+                root.putArray("required").add("confirmRequested").add("fastestDelivery");
+                root.put("additionalProperties", false);
+                return new ToolSpec("prepare_payment",
+                        "Check payment readiness and optionally process the charge.", root);
+            }
+
+            @Override
+            public ToolResult invoke(Object input) {
+                return invoke(input, new ToolInvocationContext("prepare_payment", null, input, null));
+            }
+
+            @Override
+            public ToolResult invoke(Object input, ToolInvocationContext context) {
+                Map<String, Object> args = inputMap(input);
+                boolean confirmRequested = Boolean.parseBoolean(String.valueOf(args.getOrDefault("confirmRequested", "false")));
+                boolean fastestDelivery = Boolean.parseBoolean(String.valueOf(args.getOrDefault("fastestDelivery", "false")));
+                DeliveryOptionView selected = selectDeliveryOption(capturedDeliveryOptions.get(), fastestDelivery);
+                capturedSelectedDelivery.set(selected);
+                BigDecimal itemsSubtotal = subtotal(capturedLineItems.get());
+                BigDecimal total = itemsSubtotal.add(selected.fee()).setScale(2, RoundingMode.HALF_UP);
+                PaymentPrepareResponse response = paymentGateway.prepare(
+                        new PaymentPrepareRequest(sessionId, "", total, confirmRequested));
+                capturedPaymentResponse.set(response);
+                serviceTraces.add(new ServiceTrace(response.service(), response.agent(), response.headline(), response.summary()));
+                return ToolResult.success(context.toolUseId(), Map.of(
+                        "summary", response.summary(),
+                        "charged", response.charged(),
+                        "paymentStatus", response.paymentStatus(),
+                        "selectedMethod", response.selectedMethod()));
+            }
+        };
+    }
+
+    private static Map<String, Object> inputMap(Object input) {
+        if (input instanceof Map<?, ?> raw) {
+            LinkedHashMap<String, Object> map = new LinkedHashMap<>();
+            raw.forEach((k, v) -> map.put(String.valueOf(k), v));
+            return map;
+        }
+        return Map.of();
+    }
+
+    private static List<String> stringList(Object value) {
+        if (value instanceof List<?> list) {
+            return list.stream().map(String::valueOf).toList();
+        }
+        return List.of();
     }
 
     private OrderChatSession emptySession(String sessionId) {
@@ -517,7 +707,7 @@ class OrderArachneConfiguration {
     }
 
     @Bean
-    @ConditionalOnProperty(name = "delivery.model.mode", havingValue = "deterministic", matchIfMissing = true)
+    @ConditionalOnProperty(name = "delivery.model.mode", havingValue = "deterministic", matchIfMissing = false)
     Model orderDeterministicModel() {
         return new OrderDeterministicModel();
     }
@@ -573,46 +763,53 @@ class OrderArachneConfiguration {
 
         @Override
         public Iterable<ModelEvent> converse(List<Message> messages, List<ToolSpec> tools, String systemPrompt, ToolSelection toolSelection) {
-            Map<String, String> prompt = promptValues(messages);
-            Map<String, Object> history = latestToolContent(messages, "recent-order-lookup");
-            if (Boolean.parseBoolean(prompt.getOrDefault("historyRequested", "false")) && history == null) {
-                return List.of(
-                        new ModelEvent.ToolUse("recent-order-lookup", "recent_order_lookup", Map.of("customerId", "demo-user")),
-                        new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
-            }
-            StringBuilder message = new StringBuilder();
-            message.append("order-agent lined up ").append(prompt.getOrDefault("draftSummary", "a draft"))
-                    .append(". Estimated arrival is ").append(prompt.getOrDefault("eta", "soon"))
-                    .append(", and payment is ").append(prompt.getOrDefault("paymentStatus", "PENDING")).append(" via ")
-                    .append(prompt.getOrDefault("paymentMethod", "the saved method")).append('.');
-            if (history != null) {
-                message.append(" It used your previous order as a baseline: ")
-                        .append(history.getOrDefault("itemSummary", "no previous order")).append('.');
-            }
-            if (Boolean.parseBoolean(prompt.getOrDefault("confirmed", "false"))) {
-                message.append(" The order is now confirmed.");
-            } else {
-                message.append(" Say 'confirm' whenever you want the charge to run.");
-            }
-            return List.of(
-                    new ModelEvent.TextDelta(message.toString()),
-                    new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
+            return coordinatorDeterministic(messages);
         }
 
-        private Map<String, String> promptValues(List<Message> messages) {
-            LinkedHashMap<String, String> values = new LinkedHashMap<>();
-            String text = latestUserText(messages);
-            if (text == null) {
-                return values;
+        private Iterable<ModelEvent> coordinatorDeterministic(List<Message> messages) {
+            String userText = latestUserText(messages);
+            String normalized = userText == null ? "" : userText.toLowerCase();
+            boolean confirm = normalized.contains("確定") || normalized.contains("confirm") || normalized.contains("注文して");
+            boolean fastest = normalized.contains("最速") || normalized.contains("fast") || normalized.contains("急ぎ");
+
+            Map<String, Object> menuResult = latestToolContent(messages, "suggest-menu");
+            Map<String, Object> kitchenResult = latestToolContent(messages, "check-kitchen");
+            Map<String, Object> deliveryResult = latestToolContent(messages, "quote-delivery");
+            Map<String, Object> paymentResult = latestToolContent(messages, "prepare-payment");
+
+            if (menuResult == null) {
+                return List.of(
+                        new ModelEvent.ToolUse("suggest-menu", "suggest_menu",
+                                Map.of("message", userText != null ? userText : "")),
+                        new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
             }
-            for (String line : text.split("\\R")) {
-                int separator = line.indexOf('=');
-                if (separator <= 0) {
-                    continue;
-                }
-                values.put(line.substring(0, separator).trim(), line.substring(separator + 1).trim());
+            if (kitchenResult == null) {
+                List<?> itemIds = menuResult.get("itemIds") instanceof List<?> ids ? ids : List.of();
+                return List.of(
+                        new ModelEvent.ToolUse("check-kitchen", "check_kitchen",
+                                Map.of("itemIds", itemIds, "message", userText != null ? userText : "")),
+                        new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
             }
-            return values;
+            if (deliveryResult == null) {
+                List<?> itemNames = kitchenResult.get("itemNames") instanceof List<?> names ? names : List.of();
+                return List.of(
+                        new ModelEvent.ToolUse("quote-delivery", "quote_delivery",
+                                Map.of("itemNames", itemNames, "message", userText != null ? userText : "")),
+                        new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
+            }
+            if (paymentResult == null) {
+                return List.of(
+                        new ModelEvent.ToolUse("prepare-payment", "prepare_payment",
+                                Map.of("confirmRequested", confirm, "fastestDelivery", fastest)),
+                        new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
+            }
+            boolean charged = Boolean.TRUE.equals(paymentResult.get("charged"));
+            String reply = charged
+                    ? "Your order is now confirmed and payment has been processed."
+                    : "Here is your draft order. Say 'confirm' to place it.";
+            return List.of(
+                    new ModelEvent.TextDelta(reply),
+                    new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
         }
 
         private Map<String, Object> latestToolContent(List<Message> messages, String toolUseId) {
@@ -677,17 +874,6 @@ record OrderLineItem(String name, int quantity, BigDecimal unitPrice, String not
 record OrderChatSession(String sessionId, List<ConversationMessage> conversation, OrderDraft draft) {}
 
 record StoredOrder(String orderId, String itemSummary, BigDecimal subtotal, BigDecimal total, String etaLabel, String paymentStatus) {}
-
-record InterpretedRequest(boolean repeatLastOrder, boolean fastestDelivery, boolean confirmRequested) {
-
-    static InterpretedRequest from(String message) {
-        String normalized = message == null ? "" : message.toLowerCase();
-        boolean repeat = normalized.contains("前回") || normalized.contains("same") || normalized.contains("いつも");
-        boolean fastest = normalized.contains("最速") || normalized.contains("fast") || normalized.contains("急ぎ");
-        boolean confirm = normalized.contains("確定") || normalized.contains("confirm") || normalized.contains("注文して");
-        return new InterpretedRequest(repeat, fastest, confirm);
-    }
-}
 
 record MenuSuggestionRequest(String sessionId, String message) {}
 
