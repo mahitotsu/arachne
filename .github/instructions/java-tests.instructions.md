@@ -1,6 +1,6 @@
 ---
 description: "Use when adding or updating Java tests across Arachne modules, marketplace services, and samples. Reinforces target-test-first reading, contract-focused assertions, and bounded cross-module expansion."
-applyTo: "{arachne,marketplace-agent-platform,samples}/**/src/test/**"
+applyTo: "{arachne,food-delivery-demo,samples}/**/src/test/**"
 ---
 
 # Java Test Workflow

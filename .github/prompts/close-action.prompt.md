@@ -18,8 +18,8 @@ Follow this procedure strictly.
 7. Confirm verification is fresh enough for the touched scope. Prefer running cheap checks instead of guessing.
    - library behavior or public docs tied to shipped behavior: `mvn test`
    - sample-side evidence: `mvn -pl arachne -am install -DskipTests` then `mvn -f samples/pom.xml test`
-   - marketplace Java services: `mvn -f marketplace-agent-platform/pom.xml test`
-   - marketplace operator console: run `npm ci` and `npm run build` in `marketplace-agent-platform/operator-console`
+   - food-delivery Java services: `mvn -f food-delivery-demo/pom.xml test`
+   - food-delivery customer UI: run `npm ci` and `npm run build` in `food-delivery-demo/customer-ui`
    - workflow/docs only: perform a lightweight path, link, and sync review; if repo-ops changed, confirm snapshot and repo status sync explicitly
 8. Classify the result as exactly one of:
    - `READY_TO_COMMIT`: the diff is one coherent commit unit, but the working tree is not yet clean

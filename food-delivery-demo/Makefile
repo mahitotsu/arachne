@@ -1,7 +1,7 @@
 PROJECT_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 COMPOSE_FILE := $(PROJECT_DIR)compose.yml
 COMPOSE := docker compose -f $(COMPOSE_FILE)
-UI_DIR := $(PROJECT_DIR)operator-console
+UI_DIR := $(PROJECT_DIR)customer-ui
 BEDROCK_MODEL_PROVIDER ?= bedrock
 AWS_EXPORT_CREDENTIALS_CMD = aws configure export-credentials --format env-no-export $(if $(AWS_PROFILE),--profile $(AWS_PROFILE),)
 COMPOSE_PARALLEL_LIMIT ?= 5

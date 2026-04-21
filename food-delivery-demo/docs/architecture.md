@@ -21,7 +21,7 @@ This product track demonstrates a customer-facing delivery app where service bou
   Owns ETA estimation and routing options through `delivery-agent`.
 - `payment-service`
   Owns payment method guidance through `payment-agent`, while the actual charge remains deterministic.
-- `operator-console`
+- `customer-ui`
   Next.js web app that shows the customer chat, current order draft, and the service-to-agent trace.
 
 ## Runtime Story

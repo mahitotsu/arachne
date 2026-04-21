@@ -1,6 +1,6 @@
 ---
 description: "Use when implementing or refactoring Java production code across Arachne modules, marketplace services, and samples. Reinforces bounded exploration, module ownership, and contract-first tracing."
-applyTo: "{arachne,marketplace-agent-platform,samples}/**/src/main/**"
+applyTo: "{arachne,food-delivery-demo,samples}/**/src/main/**"
 ---
 
 # Java Implementation Workflow

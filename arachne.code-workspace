@@ -9,8 +9,8 @@
             "path": "arachne"
         },
         {
-            "name": "marketplace-agent-platform",
-            "path": "marketplace-agent-platform"
+            "name": "food-delivery-demo",
+            "path": "food-delivery-demo"
         },
         {
             "name": "conversation-basics",
@@ -64,12 +64,12 @@
     "settings": {
         "files.exclude": {
             "arachne": true,
-            "marketplace-agent-platform": true,
+            "food-delivery-demo": true,
             "samples": true
         },
         "search.exclude": {
             "arachne": true,
-            "marketplace-agent-platform": true,
+            "food-delivery-demo": true,
             "samples": true
         },
         "java.configuration.updateBuildConfiguration": "automatic",

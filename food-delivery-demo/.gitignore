@@ -1,0 +1,8 @@
+customer-ui/.next/
+customer-ui/coverage/
+customer-ui/.turbo/
+customer-ui/.vercel/
+
+.env
+.env.*
+*.local

@@ -1,8 +1,8 @@
 services:
-  operator-console:
+  customer-ui:
     build:
       context: ..
-      dockerfile: marketplace-agent-platform/operator-console/Dockerfile
+      dockerfile: food-delivery-demo/customer-ui/Dockerfile
       args:
         BACKEND_ORIGIN: http://order-service:8080
     environment:
@@ -24,9 +24,9 @@ services:
   order-service:
     build:
       context: ..
-      dockerfile: marketplace-agent-platform/Dockerfile
+      dockerfile: food-delivery-demo/Dockerfile
       args:
-        MODULE_DIR: marketplace-agent-platform/order-service
+        MODULE_DIR: food-delivery-demo/order-service
         MODULE_ARTIFACT: delivery-order-service
     environment:
       DELIVERY_MODEL_MODE: ${DELIVERY_MODEL_MODE:-deterministic}
@@ -74,9 +74,9 @@ services:
   menu-service:
     build:
       context: ..
-      dockerfile: marketplace-agent-platform/Dockerfile
+      dockerfile: food-delivery-demo/Dockerfile
       args:
-        MODULE_DIR: marketplace-agent-platform/menu-service
+        MODULE_DIR: food-delivery-demo/menu-service
         MODULE_ARTIFACT: delivery-menu-service
     environment:
       DELIVERY_MODEL_MODE: ${DELIVERY_MODEL_MODE:-deterministic}
@@ -101,9 +101,9 @@ services:
   kitchen-service:
     build:
       context: ..
-      dockerfile: marketplace-agent-platform/Dockerfile
+      dockerfile: food-delivery-demo/Dockerfile
       args:
-        MODULE_DIR: marketplace-agent-platform/kitchen-service
+        MODULE_DIR: food-delivery-demo/kitchen-service
         MODULE_ARTIFACT: delivery-kitchen-service
     environment:
       DELIVERY_MODEL_MODE: ${DELIVERY_MODEL_MODE:-deterministic}
@@ -128,9 +128,9 @@ services:
   delivery-service:
     build:
       context: ..
-      dockerfile: marketplace-agent-platform/Dockerfile
+      dockerfile: food-delivery-demo/Dockerfile
       args:
-        MODULE_DIR: marketplace-agent-platform/delivery-service
+        MODULE_DIR: food-delivery-demo/delivery-service
         MODULE_ARTIFACT: delivery-routing-service
     environment:
       DELIVERY_MODEL_MODE: ${DELIVERY_MODEL_MODE:-deterministic}
@@ -155,9 +155,9 @@ services:
   payment-service:
     build:
       context: ..
-      dockerfile: marketplace-agent-platform/Dockerfile
+      dockerfile: food-delivery-demo/Dockerfile
       args:
-        MODULE_DIR: marketplace-agent-platform/payment-service
+        MODULE_DIR: food-delivery-demo/payment-service
         MODULE_ARTIFACT: delivery-payment-service
     environment:
       DELIVERY_MODEL_MODE: ${DELIVERY_MODEL_MODE:-deterministic}

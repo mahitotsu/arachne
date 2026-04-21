@@ -7,7 +7,7 @@ agent: "agent"
 
 Use the current conversation, workspace state, git state, and available hook output to carry the current change through verification and commit or push.
 
-This prompt is suitable for Arachne library work, samples, marketplace services, operator-console, docs, and workflow changes.
+This prompt is suitable for Arachne library work, samples, food-delivery services, customer-ui, docs, and workflow changes.
 
 Follow this procedure strictly.
 
@@ -18,8 +18,8 @@ Follow this procedure strictly.
 5. Run the smallest fresh verification that matches the changed area.
    - Arachne library or docs tied to shipped behavior: `mvn test`
    - sample wiring or sample behavior: `mvn -pl arachne -am install -DskipTests` then `mvn -f samples/pom.xml test`
-   - marketplace Java services: `mvn -f marketplace-agent-platform/pom.xml test`
-   - marketplace operator console: in `marketplace-agent-platform/operator-console`, run `npm ci` then `npm run build`
+   - food-delivery Java services: `mvn -f food-delivery-demo/pom.xml test`
+   - food-delivery customer UI: in `food-delivery-demo/customer-ui`, run `npm ci` then `npm run build`
    - docs or workflow only: perform a lightweight sync review; if `.github/repository-ops/` changed, confirm snapshot and repo status synchronization explicitly
 6. If local hooks or verification fail, identify the failing surface and apply only the minimum in-scope fix. Do not widen into new product work.
 7. Choose a concise commit message based on the actual diff unless the user gave one.
@@ -33,7 +33,7 @@ Answer in this format:
 
 ```text
 Scope:
-- Primary area: <core-runtime | tools | sessions | extensions | bedrock | samples | marketplace-java | operator-console | docs | workflow | mixed | unconfirmed>
+- Primary area: <core-runtime | tools | sessions | extensions | bedrock | samples | food-delivery-java | customer-ui | docs | workflow | mixed | unconfirmed>
 - Changed files summary: <one sentence>
 Verification:
 - <command/result 1>

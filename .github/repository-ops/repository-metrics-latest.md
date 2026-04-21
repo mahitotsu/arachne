@@ -9,7 +9,7 @@ This file is the latest summarized evaluation, not the source report.
 ## Scope
 
 - `arachne/` library module only
-- `samples/` and `marketplace-agent-platform/` not evaluated in this snapshot
+- `samples/` and `food-delivery-demo/` not evaluated in this snapshot
 
 ## Freshness
 

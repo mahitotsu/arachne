@@ -6,7 +6,7 @@ Repository layout note:
 
 - the repository root `pom.xml` is a reactor only
 - the published library module lives under `../arachne/`
-- the independent `marketplace-agent-platform/` product track lives at the repository root and is not part of the runnable sample catalog
+- the independent `food-delivery-demo/` product track lives at the repository root and is not part of the runnable sample catalog
 - runnable sample applications live under `../samples/`
 
 ## Start Here

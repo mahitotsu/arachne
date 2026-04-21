@@ -147,7 +147,7 @@ Read the snapshot first. Use this file only when you need deeper entry points, a
 - Main test or sample entry points:
   - `arachne/src/test/java/com/mahitotsu/arachne/strands/model`
   - `samples/domain-separation/README.md`
-  - `marketplace-agent-platform/BEDROCK-DEMO-REPORT.md`
+  - `food-delivery-demo/BEDROCK-DEMO-REPORT.md`
 - Instruction binding:
   - production code: `.github/instructions/java-implementation.instructions.md`
   - test code: `.github/instructions/java-tests.instructions.md`
@@ -163,34 +163,34 @@ Read the snapshot first. Use this file only when you need deeper entry points, a
 
 ## Samples And Product Track
 
-- Status: `samples/` is the canonical runnable library surface, while `marketplace-agent-platform/` is an independent composed product track.
-- Work type: sample wiring, README guidance, product-track Java services, operator-console, and cross-module verification.
+- Status: `samples/` is the canonical runnable library surface, while `food-delivery-demo/` is an independent composed product track.
+- Work type: sample wiring, README guidance, product-track Java services, customer-ui, and cross-module verification.
 - Canonical docs:
   - `samples/README.md`
   - `arachne/docs/project-status.md`
   - `arachne/docs/repository-facts.md`
-  - `marketplace-agent-platform/README.md`
+  - `food-delivery-demo/README.md`
 - Main implementation entry points:
   - `samples/*/README.md`
-  - `marketplace-agent-platform/pom.xml`
-  - `marketplace-agent-platform/operator-console/package.json`
-  - nearest `marketplace-agent-platform/docs/*.md` file for the touched area
+  - `food-delivery-demo/pom.xml`
+  - `food-delivery-demo/customer-ui/package.json`
+  - nearest `food-delivery-demo/docs/*.md` file for the touched area
 - Main test or sample entry points:
   - `samples/conversation-basics/README.md`
   - `samples/domain-separation/README.md`
-  - `marketplace-agent-platform/operator-console/README.md`
+  - `food-delivery-demo/customer-ui/README.md`
 - Instruction binding:
   - Java code: `.github/instructions/java-implementation.instructions.md` or `.github/instructions/java-tests.instructions.md`
-  - TypeScript operator console: `.github/instructions/typescript-operator-console.instructions.md`
+  - TypeScript customer UI: `.github/instructions/typescript-customer-ui.instructions.md`
 - Bounded read set:
-  - `samples/README.md` or `marketplace-agent-platform/README.md`, depending on the surface
+  - `samples/README.md` or `food-delivery-demo/README.md`, depending on the surface
   - one nearest README for the touched module
   - one nearest `pom.xml` or `package.json`
   - `arachne/docs/project-status.md` when the shipped sample map may change
 - Verification:
   - samples: `mvn -pl arachne -am install -DskipTests` then `mvn -f samples/pom.xml test`
-  - marketplace Java: `mvn -f marketplace-agent-platform/pom.xml test`
-  - operator console: in `marketplace-agent-platform/operator-console`, run `npm ci` and `npm run build`
+  - food-delivery Java: `mvn -f food-delivery-demo/pom.xml test`
+  - customer UI: in `food-delivery-demo/customer-ui`, run `npm ci` and `npm run build`
 
 ## Repository Workflow
 

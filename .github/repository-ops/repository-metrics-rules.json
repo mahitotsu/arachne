@@ -78,12 +78,12 @@
       "source": "samples/**/README.md"
     },
     {
-      "id": "operator_console_ts_file_count",
-      "label": "Operator console TypeScript source-file count",
+      "id": "customer_ui_ts_file_count",
+      "label": "Customer UI TypeScript source-file count",
       "category": "size",
       "evaluation": "report-only",
       "scope": "optional",
-      "source": "marketplace-agent-platform/operator-console/src"
+      "source": "food-delivery-demo/customer-ui/src"
     }
   ]
 }

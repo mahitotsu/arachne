@@ -12,4 +12,4 @@ applyTo: "{.github/repository-ops/**,.github/copilot-instructions.md,.github/pro
 - Keep `repository-structure-health.md` and `repository-structure-health-rules.json` aligned. Do not update thresholds without also updating the policy wording when the intent changed.
 - Keep `repository-metrics.md` and `repository-metrics-rules.json` aligned. Do not tighten thresholds without checking current branch values or explaining the policy reason.
 - Prefer the smallest set of repo areas that lets the next worker start cleanly. Do not turn the snapshot or reading guide into a second user guide.
-- If marketplace `operator-console` entry points or verification commands change, update the reading guide and any TypeScript-scoped instructions in the same turn.
+- If food-delivery `customer-ui` entry points or verification commands change, update the reading guide and any TypeScript-scoped instructions in the same turn.

@@ -26,7 +26,7 @@ The persisted summarized evaluation lives in `repository-metrics-latest.md`.
 
 - Prefer metrics that map to a maintenance action. Do not collect vanity metrics that do not change decisions.
 - Separate `thresholded health metrics` from `report-only context metrics`.
-- Keep the default scope on the `arachne/` library module unless the user explicitly asks for `samples/` or `marketplace-agent-platform/`.
+- Keep the default scope on the `arachne/` library module unless the user explicitly asks for `samples/` or `food-delivery-demo/`.
 - Treat missing or stale reports as `unconfirmed`, not as zero.
 - Do not turn one point-in-time measurement into synthetic trend analysis. If historical comparison matters, record it deliberately elsewhere.
 - Persist the latest evaluated summary in `repository-metrics-latest.md`, but keep raw report ownership in `arachne/target/`.
@@ -47,7 +47,7 @@ The persisted summarized evaluation lives in `repository-metrics-latest.md`.
 - `arachne/src/main/java` file count
 - `arachne/src/test/java` file count
 - optional sample README count when sample scope is requested
-- optional operator-console TypeScript source-file count when marketplace scope is requested
+- optional customer-ui TypeScript source-file count when food-delivery scope is requested
 
 ## Freshness Rules
 

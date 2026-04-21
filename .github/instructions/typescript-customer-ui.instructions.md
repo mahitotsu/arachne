@@ -1,11 +1,11 @@
 ---
-description: "Use when working in the marketplace operator-console Next.js + TypeScript app."
-applyTo: "marketplace-agent-platform/operator-console/**"
+description: "Use when working in the food-delivery customer-ui Next.js + TypeScript app."
+applyTo: "food-delivery-demo/customer-ui/**"
 ---
 
-# Operator Console Workflow
+# Customer UI Workflow
 
-- Treat `marketplace-agent-platform/operator-console` as a thin `Next.js + TypeScript` frontend over the food-delivery product-track APIs.
+- Treat `food-delivery-demo/customer-ui` as a thin `Next.js + TypeScript` frontend over the food-delivery product-track APIs.
 - Use `npm ci` and `npm run build` as the default verification commands. Keep `npm run dev` and the README run path aligned when tooling changes.
 - Preserve the same-origin backend proxy shape unless the task explicitly changes the contract and updates the README in the same turn.
 - Keep the console thin and contract-driven. Do not move workflow or business-state ownership out of the backend services.

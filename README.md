@@ -25,7 +25,7 @@ Treat [arachne/docs/project-status.md](arachne/docs/project-status.md) as the ca
 
 - `pom.xml`: root Maven reactor for the repository
 - `arachne/`: main library module published as `com.mahitotsu.arachne:arachne`
-- `marketplace-agent-platform/`: independent multi-module food-delivery product track showing Spring microservices with service-local Arachne agents and a Next.js chat UI
+- `food-delivery-demo/`: independent multi-module food-delivery product track showing Spring microservices with service-local Arachne agents and a Next.js chat UI
 - `samples/`: runnable sample reactor and sample applications
 - `arachne/docs/`: library and architecture documentation for the published Arachne module
 

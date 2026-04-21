@@ -10,7 +10,7 @@ Use `repository-reading-guide.md` only when you need a deeper entry-point map.
 
 - `arachne/` is the main library module. It currently ships Spring Boot auto-configuration, `AgentFactory`, Bedrock-backed `Model` integration, tools and structured output, sessions, hooks and plugins, interrupts and resume, packaged skills, callback streaming, and steering.
 - `samples/` is the runnable sample catalog for the shipped library surface. Sample-side verification requires refreshing the local `arachne` snapshot first.
-- `marketplace-agent-platform/` is an independent multi-module food-delivery product track with Spring services and a thin Next.js operator console. It is not part of the runnable sample catalog.
+- `food-delivery-demo/` is an independent multi-module food-delivery product track with Spring services and a thin Next.js customer UI. It is not part of the runnable sample catalog.
 - `refs/sdk-python/` remains behavioral reference material only.
 - `.github/` now uses a single repo-ops workflow layer: `repository-ops`, `repo-snapshot`, `repository-structure-health`, `repository-metrics`, `close-action`, `locality-check`, `ship-changes`, and `session-handoff`.
 
