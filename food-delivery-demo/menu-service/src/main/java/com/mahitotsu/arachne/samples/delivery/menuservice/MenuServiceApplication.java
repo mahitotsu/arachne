@@ -76,7 +76,15 @@ class MenuApplicationService {
     MenuSuggestionResponse suggest(MenuSuggestionRequest request) {
         List<MenuItem> items = repository.search(request.message());
         String summary = agentFactory.builder()
-                .systemPrompt("You are the menu-agent for a fast-food delivery app. Briefly explain the best menu matches.")
+                .systemPrompt("""
+                        You are the menu-agent for a fast-food delivery app.
+
+                        Use the available skills to tailor your response to the customer's situation:
+                        - Activate family-order-guide when the customer mentions multiple people, children, or family.
+                        - Activate proactive-recommendation when the customer is browsing without a specific item in mind.
+
+                        After activating the relevant skill, call menu_catalog_lookup to find matching items, \
+                        then explain the best matches following the skill's instructions.""")
                 .tools(menuLookupTool)
                 .build()
                 .run("query=" + request.message())
@@ -232,17 +240,53 @@ class MenuArachneConfiguration {
         }
 
         @Override
-        public Iterable<ModelEvent> converse(List<Message> messages, List<ToolSpec> tools, String systemPrompt, ToolSelection toolSelection) {
+        public Iterable<ModelEvent> converse(
+                List<Message> messages,
+                List<ToolSpec> tools,
+                String systemPrompt,
+                ToolSelection toolSelection) {
+            String userText = latestUserText(messages);
+            boolean isFamilyQuery = isFamilyQuery(userText);
+
+            if (isFamilyQuery && !hasSkillActivation(messages)) {
+                return List.of(
+                        new ModelEvent.ToolUse("skill-family", "activate_skill", Map.of("name", "family-order-guide")),
+                        new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
+            }
+
             Map<String, Object> toolContent = latestToolContent(messages, "menu-lookup");
             if (toolContent == null) {
                 return List.of(
-                        new ModelEvent.ToolUse("menu-lookup", "menu_catalog_lookup", Map.of("query", latestUserText(messages))),
+                        new ModelEvent.ToolUse("menu-lookup", "menu_catalog_lookup", Map.of("query", userText)),
                         new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
             }
+
+            String prefix = isFamilyQuery ? "[family-order-guide] " : "";
             return List.of(
-                    new ModelEvent.TextDelta("menu-agent recommends " + toolContent.getOrDefault("matchSummary", "today's top combos")
+                    new ModelEvent.TextDelta(prefix + "menu-agent recommends " + toolContent.getOrDefault("matchSummary", "today's top combos")
                             + ". It keeps the order lightweight and easy to confirm in chat."),
                     new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
+        }
+
+        private boolean isFamilyQuery(String text) {
+            if (text == null) {
+                return false;
+            }
+            return text.contains("子ども") || text.contains("家族") || text.contains("kids")
+                    || text.contains("2人") || text.contains("3人") || text.contains("4人");
+        }
+
+        private boolean hasSkillActivation(List<Message> messages) {
+            for (Message message : messages) {
+                for (ContentBlock block : message.content()) {
+                    if (block instanceof ContentBlock.ToolResult toolResult
+                            && toolResult.content() instanceof Map<?, ?> content
+                            && "skill_activation".equals(content.get("type"))) {
+                        return true;
+                    }
+                }
+            }
+            return false;
         }
 
         private Map<String, Object> latestToolContent(List<Message> messages, String toolUseId) {
