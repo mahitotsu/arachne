@@ -38,7 +38,7 @@ class OrderApplicationServiceTest {
             Locale.setDefault(Locale.JAPANESE);
 
             AgentFactory.Builder builder = mockBuilder();
-            serviceWith(builder).chat(new ChatRequest(null, "何か食べたい"));
+            serviceWith(builder).chat(new ChatRequest(null, "何か食べたい", null));
 
             ArgumentCaptor<String> promptCaptor = ArgumentCaptor.forClass(String.class);
             verify(builder).systemPrompt(promptCaptor.capture());
@@ -58,7 +58,7 @@ class OrderApplicationServiceTest {
             Locale.setDefault(Locale.ENGLISH);
 
             AgentFactory.Builder builder = mockBuilder();
-            serviceWith(builder).chat(new ChatRequest(null, "I want food"));
+            serviceWith(builder).chat(new ChatRequest(null, "I want food", null));
 
             ArgumentCaptor<String> promptCaptor = ArgumentCaptor.forClass(String.class);
             verify(builder).systemPrompt(promptCaptor.capture());
@@ -80,7 +80,7 @@ class OrderApplicationServiceTest {
             String expected = Locale.FRENCH.getDisplayLanguage(Locale.ENGLISH); // "French"
 
             AgentFactory.Builder builder = mockBuilder();
-            serviceWith(builder).chat(new ChatRequest(null, "Je veux manger"));
+            serviceWith(builder).chat(new ChatRequest(null, "Je veux manger", null));
 
             ArgumentCaptor<String> promptCaptor = ArgumentCaptor.forClass(String.class);
             verify(builder).systemPrompt(promptCaptor.capture());
@@ -98,7 +98,7 @@ class OrderApplicationServiceTest {
     @Test
     void systemPromptRequiresExplicitConfirmationBeforeAddingItemsToDraft() {
         AgentFactory.Builder builder = mockBuilder();
-        serviceWith(builder).chat(new ChatRequest(null, "おすすめは？"));
+        serviceWith(builder).chat(new ChatRequest(null, "おすすめは？", null));
 
         ArgumentCaptor<String> promptCaptor = ArgumentCaptor.forClass(String.class);
         verify(builder).systemPrompt(promptCaptor.capture());
@@ -118,7 +118,7 @@ class OrderApplicationServiceTest {
     void chatExposesProposalSkillRoutingForRecommendationRequests() {
         AgentFactory.Builder builder = mockBuilder();
 
-        ChatResponse response = serviceWith(builder).chat(new ChatRequest(null, "子ども向けのおすすめを見せて"));
+        ChatResponse response = serviceWith(builder).chat(new ChatRequest(null, "子ども向けのおすすめを見せて", null));
 
         assertThat(response.routing()).isNotNull();
         assertThat(response.routing().intent()).isEqualTo("menu-discovery");
@@ -130,6 +130,112 @@ class OrderApplicationServiceTest {
                     assertThat(trace.service()).isEqualTo("order-service");
                     assertThat(trace.routing()).isEqualTo(response.routing());
                 });
+    }
+
+    @Test
+    void requestLocaleOverridesJvmDefaultLanguageToken() {
+        Locale saved = Locale.getDefault();
+        try {
+            Locale.setDefault(Locale.ENGLISH);
+
+            AgentFactory.Builder builder = mockBuilder();
+            serviceWith(builder).chat(new ChatRequest(null, "何か食べたい", "ja-JP"));
+
+            ArgumentCaptor<String> promptCaptor = ArgumentCaptor.forClass(String.class);
+            verify(builder).systemPrompt(promptCaptor.capture());
+            assertThat(promptCaptor.getValue()).contains("Reply in Japanese by default");
+        } finally {
+            Locale.setDefault(saved);
+        }
+    }
+
+    @Test
+    void positivePendingProposalChoiceAddsItemsToDraftWithoutAgentRun() {
+        OrderSessionStore sessionStore = mock(OrderSessionStore.class);
+        AgentFactory agentFactory = mock(AgentFactory.class);
+        Tool recentOrderLookupTool = mock(Tool.class);
+        DeliveryGateway deliveryGateway = mock(DeliveryGateway.class);
+
+        OrderChatSession existingSession = new OrderChatSession(
+                "session-1234",
+                List.of(new ConversationMessage("assistant", "おすすめです")),
+                new OrderDraft("EMPTY", List.of(), java.math.BigDecimal.ZERO, java.math.BigDecimal.ZERO, "", "PENDING", "", ""),
+                new PendingProposal(
+                        List.of(new OrderLineItem("Curly Fries", 1, new java.math.BigDecimal("330.00"), "kitchen ready")),
+                "おすすめです"),
+            null);
+        when(sessionStore.load("session-1234")).thenReturn(Optional.of(existingSession));
+                when(deliveryGateway.quote(any())).thenReturn(new DeliveryQuoteResponse(
+                    "delivery-service",
+                    "delivery-agent",
+                    "delivery-agent prioritised the express lane",
+                    "delivery-agent prepared an express route.",
+                    List.of(
+                        new DeliveryOptionView("express", "In-house Express", 18, new java.math.BigDecimal("300.00")),
+                        new DeliveryOptionView("standard", "Partner Standard", 27, new java.math.BigDecimal("180.00")))));
+
+        OrderApplicationService service = new OrderApplicationService(
+                    sessionStore, null, null, null, deliveryGateway, null, agentFactory, recentOrderLookupTool);
+
+        ChatResponse response = service.chat(new ChatRequest("session-1234", "これを追加", "ja-JP"));
+
+        assertThat(response.draft().status()).isEqualTo("DRAFT_READY");
+        assertThat(response.draft().items())
+                .singleElement()
+                .satisfies(item -> {
+                    assertThat(item.name()).isEqualTo("Curly Fries");
+                    assertThat(item.quantity()).isEqualTo(1);
+                });
+        assertThat(response.routing().intent()).isEqualTo("draft-confirmation");
+        assertThat(response.assistantMessage()).contains("配送候補を確認しました").contains("In-house Express");
+        assertThat(response.choices()).containsExactly(
+                "In-house Express (18分・¥300)",
+                "Partner Standard (27分・¥180)");
+        verify(sessionStore).save(any(OrderChatSession.class));
+    }
+
+        @Test
+        void proposalConfirmationChoiceAddsItemsToDraftWithoutRestartingProposalFlow() {
+        OrderSessionStore sessionStore = mock(OrderSessionStore.class);
+        AgentFactory agentFactory = mock(AgentFactory.class);
+        Tool recentOrderLookupTool = mock(Tool.class);
+        DeliveryGateway deliveryGateway = mock(DeliveryGateway.class);
+
+        OrderChatSession existingSession = new OrderChatSession(
+            "session-5678",
+            List.of(new ConversationMessage("assistant", "おすすめです")),
+            new OrderDraft("EMPTY", List.of(), java.math.BigDecimal.ZERO, java.math.BigDecimal.ZERO, "", "PENDING", "", ""),
+            new PendingProposal(
+                List.of(new OrderLineItem("Crispy Chicken Box", 1, new java.math.BigDecimal("980.00"), "kitchen ready")),
+                "おすすめです"),
+            null);
+        when(sessionStore.load("session-5678")).thenReturn(Optional.of(existingSession));
+        when(deliveryGateway.quote(any())).thenReturn(new DeliveryQuoteResponse(
+                "delivery-service",
+                "delivery-agent",
+                "delivery-agent prioritised the express lane",
+                "delivery-agent prepared an express route.",
+                List.of(
+                        new DeliveryOptionView("express", "In-house Express", 18, new java.math.BigDecimal("300.00")),
+                        new DeliveryOptionView("standard", "Partner Standard", 27, new java.math.BigDecimal("180.00")))));
+
+        OrderApplicationService service = new OrderApplicationService(
+            sessionStore, null, null, null, deliveryGateway, null, agentFactory, recentOrderLookupTool);
+
+        ChatResponse response = service.chat(new ChatRequest("session-5678", "はい、この内容で注文します", "ja-JP"));
+
+        assertThat(response.routing()).isNotNull();
+        assertThat(response.routing().intent()).isEqualTo("draft-confirmation");
+        assertThat(response.routing().entryStep()).isEqualTo("delivery-quote");
+        assertThat(response.draft().status()).isEqualTo("DRAFT_READY");
+        assertThat(response.draft().items())
+            .singleElement()
+            .satisfies(item -> assertThat(item.name()).isEqualTo("Crispy Chicken Box"));
+        assertThat(response.assistantMessage()).contains("配送候補を確認しました").contains("Partner Standard");
+        assertThat(response.choices()).containsExactly(
+                "In-house Express (18分・¥300)",
+                "Partner Standard (27分・¥180)");
+        verify(sessionStore).save(any(OrderChatSession.class));
     }
 
     // -------------------------------------------------------------------------

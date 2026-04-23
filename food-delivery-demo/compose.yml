@@ -12,6 +12,14 @@ services:
     depends_on:
       order-service:
         condition: service_healthy
+      menu-service:
+        condition: service_healthy
+      kitchen-service:
+        condition: service_healthy
+      delivery-service:
+        condition: service_healthy
+      payment-service:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000 || exit 1"]
       interval: 2s
@@ -50,14 +58,6 @@ services:
       SPRING_DATA_REDIS_PORT: 6379
       DELIVERY_ORDER_SESSION_STORE: redis
     depends_on:
-      menu-service:
-        condition: service_healthy
-      kitchen-service:
-        condition: service_healthy
-      delivery-service:
-        condition: service_healthy
-      payment-service:
-        condition: service_healthy
       postgres:
         condition: service_healthy
       redis:

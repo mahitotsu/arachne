@@ -146,9 +146,14 @@ class OrderApplicationService {
                 ? "session-" + UUID.randomUUID().toString().substring(0, 8)
                 : request.sessionId();
         OrderChatSession existingSession = sessionStore.load(sessionId).orElse(emptySession(sessionId));
+        if (acceptsPendingProposal(request.message(), existingSession.pendingProposal())) {
+            return applyPendingProposal(sessionId, request, existingSession);
+        }
         RoutingDecision routingDecision = routeRequest(request.message(), existingSession);
         ArrayList<ConversationMessage> conversation = new ArrayList<>(existingSession.conversation());
         conversation.add(new ConversationMessage("user", request.message()));
+        PendingProposal pendingProposal = rejectsPendingProposal(request.message()) ? null : existingSession.pendingProposal();
+        PendingDeliverySelection pendingDeliverySelection = existingSession.pendingDeliverySelection();
 
         List<ServiceTrace> serviceTraces = Collections.synchronizedList(new ArrayList<>());
         AtomicReference<MenuSuggestionResponse> capturedMenuResponse = new AtomicReference<>(null);
@@ -164,8 +169,16 @@ class OrderApplicationService {
         Tool kitchenTool = buildKitchenTool(sessionId, capturedMenuItems, capturedLineItems, capturedKitchenResponse,
             serviceTraces);
         Tool deliveryTool = buildDeliveryTool(sessionId, capturedDeliveryResponse, capturedDeliveryOptions, serviceTraces);
-        Tool paymentTool = buildPaymentTool(sessionId, capturedLineItems, capturedDeliveryOptions,
-                capturedSelectedDelivery, capturedPaymentResponse, serviceTraces);
+        Tool paymentTool = buildPaymentTool(
+            sessionId,
+            request.message(),
+            existingSession.draft().items(),
+            pendingDeliverySelection == null ? List.of() : pendingDeliverySelection.options(),
+            capturedLineItems,
+            capturedDeliveryOptions,
+            capturedSelectedDelivery,
+            capturedPaymentResponse,
+            serviceTraces);
 
         String draftContext = existingSession.draft().items().isEmpty() ? ""
                 : "\n\nCurrent draft order: " + existingSession.draft().items().stream()
@@ -235,7 +248,7 @@ class OrderApplicationService {
                         [CHOICES: "Option A", "Option B", "Option C"]
 
                         DIRECT ANSWERS: For questions unrelated to ordering, answer directly without calling any tool.
-                        """.formatted(defaultLanguage))
+                        """.formatted(resolveRequestLanguage(request.locale())))
                 .tools(menuTool, kitchenTool, deliveryTool, paymentTool, recentOrderLookupTool)
                 .build()
                 .run(request.message() + draftContext)
@@ -299,7 +312,8 @@ class OrderApplicationService {
                 displayMessage,
                 capturedMenuResponse.get(),
                 capturedKitchenResponse.get(),
-                capturedMenuItems.get());
+                capturedMenuItems.get(),
+                request.message());
         } else if (paymentResponse != null) {
             displayMessage = mergePaymentResponse(
                     displayMessage,
@@ -316,7 +330,25 @@ class OrderApplicationService {
         }
 
         conversation.add(new ConversationMessage("assistant", displayMessage));
-        OrderChatSession updated = new OrderChatSession(sessionId, List.copyOf(conversation), draft);
+        if (shouldPersistPendingProposal(capturedKitchenResponse.get(), capturedLineItems.get(),
+                capturedDeliveryOptions.get(), paymentResponse)) {
+            pendingProposal = new PendingProposal(List.copyOf(capturedLineItems.get()), displayMessage);
+        } else if (!capturedDeliveryOptions.get().isEmpty() || paymentResponse != null) {
+            pendingProposal = null;
+        }
+
+        if (!capturedDeliveryOptions.get().isEmpty()) {
+            pendingDeliverySelection = new PendingDeliverySelection(List.copyOf(capturedDeliveryOptions.get()));
+        } else if (capturedKitchenResponse.get() != null || paymentResponse != null) {
+            pendingDeliverySelection = null;
+        }
+
+        OrderChatSession updated = new OrderChatSession(
+                sessionId,
+                List.copyOf(conversation),
+                draft,
+                pendingProposal,
+                pendingDeliverySelection);
         sessionStore.save(updated);
 
         serviceTraces.add(new ServiceTrace(
@@ -343,6 +375,79 @@ class OrderApplicationService {
             contextualSuggestions(session), List.of());
     }
 
+    private ChatResponse applyPendingProposal(String sessionId, ChatRequest request, OrderChatSession existingSession) {
+        PendingProposal pendingProposal = existingSession.pendingProposal();
+        ArrayList<ConversationMessage> conversation = new ArrayList<>(existingSession.conversation());
+        conversation.add(new ConversationMessage("user", request.message()));
+
+        List<OrderLineItem> mergedItems = mergeLineItems(existingSession.draft().items(), pendingProposal.lineItems());
+        DeliveryQuoteResponse deliveryResponse = deliveryGateway.quote(new DeliveryQuoteRequest(
+                sessionId,
+                request.message(),
+                mergedItems.stream().map(OrderLineItem::name).toList()));
+        List<DeliveryOptionView> deliveryOptions = deliveryResponse.options() == null
+                ? List.of()
+                : deliveryResponse.options();
+        DeliveryOptionView selectedDelivery = deliveryOptions.isEmpty()
+                ? new DeliveryOptionView("standard", "Partner Standard", 27, new BigDecimal("180.00"))
+                : deliveryOptions.get(0);
+        BigDecimal subtotal = subtotal(mergedItems);
+        OrderDraft draft = new OrderDraft(
+            "DRAFT_READY",
+            mergedItems,
+            subtotal,
+            subtotal.add(selectedDelivery.fee()).setScale(2, RoundingMode.HALF_UP),
+            selectedDelivery.etaMinutes() + " min via " + selectedDelivery.label(),
+            existingSession.draft().paymentStatus(),
+            existingSession.draft().paymentMethod(),
+            existingSession.draft().orderId());
+
+        boolean japanese = looksJapanese(firstNonBlank(request.message(), pendingProposal.displayMessage(), request.locale()));
+        String acceptedLine = japanese
+            ? "おすすめの内容を下書きに追加し、配送候補を確認しました。"
+            : "I added the recommended items to your draft and checked the available delivery lanes.";
+        String assistantMessage = String.join("\n\n",
+                acceptedLine,
+                mergeDeliveryResponse("", deliveryResponse, request.message()));
+        conversation.add(new ConversationMessage("assistant", assistantMessage));
+
+        RoutingDecision routingDecision = new RoutingDecision(
+            "draft-confirmation",
+            "order-skill",
+            "delivery-quote",
+            "The customer explicitly accepted the pending recommendation, so the draft advanced directly to delivery quoting.");
+        List<ServiceTrace> trace = List.of(
+            new ServiceTrace(
+                deliveryResponse.service(),
+                deliveryResponse.agent(),
+                deliveryResponse.headline(),
+                deliveryResponse.summary(),
+                null),
+            new ServiceTrace(
+                "order-service",
+                "order-agent",
+                "order-agent advanced the accepted proposal to delivery quoting",
+                assistantMessage,
+                routingDecision));
+
+        OrderChatSession updated = new OrderChatSession(
+            sessionId,
+            List.copyOf(conversation),
+            draft,
+            null,
+            new PendingDeliverySelection(List.copyOf(deliveryOptions)));
+        sessionStore.save(updated);
+        return new ChatResponse(
+            sessionId,
+            updated.conversation(),
+            assistantMessage,
+            draft,
+            trace,
+            routingDecision,
+            contextualSuggestions(updated),
+                deliveryChoiceLabels(deliveryOptions, japanese));
+            }
+
     private List<OrderLineItem> buildLineItems(List<MenuItemView> menuItems, List<KitchenItemStatusView> statuses) {
         Map<String, KitchenItemStatusView> statusByItemId = statuses.stream()
                 .collect(LinkedHashMap::new, (map, status) -> map.put(status.itemId(), status), Map::putAll);
@@ -367,9 +472,24 @@ class OrderApplicationService {
         return List.of(new OrderLineItem("Crispy Chicken Box", 1, new BigDecimal("980.00"), "fallback draft"));
     }
 
-    private DeliveryOptionView selectDeliveryOption(List<DeliveryOptionView> options, boolean fastestDelivery) {
+    private DeliveryOptionView selectDeliveryOption(List<DeliveryOptionView> options, boolean fastestDelivery, String customerMessage) {
         if (options == null || options.isEmpty()) {
             return new DeliveryOptionView("standard", "Partner Standard", 27, new BigDecimal("180.00"));
+        }
+        String normalized = normalize(customerMessage);
+        if (normalized.contains("standard") || normalized.contains("partner") || normalized.contains("スタンダード")) {
+            return options.stream()
+                    .filter(option -> "standard".equals(option.code()))
+                    .findFirst()
+                    .orElse(options.get(0));
+        }
+        if (normalized.contains("express") || normalized.contains("エクスプレス") || fastestDelivery) {
+            return options.stream()
+                    .filter(option -> "express".equals(option.code()))
+                    .findFirst()
+                    .orElseGet(() -> options.stream()
+                            .min((left, right) -> Integer.compare(left.etaMinutes(), right.etaMinutes()))
+                            .orElse(options.get(0)));
         }
         if (!fastestDelivery) {
             return options.get(0);
@@ -384,6 +504,48 @@ class OrderApplicationService {
                 .map(item -> item.unitPrice().multiply(BigDecimal.valueOf(item.quantity())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add)
                 .setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private List<OrderLineItem> mergeLineItems(List<OrderLineItem> existingItems, List<OrderLineItem> pendingItems) {
+        LinkedHashMap<String, OrderLineItem> merged = new LinkedHashMap<>();
+        existingItems.forEach(item -> merged.put(item.name(), item));
+        for (OrderLineItem pendingItem : pendingItems) {
+            OrderLineItem current = merged.get(pendingItem.name());
+            if (current == null) {
+                merged.put(pendingItem.name(), pendingItem);
+                continue;
+            }
+            merged.put(pendingItem.name(), new OrderLineItem(
+                    current.name(),
+                    current.quantity() + pendingItem.quantity(),
+                    current.unitPrice(),
+                    current.note()));
+        }
+        return List.copyOf(merged.values());
+    }
+
+    private boolean shouldPersistPendingProposal(
+            KitchenCheckResponse kitchenResponse,
+            List<OrderLineItem> lineItems,
+            List<DeliveryOptionView> deliveryOptions,
+            PaymentPrepareResponse paymentResponse) {
+        return kitchenResponse != null
+                && lineItems != null
+                && !lineItems.isEmpty()
+                && (deliveryOptions == null || deliveryOptions.isEmpty())
+                && paymentResponse == null;
+    }
+
+    private String resolveRequestLanguage(String localeTag) {
+        if (localeTag == null || localeTag.isBlank()) {
+            return defaultLanguage;
+        }
+        Locale locale = Locale.forLanguageTag(localeTag.replace('_', '-'));
+        String displayLanguage = locale.getDisplayLanguage(Locale.ENGLISH);
+        if (displayLanguage == null || displayLanguage.isBlank()) {
+            return defaultLanguage;
+        }
+        return displayLanguage;
     }
 
         private Tool buildMenuTool(String sessionId,
@@ -525,7 +687,10 @@ class OrderApplicationService {
         };
     }
 
-    private Tool buildPaymentTool(String sessionId,
+        private Tool buildPaymentTool(String sessionId,
+            String customerMessage,
+            List<OrderLineItem> existingDraftItems,
+            List<DeliveryOptionView> existingDeliveryOptions,
             AtomicReference<List<OrderLineItem>> capturedLineItems,
             AtomicReference<List<DeliveryOptionView>> capturedDeliveryOptions,
             AtomicReference<DeliveryOptionView> capturedSelectedDelivery,
@@ -557,9 +722,13 @@ class OrderApplicationService {
                 Map<String, Object> args = inputMap(input);
                 boolean confirmRequested = Boolean.parseBoolean(String.valueOf(args.getOrDefault("confirmRequested", "false")));
                 boolean fastestDelivery = Boolean.parseBoolean(String.valueOf(args.getOrDefault("fastestDelivery", "false")));
-                DeliveryOptionView selected = selectDeliveryOption(capturedDeliveryOptions.get(), fastestDelivery);
+                List<DeliveryOptionView> availableOptions = capturedDeliveryOptions.get().isEmpty()
+                        ? existingDeliveryOptions
+                        : capturedDeliveryOptions.get();
+                DeliveryOptionView selected = selectDeliveryOption(availableOptions, fastestDelivery, customerMessage);
                 capturedSelectedDelivery.set(selected);
-                BigDecimal itemsSubtotal = subtotal(capturedLineItems.get());
+                List<OrderLineItem> items = capturedLineItems.get().isEmpty() ? existingDraftItems : capturedLineItems.get();
+                BigDecimal itemsSubtotal = subtotal(items);
                 BigDecimal total = itemsSubtotal.add(selected.fee()).setScale(2, RoundingMode.HALF_UP);
                 PaymentPrepareResponse response = paymentGateway.prepare(
                         new PaymentPrepareRequest(sessionId, "", total, confirmRequested));
@@ -669,6 +838,21 @@ class OrderApplicationService {
                 "この内容", "これで", "注文確定", "確定", "confirm", "place the order", "注文して");
     }
 
+    private boolean acceptsPendingProposal(String message, PendingProposal pendingProposal) {
+        if (pendingProposal == null || pendingProposal.lineItems().isEmpty()) {
+            return false;
+        }
+        String normalized = normalize(message);
+        return confirmsCurrentDraft(normalized)
+                || containsAny(normalized,
+                "これを追加", "追加する", "追加して", "これで追加", "add this", "add these", "add it", "add them");
+    }
+
+    private boolean rejectsPendingProposal(String message) {
+        return containsAny(normalize(message),
+                "変更したい", "別の", "やめる", "いらない", "change it", "something else", "don't add");
+    }
+
     private static boolean containsAny(String normalized, String... needles) {
         for (String needle : needles) {
             if (normalized.contains(needle)) {
@@ -679,7 +863,7 @@ class OrderApplicationService {
     }
 
     private OrderChatSession emptySession(String sessionId) {
-        return new OrderChatSession(sessionId, List.of(), emptyDraft());
+        return new OrderChatSession(sessionId, List.of(), emptyDraft(), null, null);
     }
 
     private OrderDraft emptyDraft() {
@@ -721,14 +905,20 @@ class OrderApplicationService {
             String currentMessage,
             MenuSuggestionResponse menuResponse,
             KitchenCheckResponse kitchenResponse,
-            List<MenuItemView> menuItems) {
+            List<MenuItemView> menuItems,
+            String languageHint) {
         if (menuResponse == null || kitchenResponse == null) {
             return currentMessage;
         }
+        String menuSummary = userFacingSummary(menuResponse.summary());
+        String rationale = isGenericMenuSummary(menuSummary) ? "" : menuSummary;
+        String resolvedProposal = describeResolvedProposal(menuItems, kitchenResponse.items(), languageHint + "\n" + rationale + "\n" + currentMessage);
         String menuNarrative = firstNonBlank(
-                userFacingSummary(menuResponse.summary()),
-                describeSuggestedItems(menuItems));
-        String kitchenNarrative = buildKitchenNarrative(kitchenResponse, menuItems, menuNarrative + "\n" + currentMessage);
+                joinParagraphs(rationale, resolvedProposal),
+                resolvedProposal,
+                describeSuggestedItems(menuItems),
+                menuSummary);
+        String kitchenNarrative = buildKitchenNarrative(kitchenResponse, menuItems, languageHint + "\n" + menuNarrative + "\n" + currentMessage);
         if (menuNarrative.isBlank() || kitchenNarrative.isBlank()) {
             return currentMessage;
         }
@@ -737,6 +927,67 @@ class OrderApplicationService {
                 ? "よければこの内容で注文を進めます。変更したい場合はそのまま調整できます。"
                 : "If this looks good, we can proceed with this order, or adjust it if you'd like.";
         return String.join("\n\n", menuNarrative, kitchenNarrative, closing);
+    }
+
+    private String describeResolvedProposal(
+            List<MenuItemView> menuItems,
+            List<KitchenItemStatusView> statuses,
+            String languageHint) {
+        if (menuItems == null || menuItems.isEmpty() || statuses == null || statuses.isEmpty()) {
+            return "";
+        }
+        boolean japanese = looksJapanese(languageHint);
+        Map<String, MenuItemView> menuItemById = menuItems.stream()
+                .collect(LinkedHashMap::new, (map, item) -> map.put(item.id(), item), Map::putAll);
+        List<String> availableItems = new ArrayList<>();
+        for (KitchenItemStatusView status : statuses) {
+            MenuItemView original = menuItemById.get(status.itemId());
+            if (original == null) {
+                continue;
+            }
+            if (status.available()) {
+                availableItems.add(formatProposedItem(original.suggestedQuantity(), original.name(), japanese));
+                continue;
+            }
+            if (status.substituteName() != null && !status.substituteName().isBlank()) {
+                availableItems.add(formatProposedItem(original.suggestedQuantity(), status.substituteName(), japanese));
+            }
+        }
+        if (availableItems.isEmpty()) {
+            return japanese
+                    ? "この時点でそのまま注文に進められる候補はまだありません。内容を調整して提案し直します。"
+                    : "There are no orderable items to carry forward yet, so the proposal needs to be adjusted first.";
+        }
+        return japanese
+                ? "このまま注文に進められる内容は " + String.join("、", availableItems) + " です。"
+                : "The orderable lineup at this point is " + String.join(", ", availableItems) + ".";
+    }
+
+    private String formatProposedItem(int quantity, String itemName, boolean japanese) {
+        return japanese
+                ? quantity + "× " + itemName
+                : quantity + "x " + itemName;
+    }
+
+    private String joinParagraphs(String... values) {
+        List<String> paragraphs = new ArrayList<>();
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                paragraphs.add(value.trim());
+            }
+        }
+        return String.join("\n\n", paragraphs);
+    }
+
+    private boolean isGenericMenuSummary(String summary) {
+        if (summary == null || summary.isBlank()) {
+            return true;
+        }
+        String normalized = normalize(summary);
+        return normalized.startsWith("recommends ")
+                || normalized.startsWith("recommended items:")
+                || normalized.startsWith("今回のおすすめは")
+                || normalized.contains("current menu");
     }
 
         private String mergeDeliveryResponse(
@@ -871,6 +1122,17 @@ class OrderApplicationService {
         return japanese
                 ? String.join("、", descriptions) + " です。"
                 : String.join(", ", descriptions) + ".";
+    }
+
+    private List<String> deliveryChoiceLabels(List<DeliveryOptionView> options, boolean japanese) {
+        if (options == null || options.isEmpty()) {
+            return List.of();
+        }
+        return options.stream()
+                .map(option -> japanese
+                        ? option.label() + " (" + option.etaMinutes() + "分・" + formatYen(option.fee()) + ")"
+                        : option.label() + " (" + option.etaMinutes() + " min, " + formatYen(option.fee()) + ")")
+                .toList();
     }
 
     private String formatYen(BigDecimal amount) {
@@ -1199,11 +1461,41 @@ class OrderArachneConfiguration {
             String normalized = userText == null ? "" : userText.toLowerCase();
             boolean confirm = normalized.contains("確定") || normalized.contains("confirm") || normalized.contains("注文して");
             boolean fastest = normalized.contains("最速") || normalized.contains("fast") || normalized.contains("急ぎ");
+            boolean hasDraft = normalized.contains("current draft order:");
+            boolean proposalRequest = normalized.contains("おすすめ")
+                    || normalized.contains("オススメ")
+                    || normalized.contains("提案")
+                    || normalized.contains("suggest")
+                    || normalized.contains("recommend")
+                    || normalized.contains("子ども向け")
+                    || normalized.contains("for kids")
+                    || normalized.contains("kids");
 
             Map<String, Object> menuResult = latestToolContent(messages, "suggest-menu");
             Map<String, Object> kitchenResult = latestToolContent(messages, "check-kitchen");
             Map<String, Object> deliveryResult = latestToolContent(messages, "quote-delivery");
             Map<String, Object> paymentResult = latestToolContent(messages, "prepare-payment");
+
+                if (hasDraft && (normalized.contains("standard")
+                    || normalized.contains("partner")
+                    || normalized.contains("スタンダード")
+                    || normalized.contains("express")
+                    || normalized.contains("エクスプレス")
+                    || normalized.contains("最速"))) {
+                if (paymentResult == null) {
+                    return List.of(
+                        new ModelEvent.ToolUse("prepare-payment", "prepare_payment",
+                            Map.of("confirmRequested", confirm, "fastestDelivery", fastest)),
+                        new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
+                }
+                    boolean charged = Boolean.TRUE.equals(paymentResult.get("charged"));
+                    String reply = charged
+                        ? "Your order is now confirmed and payment has been processed."
+                        : "Here is your draft order. Say 'confirm' to place it.";
+                    return List.of(
+                        new ModelEvent.TextDelta(reply),
+                        new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
+                }
 
             if (menuResult == null) {
                 return List.of(
@@ -1218,6 +1510,11 @@ class OrderArachneConfiguration {
                                 Map.of("itemIds", itemIds, "message", userText != null ? userText : "")),
                         new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
             }
+                if (proposalRequest && deliveryResult == null) {
+                return List.of(
+                    new ModelEvent.TextDelta("Proposal ready. [CHOICES: \"はい、この内容で注文します\", \"変更したい\"]"),
+                    new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
+                }
             if (deliveryResult == null) {
                 List<?> itemNames = kitchenResult.get("itemNames") instanceof List<?> names ? names : List.of();
                 return List.of(
@@ -1273,7 +1570,7 @@ class OrderArachneConfiguration {
     }
 }
 
-record ChatRequest(String sessionId, String message) {}
+record ChatRequest(String sessionId, String message, String locale) {}
 
 record ChatResponse(
         String sessionId,
@@ -1303,7 +1600,16 @@ record OrderDraft(
 
 record OrderLineItem(String name, int quantity, BigDecimal unitPrice, String note) {}
 
-record OrderChatSession(String sessionId, List<ConversationMessage> conversation, OrderDraft draft) {}
+record OrderChatSession(
+    String sessionId,
+    List<ConversationMessage> conversation,
+    OrderDraft draft,
+    PendingProposal pendingProposal,
+    PendingDeliverySelection pendingDeliverySelection) {}
+
+record PendingProposal(List<OrderLineItem> lineItems, String displayMessage) {}
+
+record PendingDeliverySelection(List<DeliveryOptionView> options) {}
 
 record StoredOrder(String orderId, String itemSummary, BigDecimal subtotal, BigDecimal total, String etaLabel, String paymentStatus) {}
 

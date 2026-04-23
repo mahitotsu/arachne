@@ -13,6 +13,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
@@ -135,9 +136,18 @@ class DeliveryApplicationService {
 @Component
 class CourierAvailabilityRepository {
 
+    private final String modelMode;
+
+    CourierAvailabilityRepository(@Value("${delivery.model.mode:live}") String modelMode) {
+        this.modelMode = modelMode;
+    }
+
     CourierStatus check(List<String> itemNames) {
-        // Simulate courier availability based on item count and pseudo-time
         int itemCount = itemNames == null ? 0 : itemNames.size();
+        if ("deterministic".equals(modelMode)) {
+            return new CourierStatus(true, 1 + itemCount, 3 + itemCount);
+        }
+        // Simulate courier availability based on item count and pseudo-time
         boolean expressAvailable = (System.currentTimeMillis() / 10000) % 3 != 0; // unavailable ~1/3 of time
         int expressReadyInMinutes = expressAvailable ? (1 + itemCount) : -1;
         int standardReadyInMinutes = 3 + itemCount;

@@ -83,7 +83,7 @@ class MenuApplicationService {
 
     MenuSuggestionResponse suggest(MenuSuggestionRequest request) {
         List<MenuItem> items = repository.search(request.message());
-        String summary = agentFactory.builder()
+        String agentSummary = agentFactory.builder()
                 .systemPrompt("""
                 You are the menu-agent for a single-brand cloud kitchen app.
 
@@ -100,7 +100,29 @@ class MenuApplicationService {
                 .build()
                 .run("query=" + request.message())
                 .text();
+        String summary = renderSuggestionSummary(items, agentSummary);
         return new MenuSuggestionResponse("menu-service", "menu-agent", repository.headline(items), summary, items);
+    }
+
+    private String renderSuggestionSummary(List<MenuItem> items, String agentSummary) {
+        String skillPrefix = extractSkillPrefix(agentSummary);
+        String itemSummary = items.stream()
+                .map(item -> item.name() + " x" + item.suggestedQuantity())
+                .reduce((left, right) -> left + ", " + right)
+                .orElse("today's top combos");
+        String prefix = skillPrefix.isBlank() ? "" : skillPrefix + " ";
+        return prefix + "menu-agent recommends " + itemSummary + ". It keeps the order aligned with the current menu.";
+    }
+
+    private String extractSkillPrefix(String agentSummary) {
+        if (agentSummary == null) {
+            return "";
+        }
+        int closingBracket = agentSummary.indexOf(']');
+        if (agentSummary.startsWith("[") && closingBracket > 0) {
+            return agentSummary.substring(0, closingBracket + 1);
+        }
+        return "";
     }
 
     MenuSubstitutionResponse suggestSubstitutes(MenuSubstitutionRequest request) {
@@ -213,7 +235,7 @@ class MenuRepository {
                 || (normalized.contains("チキン") && item.name().contains("Chicken"))
                 || (normalized.contains("バーガー") && item.name().contains("Burger"))
                 || (normalized.contains("子ども") && item.name().contains("Kids"))
-                || (normalized.contains("飲み物") && item.name().contains("Lemon") || item.name().contains("Latte"))
+            || (normalized.contains("飲み物") && (item.name().contains("Lemon") || item.name().contains("Latte")))
                 || (normalized.contains("ポテト") && item.name().contains("Fries"));
     }
 

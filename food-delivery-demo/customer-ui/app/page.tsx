@@ -116,7 +116,13 @@ export default function HomePage() {
     [draft.items]
   );
 
+  const deliveryFee = useMemo(
+    () => Math.max(draft.total - draft.subtotal, 0),
+    [draft.subtotal, draft.total]
+  );
+
   async function sendChat(nextMessage: string) {
+    const locale = navigator.languages?.[0] ?? navigator.language ?? '';
     // Show user message immediately (optimistic update)
     const optimisticConversation: ConversationMessage[] = [
       ...conversation,
@@ -132,7 +138,7 @@ export default function HomePage() {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ sessionId, message: nextMessage })
+        body: JSON.stringify({ sessionId, message: nextMessage, locale })
       });
       if (!response.ok) {
         throw new Error(`chat request failed: ${response.status}`);
@@ -344,6 +350,9 @@ export default function HomePage() {
                   ? <div><span>🕐 ETA</span><strong>{draft.etaLabel}</strong></div>
                   : null}
                 <div><span>小計</span><strong>¥{draft.subtotal.toFixed(0)}</strong></div>
+                {deliveryFee > 0
+                  ? <div><span>配送料</span><strong>¥{deliveryFee.toFixed(0)}</strong></div>
+                  : null}
                 <div className="total-row">
                   <span>合計</span><strong>¥{draft.total.toFixed(0)}</strong>
                 </div>

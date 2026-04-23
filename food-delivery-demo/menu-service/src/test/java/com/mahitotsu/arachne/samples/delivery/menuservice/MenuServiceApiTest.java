@@ -51,4 +51,19 @@ class MenuServiceApiTest {
         assertThat(response.summary()).contains("kitchen-agent");
         assertThat(response.items()).extracting(MenuItem::id).doesNotContain("side-fries");
     }
+
+    @Test
+    void genericSuggestionSummaryMatchesReturnedItems() {
+        MenuSuggestionResponse response = restTemplate.postForObject(
+                "/internal/menu/suggest",
+                new MenuSuggestionRequest("session-generic", "おすすめを見せて"),
+                MenuSuggestionResponse.class);
+
+        assertThat(response).isNotNull();
+        assertThat(response.items()).hasSizeGreaterThan(1);
+        assertThat(response.summary()).contains("Crispy Chicken Box");
+        assertThat(response.summary()).contains("Smash Burger Combo");
+        assertThat(response.summary()).contains("Curly Fries");
+        assertThat(response.summary()).contains("Lemon Soda");
+    }
 }
