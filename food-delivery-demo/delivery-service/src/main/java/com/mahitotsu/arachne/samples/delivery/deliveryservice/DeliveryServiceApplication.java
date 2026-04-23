@@ -98,18 +98,21 @@ class DeliveryApplicationService {
 
         List<DeliveryOption> options = new ArrayList<>();
         if (courierStatus.expressAvailable()) {
-            options.add(new DeliveryOption("express", "Express rider", expressBaseEta, new BigDecimal("300.00")));
+            options.add(new DeliveryOption("express", "In-house Express", expressBaseEta, new BigDecimal("300.00")));
         }
-        options.add(new DeliveryOption("standard", "Standard route", standardBaseEta, new BigDecimal("180.00")));
+        options.add(new DeliveryOption("standard", "Partner Standard", standardBaseEta, new BigDecimal("180.00")));
         options.sort(Comparator.comparingInt(DeliveryOption::etaMinutes));
 
         String prompt = """
-                You are the delivery-agent for a food delivery service.
+                You are the delivery-agent for a single-kitchen cloud kitchen app.
+                The app offers two lanes only:
+                - Partner Standard: fulfilled by an external delivery partner
+                - In-house Express: fulfilled by the kitchen's own staff when available
                 Use the check_courier_availability and get_traffic_weather tools to investigate real-time conditions, then
                 write a clear summary covering:
-                1. Express courier availability and current readiness
+                1. In-house express availability and current readiness
                 2. Traffic and weather conditions and their impact on ETA
-                3. The adjusted ETA for each available option (express and/or standard)
+                3. The adjusted ETA for each available option (in-house express and/or partner standard)
                 Keep the tone concise and factual. Do not ask questions.
                 """;
 
@@ -122,8 +125,8 @@ class DeliveryApplicationService {
                 .text();
 
         String headline = courierStatus.expressAvailable()
-                ? "delivery-agent assessed courier availability, traffic, and weather"
-                : "delivery-agent: express unavailable — standard route quoted";
+            ? "delivery-agent assessed in-house express and partner-standard availability"
+            : "delivery-agent: in-house express unavailable — partner standard quoted";
 
         return new DeliveryQuoteResponse("delivery-service", "delivery-agent", headline, summary, options);
     }
@@ -196,7 +199,7 @@ class DeliveryArachneConfiguration {
                 result.put("expressReadyInMinutes", status.expressReadyInMinutes());
                 result.put("standardReadyInMinutes", status.standardReadyInMinutes());
                 if (!status.expressAvailable()) {
-                    result.put("expressUnavailableReason", "No express riders available at this time");
+                    result.put("expressUnavailableReason", "No in-house express staff are available at this time");
                 }
                 return ToolResult.success(context.toolUseId(), result);
             }
@@ -292,11 +295,11 @@ class DeliveryArachneConfiguration {
             int expressEta = 15 + trafficDelay / 2 + weatherDelay / 2;
             int standardEta = expressEta + 12 + trafficDelay + weatherDelay;
             String expressLine = expressAvailable
-                    ? "Express rider is available (ready in " + courierResult.getOrDefault("expressReadyInMinutes", 2) + " min), estimated delivery " + expressEta + " min."
-                    : "Express riders are currently unavailable.";
+                    ? "In-house express is available (ready in " + courierResult.getOrDefault("expressReadyInMinutes", 2) + " min), estimated delivery " + expressEta + " min."
+                    : "In-house express is currently unavailable.";
             String summary = expressLine + " Traffic is " + trafficLevel + ", weather is " + weather
                     + " (combined delay +" + (trafficDelay + weatherDelay) + " min)."
-                    + " Standard route estimated delivery: " + standardEta + " min.";
+                    + " Partner Standard estimated delivery: " + standardEta + " min.";
             return List.of(
                     new ModelEvent.TextDelta(summary),
                     new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));

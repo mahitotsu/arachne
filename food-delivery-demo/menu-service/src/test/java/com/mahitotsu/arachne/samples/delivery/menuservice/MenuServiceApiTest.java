@@ -37,4 +37,18 @@ class MenuServiceApiTest {
         assertThat(response.summary()).contains("[family-order-guide]");
         assertThat(response.items()).isNotEmpty();
     }
+
+    @Test
+    void suggestsFallbackItemsForUnavailableRequest() {
+        MenuSubstitutionResponse response = restTemplate.postForObject(
+                "/internal/menu/substitutes",
+                new MenuSubstitutionRequest("session-sub", "子どもも食べやすい代替にして", "side-fries"),
+                MenuSubstitutionResponse.class);
+
+        assertThat(response).isNotNull();
+        assertThat(response.agent()).isEqualTo("menu-agent");
+        assertThat(response.headline()).contains("fallback options");
+        assertThat(response.summary()).contains("kitchen-agent");
+        assertThat(response.items()).extracting(MenuItem::id).doesNotContain("side-fries");
+    }
 }

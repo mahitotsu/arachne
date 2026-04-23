@@ -54,7 +54,7 @@ The persisted summarized evaluation lives in `repository-metrics-latest.md`.
 - Reuse outputs from the current work unit when they are already fresh enough for the user’s question.
 - If build and test status is missing or stale, run `mvn -f arachne/pom.xml test`.
 - If coverage or static-analysis outputs are missing or stale and the user asked for fresh numbers, run `mvn -f arachne/pom.xml -Pquality-report verify`.
-- Extend into `samples/` or `marketplace-agent-platform/` only when the user explicitly asked for those surfaces.
+- Extend into `samples/` or `food-delivery-demo/` only when the user explicitly asked for those surfaces.
 - If fresh metrics would be too expensive for the current task, report the missing freshness as `INCOMPLETE` instead of guessing.
 - Update `repository-metrics-latest.md` whenever `/repository-metrics` completes, even when the result is `INCOMPLETE`.
 

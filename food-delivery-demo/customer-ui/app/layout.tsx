@@ -3,8 +3,8 @@ import type { Metadata } from 'next';
 import { ReactNode } from 'react';
 
 export const metadata: Metadata = {
-  title: '🍜 Arachne Food Delivery',
-  description: 'Chat-first food delivery powered by Arachne multi-agent system and Spring microservices.'
+  title: '🍜 Arachne Kitchen Delivery',
+  description: 'Chat-first delivery app for a single-kitchen cloud restaurant, powered by Arachne multi-agent workflows and Spring microservices.'
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

@@ -146,19 +146,24 @@ class OrderApplicationService {
                 ? "session-" + UUID.randomUUID().toString().substring(0, 8)
                 : request.sessionId();
         OrderChatSession existingSession = sessionStore.load(sessionId).orElse(emptySession(sessionId));
+        RoutingDecision routingDecision = routeRequest(request.message(), existingSession);
         ArrayList<ConversationMessage> conversation = new ArrayList<>(existingSession.conversation());
         conversation.add(new ConversationMessage("user", request.message()));
 
         List<ServiceTrace> serviceTraces = Collections.synchronizedList(new ArrayList<>());
+        AtomicReference<MenuSuggestionResponse> capturedMenuResponse = new AtomicReference<>(null);
+        AtomicReference<KitchenCheckResponse> capturedKitchenResponse = new AtomicReference<>(null);
+        AtomicReference<DeliveryQuoteResponse> capturedDeliveryResponse = new AtomicReference<>(null);
         AtomicReference<List<MenuItemView>> capturedMenuItems = new AtomicReference<>(List.of());
         AtomicReference<List<OrderLineItem>> capturedLineItems = new AtomicReference<>(List.of());
         AtomicReference<List<DeliveryOptionView>> capturedDeliveryOptions = new AtomicReference<>(List.of());
         AtomicReference<DeliveryOptionView> capturedSelectedDelivery = new AtomicReference<>(null);
         AtomicReference<PaymentPrepareResponse> capturedPaymentResponse = new AtomicReference<>(null);
 
-        Tool menuTool = buildMenuTool(sessionId, capturedMenuItems, serviceTraces);
-        Tool kitchenTool = buildKitchenTool(sessionId, capturedMenuItems, capturedLineItems, serviceTraces);
-        Tool deliveryTool = buildDeliveryTool(sessionId, capturedDeliveryOptions, serviceTraces);
+        Tool menuTool = buildMenuTool(sessionId, capturedMenuResponse, capturedMenuItems, serviceTraces);
+        Tool kitchenTool = buildKitchenTool(sessionId, capturedMenuItems, capturedLineItems, capturedKitchenResponse,
+            serviceTraces);
+        Tool deliveryTool = buildDeliveryTool(sessionId, capturedDeliveryResponse, capturedDeliveryOptions, serviceTraces);
         Tool paymentTool = buildPaymentTool(sessionId, capturedLineItems, capturedDeliveryOptions,
                 capturedSelectedDelivery, capturedPaymentResponse, serviceTraces);
 
@@ -171,8 +176,13 @@ class OrderApplicationService {
 
         String assistantMessage = agentFactory.builder()
                 .systemPrompt("""
-                        You are the order coordinator for a food delivery service.
+                You are the order coordinator for a single-brand cloud kitchen app.
                         Your job is to help the customer build and confirm their order by calling the right tools in sequence.
+
+                BUSINESS SETTING:
+                - The app serves food from one cloud kitchen only.
+                - If an item is unavailable, offer same-brand substitute items instead of alternate kitchens.
+                - Delivery is delivery-only, with two lanes: Partner Standard (external courier) and In-house Express (the kitchen's own staff).
 
                         ## Tools — when and how to call them
 
@@ -195,7 +205,7 @@ class OrderApplicationService {
                         - Use the itemNames from the previous check_kitchen result.
                         - After quote_delivery returns, present the delivery-agent's assessment (courier availability, traffic, weather, adjusted ETAs) AND the available options with fees.
                         - Ask the customer to choose a delivery tier. End your reply with [CHOICES] listing the available options, e.g.:
-                          [CHOICES: "エクスプレス (XX分・¥300)", "スタンダード (XX分・¥180)"]
+                                                    [CHOICES: "自社エクスプレス (XX分・¥300)", "パートナースタンダード (XX分・¥180)"]
                           If express is unavailable, offer only standard.
                           Do NOT call prepare_payment in the same turn. Stop here.
 
@@ -211,7 +221,7 @@ class OrderApplicationService {
 
                         TOOL CHAIN — THREE-TURN CONFIRMATION FLOW:
                         - Proposal turn: call suggest_menu → check_kitchen → present items + kitchen status → ask [CHOICES: "はい、この内容で注文します", "変更したい"]. Stop here.
-                        - Delivery turn (after item confirmation): call quote_delivery → present delivery-agent assessment + options → ask [CHOICES: "エクスプレス ...", "スタンダード ..."]. Stop here.
+                        - Delivery turn (after item confirmation): call quote_delivery → present delivery-agent assessment + options → ask [CHOICES: "自社エクスプレス ...", "パートナースタンダード ..."]. Stop here.
                         - Payment turn (after delivery choice): call prepare_payment → present total and ask for final confirmation.
                         Items are NEVER added to the draft without the customer's explicit confirmation.
                         Never call quote_delivery before the customer has confirmed items.
@@ -241,7 +251,7 @@ class OrderApplicationService {
         DeliveryOptionView selectedDelivery = capturedSelectedDelivery.get() != null
                 ? capturedSelectedDelivery.get()
                 : (capturedDeliveryOptions.get().isEmpty()
-                        ? new DeliveryOptionView("standard", "Standard route", 27, new BigDecimal("180.00"))
+                ? new DeliveryOptionView("standard", "Partner Standard", 27, new BigDecimal("180.00"))
                         : capturedDeliveryOptions.get().get(0));
         BigDecimal subtotal = subtotal(lineItems);
         BigDecimal total = paymentResponse != null
@@ -284,23 +294,53 @@ class OrderApplicationService {
                     .toList();
             displayMessage = assistantMessage.substring(0, choicesMatcher.start()).trim();
         }
+        if ("proposal-skill".equals(routingDecision.selectedSkill())) {
+            displayMessage = mergeProposalResponse(
+                displayMessage,
+                capturedMenuResponse.get(),
+                capturedKitchenResponse.get(),
+                capturedMenuItems.get());
+        } else if (paymentResponse != null) {
+            displayMessage = mergePaymentResponse(
+                    displayMessage,
+                    capturedDeliveryResponse.get(),
+                    selectedDelivery,
+                    paymentResponse,
+                    total,
+                    request.message());
+        } else if (capturedDeliveryResponse.get() != null) {
+            displayMessage = mergeDeliveryResponse(
+                    displayMessage,
+                    capturedDeliveryResponse.get(),
+                    request.message());
+        }
 
         conversation.add(new ConversationMessage("assistant", displayMessage));
         OrderChatSession updated = new OrderChatSession(sessionId, List.copyOf(conversation), draft);
         sessionStore.save(updated);
 
-        serviceTraces.add(new ServiceTrace("order-service", "order-agent",
-                status.equals("CONFIRMED") ? "order-agent finalized the order" : "order-agent coordinated the services",
-                displayMessage));
+        serviceTraces.add(new ServiceTrace(
+            "order-service",
+            "order-agent",
+            routingHeadline(status, routingDecision),
+            displayMessage,
+            routingDecision));
 
-        return new ChatResponse(sessionId, updated.conversation(), displayMessage, draft, List.copyOf(serviceTraces),
-                contextualSuggestions(updated), choices);
+        return new ChatResponse(
+            sessionId,
+            updated.conversation(),
+            displayMessage,
+            draft,
+            List.copyOf(serviceTraces),
+            routingDecision,
+            contextualSuggestions(updated),
+            choices);
     }
 
     ChatResponse session(String sessionId) {
         OrderChatSession session = sessionStore.load(sessionId).orElse(emptySession(sessionId));
-        return new ChatResponse(session.sessionId(), session.conversation(), "", session.draft(), List.of(),
-                contextualSuggestions(session), List.of());
+        return new ChatResponse(session.sessionId(), session.conversation(), "", session.draft(), List.of(), null,
+            contextualSuggestions(session), List.of());
     }
 
     private List<OrderLineItem> buildLineItems(List<MenuItemView> menuItems, List<KitchenItemStatusView> statuses) {
@@ -329,7 +369,7 @@ class OrderApplicationService {
 
     private DeliveryOptionView selectDeliveryOption(List<DeliveryOptionView> options, boolean fastestDelivery) {
         if (options == null || options.isEmpty()) {
-            return new DeliveryOptionView("standard", "Standard route", 27, new BigDecimal("180.00"));
+            return new DeliveryOptionView("standard", "Partner Standard", 27, new BigDecimal("180.00"));
         }
         if (!fastestDelivery) {
             return options.get(0);
@@ -346,7 +386,8 @@ class OrderApplicationService {
                 .setScale(2, RoundingMode.HALF_UP);
     }
 
-    private Tool buildMenuTool(String sessionId,
+        private Tool buildMenuTool(String sessionId,
+            AtomicReference<MenuSuggestionResponse> capturedMenuResponse,
             AtomicReference<List<MenuItemView>> capturedMenuItems,
             List<ServiceTrace> serviceTraces) {
         return new Tool() {
@@ -372,8 +413,9 @@ class OrderApplicationService {
             public ToolResult invoke(Object input, ToolInvocationContext context) {
                 String message = String.valueOf(inputMap(input).getOrDefault("message", ""));
                 MenuSuggestionResponse response = menuGateway.suggest(new MenuSuggestionRequest(sessionId, message));
+                capturedMenuResponse.set(response);
                 capturedMenuItems.set(response.items());
-                serviceTraces.add(new ServiceTrace(response.service(), response.agent(), response.headline(), response.summary()));
+                serviceTraces.add(new ServiceTrace(response.service(), response.agent(), response.headline(), response.summary(), null));
                 return ToolResult.success(context.toolUseId(), Map.of(
                         "summary", response.summary(),
                         "itemIds", response.items().stream().map(MenuItemView::id).toList(),
@@ -385,6 +427,7 @@ class OrderApplicationService {
     private Tool buildKitchenTool(String sessionId,
             AtomicReference<List<MenuItemView>> capturedMenuItems,
             AtomicReference<List<OrderLineItem>> capturedLineItems,
+            AtomicReference<KitchenCheckResponse> capturedKitchenResponse,
             List<ServiceTrace> serviceTraces) {
         return new Tool() {
             @Override
@@ -414,9 +457,19 @@ class OrderApplicationService {
                 List<String> itemIds = stringList(args.get("itemIds"));
                 String message = String.valueOf(args.getOrDefault("message", ""));
                 KitchenCheckResponse response = kitchenGateway.check(new KitchenCheckRequest(sessionId, message, itemIds));
+                capturedKitchenResponse.set(response);
                 List<OrderLineItem> lineItems = buildLineItems(capturedMenuItems.get(), response.items());
                 capturedLineItems.set(lineItems);
-                serviceTraces.add(new ServiceTrace(response.service(), response.agent(), response.headline(), response.summary()));
+                serviceTraces.add(new ServiceTrace(response.service(), response.agent(), response.headline(), response.summary(), null));
+                if (response.collaborations() != null) {
+                    response.collaborations().forEach(collaboration -> serviceTraces.add(
+                            new ServiceTrace(
+                                    collaboration.service(),
+                                    collaboration.agent(),
+                                    collaboration.headline(),
+                                    collaboration.summary(),
+                                    null)));
+                }
                 return ToolResult.success(context.toolUseId(), Map.of(
                         "summary", response.summary(),
                         "itemNames", lineItems.stream().map(OrderLineItem::name).toList(),
@@ -425,7 +478,8 @@ class OrderApplicationService {
         };
     }
 
-    private Tool buildDeliveryTool(String sessionId,
+        private Tool buildDeliveryTool(String sessionId,
+            AtomicReference<DeliveryQuoteResponse> capturedDeliveryResponse,
             AtomicReference<List<DeliveryOptionView>> capturedDeliveryOptions,
             List<ServiceTrace> serviceTraces) {
         return new Tool() {
@@ -456,8 +510,9 @@ class OrderApplicationService {
                 List<String> itemNames = stringList(args.get("itemNames"));
                 String message = String.valueOf(args.getOrDefault("message", ""));
                 DeliveryQuoteResponse response = deliveryGateway.quote(new DeliveryQuoteRequest(sessionId, message, itemNames));
+                capturedDeliveryResponse.set(response);
                 capturedDeliveryOptions.set(response.options());
-                serviceTraces.add(new ServiceTrace(response.service(), response.agent(), response.headline(), response.summary()));
+                serviceTraces.add(new ServiceTrace(response.service(), response.agent(), response.headline(), response.summary(), null));
                 List<Map<String, Object>> options = response.options().stream()
                         .<Map<String, Object>>map(o -> Map.of(
                                 "code", o.code(), "label", o.label(),
@@ -509,7 +564,7 @@ class OrderApplicationService {
                 PaymentPrepareResponse response = paymentGateway.prepare(
                         new PaymentPrepareRequest(sessionId, "", total, confirmRequested));
                 capturedPaymentResponse.set(response);
-                serviceTraces.add(new ServiceTrace(response.service(), response.agent(), response.headline(), response.summary()));
+                serviceTraces.add(new ServiceTrace(response.service(), response.agent(), response.headline(), response.summary(), null));
                 return ToolResult.success(context.toolUseId(), Map.of(
                         "summary", response.summary(),
                         "charged", response.charged(),
@@ -533,6 +588,94 @@ class OrderApplicationService {
             return list.stream().map(String::valueOf).toList();
         }
         return List.of();
+    }
+
+    private RoutingDecision routeRequest(String message, OrderChatSession session) {
+        String normalized = normalize(message);
+        boolean hasDraft = !session.draft().items().isEmpty();
+
+        if (asksGeneralQuestion(normalized) && !hasDraft) {
+            return new RoutingDecision(
+                    "general-question",
+                    "direct-answer",
+                    "respond-directly",
+                    "The request asks for service information rather than a concrete order workflow.");
+        }
+        if (asksForRecommendations(normalized)) {
+            return new RoutingDecision(
+                    "menu-discovery",
+                    "proposal-skill",
+                    "menu-suggestion",
+                    "The request asks for recommendations or preference-based curation, so the flow starts by proposing menu options.");
+        }
+        if (hasDraft && choosesDeliveryTier(normalized)) {
+            return new RoutingDecision(
+                    "delivery-selection",
+                    "order-skill",
+                    "payment-prepare",
+                    "There is already a live draft and the customer chose a delivery tier, so the flow can continue at payment preparation.");
+        }
+        if (hasDraft && confirmsCurrentDraft(normalized)) {
+            return new RoutingDecision(
+                    "draft-confirmation",
+                    "order-skill",
+                    "delivery-quote",
+                    "There is already a live draft and the customer is confirming it, so the next step is delivery quoting.");
+        }
+        return new RoutingDecision(
+                hasDraft ? "draft-adjustment" : "direct-order",
+                "order-skill",
+                "kitchen-validation",
+                hasDraft
+                        ? "The request changes or extends the active draft, so the order flow returns to kitchen validation."
+                        : "The request contains a concrete order, so the order flow starts at kitchen validation.");
+    }
+
+    private String routingHeadline(String status, RoutingDecision routingDecision) {
+        if ("CONFIRMED".equals(status)) {
+            return "order-agent completed the order workflow";
+        }
+        if ("direct-answer".equals(routingDecision.selectedSkill())) {
+            return "order-agent answered without a workflow skill";
+        }
+        if ("proposal-skill".equals(routingDecision.selectedSkill())) {
+            return "order-agent selected the proposal workflow";
+        }
+        return "order-agent selected the order workflow";
+    }
+
+    private static String normalize(String text) {
+        return text == null ? "" : text.toLowerCase(Locale.ROOT);
+    }
+
+    private static boolean asksForRecommendations(String normalized) {
+        return containsAny(normalized,
+                "おすすめ", "オススメ", "提案", "recommend", "suggest", "何がいい", "なにがいい", "what should i eat",
+                "what do you recommend", "kids", "for kids", "子ども向け", "辛さ控えめ", "mild", "人気");
+    }
+
+    private static boolean asksGeneralQuestion(String normalized) {
+        return containsAny(normalized,
+                "サービス", "状況", "混雑", "営業時間", "how busy", "status", "service", "hours", "open now");
+    }
+
+    private static boolean choosesDeliveryTier(String normalized) {
+        return containsAny(normalized,
+                "最速", "express", "エクスプレス", "standard", "スタンダード");
+    }
+
+    private static boolean confirmsCurrentDraft(String normalized) {
+        return containsAny(normalized,
+                "この内容", "これで", "注文確定", "確定", "confirm", "place the order", "注文して");
+    }
+
+    private static boolean containsAny(String normalized, String... needles) {
+        for (String needle : needles) {
+            if (normalized.contains(needle)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private OrderChatSession emptySession(String sessionId) {
@@ -572,6 +715,200 @@ class OrderApplicationService {
                 "子ども向けセットを足して",
                 "前回と同じ量で最速配送にして",
                 "この内容で注文確定して");
+    }
+
+    private String mergeProposalResponse(
+            String currentMessage,
+            MenuSuggestionResponse menuResponse,
+            KitchenCheckResponse kitchenResponse,
+            List<MenuItemView> menuItems) {
+        if (menuResponse == null || kitchenResponse == null) {
+            return currentMessage;
+        }
+        String menuNarrative = firstNonBlank(
+                userFacingSummary(menuResponse.summary()),
+                describeSuggestedItems(menuItems));
+        String kitchenNarrative = buildKitchenNarrative(kitchenResponse, menuItems, menuNarrative + "\n" + currentMessage);
+        if (menuNarrative.isBlank() || kitchenNarrative.isBlank()) {
+            return currentMessage;
+        }
+        boolean japanese = looksJapanese(menuNarrative + "\n" + currentMessage);
+        String closing = japanese
+                ? "よければこの内容で注文を進めます。変更したい場合はそのまま調整できます。"
+                : "If this looks good, we can proceed with this order, or adjust it if you'd like.";
+        return String.join("\n\n", menuNarrative, kitchenNarrative, closing);
+    }
+
+        private String mergeDeliveryResponse(
+            String currentMessage,
+            DeliveryQuoteResponse deliveryResponse,
+            String languageHint) {
+        if (deliveryResponse == null) {
+            return currentMessage;
+        }
+        boolean japanese = looksJapanese(languageHint + "\n" + currentMessage);
+        String assessment = japanese
+            ? "配送レーンの稼働状況と所要時間を確認しました。"
+            : "I checked the delivery lanes and current timing.";
+        String optionsLine = describeDeliveryOptions(deliveryResponse.options(), japanese);
+        String closing = japanese
+            ? "希望する配送レーンを選んでください。"
+            : "Please choose the delivery lane you prefer.";
+        return String.join("\n\n", assessment, optionsLine, closing);
+        }
+
+        private String mergePaymentResponse(
+            String currentMessage,
+            DeliveryQuoteResponse deliveryResponse,
+            DeliveryOptionView selectedDelivery,
+            PaymentPrepareResponse paymentResponse,
+            BigDecimal total,
+            String languageHint) {
+        if (paymentResponse == null || selectedDelivery == null) {
+            return currentMessage;
+        }
+        boolean japanese = looksJapanese(languageHint + "\n" + currentMessage);
+        String laneLine = japanese
+            ? selectedDelivery.label() + " でお届けし、到着目安は約" + selectedDelivery.etaMinutes() + "分です。"
+            : "Delivery will be arranged via " + selectedDelivery.label() + " with an ETA of about "
+                + selectedDelivery.etaMinutes() + " minutes.";
+        String paymentLine = japanese
+            ? "お支払いは " + paymentResponse.selectedMethod() + " を使用し、合計は " + formatYen(total) + " です。"
+            : "Payment will use " + paymentResponse.selectedMethod() + ", and the total is " + formatYen(total) + ".";
+        if (paymentResponse.charged()) {
+            String confirmation = japanese
+                ? "決済が完了し、注文を確定しました。"
+                : "Payment is complete and the order is now confirmed.";
+            return String.join("\n\n", laneLine, paymentLine, confirmation);
+        }
+        String choicesLine = deliveryResponse != null && deliveryResponse.options() != null && !deliveryResponse.options().isEmpty()
+            ? describeDeliveryOptions(deliveryResponse.options(), japanese)
+            : "";
+        String confirmationPrompt = japanese
+            ? "この内容でよければ、注文確定と伝えてください。"
+            : "If this looks right, tell me to confirm the order.";
+        return firstNonBlank(
+            String.join("\n\n",
+                laneLine,
+                paymentLine,
+                choicesLine,
+                confirmationPrompt).trim(),
+            currentMessage);
+        }
+
+    private String buildKitchenNarrative(
+            KitchenCheckResponse kitchenResponse,
+            List<MenuItemView> menuItems,
+            String languageHint) {
+        if (kitchenResponse == null) {
+            return "";
+        }
+        boolean japanese = looksJapanese(languageHint);
+        Map<String, String> itemNameById = menuItems.stream()
+                .collect(LinkedHashMap::new, (map, item) -> map.put(item.id(), item.name()), Map::putAll);
+        List<String> substitutions = new ArrayList<>();
+        List<String> unavailable = new ArrayList<>();
+        for (KitchenItemStatusView item : kitchenResponse.items()) {
+            String originalName = itemNameById.getOrDefault(item.itemId(), item.itemId());
+            if (item.available()) {
+                continue;
+            }
+            if (item.substituteName() != null && !item.substituteName().isBlank()) {
+                substitutions.add(japanese
+                        ? originalName + " の代わりに " + item.substituteName()
+                        : item.substituteName() + " instead of " + originalName);
+                continue;
+            }
+            unavailable.add(originalName);
+        }
+        if (!substitutions.isEmpty()) {
+            String replacementLine = japanese
+                    ? "キッチンでは在庫状況を確認し、" + String.join("、", substitutions)
+                            + " を用意できます。出来上がり目安は約" + kitchenResponse.readyInMinutes() + "分です。"
+                    : "The kitchen checked live availability and can prepare " + String.join(", ", substitutions)
+                            + ". Estimated prep time is about " + kitchenResponse.readyInMinutes() + " minutes.";
+            if (unavailable.isEmpty()) {
+                return replacementLine;
+            }
+            return replacementLine + " " + (japanese
+                    ? "なお、" + String.join("、", unavailable) + " は現時点でご用意できません。"
+                    : String.join(", ", unavailable) + " cannot be prepared right now.");
+        }
+        if (!unavailable.isEmpty()) {
+            return japanese
+                    ? "キッチンで在庫を確認したところ、" + String.join("、", unavailable)
+                            + " は現在ご用意できません。出来上がり目安は約" + kitchenResponse.readyInMinutes() + "分です。"
+                    : "The kitchen checked availability and cannot prepare " + String.join(", ", unavailable)
+                            + " right now. Estimated prep time for the available items is about " + kitchenResponse.readyInMinutes() + " minutes.";
+        }
+        return japanese
+                ? "キッチンではこの内容をそのまま用意でき、出来上がり目安は約" + kitchenResponse.readyInMinutes() + "分です。"
+                : "The kitchen can prepare this lineup as-is, with an estimated prep time of about "
+                        + kitchenResponse.readyInMinutes() + " minutes.";
+    }
+
+    private String describeSuggestedItems(List<MenuItemView> menuItems) {
+        if (menuItems == null || menuItems.isEmpty()) {
+            return "";
+        }
+        boolean japanese = menuItems.stream().map(MenuItemView::name).anyMatch(this::looksJapanese);
+        String names = menuItems.stream().map(MenuItemView::name).reduce((left, right) -> left + ", " + right).orElse("");
+        return japanese
+                ? "今回のおすすめは " + names + " です。"
+                : "Recommended items: " + names + ".";
+    }
+
+    private String describeDeliveryOptions(List<DeliveryOptionView> options, boolean japanese) {
+        if (options == null || options.isEmpty()) {
+            return "";
+        }
+        List<String> descriptions = options.stream()
+                .map(option -> japanese
+                        ? option.label() + " は約" + option.etaMinutes() + "分・配送料" + formatYen(option.fee())
+                        : option.label() + " is about " + option.etaMinutes() + " min with a delivery fee of "
+                                + formatYen(option.fee()))
+                .toList();
+        return japanese
+                ? String.join("、", descriptions) + " です。"
+                : String.join(", ", descriptions) + ".";
+    }
+
+    private String formatYen(BigDecimal amount) {
+        if (amount == null) {
+            return "¥0";
+        }
+        return "¥" + amount.stripTrailingZeros().toPlainString();
+    }
+
+    private String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value.trim();
+            }
+        }
+        return "";
+    }
+
+    private String userFacingSummary(String summary) {
+        if (summary == null) {
+            return "";
+        }
+        return summary
+                .replaceFirst("^menu-agent\\s+", "")
+                .replaceFirst("^kitchen-agent\\s+", "")
+                .trim();
+    }
+
+    private boolean looksJapanese(String text) {
+        if (text == null || text.isBlank()) {
+            return false;
+        }
+        return text.chars().anyMatch(ch -> {
+            Character.UnicodeScript script = Character.UnicodeScript.of(ch);
+            return script == Character.UnicodeScript.HIRAGANA
+                    || script == Character.UnicodeScript.KATAKANA
+                    || script == Character.UnicodeScript.HAN;
+        });
     }
 }
 
@@ -815,7 +1152,7 @@ class OrderArachneConfiguration {
                                 new OrderLineItem("Lemon Soda", 2, new BigDecimal("240.00"), "seed")),
                         new BigDecimal("2530.00"),
                         new BigDecimal("2830.00"),
-                        "18 min via Express rider",
+                        "18 min via In-house Express",
                         "CHARGED");
             }
         };
@@ -944,12 +1281,15 @@ record ChatResponse(
         String assistantMessage,
         OrderDraft draft,
         List<ServiceTrace> trace,
+    RoutingDecision routing,
         List<String> suggestions,
         List<String> choices) {}
 
 record ConversationMessage(String role, String text) {}
 
-record ServiceTrace(String service, String agent, String headline, String detail) {}
+record ServiceTrace(String service, String agent, String headline, String detail, RoutingDecision routing) {}
+
+record RoutingDecision(String intent, String selectedSkill, String entryStep, String reason) {}
 
 record OrderDraft(
         String status,
@@ -975,9 +1315,18 @@ record MenuItemView(String id, String name, String description, BigDecimal price
 
 record KitchenCheckRequest(String sessionId, String message, List<String> itemIds) {}
 
-record KitchenCheckResponse(String service, String agent, String headline, String summary, int readyInMinutes, List<KitchenItemStatusView> items) {}
+record KitchenCheckResponse(
+    String service,
+    String agent,
+    String headline,
+    String summary,
+    int readyInMinutes,
+    List<KitchenItemStatusView> items,
+    List<AgentCollaborationView> collaborations) {}
 
 record KitchenItemStatusView(String itemId, boolean available, int prepMinutes, String substituteItemId, String substituteName, BigDecimal substitutePrice) {}
+
+record AgentCollaborationView(String service, String agent, String headline, String summary) {}
 
 record DeliveryQuoteRequest(String sessionId, String message, List<String> itemNames) {}
 

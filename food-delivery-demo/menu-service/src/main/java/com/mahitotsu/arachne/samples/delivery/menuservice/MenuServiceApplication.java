@@ -55,6 +55,11 @@ class MenuController {
     MenuSuggestionResponse suggest(@RequestBody MenuSuggestionRequest request) {
         return applicationService.suggest(request);
     }
+
+    @PostMapping("/substitutes")
+    MenuSubstitutionResponse substitutes(@RequestBody MenuSubstitutionRequest request) {
+        return applicationService.suggestSubstitutes(request);
+    }
 }
 
 @Service
@@ -63,21 +68,27 @@ class MenuApplicationService {
     private final AgentFactory agentFactory;
     private final MenuRepository repository;
     private final Tool menuLookupTool;
+    private final Tool menuSubstitutionLookupTool;
 
     MenuApplicationService(
             AgentFactory agentFactory,
             MenuRepository repository,
-            @Qualifier("menuLookupTool") Tool menuLookupTool) {
+            @Qualifier("menuLookupTool") Tool menuLookupTool,
+            @Qualifier("menuSubstitutionLookupTool") Tool menuSubstitutionLookupTool) {
         this.agentFactory = agentFactory;
         this.repository = repository;
         this.menuLookupTool = menuLookupTool;
+        this.menuSubstitutionLookupTool = menuSubstitutionLookupTool;
     }
 
     MenuSuggestionResponse suggest(MenuSuggestionRequest request) {
         List<MenuItem> items = repository.search(request.message());
         String summary = agentFactory.builder()
                 .systemPrompt("""
-                        You are the menu-agent for a fast-food delivery app.
+                You are the menu-agent for a single-brand cloud kitchen app.
+
+                The business has one kitchen only. Recommend items from the current menu only.
+                Do not mention alternate branches, alternate kitchens, or pickup plans.
 
                         Use the available skills to tailor your response to the customer's situation:
                         - Activate family-order-guide when the customer mentions multiple people, children, or family.
@@ -90,6 +101,29 @@ class MenuApplicationService {
                 .run("query=" + request.message())
                 .text();
         return new MenuSuggestionResponse("menu-service", "menu-agent", repository.headline(items), summary, items);
+    }
+
+    MenuSubstitutionResponse suggestSubstitutes(MenuSubstitutionRequest request) {
+        List<MenuItem> items = repository.findSubstitutes(request.unavailableItemId(), request.message());
+        String summary = agentFactory.builder()
+                .systemPrompt("""
+                You are the menu-agent supporting kitchen-agent when an item is unavailable at the only cloud kitchen.
+
+                        Call menu_substitution_lookup to prepare fallback items that stay close to the
+                customer's apparent intent. Stay within the same brand menu and do not mention alternate kitchens.
+                Keep the answer short and mention that these are
+                        substitute suggestions for kitchen-agent to validate.
+                        """)
+                .tools(menuSubstitutionLookupTool)
+                .build()
+                .run("unavailableItemId=" + request.unavailableItemId() + "\ncustomerMessage=" + request.message())
+                .text();
+        return new MenuSubstitutionResponse(
+                "menu-service",
+                "menu-agent",
+                repository.substitutionHeadline(items),
+                summary,
+                items);
     }
 }
 
@@ -126,6 +160,41 @@ class MenuRepository {
         return matches.stream().map(MenuItem::name).limit(3).reduce((left, right) -> left + ", " + right).orElse("today's top combos");
     }
 
+    List<MenuItem> findSubstitutes(String unavailableItemId, String customerMessage) {
+        String normalized = normalize(customerMessage);
+        List<MenuItem> sameCategory = ITEMS.stream()
+                .filter(item -> !item.id().equals(unavailableItemId))
+                .filter(item -> sameCategory(unavailableItemId, item.id()))
+                .toList();
+        List<MenuItem> intentAligned = sameCategory.stream()
+                .filter(item -> matchesIntent(normalized, item))
+                .toList();
+        List<MenuItem> matches = intentAligned.isEmpty() ? sameCategory : intentAligned;
+        if (matches.isEmpty()) {
+            matches = ITEMS.stream()
+                    .filter(item -> !item.id().equals(unavailableItemId))
+                    .filter(item -> matchesIntent(normalized, item))
+                    .toList();
+        }
+        if (matches.isEmpty()) {
+            matches = ITEMS.stream()
+                    .filter(item -> !item.id().equals(unavailableItemId))
+                    .toList();
+        }
+        return tuneQuantities(matches.stream().limit(3).toList(), customerMessage);
+    }
+
+    String substitutionHeadline(List<MenuItem> items) {
+        return "menu-agent prepared " + items.size() + " fallback options";
+    }
+
+    String describeSubstitutes(String unavailableItemId, String customerMessage) {
+        return findSubstitutes(unavailableItemId, customerMessage).stream()
+                .map(MenuItem::name)
+                .reduce((left, right) -> left + ", " + right)
+                .orElse("the closest available combo");
+    }
+
     private List<MenuItem> tuneQuantities(List<MenuItem> items, String query) {
         int partySize = detectPartySize(query);
         if (partySize <= 1) {
@@ -157,6 +226,31 @@ class MenuRepository {
             }
         }
         return false;
+    }
+
+    private boolean sameCategory(String leftId, String rightId) {
+        return categoryOf(leftId).equals(categoryOf(rightId));
+    }
+
+    private String categoryOf(String itemId) {
+        int separator = itemId.indexOf('-');
+        return separator >= 0 ? itemId.substring(0, separator) : itemId;
+    }
+
+    private boolean matchesIntent(String normalized, MenuItem item) {
+        if (normalized.isBlank()) {
+            return true;
+        }
+        if (normalized.contains("子ども") || normalized.contains("kids")) {
+            return item.name().contains("Kids") || item.description().contains("apple") || item.description().contains("corn");
+        }
+        if (normalized.contains("辛さ控えめ") || normalized.contains("mild")) {
+            return item.name().contains("Garden") || item.name().contains("Lemon") || item.name().contains("Kids");
+        }
+        if (normalized.contains("飲み物") || normalized.contains("drink")) {
+            return item.id().startsWith("drink-");
+        }
+        return true;
     }
 
     private int detectPartySize(String query) {
@@ -202,6 +296,33 @@ class MenuArachneConfiguration {
     }
 
     @Bean
+    Tool menuSubstitutionLookupTool(MenuRepository repository) {
+        return new Tool() {
+            @Override
+            public ToolSpec spec() {
+                return new ToolSpec(
+                        "menu_substitution_lookup",
+                        "Prepare menu alternatives for kitchen-agent when a requested item is unavailable.",
+                        substitutionSchema());
+            }
+
+            @Override
+            public ToolResult invoke(Object input) {
+                return invoke(input, new ToolInvocationContext("menu_substitution_lookup", null, input, null));
+            }
+
+            @Override
+            public ToolResult invoke(Object input, ToolInvocationContext context) {
+                Map<String, Object> values = values(input);
+                String unavailableItemId = String.valueOf(values.getOrDefault("unavailableItemId", ""));
+                String customerMessage = String.valueOf(values.getOrDefault("customerMessage", ""));
+                return ToolResult.success(context.toolUseId(), Map.of(
+                        "substitutionSummary", repository.describeSubstitutes(unavailableItemId, customerMessage)));
+            }
+        };
+    }
+
+    @Bean
     @ConditionalOnProperty(name = "delivery.model.mode", havingValue = "deterministic", matchIfMissing = false)
     Model menuDeterministicModel() {
         return new MenuDeterministicModel();
@@ -213,6 +334,17 @@ class MenuArachneConfiguration {
         ObjectNode properties = root.putObject("properties");
         properties.putObject("query").put("type", "string");
         root.putArray("required").add("query");
+        root.put("additionalProperties", false);
+        return root;
+    }
+
+    private static ObjectNode substitutionSchema() {
+        ObjectNode root = JsonNodeFactory.instance.objectNode();
+        root.put("type", "object");
+        ObjectNode properties = root.putObject("properties");
+        properties.putObject("unavailableItemId").put("type", "string");
+        properties.putObject("customerMessage").put("type", "string");
+        root.putArray("required").add("unavailableItemId").add("customerMessage");
         root.put("additionalProperties", false);
         return root;
     }
@@ -245,20 +377,41 @@ class MenuArachneConfiguration {
                 List<ToolSpec> tools,
                 String systemPrompt,
                 ToolSelection toolSelection) {
-            String userText = latestUserText(messages);
+            Map<String, String> requestArgs = latestRequestArgs(messages);
+            String userText = requestArgs.getOrDefault("query", latestUserText(messages));
+            boolean substitutionQuery = requestArgs.containsKey("unavailableItemId");
             boolean isFamilyQuery = isFamilyQuery(userText);
 
-            if (isFamilyQuery && !hasSkillActivation(messages)) {
+            if (!substitutionQuery && isFamilyQuery && !hasSkillActivation(messages)) {
                 return List.of(
                         new ModelEvent.ToolUse("skill-family", "activate_skill", Map.of("name", "family-order-guide")),
                         new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
             }
 
-            Map<String, Object> toolContent = latestToolContent(messages, "menu-lookup");
+            String toolUseId = substitutionQuery ? "menu-substitution-lookup" : "menu-lookup";
+            Map<String, Object> toolContent = latestToolContent(messages, toolUseId);
             if (toolContent == null) {
+            if (substitutionQuery) {
+                return List.of(
+                    new ModelEvent.ToolUse(
+                        "menu-substitution-lookup",
+                        "menu_substitution_lookup",
+                        Map.of(
+                            "unavailableItemId", requestArgs.getOrDefault("unavailableItemId", ""),
+                            "customerMessage", requestArgs.getOrDefault("customerMessage", ""))),
+                    new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
+            }
                 return List.of(
                         new ModelEvent.ToolUse("menu-lookup", "menu_catalog_lookup", Map.of("query", userText)),
                         new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
+            }
+
+            if (substitutionQuery) {
+            return List.of(
+                new ModelEvent.TextDelta("menu-agent suggested "
+                    + toolContent.getOrDefault("substitutionSummary", "the closest substitutes")
+                    + " for kitchen-agent to validate."),
+                new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
             }
 
             String prefix = isFamilyQuery ? "[family-order-guide] " : "";
@@ -319,11 +472,28 @@ class MenuArachneConfiguration {
             }
             return "";
         }
+
+        private Map<String, String> latestRequestArgs(List<Message> messages) {
+            String raw = latestUserText(messages);
+            LinkedHashMap<String, String> values = new LinkedHashMap<>();
+            for (String line : raw.split("\\R")) {
+                int separator = line.indexOf('=');
+                if (separator <= 0) {
+                    continue;
+                }
+                values.put(line.substring(0, separator).trim(), line.substring(separator + 1).trim());
+            }
+            return values;
+        }
     }
 }
 
 record MenuSuggestionRequest(String sessionId, String message) {}
 
+record MenuSubstitutionRequest(String sessionId, String message, String unavailableItemId) {}
+
 record MenuSuggestionResponse(String service, String agent, String headline, String summary, List<MenuItem> items) {}
+
+record MenuSubstitutionResponse(String service, String agent, String headline, String summary, List<MenuItem> items) {}
 
 record MenuItem(String id, String name, String description, BigDecimal price, int suggestedQuantity) {}

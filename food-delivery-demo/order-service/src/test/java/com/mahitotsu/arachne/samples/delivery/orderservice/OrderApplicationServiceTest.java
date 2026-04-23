@@ -107,8 +107,29 @@ class OrderApplicationServiceTest {
         assertThat(prompt).contains("NEVER added to the draft without the customer's explicit confirmation");
         assertThat(prompt).contains("Do NOT call quote_delivery in the same turn");
         assertThat(prompt).contains("ONLY after the customer has explicitly confirmed");
+        assertThat(prompt).contains("one cloud kitchen only");
+        assertThat(prompt).contains("Partner Standard");
+        assertThat(prompt).contains("In-house Express");
         // Kitchen status must be surfaced to the customer in the proposal turn
         assertThat(prompt).contains("present the proposed items AND the kitchen status");
+    }
+
+    @Test
+    void chatExposesProposalSkillRoutingForRecommendationRequests() {
+        AgentFactory.Builder builder = mockBuilder();
+
+        ChatResponse response = serviceWith(builder).chat(new ChatRequest(null, "子ども向けのおすすめを見せて"));
+
+        assertThat(response.routing()).isNotNull();
+        assertThat(response.routing().intent()).isEqualTo("menu-discovery");
+        assertThat(response.routing().selectedSkill()).isEqualTo("proposal-skill");
+        assertThat(response.routing().entryStep()).isEqualTo("menu-suggestion");
+        assertThat(response.trace())
+                .singleElement()
+                .satisfies(trace -> {
+                    assertThat(trace.service()).isEqualTo("order-service");
+                    assertThat(trace.routing()).isEqualTo(response.routing());
+                });
     }
 
     // -------------------------------------------------------------------------

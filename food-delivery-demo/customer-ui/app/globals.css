@@ -56,7 +56,10 @@ textarea {
 .shell {
   max-width: 1520px;
   margin: 0 auto;
-  padding: 0 28px 40px;
+  padding: 0 28px 16px;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
 }
 
 /* === Top Navigation Bar === */
@@ -64,9 +67,10 @@ textarea {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 18px 0 22px;
+  padding: 14px 0 18px;
   border-bottom: 1px solid var(--border);
-  margin-bottom: 32px;
+  margin-bottom: 16px;
+  flex-shrink: 0;
 }
 
 .brand {
@@ -146,12 +150,24 @@ textarea {
 
 /* === Hero === */
 .hero {
-  margin-bottom: 28px;
+  margin-bottom: 12px;
+  flex-shrink: 0;
+}
+
+.hero-panel {
+  padding: 14px 24px;
+  background:
+    radial-gradient(circle at top right, rgba(232, 69, 10, 0.08), transparent 32%),
+    linear-gradient(180deg, var(--surface-1), var(--surface-2));
+}
+
+.hero-label {
+  margin-bottom: 4px;
 }
 
 .hero h1 {
-  margin: 0 0 12px;
-  font-size: clamp(2rem, 4vw, 3.4rem);
+  margin: 0 0 4px;
+  font-size: 2.2rem;
   font-weight: 800;
   line-height: 1.1;
   letter-spacing: -0.03em;
@@ -166,9 +182,9 @@ textarea {
 
 .lede {
   margin: 0;
-  max-width: 52rem;
-  font-size: 0.98rem;
-  line-height: 1.7;
+  max-width: none;
+  font-size: 0.88rem;
+  line-height: 1.55;
   color: var(--ink-muted);
 }
 
@@ -194,7 +210,8 @@ textarea {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 18px;
+  margin-bottom: 14px;
+  flex-shrink: 0;
 }
 
 .panel-header h2 {
@@ -213,12 +230,19 @@ textarea {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(300px, 0.85fr);
   gap: 20px;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .sidebar {
   display: grid;
   gap: 18px;
   align-content: start;
+  overflow-y: auto;
+  min-height: 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--surface-3) transparent;
 }
 
 /* === Badge === */
@@ -237,13 +261,16 @@ textarea {
 
 /* === Chat panel === */
 .chat-panel {
-  display: grid;
-  gap: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: hidden;
+  min-height: 0;
 }
 
 .message-list {
-  min-height: 420px;
-  max-height: 560px;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -321,6 +348,100 @@ textarea {
   color: #fff;
 }
 
+/* Markdown content inside assistant bubbles */
+.message-md {
+  font-size: 0.96rem;
+  line-height: 1.65;
+}
+
+.message-md > * {
+  margin: 0;
+}
+
+.message-md > * + * {
+  margin-top: 0.55em;
+}
+
+.message-md p {
+  margin: 0;
+  line-height: 1.65;
+  font-size: 0.96rem;
+  color: inherit;
+}
+
+.message-md strong {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.message-md em {
+  font-style: italic;
+  color: var(--ink-muted);
+}
+
+.message-md ul,
+.message-md ol {
+  margin: 0.4em 0 0;
+  padding-left: 1.4em;
+}
+
+.message-md li {
+  margin-bottom: 0.25em;
+}
+
+.message-md h1,
+.message-md h2,
+.message-md h3,
+.message-md h4 {
+  margin: 0.6em 0 0.2em;
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1.3;
+}
+
+.message-md h1 { font-size: 1.05rem; }
+.message-md h2 { font-size: 1rem; }
+.message-md h3 { font-size: 0.95rem; }
+.message-md h4 { font-size: 0.92rem; }
+
+.message-md code {
+  font-family: ui-monospace, "SFMono-Regular", monospace;
+  font-size: 0.87em;
+  background: var(--surface-3);
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+}
+
+.message-md pre {
+  background: var(--surface-3);
+  border-radius: 10px;
+  padding: 10px 14px;
+  overflow-x: auto;
+}
+
+.message-md pre code {
+  background: none;
+  padding: 0;
+}
+
+.message-md blockquote {
+  margin: 0.4em 0 0;
+  padding-left: 0.9em;
+  border-left: 3px solid var(--border-accent);
+  color: var(--ink-muted);
+}
+
+.message-md a {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.message-md hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 0.6em 0;
+}
+
 /* Typing indicator */
 .typing-indicator {
   display: flex;
@@ -358,6 +479,7 @@ textarea {
   align-items: flex-start;
   align-content: flex-start;
   gap: 6px;
+  flex-shrink: 0;
 }
 
 .suggestions button {
@@ -389,6 +511,7 @@ textarea {
   flex-direction: column;
   gap: 6px;
   align-items: flex-start;
+  flex-shrink: 0;
 }
 
 .choice-btn {
@@ -420,6 +543,7 @@ textarea {
 .composer {
   display: grid;
   gap: 10px;
+  flex-shrink: 0;
 }
 
 .composer textarea {
@@ -588,7 +712,7 @@ textarea {
 
 .trace-card--active {
   border-color: var(--border-accent);
-  box-shadow: 0 0 16px rgba(255, 87, 34, 0.1);
+  box-shadow: 0 0 16px rgba(232, 69, 10, 0.1);
 }
 
 .trace-card--stale {
@@ -601,6 +725,68 @@ textarea {
   gap: 8px;
   margin-bottom: 8px;
   flex-wrap: wrap;
+}
+
+.trace-route {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+  margin-bottom: 10px;
+}
+
+.trace-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-1);
+  color: var(--ink-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.trace-chip--intent {
+  border-color: var(--border-accent);
+  background: rgba(232, 69, 10, 0.08);
+}
+
+.trace-chip--intent > span:last-child {
+  color: var(--accent-dark);
+}
+
+.trace-chip--skill {
+  border-color: rgba(22, 163, 74, 0.22);
+  background: rgba(22, 163, 74, 0.08);
+}
+
+.trace-chip--skill > span:last-child {
+  color: var(--green);
+}
+
+.trace-chip--step {
+  border-color: rgba(217, 119, 6, 0.22);
+  background: rgba(217, 119, 6, 0.08);
+}
+
+.trace-chip--step > span:last-child {
+  color: var(--gold);
+}
+
+.trace-chip-label {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-subtle);
+  font-size: 0.63rem;
+}
+
+.trace-reason {
+  margin: 0 0 10px;
+  font-size: 0.78rem;
+  color: var(--ink-subtle);
+  line-height: 1.45;
 }
 
 .trace-service {
@@ -647,29 +833,7 @@ textarea {
   font-size: 0.85rem;
 }
 
-/* === Responsive === */
-@media (max-width: 1060px) {
-  .shell {
-    padding: 0 18px 32px;
-  }
-
-  .workspace {
-    grid-template-columns: 1fr;
-  }
-
-  .message {
-    max-width: 88%;
-  }
-}
-
-@media (max-width: 600px) {
-  .topbar {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
-  }
-
-  .hero h1 {
-    font-size: 1.9rem;
-  }
+/* === Minimum width (desktop-only) === */
+.shell {
+  min-width: 900px;
 }

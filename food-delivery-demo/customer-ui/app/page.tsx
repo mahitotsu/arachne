@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
 
 type ConversationMessage = {
   role: string;
@@ -25,11 +26,19 @@ type OrderDraft = {
   orderId: string;
 };
 
+type RoutingDecision = {
+  intent: string;
+  selectedSkill: string;
+  entryStep: string;
+  reason: string;
+};
+
 type ServiceTrace = {
   service: string;
   agent: string;
   headline: string;
   detail: string;
+  routing?: RoutingDecision | null;
 };
 
 type ChatResponse = {
@@ -38,6 +47,7 @@ type ChatResponse = {
   assistantMessage: string;
   draft: OrderDraft;
   trace: ServiceTrace[];
+  routing?: RoutingDecision | null;
   suggestions: string[];
   choices: string[];
 };
@@ -52,6 +62,13 @@ const EMPTY_DRAFT: OrderDraft = {
   paymentMethod: '',
   orderId: ''
 };
+
+function formatRoutingValue(value: string) {
+  return value
+    .split('-')
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
 
 export default function HomePage() {
   const [sessionId, setSessionId] = useState('');
@@ -172,8 +189,8 @@ export default function HomePage() {
       <header className="topbar">
         <div className="brand">
           <span className="brand-icon">🍜</span>
-          <span className="brand-name">Arachne Food</span>
-          <span className="brand-tagline">multi-agent delivery</span>
+          <span className="brand-name">Arachne Kitchen</span>
+          <span className="brand-tagline">single-kitchen cloud delivery</span>
         </div>
         <div className="session-pill">
           <span className="session-dot" />
@@ -190,10 +207,11 @@ export default function HomePage() {
       </header>
 
       {/* ── Hero ── */}
-      <section className="hero">
+      <section className="panel hero hero-panel">
+        <p className="panel-label hero-label">🍜 Cloud Kitchen Console</p>
         <h1>注文は、<span className="gradient-text">会話</span>で。</h1>
         <p className="lede">
-          チャットするだけで複数のAIエージェントが裏で連携し、メニュー選定・支払い・配送をまとめて処理します。
+          単一拠点のクラウドキッチンにチャットするだけで、メニュー選定・代替提案・支払い・配送手配までまとめて進めます。
         </p>
       </section>
 
@@ -211,8 +229,8 @@ export default function HomePage() {
           <div className="message-list">
             {conversation.length === 0 ? (
               <div className="message system">
-                「2人分で辛さ控えめ」「子ども向けで最速配送」など自然に話しかけてください。
-                右のトレースパネルに各バックエンドエージェントの動きが表示されます。
+                「2人分で辛さ控えめ」「子ども向けで自社エクスプレス」など自然に話しかけてください。
+                右のトレースパネルには、単一キッチンの在庫判断や配送レーン選択を含む各エージェントの動きが表示されます。
               </div>
             ) : null}
 
@@ -222,9 +240,11 @@ export default function HomePage() {
                 key={`${entry.role}-${index}`}
               >
                 <span className="message-role">
-                  {entry.role === 'assistant' ? '🤖 Arachne order-agent' : '🙋 Customer'}
+                  {entry.role === 'assistant' ? '🤖 Arachne Kitchen order-agent' : '🙋 Customer'}
                 </span>
-                <p>{entry.text}</p>
+                {entry.role === 'assistant'
+                  ? <div className="message-md"><ReactMarkdown>{entry.text}</ReactMarkdown></div>
+                  : <p>{entry.text}</p>}
               </div>
             ))}
 
@@ -274,14 +294,14 @@ export default function HomePage() {
             <textarea
               value={message}
               onChange={(event) => setMessage(event.target.value)}
-              placeholder="例: 2人分で辛さ控えめ。前回みたいに最速で。"
+              placeholder="例: 2人分で辛さ控えめ。自社エクスプレスが使えるならそれで。"
               rows={3}
             />
             <div className="composer-footer">
               <div>
                 {error
                   ? <span className="error">⚠ {error}</span>
-                  : <span>マルチエージェントが裏で連携中</span>
+                  : <span>単一クラウドキッチンの各エージェントが裏で連携中</span>
                 }
               </div>
               <button type="submit" className="send-btn" disabled={loading || !message.trim()}>
@@ -355,6 +375,7 @@ export default function HomePage() {
                 : null}
               {Object.values(traceMemory).map((entry) => {
                 const isActive = activeTurn.has(entry.service);
+                const routing = entry.routing;
                 return (
                   <article
                     key={entry.service}
@@ -366,6 +387,25 @@ export default function HomePage() {
                       {!isActive && <em className="stale-label">前回</em>}
                     </div>
                     <h3>{entry.headline}</h3>
+                    {routing ? (
+                      <>
+                        <div className="trace-route">
+                          <span className="trace-chip trace-chip--intent">
+                            <span className="trace-chip-label">Intent</span>
+                            <span>{formatRoutingValue(routing.intent)}</span>
+                          </span>
+                          <span className="trace-chip trace-chip--skill">
+                            <span className="trace-chip-label">Skill</span>
+                            <span>{formatRoutingValue(routing.selectedSkill)}</span>
+                          </span>
+                          <span className="trace-chip trace-chip--step">
+                            <span className="trace-chip-label">Entry</span>
+                            <span>{formatRoutingValue(routing.entryStep)}</span>
+                          </span>
+                        </div>
+                        <p className="trace-reason">{routing.reason}</p>
+                      </>
+                    ) : null}
                     <p>{entry.detail}</p>
                   </article>
                 );

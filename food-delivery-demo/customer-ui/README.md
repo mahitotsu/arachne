@@ -7,7 +7,7 @@ It keeps the ordering interaction chat-first, but it also shows:
 - the current order draft
 - estimated delivery timing
 - payment state
-- the service-local agent trace behind the reply
+- the service-local agent trace behind the reply, including the order-agent's visible intent and workflow selection
 
 Run locally:
 

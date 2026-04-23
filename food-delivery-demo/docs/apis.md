@@ -5,7 +5,7 @@
 `order-service`
 
 - `POST /api/chat`
-  Accepts a chat turn and returns the updated conversation, order draft, and agent trace.
+  Accepts a chat turn and returns the updated conversation, order draft, routing decision, and agent trace.
 - `GET /api/session/{sessionId}`
   Restores the current chat transcript and draft for a browser refresh.
 
@@ -19,7 +19,12 @@
 `kitchen-service`
 
 - `POST /internal/kitchen/check`
-  Accepts selected menu item ids and returns stock, prep timing, and substitution guidance from `kitchen-agent`.
+  Accepts selected menu item ids and returns stock, prep timing, substitution guidance from `kitchen-agent`, and optional collaborator trace entries when `kitchen-agent` asks `menu-agent` for fallback help.
+
+`menu-service`
+
+- `POST /internal/menu/substitutes`
+  Accepts an unavailable item plus the customer context and returns menu-agent fallback candidates for `kitchen-agent` to validate.
 
 `delivery-service`
 
@@ -37,5 +42,11 @@ Each internal service returns both:
 
 - deterministic structured data for the orchestrator
 - an agent-facing summary string for the UI trace
+
+`order-service` also returns a deterministic routing summary for the current turn so the trace can show:
+
+- the interpreted customer intent
+- the selected workflow skill
+- the workflow entry step used for that turn
 
 That split keeps Spring in charge of correctness while still making the Arachne layer visible.

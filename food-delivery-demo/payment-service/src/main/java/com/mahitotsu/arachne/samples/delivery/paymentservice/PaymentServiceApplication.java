@@ -80,7 +80,11 @@ class PaymentApplicationService {
         String authorizationId = charged ? "pay-" + UUID.randomUUID().toString().substring(0, 8) : null;
         String paymentStatus = charged ? "CHARGED" : "READY";
         String summary = agentFactory.builder()
-                .systemPrompt("You are the payment-agent. Briefly explain the payment method and confirmation state.")
+            .systemPrompt("""
+                You are the payment-agent for a single-brand cloud kitchen app.
+                Briefly explain the payment method and confirmation state.
+                The normal path is a saved digital payment method, but you can still acknowledge cash on delivery when the customer explicitly asks for it.
+                """)
                 .tools(paymentProfileLookupTool)
                 .build()
                 .run("message=" + request.message())

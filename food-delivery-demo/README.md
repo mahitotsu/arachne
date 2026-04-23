@@ -2,7 +2,7 @@
 
 This directory now hosts the replacement demo for the old marketplace workflow sample.
 
-The new demo is a fast-food delivery web application with a chat-first ordering experience. The frontend looks like a normal delivery app, but every backend API is fronted by a service-local Arachne agent. What looks like ordinary microservice traffic is also a multi-agent collaboration path.
+The demo is a chat-first delivery app for a single-brand cloud kitchen. There is one kitchen only, no dine-in flow, and no branch switching. The frontend looks like a normal delivery app, but every backend API is fronted by a service-local Arachne agent. What looks like ordinary microservice traffic is also a multi-agent collaboration path.
 
 It is intentionally not part of the runnable `samples/` catalog. The goal here is a composed, practical application slice that shows how naturally Arachne can disappear into Spring Boot microservices.
 
@@ -23,11 +23,13 @@ Each downstream service owns its own service-local agent. The APIs remain plain 
 
 ## Main Demo Story
 
-1. The user opens the chat UI and asks for a fast-food order in natural language.
+1. The user opens the chat UI and asks for a cloud-kitchen order in natural language.
 2. `order-service` coordinates downstream services and keeps the active conversation in Redis.
 3. `menu-service`, `kitchen-service`, `delivery-service`, and `payment-service` answer through their own Arachne agents.
-4. The UI shows both the user-facing reply and a visible service/agent trace so the microservice shape and multi-agent shape are both obvious.
-5. When the user confirms the draft, `payment-service` performs a deterministic charge and `order-service` records the order in PostgreSQL.
+4. `kitchen-agent` can ask `menu-agent` for same-brand fallback items when the only kitchen cannot serve a requested item.
+5. The UI shows both the user-facing reply and a visible service/agent trace so the microservice shape and multi-agent shape are both obvious.
+6. The user chooses between partner-standard delivery and in-house express delivery when both are available.
+7. When the user confirms the draft, `payment-service` performs a deterministic charge and `order-service` records the order in PostgreSQL.
 
 ## Local Commands
 

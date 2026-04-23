@@ -60,11 +60,11 @@ Use `repository-reading-guide.md` only when you need a deeper entry-point map.
 - Start here: `samples/README.md`, `arachne/docs/project-status.md`
 - Verification: `mvn -pl arachne -am install -DskipTests` then `mvn -f samples/pom.xml test`
 
-### Marketplace Agent Platform
+### Food Delivery Demo
 
 - Status: the product track now ships a food-delivery demo where each Spring microservice owns a service-local agent behind plain HTTP APIs, plus a thin chat-first operator console. It is not the same surface as `samples/`.
-- Start here: `marketplace-agent-platform/README.md`, `marketplace-agent-platform/docs/architecture.md`, `marketplace-agent-platform/operator-console/README.md`
-- Verification: `mvn -f marketplace-agent-platform/pom.xml test`; in `marketplace-agent-platform/operator-console`, run `npm ci` and `npm run build`
+- Start here: `food-delivery-demo/README.md`, `food-delivery-demo/docs/architecture.md`, `food-delivery-demo/customer-ui/README.md`
+- Verification: `mvn -f food-delivery-demo/pom.xml test`; in `food-delivery-demo/customer-ui`, run `npm ci` and `npm run build`
 
 ### Repository Operations
 
@@ -76,5 +76,5 @@ Use `repository-reading-guide.md` only when you need a deeper entry-point map.
 
 - `samples/pom.xml` resolves the local library snapshot, so sample verification is stale unless the install step ran first.
 - `refs/sdk-python/` is reference-only and should not be edited as part of normal Arachne work.
-- `marketplace-agent-platform/` is intentionally separate from the `samples/` catalog. Do not assume its docs or verification rules are interchangeable with sample guidance.
+- `food-delivery-demo/` is intentionally separate from the `samples/` catalog. Do not assume its docs or verification rules are interchangeable with sample guidance.
 - When the repository operating flow changes, sync `.github/repository-ops/`, related prompts and skills, `.github/copilot-instructions.md`, and `/memories/repo/status.md` together.
