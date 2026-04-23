@@ -182,17 +182,17 @@ class OrderApplicationService {
                           In that case, pass a message that describes the modification in terms of the existing items,
                           e.g. "Return the same items as the current draft but double all quantities: 1x Crispy Chicken Box → 2x".
                         - Call when the customer references a past order to re-order it.
-                        - After suggest_menu returns, present the proposed items to the customer and ask for confirmation.
-                          End your reply with: [CHOICES: "はい、これで追加します", "変更したい"]
-                          Do NOT call check_kitchen in the same turn.
+                        - ALWAYS call check_kitchen immediately after suggest_menu, using the itemIds returned.
 
                         check_kitchen
-                        - Call ONLY after the customer has explicitly confirmed the proposed items.
-                        - Use the itemIds that were returned by the previous suggest_menu call.
-                        - ALWAYS call quote_delivery immediately after check_kitchen, using the itemNames returned.
+                        - Call immediately after suggest_menu with the itemIds from that result.
+                        - After check_kitchen returns, present the proposed items AND the kitchen status (highlight any substitutions or unavailable items) to the customer.
+                        - Ask for explicit confirmation. End your reply with: [CHOICES: "はい、この内容で注文します", "変更したい"]
+                          Do NOT call quote_delivery in the same turn. Stop here.
 
                         quote_delivery
-                        - Call immediately after check_kitchen with the itemNames from that result.
+                        - Call ONLY after the customer has explicitly confirmed the proposed items and kitchen status.
+                        - Use the itemNames from the previous check_kitchen result.
                         - After this, either prepare_payment (if the customer wants to see totals or confirm) or summarise the options to the customer.
 
                         prepare_payment
@@ -206,10 +206,10 @@ class OrderApplicationService {
                         ## Rules
 
                         TOOL CHAIN — TWO-TURN CONFIRMATION FLOW:
-                        - Proposal turn: call suggest_menu → present proposed items → ask [CHOICES: "はい、これで追加します", "変更したい"]. Stop here.
-                        - Confirmation turn (only after the customer explicitly confirms): call check_kitchen → quote_delivery → (prepare_payment if needed).
+                        - Proposal turn: call suggest_menu → check_kitchen → present items + kitchen status (substitutions, availability) → ask [CHOICES: "はい、この内容で注文します", "変更したい"]. Stop here.
+                        - Confirmation turn (only after the customer explicitly confirms): call quote_delivery → (prepare_payment if needed).
                         Items are NEVER added to the draft without the customer's explicit confirmation.
-                        Never call check_kitchen before the customer has confirmed the proposed items.
+                        Never call quote_delivery before the customer has confirmed the proposed items and kitchen status.
 
                         ANSWER THE ACTUAL REQUEST: Read what the customer wrote carefully. If they said "倍にして" (double it), double the quantities. If they said "子ども向け" (for kids), pick child-friendly items. Always address the customer's specific request, not a generic response.
 
@@ -225,7 +225,10 @@ class OrderApplicationService {
                 .run(request.message() + draftContext)
                 .text();
 
-        List<OrderLineItem> lineItems = capturedLineItems.get().isEmpty()
+        // Only promote kitchen-resolved items to the draft when quote_delivery has also
+        // run in this same turn. That means the customer already saw and confirmed the
+        // kitchen status (proposal turn stops before quote_delivery).
+        List<OrderLineItem> lineItems = (capturedLineItems.get().isEmpty() || capturedDeliveryOptions.get().isEmpty())
                 ? existingSession.draft().items()
                 : capturedLineItems.get();
         PaymentPrepareResponse paymentResponse = capturedPaymentResponse.get();

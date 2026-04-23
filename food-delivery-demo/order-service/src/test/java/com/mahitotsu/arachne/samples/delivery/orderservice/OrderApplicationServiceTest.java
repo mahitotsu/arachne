@@ -92,7 +92,8 @@ class OrderApplicationServiceTest {
 
     /**
      * The system prompt must require explicit customer confirmation before
-     * check_kitchen is called, so items are never silently added to the draft.
+     * items are added to the draft. Kitchen status must be shown to the
+     * customer in the proposal turn so they can make an informed decision.
      */
     @Test
     void systemPromptRequiresExplicitConfirmationBeforeAddingItemsToDraft() {
@@ -104,8 +105,10 @@ class OrderApplicationServiceTest {
         String prompt = promptCaptor.getValue();
 
         assertThat(prompt).contains("NEVER added to the draft without the customer's explicit confirmation");
-        assertThat(prompt).contains("Do NOT call check_kitchen in the same turn");
+        assertThat(prompt).contains("Do NOT call quote_delivery in the same turn");
         assertThat(prompt).contains("ONLY after the customer has explicitly confirmed");
+        // Kitchen status must be surfaced to the customer in the proposal turn
+        assertThat(prompt).contains("present the proposed items AND the kitchen status");
     }
 
     // -------------------------------------------------------------------------
