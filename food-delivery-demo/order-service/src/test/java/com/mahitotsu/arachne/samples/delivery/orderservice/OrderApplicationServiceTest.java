@@ -90,6 +90,24 @@ class OrderApplicationServiceTest {
         }
     }
 
+    /**
+     * The system prompt must require explicit customer confirmation before
+     * check_kitchen is called, so items are never silently added to the draft.
+     */
+    @Test
+    void systemPromptRequiresExplicitConfirmationBeforeAddingItemsToDraft() {
+        AgentFactory.Builder builder = mockBuilder();
+        serviceWith(builder).chat(new ChatRequest(null, "おすすめは？"));
+
+        ArgumentCaptor<String> promptCaptor = ArgumentCaptor.forClass(String.class);
+        verify(builder).systemPrompt(promptCaptor.capture());
+        String prompt = promptCaptor.getValue();
+
+        assertThat(prompt).contains("NEVER added to the draft without the customer's explicit confirmation");
+        assertThat(prompt).contains("Do NOT call check_kitchen in the same turn");
+        assertThat(prompt).contains("ONLY after the customer has explicitly confirmed");
+    }
+
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------

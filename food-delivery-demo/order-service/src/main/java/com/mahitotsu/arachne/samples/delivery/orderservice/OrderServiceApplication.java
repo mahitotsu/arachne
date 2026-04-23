@@ -182,10 +182,13 @@ class OrderApplicationService {
                           In that case, pass a message that describes the modification in terms of the existing items,
                           e.g. "Return the same items as the current draft but double all quantities: 1x Crispy Chicken Box → 2x".
                         - Call when the customer references a past order to re-order it.
-                        - ALWAYS call check_kitchen immediately after suggest_menu, using the itemIds returned.
+                        - After suggest_menu returns, present the proposed items to the customer and ask for confirmation.
+                          End your reply with: [CHOICES: "はい、これで追加します", "変更したい"]
+                          Do NOT call check_kitchen in the same turn.
 
                         check_kitchen
-                        - Call immediately after suggest_menu with the itemIds from that result.
+                        - Call ONLY after the customer has explicitly confirmed the proposed items.
+                        - Use the itemIds that were returned by the previous suggest_menu call.
                         - ALWAYS call quote_delivery immediately after check_kitchen, using the itemNames returned.
 
                         quote_delivery
@@ -202,8 +205,11 @@ class OrderApplicationService {
 
                         ## Rules
 
-                        TOOL CHAIN: suggest_menu → check_kitchen → quote_delivery → (prepare_payment if needed).
-                        Never skip steps. Never call a later tool without calling earlier ones first.
+                        TOOL CHAIN — TWO-TURN CONFIRMATION FLOW:
+                        - Proposal turn: call suggest_menu → present proposed items → ask [CHOICES: "はい、これで追加します", "変更したい"]. Stop here.
+                        - Confirmation turn (only after the customer explicitly confirms): call check_kitchen → quote_delivery → (prepare_payment if needed).
+                        Items are NEVER added to the draft without the customer's explicit confirmation.
+                        Never call check_kitchen before the customer has confirmed the proposed items.
 
                         ANSWER THE ACTUAL REQUEST: Read what the customer wrote carefully. If they said "倍にして" (double it), double the quantities. If they said "子ども向け" (for kids), pick child-friendly items. Always address the customer's specific request, not a generic response.
 
