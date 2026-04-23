@@ -1,6 +1,5 @@
 package com.mahitotsu.arachne.samples.delivery.orderservice;
 
-import java.io.UncheckedIOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.ResultSet;
@@ -11,6 +10,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -111,6 +111,7 @@ class OrderApplicationService {
 
     private static final String DEMO_CUSTOMER_ID = "demo-user";
 
+    private final String defaultLanguage;
     private final OrderSessionStore sessionStore;
     private final OrderRepository orderRepository;
     private final MenuGateway menuGateway;
@@ -129,6 +130,7 @@ class OrderApplicationService {
             PaymentGateway paymentGateway,
             AgentFactory agentFactory,
             @Qualifier("recentOrderLookupTool") Tool recentOrderLookupTool) {
+        this.defaultLanguage = Locale.getDefault().getDisplayLanguage(Locale.ENGLISH);
         this.sessionStore = sessionStore;
         this.orderRepository = orderRepository;
         this.menuGateway = menuGateway;
@@ -205,13 +207,13 @@ class OrderApplicationService {
 
                         ANSWER THE ACTUAL REQUEST: Read what the customer wrote carefully. If they said "倍にして" (double it), double the quantities. If they said "子ども向け" (for kids), pick child-friendly items. Always address the customer's specific request, not a generic response.
 
-                        LANGUAGE: Always reply in the same language the customer used. Japanese input → Japanese reply. English input → English reply.
+                        LANGUAGE: Reply in %s by default. If the customer writes in a different language, mirror their language.
 
                         CLARIFICATION: When the customer's intent is genuinely ambiguous, ask a short question and append choices at the very end of your reply using this exact format (no text after it):
                         [CHOICES: "Option A", "Option B", "Option C"]
 
                         DIRECT ANSWERS: For questions unrelated to ordering, answer directly without calling any tool.
-                        """)
+                        """.formatted(defaultLanguage))
                 .tools(menuTool, kitchenTool, deliveryTool, paymentTool, recentOrderLookupTool)
                 .build()
                 .run(request.message() + draftContext)

@@ -21,7 +21,7 @@ Treat `refs/sdk-python` as behavioral reference material and do not edit it unle
 ## Build And Test
 - The default verification command is `mvn test`.
 - Use dedicated integration tests for Bedrock smoke validation instead of ad hoc code.
-- When a change affects behavior, add or update tests in the same turn.
+- When a change affects behavior, add or update tests in the same turn: write at least one test that specifies the new contract, and run the owning module's existing tests to confirm no regressions.
 - Prefer deterministic tests over timing-sensitive or model-randomness-dependent assertions.
 - For shipped opt-in capabilities, add regression coverage that proves the default path still behaves the same when the feature is unused.
 
