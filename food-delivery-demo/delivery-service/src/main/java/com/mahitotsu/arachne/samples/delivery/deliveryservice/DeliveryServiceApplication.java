@@ -1,11 +1,13 @@
 package com.mahitotsu.arachne.samples.delivery.deliveryservice;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -60,55 +62,102 @@ class DeliveryController {
 class DeliveryApplicationService {
 
     private final AgentFactory agentFactory;
-    private final DeliveryRoutingRepository repository;
-    private final Tool deliveryRoutingTool;
+    private final CourierAvailabilityRepository courierRepo;
+    private final TrafficWeatherRepository trafficRepo;
+    private final Tool courierAvailabilityTool;
+    private final Tool trafficWeatherTool;
 
     DeliveryApplicationService(
             AgentFactory agentFactory,
-            DeliveryRoutingRepository repository,
-            @Qualifier("deliveryRoutingTool") Tool deliveryRoutingTool) {
+            CourierAvailabilityRepository courierRepo,
+            TrafficWeatherRepository trafficRepo,
+            Tool courierAvailabilityTool,
+            Tool trafficWeatherTool) {
         this.agentFactory = agentFactory;
-        this.repository = repository;
-        this.deliveryRoutingTool = deliveryRoutingTool;
+        this.courierRepo = courierRepo;
+        this.trafficRepo = trafficRepo;
+        this.courierAvailabilityTool = courierAvailabilityTool;
+        this.trafficWeatherTool = trafficWeatherTool;
     }
 
     DeliveryQuoteResponse quote(DeliveryQuoteRequest request) {
-        List<DeliveryOption> options = repository.quote(request.message(), request.itemNames());
+        AtomicReference<CourierStatus> capturedCourier = new AtomicReference<>();
+        AtomicReference<TrafficWeatherStatus> capturedConditions = new AtomicReference<>();
+
+        // Eagerly fetch both so the agent tools have data to return
+        CourierStatus courierStatus = courierRepo.check(request.itemNames());
+        TrafficWeatherStatus conditions = trafficRepo.current();
+        capturedCourier.set(courierStatus);
+        capturedConditions.set(conditions);
+
+        // Compute adjusted ETAs based on real conditions
+        int trafficDelay = conditions.trafficDelayMinutes();
+        int weatherDelay = conditions.weatherDelayMinutes();
+        int expressBaseEta = 15 + trafficDelay / 2 + weatherDelay / 2;
+        int standardBaseEta = expressBaseEta + 12 + trafficDelay + weatherDelay;
+
+        List<DeliveryOption> options = new ArrayList<>();
+        if (courierStatus.expressAvailable()) {
+            options.add(new DeliveryOption("express", "Express rider", expressBaseEta, new BigDecimal("300.00")));
+        }
+        options.add(new DeliveryOption("standard", "Standard route", standardBaseEta, new BigDecimal("180.00")));
+        options.sort(Comparator.comparingInt(DeliveryOption::etaMinutes));
+
+        String prompt = """
+                You are the delivery-agent for a food delivery service.
+                Use the check_courier_availability and get_traffic_weather tools to investigate real-time conditions, then
+                write a clear summary covering:
+                1. Express courier availability and current readiness
+                2. Traffic and weather conditions and their impact on ETA
+                3. The adjusted ETA for each available option (express and/or standard)
+                Keep the tone concise and factual. Do not ask questions.
+                """;
+
         String summary = agentFactory.builder()
-                .systemPrompt("You are the delivery-agent. Explain the best delivery option and ETA in one paragraph.")
-                .tools(deliveryRoutingTool)
+                .systemPrompt(prompt)
+                .tools(courierAvailabilityTool, trafficWeatherTool)
                 .build()
-                .run("request=" + request.message())
+                .run("Assess delivery conditions for order: " + request.message()
+                        + ". Items: " + request.itemNames())
                 .text();
-        return new DeliveryQuoteResponse("delivery-service", "delivery-agent", repository.headline(request.message()), summary, options);
+
+        String headline = courierStatus.expressAvailable()
+                ? "delivery-agent assessed courier availability, traffic, and weather"
+                : "delivery-agent: express unavailable — standard route quoted";
+
+        return new DeliveryQuoteResponse("delivery-service", "delivery-agent", headline, summary, options);
     }
 }
 
 @Component
-class DeliveryRoutingRepository {
+class CourierAvailabilityRepository {
 
-    List<DeliveryOption> quote(String message, List<String> itemNames) {
-        boolean fastest = message != null && (message.contains("最速") || message.toLowerCase().contains("fast"));
+    CourierStatus check(List<String> itemNames) {
+        // Simulate courier availability based on item count and pseudo-time
         int itemCount = itemNames == null ? 0 : itemNames.size();
-        int baseEta = 18 + Math.max(0, itemCount - 2) * 2;
-        DeliveryOption express = new DeliveryOption("express", "Express rider", baseEta, new BigDecimal("300.00"));
-        DeliveryOption standard = new DeliveryOption("standard", "Standard route", baseEta + 9, new BigDecimal("180.00"));
-        return fastest ? List.of(express, standard) : List.of(standard, express);
+        boolean expressAvailable = (System.currentTimeMillis() / 10000) % 3 != 0; // unavailable ~1/3 of time
+        int expressReadyInMinutes = expressAvailable ? (1 + itemCount) : -1;
+        int standardReadyInMinutes = 3 + itemCount;
+        return new CourierStatus(expressAvailable, expressReadyInMinutes, standardReadyInMinutes);
     }
+}
 
-    String headline(String message) {
-        if (message != null && message.contains("最速")) {
-            return "delivery-agent prioritised the express lane";
-        }
-        return "delivery-agent priced both standard and express options";
-    }
+@Component
+class TrafficWeatherRepository {
 
-    String describe(String message) {
-        List<DeliveryOption> options = quote(message, List.of());
-        return options.stream()
-                .map(option -> option.label() + " in " + option.etaMinutes() + " min")
-                .reduce((left, right) -> left + ", then " + right)
-                .orElse("standard route in 27 min");
+    TrafficWeatherStatus current() {
+        // Simulate varying traffic and weather conditions
+        long slot = (System.currentTimeMillis() / 30000) % 4;
+        int trafficDelay = (int) (slot * 3);       // 0, 3, 6, or 9 min
+        int weatherDelay = slot >= 3 ? 5 : 0;      // heavy rain in worst slot
+        String trafficLevel = switch ((int) slot) {
+            case 0 -> "clear";
+            case 1 -> "light";
+            case 2 -> "moderate";
+            default -> "heavy";
+        };
+        String weather = slot >= 3 ? "rainy" : "clear";
+        return new TrafficWeatherStatus(trafficLevel, weather, trafficDelay, weatherDelay);
     }
 }
 
@@ -116,22 +165,70 @@ class DeliveryRoutingRepository {
 class DeliveryArachneConfiguration {
 
     @Bean
-    Tool deliveryRoutingTool(DeliveryRoutingRepository repository) {
+    Tool courierAvailabilityTool(CourierAvailabilityRepository repo) {
         return new Tool() {
             @Override
             public ToolSpec spec() {
-                return new ToolSpec("delivery_route_lookup", "Estimate the best delivery route and ETA options for the order.", schema());
+                ObjectNode root = JsonNodeFactory.instance.objectNode();
+                root.put("type", "object");
+                ObjectNode props = root.putObject("properties");
+                ObjectNode itemsNode = props.putObject("itemNames");
+                itemsNode.put("type", "array");
+                itemsNode.putObject("items").put("type", "string");
+                itemsNode.put("description", "Names of items in the order");
+                root.putArray("required").add("itemNames");
+                root.put("additionalProperties", false);
+                return new ToolSpec("check_courier_availability",
+                        "Check which courier tiers (express / standard) have riders available right now and their ready-in minutes.", root);
             }
 
             @Override
             public ToolResult invoke(Object input) {
-                return invoke(input, new ToolInvocationContext("delivery_route_lookup", null, input, null));
+                return invoke(input, new ToolInvocationContext("check_courier_availability", null, input, null));
             }
 
             @Override
             public ToolResult invoke(Object input, ToolInvocationContext context) {
-                String request = String.valueOf(values(input).getOrDefault("request", ""));
-                return ToolResult.success(context.toolUseId(), Map.of("routeSummary", repository.describe(request)));
+                List<String> itemNames = stringList(values(input).get("itemNames"));
+                CourierStatus status = repo.check(itemNames);
+                Map<String, Object> result = new LinkedHashMap<>();
+                result.put("expressAvailable", status.expressAvailable());
+                result.put("expressReadyInMinutes", status.expressReadyInMinutes());
+                result.put("standardReadyInMinutes", status.standardReadyInMinutes());
+                if (!status.expressAvailable()) {
+                    result.put("expressUnavailableReason", "No express riders available at this time");
+                }
+                return ToolResult.success(context.toolUseId(), result);
+            }
+        };
+    }
+
+    @Bean
+    Tool trafficWeatherTool(TrafficWeatherRepository repo) {
+        return new Tool() {
+            @Override
+            public ToolSpec spec() {
+                ObjectNode root = JsonNodeFactory.instance.objectNode();
+                root.put("type", "object");
+                root.put("properties", root.objectNode());
+                root.put("additionalProperties", false);
+                return new ToolSpec("get_traffic_weather",
+                        "Get current real-time traffic congestion level and weather conditions that affect delivery ETA.", root);
+            }
+
+            @Override
+            public ToolResult invoke(Object input) {
+                return invoke(input, new ToolInvocationContext("get_traffic_weather", null, input, null));
+            }
+
+            @Override
+            public ToolResult invoke(Object input, ToolInvocationContext context) {
+                TrafficWeatherStatus status = repo.current();
+                return ToolResult.success(context.toolUseId(), Map.of(
+                        "trafficLevel", status.trafficLevel(),
+                        "weather", status.weather(),
+                        "trafficDelayMinutes", status.trafficDelayMinutes(),
+                        "weatherDelayMinutes", status.weatherDelayMinutes()));
             }
         };
     }
@@ -142,14 +239,11 @@ class DeliveryArachneConfiguration {
         return new DeliveryDeterministicModel();
     }
 
-    private static ObjectNode schema() {
-        ObjectNode root = JsonNodeFactory.instance.objectNode();
-        root.put("type", "object");
-        ObjectNode properties = root.putObject("properties");
-        properties.putObject("request").put("type", "string");
-        root.putArray("required").add("request");
-        root.put("additionalProperties", false);
-        return root;
+    private static List<String> stringList(Object value) {
+        if (value instanceof List<?> list) {
+            return list.stream().map(String::valueOf).toList();
+        }
+        return List.of();
     }
 
     private static Map<String, Object> values(Object input) {
@@ -175,14 +269,36 @@ class DeliveryArachneConfiguration {
 
         @Override
         public Iterable<ModelEvent> converse(List<Message> messages, List<ToolSpec> tools, String systemPrompt, ToolSelection toolSelection) {
-            Map<String, Object> toolContent = latestToolContent(messages, "delivery-lookup");
-            if (toolContent == null) {
+            // Step 1: call check_courier_availability
+            Map<String, Object> courierResult = latestToolContent(messages, "courier-check");
+            if (courierResult == null) {
                 return List.of(
-                        new ModelEvent.ToolUse("delivery-lookup", "delivery_route_lookup", Map.of("request", latestUserText(messages))),
+                        new ModelEvent.ToolUse("courier-check", "check_courier_availability", Map.of("itemNames", List.of())),
                         new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
             }
+            // Step 2: call get_traffic_weather
+            Map<String, Object> trafficResult = latestToolContent(messages, "traffic-check");
+            if (trafficResult == null) {
+                return List.of(
+                        new ModelEvent.ToolUse("traffic-check", "get_traffic_weather", Map.of()),
+                        new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
+            }
+            // Step 3: synthesize summary
+            boolean expressAvailable = Boolean.parseBoolean(String.valueOf(courierResult.getOrDefault("expressAvailable", "true")));
+            String trafficLevel = String.valueOf(trafficResult.getOrDefault("trafficLevel", "clear"));
+            String weather = String.valueOf(trafficResult.getOrDefault("weather", "clear"));
+            int trafficDelay = Integer.parseInt(String.valueOf(trafficResult.getOrDefault("trafficDelayMinutes", "0")));
+            int weatherDelay = Integer.parseInt(String.valueOf(trafficResult.getOrDefault("weatherDelayMinutes", "0")));
+            int expressEta = 15 + trafficDelay / 2 + weatherDelay / 2;
+            int standardEta = expressEta + 12 + trafficDelay + weatherDelay;
+            String expressLine = expressAvailable
+                    ? "Express rider is available (ready in " + courierResult.getOrDefault("expressReadyInMinutes", 2) + " min), estimated delivery " + expressEta + " min."
+                    : "Express riders are currently unavailable.";
+            String summary = expressLine + " Traffic is " + trafficLevel + ", weather is " + weather
+                    + " (combined delay +" + (trafficDelay + weatherDelay) + " min)."
+                    + " Standard route estimated delivery: " + standardEta + " min.";
             return List.of(
-                    new ModelEvent.TextDelta("delivery-agent prepared the route plan: " + toolContent.getOrDefault("routeSummary", "standard delivery in 27 min") + "."),
+                    new ModelEvent.TextDelta(summary),
                     new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
         }
 
@@ -201,21 +317,6 @@ class DeliveryArachneConfiguration {
             }
             return null;
         }
-
-        private String latestUserText(List<Message> messages) {
-            for (int index = messages.size() - 1; index >= 0; index--) {
-                Message message = messages.get(index);
-                if (message.role() != Message.Role.USER) {
-                    continue;
-                }
-                for (ContentBlock block : message.content()) {
-                    if (block instanceof ContentBlock.Text text) {
-                        return text.text().replace("request=", "");
-                    }
-                }
-            }
-            return "";
-        }
     }
 }
 
@@ -224,3 +325,7 @@ record DeliveryQuoteRequest(String sessionId, String message, List<String> itemN
 record DeliveryQuoteResponse(String service, String agent, String headline, String summary, List<DeliveryOption> options) {}
 
 record DeliveryOption(String code, String label, int etaMinutes, BigDecimal fee) {}
+
+record CourierStatus(boolean expressAvailable, int expressReadyInMinutes, int standardReadyInMinutes) {}
+
+record TrafficWeatherStatus(String trafficLevel, String weather, int trafficDelayMinutes, int weatherDelayMinutes) {}

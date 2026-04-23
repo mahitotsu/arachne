@@ -193,23 +193,29 @@ class OrderApplicationService {
                         quote_delivery
                         - Call ONLY after the customer has explicitly confirmed the proposed items and kitchen status.
                         - Use the itemNames from the previous check_kitchen result.
-                        - After this, either prepare_payment (if the customer wants to see totals or confirm) or summarise the options to the customer.
+                        - After quote_delivery returns, present the delivery-agent's assessment (courier availability, traffic, weather, adjusted ETAs) AND the available options with fees.
+                        - Ask the customer to choose a delivery tier. End your reply with [CHOICES] listing the available options, e.g.:
+                          [CHOICES: "エクスプレス (XX分・¥300)", "スタンダード (XX分・¥180)"]
+                          If express is unavailable, offer only standard.
+                          Do NOT call prepare_payment in the same turn. Stop here.
 
                         prepare_payment
-                        - Call when you have delivery options and the customer wants a cost summary or is ready to pay.
+                        - Call ONLY after the customer has explicitly chosen a delivery option.
                         - Set confirmRequested=true ONLY when the customer explicitly says to place, confirm, or submit the order (e.g. "注文確定して", "confirm", "place the order").
-                        - Set fastestDelivery=true when the customer asks for the fastest option (e.g. "最速", "urgent", "急ぎ").
+                        - Set fastestDelivery=true when the customer chose the express option.
 
                         recent_order_lookup
                         - Call when the customer refers to a previous order (e.g. "前回と同じ", "same as last time").
 
                         ## Rules
 
-                        TOOL CHAIN — TWO-TURN CONFIRMATION FLOW:
-                        - Proposal turn: call suggest_menu → check_kitchen → present items + kitchen status (substitutions, availability) → ask [CHOICES: "はい、この内容で注文します", "変更したい"]. Stop here.
-                        - Confirmation turn (only after the customer explicitly confirms): call quote_delivery → (prepare_payment if needed).
+                        TOOL CHAIN — THREE-TURN CONFIRMATION FLOW:
+                        - Proposal turn: call suggest_menu → check_kitchen → present items + kitchen status → ask [CHOICES: "はい、この内容で注文します", "変更したい"]. Stop here.
+                        - Delivery turn (after item confirmation): call quote_delivery → present delivery-agent assessment + options → ask [CHOICES: "エクスプレス ...", "スタンダード ..."]. Stop here.
+                        - Payment turn (after delivery choice): call prepare_payment → present total and ask for final confirmation.
                         Items are NEVER added to the draft without the customer's explicit confirmation.
-                        Never call quote_delivery before the customer has confirmed the proposed items and kitchen status.
+                        Never call quote_delivery before the customer has confirmed items.
+                        Never call prepare_payment before the customer has chosen a delivery option.
 
                         ANSWER THE ACTUAL REQUEST: Read what the customer wrote carefully. If they said "倍にして" (double it), double the quantities. If they said "子ども向け" (for kids), pick child-friendly items. Always address the customer's specific request, not a generic response.
 
