@@ -114,7 +114,12 @@ function OrderPageInner() {
     setAccessToken(token);
 
     const itemParam = searchParams.get('item');
-    if (itemParam) setMessage(`「${itemParam}」を注文したいです。`);
+    const reorderParam = searchParams.get('reorder');
+    if (reorderParam) {
+      setMessage(`注文ID ${reorderParam} と同じ内容を再注文したいです。`);
+    } else if (itemParam) {
+      setMessage(`「${itemParam}」を注文したいです。`);
+    }
 
     const savedSessionId = window.localStorage.getItem(SESSION_KEY);
     if (!savedSessionId) return;

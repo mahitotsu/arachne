@@ -94,8 +94,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      customer-service:
-        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:8080/actuator/health >/dev/null || exit 1"]
       interval: 2s
@@ -124,9 +122,6 @@ services:
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
       AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
       SERVER_PORT: 8080
-    depends_on:
-      customer-service:
-        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:8080/actuator/health >/dev/null || exit 1"]
       interval: 2s
@@ -146,6 +141,7 @@ services:
     environment:
       DELIVERY_MODEL_MODE: ${DELIVERY_MODEL_MODE:-deterministic}
       DELIVERY_JWK_SET_URI: http://customer-service:8080/oauth2/jwks
+      MENU_SERVICE_BASE_URL: http://menu-service:8080
       ARACHNE_STRANDS_MODEL_PROVIDER: ${ARACHNE_STRANDS_MODEL_PROVIDER:-}
       ARACHNE_STRANDS_MODEL_ID: ${ARACHNE_STRANDS_MODEL_ID:-}
       ARACHNE_STRANDS_MODEL_REGION: ${ARACHNE_STRANDS_MODEL_REGION:-}
@@ -155,9 +151,6 @@ services:
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
       AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
       SERVER_PORT: 8080
-    depends_on:
-      customer-service:
-        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:8080/actuator/health >/dev/null || exit 1"]
       interval: 2s
@@ -186,9 +179,6 @@ services:
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
       AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
       SERVER_PORT: 8080
-    depends_on:
-      customer-service:
-        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:8080/actuator/health >/dev/null || exit 1"]
       interval: 2s
@@ -217,9 +207,6 @@ services:
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
       AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
       SERVER_PORT: 8080
-    depends_on:
-      customer-service:
-        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:8080/actuator/health >/dev/null || exit 1"]
       interval: 2s

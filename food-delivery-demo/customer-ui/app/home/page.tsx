@@ -27,6 +27,15 @@ type RecentDraft = {
   orderId: string;
 };
 
+type OrderHistoryItem = {
+  orderId: string;
+  itemSummary: string;
+  total: number;
+  etaLabel: string;
+  paymentStatus: string;
+  createdAt: string;
+};
+
 type ServiceState = 'loading' | 'ok' | 'error' | 'idle';
 
 const ACCESS_TOKEN_KEY = 'delivery-demo-access-token';
@@ -37,6 +46,7 @@ export default function HomePage() {
   const [profile, setProfile] = useState<CustomerProfile | null>(null);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [recentDraft, setRecentDraft] = useState<RecentDraft | null>(null);
+  const [orderHistory, setOrderHistory] = useState<OrderHistoryItem[]>([]);
   const [svcState, setSvcState] = useState<Record<string, ServiceState>>({
     'customer-service': 'loading',
     'menu-service': 'loading',
@@ -86,21 +96,32 @@ export default function HomePage() {
       const sessionId = window.localStorage.getItem(SESSION_KEY);
       if (!sessionId) {
         setSvcState(s => ({ ...s, 'order-service': 'idle' }));
-        return;
-      }
-      try {
-        const r = await fetch(`/api/backend/session/${sessionId}`, { headers });
-        if (r.ok) {
-          const data = await r.json();
-          if (data.draft?.items?.length > 0) {
-            setRecentDraft(data.draft as RecentDraft);
+      } else {
+        try {
+          const r = await fetch(`/api/backend/session/${sessionId}`, { headers });
+          if (r.ok) {
+            const data = await r.json();
+            if (data.draft?.items?.length > 0) {
+              setRecentDraft(data.draft as RecentDraft);
+            }
+            setSvcState(s => ({ ...s, 'order-service': 'ok' }));
+          } else {
+            setSvcState(s => ({ ...s, 'order-service': r.status === 404 ? 'idle' : 'error' }));
           }
-          setSvcState(s => ({ ...s, 'order-service': 'ok' }));
-        } else {
-          setSvcState(s => ({ ...s, 'order-service': r.status === 404 ? 'idle' : 'error' }));
+        } catch {
+          setSvcState(s => ({ ...s, 'order-service': 'error' }));
+        }
+      }
+
+      // Fetch order history regardless of active session
+      try {
+        const hr = await fetch('/api/backend/orders/history', { headers });
+        if (hr.ok) {
+          const data = await hr.json() as OrderHistoryItem[];
+          setOrderHistory(data);
         }
       } catch {
-        setSvcState(s => ({ ...s, 'order-service': 'error' }));
+        // history is non-critical — silently skip
       }
     }
 
@@ -212,6 +233,38 @@ export default function HomePage() {
               <p className="h-recent-empty-text">
                 まだセッションはありません。下のメニューから注文を始めてください。
               </p>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Order history */}
+      <section className="h-history-section">
+        <div className="h-history-card">
+          <h2 className="h-history-title">📋 注文履歴</h2>
+          {orderHistory.length === 0 ? (
+            <p className="h-history-empty">まだ注文履歴がありません。</p>
+          ) : (
+            <div className="h-history-list">
+              {orderHistory.map(order => {
+                const total = typeof order.total === 'string' ? parseFloat(order.total as unknown as string) : order.total;
+                const date = new Date(order.createdAt).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' });
+                return (
+                  <div key={order.orderId} className="h-history-row">
+                    <div className="h-history-summary">
+                      <p className="h-history-items">{order.itemSummary}</p>
+                      <p className="h-history-meta">{date} · {order.etaLabel} · {order.paymentStatus}</p>
+                    </div>
+                    <span className="h-history-total">¥{total.toFixed(0)}</span>
+                    <Link
+                      href={`/order?reorder=${encodeURIComponent(order.orderId)}`}
+                      className="h-history-reorder"
+                    >
+                      再注文 →
+                    </Link>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

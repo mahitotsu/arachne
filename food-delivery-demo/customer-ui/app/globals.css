@@ -1680,6 +1680,88 @@ textarea {
   line-height: 1.5;
 }
 
+/* --- Order history panel --- */
+.h-history-section {
+  padding: 40px 40px 0;
+}
+
+.h-history-card {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 20px 24px;
+  box-shadow: var(--shadow-sm);
+}
+
+.h-history-title {
+  margin: 0 0 16px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.h-history-empty {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--ink-subtle);
+}
+
+.h-history-list {
+  display: grid;
+  gap: 10px;
+}
+
+.h-history-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.h-history-summary {
+  flex: 1;
+  min-width: 0;
+}
+
+.h-history-items {
+  margin: 0 0 4px;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.h-history-meta {
+  margin: 0;
+  font-size: 0.76rem;
+  color: var(--ink-subtle);
+}
+
+.h-history-total {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--gold);
+  white-space: nowrap;
+}
+
+.h-history-reorder {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--accent);
+  text-decoration: none;
+  white-space: nowrap;
+  padding: 6px 12px;
+  border: 1.5px solid var(--accent);
+  border-radius: 8px;
+}
+
+.h-history-reorder:hover { background: var(--accent); color: #fff; }
+
 /* --- Menu catalog section --- */
 .h-menu-section {
   padding: 56px 40px;

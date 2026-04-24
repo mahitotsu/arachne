@@ -141,6 +141,11 @@ class OrderController {
     ChatResponse session(@PathVariable String sessionId) {
         return applicationService.session(sessionId);
     }
+
+    @GetMapping("/orders/history")
+    List<StoredOrderSummary> orderHistory() {
+        return applicationService.recentOrderHistory();
+    }
 }
 
 @Service
@@ -268,7 +273,10 @@ class OrderApplicationService {
                         - Set fastestDelivery=true when the customer chose the express option.
 
                         recent_order_lookup
-                        - Call when the customer refers to a previous order (e.g. "前回と同じ", "same as last time").
+                        - Call when the customer refers to a previous order (e.g. "前回と同じ", "same as last time", "昨日と同じ", "いつものやつ").
+                        - If the result has itemSummary = "No previous order found", the customer has no order history yet.
+                          In that case, do NOT tell the customer to log in or create an account.
+                          Instead, greet them warmly and ask what they would like to order today.
 
                         ## Rules
 
@@ -413,6 +421,10 @@ class OrderApplicationService {
         OrderChatSession session = sessionStore.load(sessionId).orElse(emptySession(sessionId));
         return new ChatResponse(session.sessionId(), session.conversation(), "", session.draft(), List.of(), null,
             contextualSuggestions(session), List.of());
+    }
+
+    List<StoredOrderSummary> recentOrderHistory() {
+        return orderRepository.findRecentOrdersForUser(authenticatedCustomerResolver.currentCustomerId(), 5);
     }
 
     private ChatResponse applyPendingProposal(String sessionId, ChatRequest request, OrderChatSession existingSession,
@@ -1342,6 +1354,19 @@ class OrderRepository {
                 .optional();
     }
 
+    List<StoredOrderSummary> findRecentOrdersForUser(String customerId, int limit) {
+        return jdbcClient.sql("""
+                select order_id, item_summary, total, eta_label, payment_status, created_at
+                from delivery_orders
+                where customer_id = ?
+                order by created_at desc
+                limit ?
+                """)
+                .params(customerId, limit)
+                .query(this::mapStoredOrderSummary)
+                .list();
+    }
+
     private StoredOrder mapStoredOrder(ResultSet resultSet, int rowNum) throws SQLException {
         return new StoredOrder(
                 resultSet.getString("order_id"),
@@ -1350,6 +1375,17 @@ class OrderRepository {
                 resultSet.getBigDecimal("total"),
                 resultSet.getString("eta_label"),
                 resultSet.getString("payment_status"));
+    }
+
+    private StoredOrderSummary mapStoredOrderSummary(ResultSet resultSet, int rowNum) throws SQLException {
+        Timestamp ts = resultSet.getTimestamp("created_at");
+        return new StoredOrderSummary(
+                resultSet.getString("order_id"),
+                resultSet.getString("item_summary"),
+                resultSet.getBigDecimal("total"),
+                resultSet.getString("eta_label"),
+                resultSet.getString("payment_status"),
+                ts != null ? ts.toInstant().toString() : "");
     }
 }
 
@@ -1699,6 +1735,8 @@ record PendingProposal(List<OrderLineItem> lineItems, String displayMessage) {}
 record PendingDeliverySelection(List<DeliveryOptionView> options) {}
 
 record StoredOrder(String orderId, String itemSummary, BigDecimal subtotal, BigDecimal total, String etaLabel, String paymentStatus) {}
+
+record StoredOrderSummary(String orderId, String itemSummary, BigDecimal total, String etaLabel, String paymentStatus, String createdAt) {}
 
 record MenuSuggestionRequest(String sessionId, String message) {}
 
