@@ -6,21 +6,23 @@ BEDROCK_MODEL_PROVIDER ?= bedrock
 AWS_EXPORT_CREDENTIALS_CMD = aws configure export-credentials --format env-no-export $(if $(AWS_PROFILE),--profile $(AWS_PROFILE),)
 COMPOSE_PARALLEL_LIMIT ?= 5
 
-.PHONY: help up up-bedrock down reset ps logs test ui-install ui-build ui-dev smoke check-bedrock-env
+.PHONY: help up up-bedrock down reset ps logs test ui-install ui-build ui-dev smoke seed-data reinit-data
 
 help:
 	@printf "Food Delivery Agent Platform commands:\n"
-	@printf "  make up         Build and start the full local demo runtime\n"
-	@printf "  make up-bedrock Build and start the runtime with Bedrock-backed agents\n"
-	@printf "  make down       Stop the composed runtime\n"
-	@printf "  make reset      Stop the runtime and remove volumes\n"
-	@printf "  make ps         Show compose service status\n"
-	@printf "  make logs       Show compose logs, optionally pass SERVICE=<name>\n"
-	@printf "  make test       Run mvn test for all backend services\n"
-	@printf "  make ui-install Install Next.js dependencies\n"
-	@printf "  make ui-build   Build the Next.js frontend\n"
-	@printf "  make ui-dev     Start the Next.js dev server\n"
-	@printf "  make smoke      Call the chat API with a sample request\n"
+	@printf "  make up           Build and start the full local demo runtime\n"
+	@printf "  make up-bedrock   Build and start the runtime with Bedrock-backed agents\n"
+	@printf "  make down         Stop the composed runtime\n"
+	@printf "  make reset        Stop the runtime and remove volumes\n"
+	@printf "  make ps           Show compose service status\n"
+	@printf "  make logs         Show compose logs, optionally pass SERVICE=<name>\n"
+	@printf "  make test         Run mvn test for all backend services\n"
+	@printf "  make ui-install   Install Next.js dependencies\n"
+	@printf "  make ui-build     Build the Next.js frontend\n"
+	@printf "  make ui-dev       Start the Next.js dev server\n"
+	@printf "  make smoke        Call the chat API with a sample request\n"
+	@printf "  make seed-data    Insert demo order history (idempotent; safe to re-run)\n"
+	@printf "  make reinit-data  Truncate order history and re-seed from db/seed-data.sql\n"
 
 up:
 	cd $(PROJECT_DIR) && COMPOSE_PARALLEL_LIMIT=$(COMPOSE_PARALLEL_LIMIT) $(COMPOSE) up -d --build
@@ -74,3 +76,10 @@ smoke:
 	curl --fail --silent --show-error -X POST http://localhost:8080/api/chat \
 		-H 'Content-Type: application/json' \
 		-d '{"message":"2人分でいつものチキンセットを最速で注文したい"}'
+
+seed-data:
+	$(COMPOSE) exec -T postgres psql -U delivery -d food_delivery < $(PROJECT_DIR)db/seed-data.sql
+
+reinit-data:
+	$(COMPOSE) exec -T postgres psql -U delivery -d food_delivery -c "TRUNCATE delivery_orders;"
+	$(COMPOSE) exec -T postgres psql -U delivery -d food_delivery < $(PROJECT_DIR)db/seed-data.sql

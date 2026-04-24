@@ -254,17 +254,14 @@ class CustomerAccountRepository {
     }
 
     void seedDemoAccounts(PasswordEncoder passwordEncoder) {
-        Long count = jdbcClient.sql("select count(*) from customer_accounts")
-                .query(Long.class)
-                .single();
-        if (count != null && count > 0) {
-            return;
-        }
-
         insertAccount("cust-demo-001", "demo", "Aoi Sato", "ja-JP", "orders.read orders.write profile.read",
                 passwordEncoder.encode("demo-pass"));
         insertAccount("cust-demo-002", "family", "Family Account", "ja-JP", "orders.read orders.write profile.read",
                 passwordEncoder.encode("family-pass"));
+        insertAccount("cust-solo-001", "solo", "Hina Nakamura", "ja-JP", "orders.read orders.write profile.read",
+                passwordEncoder.encode("solo-pass"));
+        insertAccount("cust-corp-001", "corporate", "Corp Account", "ja-JP", "orders.read orders.write profile.read",
+                passwordEncoder.encode("corp-pass"));
     }
 
     private void insertAccount(
@@ -277,6 +274,7 @@ class CustomerAccountRepository {
         jdbcClient.sql("""
                 insert into customer_accounts (customer_id, login_id, password_hash, display_name, default_locale, scopes)
                 values (:customerId, :loginId, :passwordHash, :displayName, :defaultLocale, :scopes)
+                on conflict do nothing
                 """)
                 .param("customerId", customerId)
                 .param("loginId", loginId)

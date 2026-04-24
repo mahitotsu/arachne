@@ -1465,9 +1465,9 @@ class OrderArachneConfiguration {
     @Bean
     ApplicationRunner seedHistoricalOrder(OrderRepository orderRepository) {
         return args -> {
-            if (orderRepository.findLatestOrderForUser("demo-user").isEmpty()) {
+            if (orderRepository.findLatestOrderForUser("cust-demo-001").isEmpty()) {
                 orderRepository.saveConfirmedOrder(
-                        "demo-user",
+                        "cust-demo-001",
                         List.of(
                                 new OrderLineItem("Crispy Chicken Box", 2, new BigDecimal("980.00"), "seed"),
                                 new OrderLineItem("Curly Fries", 1, new BigDecimal("330.00"), "seed"),
