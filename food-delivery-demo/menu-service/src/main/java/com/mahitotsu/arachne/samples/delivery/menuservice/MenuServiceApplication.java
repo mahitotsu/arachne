@@ -189,11 +189,19 @@ class MenuRepository {
             new MenuItem("combo-crispy", "Crispy Chicken Box", "Crispy chicken, fries, and lemon soda.", new BigDecimal("980.00"), 1),
             new MenuItem("combo-smash", "Smash Burger Combo", "Double smash burger with fries and cola.", new BigDecimal("1050.00"), 1),
             new MenuItem("combo-kids", "Kids Cheeseburger Set", "Small cheeseburger, corn cup, and apple juice.", new BigDecimal("720.00"), 1),
+            new MenuItem("combo-teriyaki", "Teriyaki Chicken Box", "Teriyaki glazed chicken with steamed rice and miso soup.", new BigDecimal("920.00"), 1),
+            new MenuItem("combo-spicy-tuna", "Spicy Tuna Rice Box", "Seasonal spicy tuna over sushi rice with pickled ginger.", new BigDecimal("1080.00"), 1),
             new MenuItem("side-fries", "Curly Fries", "Seasoned curly fries.", new BigDecimal("330.00"), 1),
             new MenuItem("side-nuggets", "Nugget Share Box", "Ten-piece nugget box with sauces.", new BigDecimal("640.00"), 1),
+            new MenuItem("side-onion-rings", "Crispy Onion Rings", "Beer-battered onion rings with chipotle dip.", new BigDecimal("380.00"), 1),
             new MenuItem("drink-lemon", "Lemon Soda", "Fresh lemon soda with low sweetness.", new BigDecimal("240.00"), 1),
             new MenuItem("drink-latte", "Iced Latte", "Iced latte with milk foam.", new BigDecimal("320.00"), 1),
-            new MenuItem("wrap-garden", "Garden Wrap", "Fresh veggie wrap with yogurt sauce.", new BigDecimal("760.00"), 1));
+            new MenuItem("drink-matcha-latte", "Hot Matcha Latte", "Ceremonial-grade matcha steamed with oat milk.", new BigDecimal("350.00"), 1),
+            new MenuItem("wrap-garden", "Garden Wrap", "Fresh veggie wrap with yogurt sauce.", new BigDecimal("760.00"), 1),
+            new MenuItem("bowl-salmon", "Salmon Rice Bowl", "Seared salmon fillet on seasoned rice with sesame and spring onion.", new BigDecimal("890.00"), 1),
+            new MenuItem("bowl-veggie", "Veggie Grain Bowl", "Roasted seasonal vegetables over quinoa with tahini dressing.", new BigDecimal("750.00"), 1),
+            new MenuItem("dessert-choco", "Chocolate Fondant", "Warm dark-chocolate fondant with vanilla ice cream.", new BigDecimal("380.00"), 1),
+            new MenuItem("dessert-matcha", "Matcha Soft Serve", "Creamy matcha soft serve with azuki bean topping.", new BigDecimal("290.00"), 1));
 
     List<MenuItem> findAll() {
         return List.copyOf(ITEMS);
@@ -207,7 +215,9 @@ class MenuRepository {
         if (!matches.isEmpty()) {
             return tuneQuantities(matches, query);
         }
-        return tuneQuantities(List.of(ITEMS.get(0), ITEMS.get(1), ITEMS.get(3), ITEMS.get(5)), query);
+        return tuneQuantities(ITEMS.stream()
+                .filter(item -> List.of("combo-crispy", "combo-smash", "side-fries", "drink-lemon").contains(item.id()))
+                .toList(), query);
     }
 
     String headline(List<MenuItem> items) {

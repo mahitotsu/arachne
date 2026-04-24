@@ -1,7 +1,7 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { FormEvent, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import Link from 'next/link';
 
@@ -76,7 +76,16 @@ function formatRoutingValue(value: string) {
 }
 
 export default function OrderPage() {
+  return (
+    <Suspense fallback={null}>
+      <OrderPageInner />
+    </Suspense>
+  );
+}
+
+function OrderPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [accessToken, setAccessToken] = useState('');
   const [sessionId, setSessionId] = useState('');
   const [message, setMessage] = useState('');
@@ -103,6 +112,9 @@ export default function OrderPage() {
       return;
     }
     setAccessToken(token);
+
+    const itemParam = searchParams.get('item');
+    if (itemParam) setMessage(`「${itemParam}」を注文したいです。`);
 
     const savedSessionId = window.localStorage.getItem(SESSION_KEY);
     if (!savedSessionId) return;

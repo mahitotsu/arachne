@@ -117,6 +117,8 @@ export default function HomePage() {
   const sides = menuItems.filter(m => m.id.startsWith('side-'));
   const drinks = menuItems.filter(m => m.id.startsWith('drink-'));
   const wraps = menuItems.filter(m => m.id.startsWith('wrap-'));
+  const bowls = menuItems.filter(m => m.id.startsWith('bowl-'));
+  const desserts = menuItems.filter(m => m.id.startsWith('dessert-'));
 
   const sources = [
     { key: 'customer-service', label: 'customer-service', icon: '🔐', desc: 'profile & auth' },
@@ -250,11 +252,27 @@ export default function HomePage() {
                 </div>
               </div>
             )}
+            {bowls.length > 0 && (
+              <div className="h-menu-group">
+                <h3 className="h-menu-group-title">🍚 ライスボウル</h3>
+                <div className="h-menu-grid">
+                  {bowls.map(item => <MenuCard key={item.id} item={item} />)}
+                </div>
+              </div>
+            )}
             {(drinks.length > 0 || wraps.length > 0) && (
               <div className="h-menu-group">
                 <h3 className="h-menu-group-title">🥤 ドリンク & その他</h3>
                 <div className="h-menu-grid">
                   {[...drinks, ...wraps].map(item => <MenuCard key={item.id} item={item} />)}
+                </div>
+              </div>
+            )}
+            {desserts.length > 0 && (
+              <div className="h-menu-group">
+                <h3 className="h-menu-group-title">🍰 デザート</h3>
+                <div className="h-menu-grid">
+                  {desserts.map(item => <MenuCard key={item.id} item={item} />)}
                 </div>
               </div>
             )}
@@ -291,7 +309,7 @@ function MenuCard({ item }: { item: MenuItem }) {
       </div>
       <div className="h-menu-card-foot">
         <span className="h-menu-card-price">¥{price.toFixed(0)}</span>
-        <Link href="/order" className="h-menu-card-order">注文する →</Link>
+        <Link href={`/order?item=${encodeURIComponent(item.name)}`} className="h-menu-card-order">注文する →</Link>
       </div>
     </div>
   );
@@ -302,11 +320,19 @@ function getEmoji(id: string): string {
     'combo-crispy': '🍗',
     'combo-smash': '🍔',
     'combo-kids': '🧒',
+    'combo-teriyaki': '🍱',
+    'combo-spicy-tuna': '🌶️',
     'side-fries': '🍟',
     'side-nuggets': '🍖',
+    'side-onion-rings': '🧅',
     'drink-lemon': '🍋',
     'drink-latte': '☕',
+    'drink-matcha-latte': '🍵',
     'wrap-garden': '🌯',
+    'bowl-salmon': '🐟',
+    'bowl-veggie': '🥗',
+    'dessert-choco': '🍫',
+    'dessert-matcha': '🍦',
   };
   return map[id] ?? '🍴';
 }
