@@ -4,6 +4,10 @@ WORKDIR /app
 
 ARG BACKEND_ORIGIN=http://localhost:8080
 ENV BACKEND_ORIGIN=$BACKEND_ORIGIN
+ARG CUSTOMER_SERVICE_ORIGIN=http://localhost:8085
+ENV CUSTOMER_SERVICE_ORIGIN=$CUSTOMER_SERVICE_ORIGIN
+ARG MENU_SERVICE_ORIGIN=http://localhost:8081
+ENV MENU_SERVICE_ORIGIN=$MENU_SERVICE_ORIGIN
 
 COPY food-delivery-demo/customer-ui/package*.json ./
 RUN --mount=type=cache,id=food-delivery-customer-ui-npm,target=/root/.npm,sharing=locked npm ci

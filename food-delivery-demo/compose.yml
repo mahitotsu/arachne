@@ -5,8 +5,12 @@ services:
       dockerfile: food-delivery-demo/customer-ui/Dockerfile
       args:
         BACKEND_ORIGIN: http://order-service:8080
+        CUSTOMER_SERVICE_ORIGIN: http://customer-service:8080
+        MENU_SERVICE_ORIGIN: http://menu-service:8080
     environment:
       BACKEND_ORIGIN: http://order-service:8080
+      CUSTOMER_SERVICE_ORIGIN: http://customer-service:8080
+      MENU_SERVICE_ORIGIN: http://menu-service:8080
       PORT: 3000
       HOSTNAME: 0.0.0.0
     depends_on:

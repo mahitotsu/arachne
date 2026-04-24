@@ -19,6 +19,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -75,6 +76,22 @@ class MenuController {
     @PostMapping("/substitutes")
     MenuSubstitutionResponse substitutes(@RequestBody MenuSubstitutionRequest request) {
         return applicationService.suggestSubstitutes(request);
+    }
+}
+
+@RestController
+@RequestMapping(path = "/api/menu", produces = MediaType.APPLICATION_JSON_VALUE)
+class MenuCatalogController {
+
+    private final MenuRepository repository;
+
+    MenuCatalogController(MenuRepository repository) {
+        this.repository = repository;
+    }
+
+    @GetMapping("/catalog")
+    List<MenuItem> catalog() {
+        return repository.findAll();
     }
 }
 
@@ -177,6 +194,10 @@ class MenuRepository {
             new MenuItem("drink-lemon", "Lemon Soda", "Fresh lemon soda with low sweetness.", new BigDecimal("240.00"), 1),
             new MenuItem("drink-latte", "Iced Latte", "Iced latte with milk foam.", new BigDecimal("320.00"), 1),
             new MenuItem("wrap-garden", "Garden Wrap", "Fresh veggie wrap with yogurt sauce.", new BigDecimal("760.00"), 1));
+
+    List<MenuItem> findAll() {
+        return List.copyOf(ITEMS);
+    }
 
     List<MenuItem> search(String query) {
         String normalized = normalize(query);

@@ -25,13 +25,14 @@ Each downstream service owns its own service-local agent. The APIs remain plain 
 ## Main Demo Story
 
 1. The customer signs in through `customer-service` with a demo ID/password and receives a JWT access token.
-2. The chat UI sends that bearer token to `order-service`.
-3. `order-service` coordinates downstream services and keeps the active conversation in Redis.
-4. `menu-service`, `kitchen-service`, `delivery-service`, and `payment-service` validate the same access token and answer through their own Arachne agents.
-5. `kitchen-agent` can ask `menu-agent` for same-brand fallback items when the only kitchen cannot serve a requested item.
-6. The UI shows both the user-facing reply and a visible service/agent trace so the microservice shape and multi-agent shape are both obvious.
-7. The user chooses between partner-standard delivery and in-house express delivery when both are available.
-8. When the user confirms the draft, `payment-service` performs a deterministic charge and `order-service` records the order in PostgreSQL.
+2. The browser stays same-origin by calling `customer-ui` rewrites: `/api/customer/*` goes to `customer-service` and `/api/backend/*` goes to `order-service`.
+3. The chat UI sends that bearer token to `order-service`.
+4. `order-service` coordinates downstream services and keeps the active conversation in Redis.
+5. `menu-service`, `kitchen-service`, `delivery-service`, and `payment-service` validate the same access token and answer through their own Arachne agents.
+6. `kitchen-agent` can ask `menu-agent` for same-brand fallback items when the only kitchen cannot serve a requested item.
+7. The UI shows both the user-facing reply and a visible service/agent trace so the microservice shape and multi-agent shape are both obvious.
+8. The user chooses between partner-standard delivery and in-house express delivery when both are available.
+9. When the user confirms the draft, `payment-service` performs a deterministic charge and `order-service` records the order in PostgreSQL.
 
 ## Local Commands
 
