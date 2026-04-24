@@ -1,0 +1,16 @@
+spring:
+  application:
+    name: customer-service
+  sql:
+    init:
+      mode: always
+
+delivery:
+  auth:
+    issuer: ${DELIVERY_AUTH_ISSUER:http://customer-service:8080}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

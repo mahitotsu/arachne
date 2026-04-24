@@ -15,7 +15,15 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -42,6 +50,18 @@ public class KitchenServiceApplication {
 
     public static void main(String[] args) {
         SpringApplication.run(KitchenServiceApplication.class, args);
+    }
+
+    @Bean
+    SecurityFilterChain kitchenSecurity(HttpSecurity http) throws Exception {
+        return http
+                .csrf(AbstractHttpConfigurer::disable)
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(authorize -> authorize
+                        .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+                        .anyRequest().authenticated())
+                .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> {}))
+                .build();
     }
 
     @Bean("menuRestClient")
@@ -86,6 +106,7 @@ class KitchenApplicationService {
     }
 
     KitchenCheckResponse check(KitchenCheckRequest request) {
+        String accessToken = SecurityAccessors.requiredAccessToken();
         List<KitchenItemStatus> statuses = repository.check(request.itemIds());
         AtomicReference<Map<String, KitchenItemStatus>> approvedSubstitutions = new AtomicReference<>(Map.of());
         AtomicReference<List<AgentCollaboration>> collaborations = new AtomicReference<>(List.of());
@@ -101,7 +122,7 @@ class KitchenApplicationService {
                         propose fallback items. Approve only substitutes that your own kitchen line can actually serve.
                         Explain the final decision in one short paragraph.
                         """)
-                .tools(kitchenLookupTool, buildMenuSubstitutionTool(request, approvedSubstitutions, collaborations))
+                .tools(kitchenLookupTool, buildMenuSubstitutionTool(request, accessToken, approvedSubstitutions, collaborations))
                 .build()
                 .run("items=" + String.join(",", request.itemIds()) + "\nmessage=" + request.message())
                 .text();
@@ -119,6 +140,7 @@ class KitchenApplicationService {
 
     private Tool buildMenuSubstitutionTool(
             KitchenCheckRequest request,
+            String accessToken,
             AtomicReference<Map<String, KitchenItemStatus>> approvedSubstitutions,
             AtomicReference<List<AgentCollaboration>> collaborations) {
         return new Tool() {
@@ -147,7 +169,7 @@ class KitchenApplicationService {
 
                 for (String unavailableItemId : unavailableItemIds) {
                     MenuSubstitutionResponse response = menuSubstitutionGateway.suggestSubstitutes(
-                            new MenuSubstitutionRequest(request.sessionId(), customerMessage, unavailableItemId));
+                        new MenuSubstitutionRequest(request.sessionId(), customerMessage, unavailableItemId), accessToken);
                     collaboratorEntries.add(new AgentCollaboration(
                             "menu-service/support",
                             response.agent(),
@@ -277,13 +299,28 @@ class MenuSubstitutionGateway {
         this.restClient = restClient;
     }
 
-    MenuSubstitutionResponse suggestSubstitutes(MenuSubstitutionRequest request) {
+    MenuSubstitutionResponse suggestSubstitutes(MenuSubstitutionRequest request, String accessToken) {
         return Objects.requireNonNull(restClient.post()
                 .uri("/internal/menu/substitutes")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(request)
                 .retrieve()
                 .body(MenuSubstitutionResponse.class));
+    }
+}
+
+final class SecurityAccessors {
+
+    private SecurityAccessors() {
+    }
+
+    static String requiredAccessToken() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication instanceof JwtAuthenticationToken jwtAuthenticationToken) {
+            return jwtAuthenticationToken.getToken().getTokenValue();
+        }
+        throw new IllegalStateException("No access token is available in the security context");
     }
 }
 

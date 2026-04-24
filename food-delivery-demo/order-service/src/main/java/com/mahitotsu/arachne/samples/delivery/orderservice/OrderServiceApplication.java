@@ -30,8 +30,17 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.ClientHttpRequestInterceptor;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -66,22 +75,50 @@ public class OrderServiceApplication {
 
     @Bean("menuRestClient")
     RestClient menuRestClient(@Value("${MENU_SERVICE_BASE_URL:http://localhost:8081}") String baseUrl) {
-        return RestClient.builder().baseUrl(baseUrl).build();
+        return securedRestClient(baseUrl);
     }
 
     @Bean("kitchenRestClient")
     RestClient kitchenRestClient(@Value("${KITCHEN_SERVICE_BASE_URL:http://localhost:8082}") String baseUrl) {
-        return RestClient.builder().baseUrl(baseUrl).build();
+        return securedRestClient(baseUrl);
     }
 
     @Bean("deliveryRestClient")
     RestClient deliveryRestClient(@Value("${DELIVERY_SERVICE_BASE_URL:http://localhost:8083}") String baseUrl) {
-        return RestClient.builder().baseUrl(baseUrl).build();
+        return securedRestClient(baseUrl);
     }
 
     @Bean("paymentRestClient")
     RestClient paymentRestClient(@Value("${PAYMENT_SERVICE_BASE_URL:http://localhost:8084}") String baseUrl) {
-        return RestClient.builder().baseUrl(baseUrl).build();
+        return securedRestClient(baseUrl);
+    }
+
+    @Bean
+    SecurityFilterChain orderSecurity(HttpSecurity http) throws Exception {
+        return http
+                .csrf(AbstractHttpConfigurer::disable)
+                .httpBasic(AbstractHttpConfigurer::disable)
+                .formLogin(AbstractHttpConfigurer::disable)
+                .logout(AbstractHttpConfigurer::disable)
+                .requestCache(AbstractHttpConfigurer::disable)
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(authorize -> authorize
+                        .requestMatchers("/actuator/health", "/error").permitAll()
+                        .anyRequest().authenticated())
+                .oauth2ResourceServer(oauth -> oauth.jwt(jwt -> {
+                }))
+                .build();
+    }
+
+    private RestClient securedRestClient(String baseUrl) {
+        ClientHttpRequestInterceptor bearerRelay = (request, body, execution) -> {
+            SecurityAccessors.currentAccessToken().ifPresent(request.getHeaders()::setBearerAuth);
+            return execution.execute(request, body);
+        };
+        return RestClient.builder()
+                .baseUrl(baseUrl)
+                .requestInterceptor(bearerRelay)
+                .build();
     }
 }
 
@@ -109,8 +146,6 @@ class OrderController {
 @Service
 class OrderApplicationService {
 
-    private static final String DEMO_CUSTOMER_ID = "demo-user";
-
     private final String defaultLanguage;
     private final OrderSessionStore sessionStore;
     private final OrderRepository orderRepository;
@@ -120,6 +155,7 @@ class OrderApplicationService {
     private final PaymentGateway paymentGateway;
     private final AgentFactory agentFactory;
     private final Tool recentOrderLookupTool;
+    private final AuthenticatedCustomerResolver authenticatedCustomerResolver;
 
     OrderApplicationService(
             OrderSessionStore sessionStore,
@@ -129,6 +165,7 @@ class OrderApplicationService {
             DeliveryGateway deliveryGateway,
             PaymentGateway paymentGateway,
             AgentFactory agentFactory,
+            AuthenticatedCustomerResolver authenticatedCustomerResolver,
             @Qualifier("recentOrderLookupTool") Tool recentOrderLookupTool) {
         this.defaultLanguage = Locale.getDefault().getDisplayLanguage(Locale.ENGLISH);
         this.sessionStore = sessionStore;
@@ -138,16 +175,18 @@ class OrderApplicationService {
         this.deliveryGateway = deliveryGateway;
         this.paymentGateway = paymentGateway;
         this.agentFactory = agentFactory;
+        this.authenticatedCustomerResolver = authenticatedCustomerResolver;
         this.recentOrderLookupTool = recentOrderLookupTool;
     }
 
     ChatResponse chat(ChatRequest request) {
+        String accessToken = SecurityAccessors.requiredAccessToken();
         String sessionId = request.sessionId() == null || request.sessionId().isBlank()
                 ? "session-" + UUID.randomUUID().toString().substring(0, 8)
                 : request.sessionId();
         OrderChatSession existingSession = sessionStore.load(sessionId).orElse(emptySession(sessionId));
         if (acceptsPendingProposal(request.message(), existingSession.pendingProposal())) {
-            return applyPendingProposal(sessionId, request, existingSession);
+            return applyPendingProposal(sessionId, request, existingSession, accessToken);
         }
         RoutingDecision routingDecision = routeRequest(request.message(), existingSession);
         ArrayList<ConversationMessage> conversation = new ArrayList<>(existingSession.conversation());
@@ -165,12 +204,13 @@ class OrderApplicationService {
         AtomicReference<DeliveryOptionView> capturedSelectedDelivery = new AtomicReference<>(null);
         AtomicReference<PaymentPrepareResponse> capturedPaymentResponse = new AtomicReference<>(null);
 
-        Tool menuTool = buildMenuTool(sessionId, capturedMenuResponse, capturedMenuItems, serviceTraces);
-        Tool kitchenTool = buildKitchenTool(sessionId, capturedMenuItems, capturedLineItems, capturedKitchenResponse,
+        Tool menuTool = buildMenuTool(sessionId, accessToken, capturedMenuResponse, capturedMenuItems, serviceTraces);
+        Tool kitchenTool = buildKitchenTool(sessionId, accessToken, capturedMenuItems, capturedLineItems, capturedKitchenResponse,
             serviceTraces);
-        Tool deliveryTool = buildDeliveryTool(sessionId, capturedDeliveryResponse, capturedDeliveryOptions, serviceTraces);
+        Tool deliveryTool = buildDeliveryTool(sessionId, accessToken, capturedDeliveryResponse, capturedDeliveryOptions, serviceTraces);
         Tool paymentTool = buildPaymentTool(
             sessionId,
+            accessToken,
             request.message(),
             existingSession.draft().items(),
             pendingDeliverySelection == null ? List.of() : pendingDeliverySelection.options(),
@@ -275,7 +315,7 @@ class OrderApplicationService {
         String status = lineItems.isEmpty() ? existingSession.draft().status() : "DRAFT_READY";
         if (paymentResponse != null && paymentResponse.charged()) {
             orderId = orderRepository.saveConfirmedOrder(
-                    DEMO_CUSTOMER_ID,
+                    authenticatedCustomerResolver.currentCustomerId(),
                     lineItems,
                     subtotal,
                     total,
@@ -375,7 +415,8 @@ class OrderApplicationService {
             contextualSuggestions(session), List.of());
     }
 
-    private ChatResponse applyPendingProposal(String sessionId, ChatRequest request, OrderChatSession existingSession) {
+    private ChatResponse applyPendingProposal(String sessionId, ChatRequest request, OrderChatSession existingSession,
+            String accessToken) {
         PendingProposal pendingProposal = existingSession.pendingProposal();
         ArrayList<ConversationMessage> conversation = new ArrayList<>(existingSession.conversation());
         conversation.add(new ConversationMessage("user", request.message()));
@@ -384,7 +425,7 @@ class OrderApplicationService {
         DeliveryQuoteResponse deliveryResponse = deliveryGateway.quote(new DeliveryQuoteRequest(
                 sessionId,
                 request.message(),
-                mergedItems.stream().map(OrderLineItem::name).toList()));
+                mergedItems.stream().map(OrderLineItem::name).toList()), accessToken);
         List<DeliveryOptionView> deliveryOptions = deliveryResponse.options() == null
                 ? List.of()
                 : deliveryResponse.options();
@@ -549,6 +590,7 @@ class OrderApplicationService {
     }
 
         private Tool buildMenuTool(String sessionId,
+            String accessToken,
             AtomicReference<MenuSuggestionResponse> capturedMenuResponse,
             AtomicReference<List<MenuItemView>> capturedMenuItems,
             List<ServiceTrace> serviceTraces) {
@@ -574,7 +616,7 @@ class OrderApplicationService {
             @Override
             public ToolResult invoke(Object input, ToolInvocationContext context) {
                 String message = String.valueOf(inputMap(input).getOrDefault("message", ""));
-                MenuSuggestionResponse response = menuGateway.suggest(new MenuSuggestionRequest(sessionId, message));
+                MenuSuggestionResponse response = menuGateway.suggest(new MenuSuggestionRequest(sessionId, message), accessToken);
                 capturedMenuResponse.set(response);
                 capturedMenuItems.set(response.items());
                 serviceTraces.add(new ServiceTrace(response.service(), response.agent(), response.headline(), response.summary(), null));
@@ -586,7 +628,8 @@ class OrderApplicationService {
         };
     }
 
-    private Tool buildKitchenTool(String sessionId,
+        private Tool buildKitchenTool(String sessionId,
+            String accessToken,
             AtomicReference<List<MenuItemView>> capturedMenuItems,
             AtomicReference<List<OrderLineItem>> capturedLineItems,
             AtomicReference<KitchenCheckResponse> capturedKitchenResponse,
@@ -618,7 +661,7 @@ class OrderApplicationService {
                 Map<String, Object> args = inputMap(input);
                 List<String> itemIds = stringList(args.get("itemIds"));
                 String message = String.valueOf(args.getOrDefault("message", ""));
-                KitchenCheckResponse response = kitchenGateway.check(new KitchenCheckRequest(sessionId, message, itemIds));
+                KitchenCheckResponse response = kitchenGateway.check(new KitchenCheckRequest(sessionId, message, itemIds), accessToken);
                 capturedKitchenResponse.set(response);
                 List<OrderLineItem> lineItems = buildLineItems(capturedMenuItems.get(), response.items());
                 capturedLineItems.set(lineItems);
@@ -641,6 +684,7 @@ class OrderApplicationService {
     }
 
         private Tool buildDeliveryTool(String sessionId,
+            String accessToken,
             AtomicReference<DeliveryQuoteResponse> capturedDeliveryResponse,
             AtomicReference<List<DeliveryOptionView>> capturedDeliveryOptions,
             List<ServiceTrace> serviceTraces) {
@@ -671,7 +715,7 @@ class OrderApplicationService {
                 Map<String, Object> args = inputMap(input);
                 List<String> itemNames = stringList(args.get("itemNames"));
                 String message = String.valueOf(args.getOrDefault("message", ""));
-                DeliveryQuoteResponse response = deliveryGateway.quote(new DeliveryQuoteRequest(sessionId, message, itemNames));
+                DeliveryQuoteResponse response = deliveryGateway.quote(new DeliveryQuoteRequest(sessionId, message, itemNames), accessToken);
                 capturedDeliveryResponse.set(response);
                 capturedDeliveryOptions.set(response.options());
                 serviceTraces.add(new ServiceTrace(response.service(), response.agent(), response.headline(), response.summary(), null));
@@ -688,6 +732,7 @@ class OrderApplicationService {
     }
 
         private Tool buildPaymentTool(String sessionId,
+            String accessToken,
             String customerMessage,
             List<OrderLineItem> existingDraftItems,
             List<DeliveryOptionView> existingDeliveryOptions,
@@ -731,7 +776,7 @@ class OrderApplicationService {
                 BigDecimal itemsSubtotal = subtotal(items);
                 BigDecimal total = itemsSubtotal.add(selected.fee()).setScale(2, RoundingMode.HALF_UP);
                 PaymentPrepareResponse response = paymentGateway.prepare(
-                        new PaymentPrepareRequest(sessionId, "", total, confirmRequested));
+                    new PaymentPrepareRequest(sessionId, "", total, confirmRequested), accessToken);
                 capturedPaymentResponse.set(response);
                 serviceTraces.add(new ServiceTrace(response.service(), response.agent(), response.headline(), response.summary(), null));
                 return ToolResult.success(context.toolUseId(), Map.of(
@@ -1183,9 +1228,10 @@ class MenuGateway {
         this.restClient = restClient;
     }
 
-    MenuSuggestionResponse suggest(MenuSuggestionRequest request) {
+    MenuSuggestionResponse suggest(MenuSuggestionRequest request, String accessToken) {
         return Objects.requireNonNull(restClient.post()
                 .uri("/internal/menu/suggest")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(request)
                 .retrieve()
@@ -1202,9 +1248,10 @@ class KitchenGateway {
         this.restClient = restClient;
     }
 
-    KitchenCheckResponse check(KitchenCheckRequest request) {
+    KitchenCheckResponse check(KitchenCheckRequest request, String accessToken) {
         return Objects.requireNonNull(restClient.post()
                 .uri("/internal/kitchen/check")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(request)
                 .retrieve()
@@ -1221,9 +1268,10 @@ class DeliveryGateway {
         this.restClient = restClient;
     }
 
-    DeliveryQuoteResponse quote(DeliveryQuoteRequest request) {
+    DeliveryQuoteResponse quote(DeliveryQuoteRequest request, String accessToken) {
         return Objects.requireNonNull(restClient.post()
                 .uri("/internal/delivery/quote")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(request)
                 .retrieve()
@@ -1240,9 +1288,10 @@ class PaymentGateway {
         this.restClient = restClient;
     }
 
-    PaymentPrepareResponse prepare(PaymentPrepareRequest request) {
+    PaymentPrepareResponse prepare(PaymentPrepareRequest request, String accessToken) {
         return Objects.requireNonNull(restClient.post()
                 .uri("/internal/payment/prepare")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(request)
                 .retrieve()
@@ -1346,7 +1395,7 @@ class RedisOrderSessionStore implements OrderSessionStore {
     }
 
     private String key(String sessionId) {
-        return "delivery:chat-session:" + sessionId;
+        return "delivery:chat-session:" + SecurityAccessors.currentCustomerId() + ":" + sessionId;
     }
 }
 
@@ -1358,12 +1407,24 @@ class InMemoryOrderSessionStore implements OrderSessionStore {
 
     @Override
     public Optional<OrderChatSession> load(String sessionId) {
-        return Optional.ofNullable(sessions.get(sessionId));
+        return Optional.ofNullable(sessions.get(key(sessionId)));
     }
 
     @Override
     public void save(OrderChatSession session) {
-        sessions.put(session.sessionId(), session);
+        sessions.put(key(session.sessionId()), session);
+    }
+
+    private String key(String sessionId) {
+        return SecurityAccessors.currentCustomerId() + ":" + sessionId;
+    }
+}
+
+@Component
+class AuthenticatedCustomerResolver {
+
+    String currentCustomerId() {
+        return SecurityAccessors.currentCustomerId();
     }
 }
 
@@ -1371,7 +1432,7 @@ class InMemoryOrderSessionStore implements OrderSessionStore {
 class OrderArachneConfiguration {
 
     @Bean
-    Tool recentOrderLookupTool(OrderRepository orderRepository) {
+    Tool recentOrderLookupTool(OrderRepository orderRepository, AuthenticatedCustomerResolver authenticatedCustomerResolver) {
         return new Tool() {
             @Override
             public ToolSpec spec() {
@@ -1385,8 +1446,7 @@ class OrderArachneConfiguration {
 
             @Override
             public ToolResult invoke(Object input, ToolInvocationContext context) {
-                String customerId = String.valueOf(values(input).getOrDefault("customerId", "demo-user"));
-                StoredOrder order = orderRepository.findLatestOrderForUser(customerId)
+        StoredOrder order = orderRepository.findLatestOrderForUser(authenticatedCustomerResolver.currentCustomerId())
                         .orElse(new StoredOrder("", "No previous order found", BigDecimal.ZERO, BigDecimal.ZERO, "", "PENDING"));
                 return ToolResult.success(context.toolUseId(), Map.of(
                         "itemSummary", order.itemSummary(),
@@ -1423,9 +1483,7 @@ class OrderArachneConfiguration {
     private static ObjectNode schema() {
         ObjectNode root = JsonNodeFactory.instance.objectNode();
         root.put("type", "object");
-        ObjectNode properties = root.putObject("properties");
-        properties.putObject("customerId").put("type", "string");
-        root.putArray("required").add("customerId");
+        root.putObject("properties");
         root.put("additionalProperties", false);
         return root;
     }
@@ -1439,7 +1497,37 @@ class OrderArachneConfiguration {
         return Map.of();
     }
 
-    private static final class OrderDeterministicModel implements Model {
+}
+
+
+final class SecurityAccessors {
+
+    private SecurityAccessors() {
+    }
+
+    static String currentCustomerId() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication instanceof JwtAuthenticationToken jwtAuthenticationToken) {
+            return jwtAuthenticationToken.getToken().getSubject();
+        }
+        throw new IllegalStateException("No authenticated customer is available in the security context");
+    }
+
+    static Optional<String> currentAccessToken() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication instanceof JwtAuthenticationToken jwtAuthenticationToken) {
+            return Optional.of(jwtAuthenticationToken.getToken().getTokenValue());
+        }
+        return Optional.empty();
+    }
+
+    static String requiredAccessToken() {
+        return currentAccessToken()
+                .orElseThrow(() -> new IllegalStateException("No access token is available in the security context"));
+    }
+}
+
+final class OrderDeterministicModel implements Model {
 
         @Override
         public Iterable<ModelEvent> converse(List<Message> messages, List<ToolSpec> tools) {
@@ -1568,7 +1656,6 @@ class OrderArachneConfiguration {
             return null;
         }
     }
-}
 
 record ChatRequest(String sessionId, String message, String locale) {}
 

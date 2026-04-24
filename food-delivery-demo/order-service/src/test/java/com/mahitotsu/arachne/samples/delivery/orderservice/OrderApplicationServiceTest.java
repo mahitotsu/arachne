@@ -1,17 +1,25 @@
 package com.mahitotsu.arachne.samples.delivery.orderservice;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.RETURNS_SELF;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
 import com.mahitotsu.arachne.strands.agent.Agent;
 import com.mahitotsu.arachne.strands.agent.AgentResult;
@@ -25,6 +33,22 @@ import com.mahitotsu.arachne.strands.tool.Tool;
  * isolate the {@link AgentFactory} chain.
  */
 class OrderApplicationServiceTest {
+
+    @BeforeEach
+    void setAuthentication() {
+        Jwt jwt = new Jwt(
+                "test-access-token",
+                Instant.now(),
+                Instant.now().plusSeconds(300),
+                Map.of("alg", "none"),
+                Map.of("sub", "demo-user"));
+        SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(jwt));
+    }
+
+    @AfterEach
+    void clearAuthentication() {
+        SecurityContextHolder.clearContext();
+    }
 
     /**
      * The default language injected into the system prompt must equal
@@ -155,6 +179,9 @@ class OrderApplicationServiceTest {
         AgentFactory agentFactory = mock(AgentFactory.class);
         Tool recentOrderLookupTool = mock(Tool.class);
         DeliveryGateway deliveryGateway = mock(DeliveryGateway.class);
+        AuthenticatedCustomerResolver authenticatedCustomerResolver = mock(AuthenticatedCustomerResolver.class);
+
+        when(authenticatedCustomerResolver.currentCustomerId()).thenReturn("demo-user");
 
         OrderChatSession existingSession = new OrderChatSession(
                 "session-1234",
@@ -165,7 +192,7 @@ class OrderApplicationServiceTest {
                 "おすすめです"),
             null);
         when(sessionStore.load("session-1234")).thenReturn(Optional.of(existingSession));
-                when(deliveryGateway.quote(any())).thenReturn(new DeliveryQuoteResponse(
+                when(deliveryGateway.quote(any(), anyString())).thenReturn(new DeliveryQuoteResponse(
                     "delivery-service",
                     "delivery-agent",
                     "delivery-agent prioritised the express lane",
@@ -175,7 +202,8 @@ class OrderApplicationServiceTest {
                         new DeliveryOptionView("standard", "Partner Standard", 27, new java.math.BigDecimal("180.00")))));
 
         OrderApplicationService service = new OrderApplicationService(
-                    sessionStore, null, null, null, deliveryGateway, null, agentFactory, recentOrderLookupTool);
+                    sessionStore, null, null, null, deliveryGateway, null, agentFactory,
+                    authenticatedCustomerResolver, recentOrderLookupTool);
 
         ChatResponse response = service.chat(new ChatRequest("session-1234", "これを追加", "ja-JP"));
 
@@ -200,6 +228,9 @@ class OrderApplicationServiceTest {
         AgentFactory agentFactory = mock(AgentFactory.class);
         Tool recentOrderLookupTool = mock(Tool.class);
         DeliveryGateway deliveryGateway = mock(DeliveryGateway.class);
+        AuthenticatedCustomerResolver authenticatedCustomerResolver = mock(AuthenticatedCustomerResolver.class);
+
+        when(authenticatedCustomerResolver.currentCustomerId()).thenReturn("demo-user");
 
         OrderChatSession existingSession = new OrderChatSession(
             "session-5678",
@@ -210,7 +241,7 @@ class OrderApplicationServiceTest {
                 "おすすめです"),
             null);
         when(sessionStore.load("session-5678")).thenReturn(Optional.of(existingSession));
-        when(deliveryGateway.quote(any())).thenReturn(new DeliveryQuoteResponse(
+        when(deliveryGateway.quote(any(), anyString())).thenReturn(new DeliveryQuoteResponse(
                 "delivery-service",
                 "delivery-agent",
                 "delivery-agent prioritised the express lane",
@@ -220,7 +251,8 @@ class OrderApplicationServiceTest {
                         new DeliveryOptionView("standard", "Partner Standard", 27, new java.math.BigDecimal("180.00")))));
 
         OrderApplicationService service = new OrderApplicationService(
-            sessionStore, null, null, null, deliveryGateway, null, agentFactory, recentOrderLookupTool);
+            sessionStore, null, null, null, deliveryGateway, null, agentFactory,
+            authenticatedCustomerResolver, recentOrderLookupTool);
 
         ChatResponse response = service.chat(new ChatRequest("session-5678", "はい、この内容で注文します", "ja-JP"));
 
@@ -255,13 +287,16 @@ class OrderApplicationServiceTest {
         OrderSessionStore sessionStore = mock(OrderSessionStore.class);
         AgentFactory agentFactory = mock(AgentFactory.class);
         Tool recentOrderLookupTool = mock(Tool.class);
+        AuthenticatedCustomerResolver authenticatedCustomerResolver = mock(AuthenticatedCustomerResolver.class);
 
         when(sessionStore.load(any())).thenReturn(Optional.empty());
         when(agentFactory.builder()).thenReturn(builder);
+        when(authenticatedCustomerResolver.currentCustomerId()).thenReturn("demo-user");
 
         // Gateways and OrderRepository are null-safe here because the mock agent
         // never invokes any tools, so the gateway lambdas are never entered.
         return new OrderApplicationService(
-                sessionStore, null, null, null, null, null, agentFactory, recentOrderLookupTool);
+            sessionStore, null, null, null, null, null, agentFactory,
+            authenticatedCustomerResolver, recentOrderLookupTool);
     }
 }

@@ -1,6 +1,8 @@
 package com.mahitotsu.arachne.samples.delivery.orderservice;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -11,10 +13,27 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
+import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
+import com.nimbusds.jose.JOSEException;
+import com.nimbusds.jose.JOSEObjectType;
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.JWSHeader;
+import com.nimbusds.jose.crypto.RSASSASigner;
+import com.nimbusds.jose.jwk.JWKSet;
+import com.nimbusds.jose.jwk.RSAKey;
+import com.nimbusds.jose.jwk.gen.RSAKeyGenerator;
+import com.nimbusds.jwt.JWTClaimsSet;
+import com.nimbusds.jwt.SignedJWT;
+
+import okhttp3.mockwebserver.Dispatcher;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
@@ -35,28 +54,45 @@ class OrderServiceApiTest {
     private static MockWebServer kitchenServer;
     private static MockWebServer deliveryServer;
     private static MockWebServer paymentServer;
+        private static MockWebServer jwkServer;
+        private static RSAKey signingKey;
+        private static String accessToken;
+
+        private static final String ISSUER = "http://customer-service";
 
     @Autowired
     private TestRestTemplate restTemplate;
 
+        @LocalServerPort
+        private int port;
+
         @BeforeEach
-        void clearCapturedRequests() throws InterruptedException {
+        void prepareAuthenticatedClient() throws InterruptedException {
                 drainRequests(menuServer);
                 drainRequests(kitchenServer);
                 drainRequests(deliveryServer);
                 drainRequests(paymentServer);
+                restTemplate.getRestTemplate().setInterceptors(List.of((request, body, execution) -> {
+                        request.getHeaders().setBearerAuth(accessToken);
+                        return execution.execute(request, body);
+                }));
         }
 
     @BeforeAll
-    static void startServers() throws IOException {
+        static void startServers() throws Exception {
+                signingKey = new RSAKeyGenerator(2048).keyID("demo-key").generate();
+                accessToken = createAccessToken();
         menuServer = new MockWebServer();
         kitchenServer = new MockWebServer();
         deliveryServer = new MockWebServer();
         paymentServer = new MockWebServer();
+                jwkServer = new MockWebServer();
         menuServer.start();
         kitchenServer.start();
         deliveryServer.start();
         paymentServer.start();
+                jwkServer.setDispatcher(jwkDispatcher());
+                jwkServer.start();
     }
 
     @AfterAll
@@ -65,6 +101,7 @@ class OrderServiceApiTest {
         kitchenServer.shutdown();
         deliveryServer.shutdown();
         paymentServer.shutdown();
+        jwkServer.shutdown();
     }
 
     @DynamicPropertySource
@@ -73,7 +110,20 @@ class OrderServiceApiTest {
         registry.add("KITCHEN_SERVICE_BASE_URL", () -> kitchenServer.url("/").toString());
         registry.add("DELIVERY_SERVICE_BASE_URL", () -> deliveryServer.url("/").toString());
         registry.add("PAYMENT_SERVICE_BASE_URL", () -> paymentServer.url("/").toString());
+                registry.add("spring.security.oauth2.resourceserver.jwt.jwk-set-uri", () -> jwkServer.url("/oauth2/jwks").toString());
     }
+
+        @Test
+        void rejectsUnauthenticatedChatRequests() {
+                TestRestTemplate anonymous = new TestRestTemplate();
+
+                ResponseEntity<String> response = anonymous.postForEntity(
+                                "http://localhost:" + port + "/api/chat",
+                                new ChatRequest("", "おすすめを見せて", "ja-JP"),
+                                String.class);
+
+                assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        }
 
     @Test
     void confirmsAnOrderThroughTheComposedFlow() {
@@ -151,6 +201,11 @@ class OrderServiceApiTest {
                 .contains("Saved Visa ending in 2048")
                 .contains("¥2740")
                 .contains("注文を確定しました");
+
+        assertThat(requireRequest(menuServer).getHeader(HttpHeaders.AUTHORIZATION)).isEqualTo("Bearer " + accessToken);
+        assertThat(requireRequest(kitchenServer).getHeader(HttpHeaders.AUTHORIZATION)).isEqualTo("Bearer " + accessToken);
+        assertThat(requireRequest(deliveryServer).getHeader(HttpHeaders.AUTHORIZATION)).isEqualTo("Bearer " + accessToken);
+        assertThat(requireRequest(paymentServer).getHeader(HttpHeaders.AUTHORIZATION)).isEqualTo("Bearer " + accessToken);
     }
 
     @Test
@@ -608,9 +663,52 @@ class OrderServiceApiTest {
                 .setBody(body);
     }
 
-        private static void drainRequests(MockWebServer server) throws InterruptedException {
-                while (server.takeRequest(10, TimeUnit.MILLISECONDS) != null) {
-                        // Drain leftover requests from previous tests because servers are shared per class.
-                }
+    private static RecordedRequest requireRequest(MockWebServer server) {
+        try {
+            RecordedRequest request = server.takeRequest(1, TimeUnit.SECONDS);
+            assertThat(request).isNotNull();
+            return request;
+        } catch (InterruptedException exception) {
+            throw new IllegalStateException("Interrupted while waiting for downstream request", exception);
         }
+    }
+
+    private static void drainRequests(MockWebServer server) throws InterruptedException {
+        while (server.takeRequest(10, TimeUnit.MILLISECONDS) != null) {
+            // Drain leftover requests from previous tests because servers are shared per class.
+        }
+    }
+
+    private static Dispatcher jwkDispatcher() {
+        return new Dispatcher() {
+            @Override
+            public MockResponse dispatch(RecordedRequest request) {
+                return new MockResponse()
+                        .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                        .setBody(new JWKSet(signingKey.toPublicJWK()).toString());
+            }
+        };
+    }
+
+    private static String createAccessToken() {
+        try {
+            SignedJWT jwt = new SignedJWT(
+                    new JWSHeader.Builder(JWSAlgorithm.RS256)
+                            .keyID(signingKey.getKeyID())
+                            .type(JOSEObjectType.JWT)
+                            .build(),
+                    new JWTClaimsSet.Builder()
+                            .issuer(ISSUER)
+                            .subject("demo-user")
+                            .audience("food-delivery-demo")
+                            .claim("scope", "chat order:create")
+                            .issueTime(java.util.Date.from(Instant.now().minusSeconds(30)))
+                            .expirationTime(java.util.Date.from(Instant.now().plusSeconds(3600)))
+                            .build());
+            jwt.sign(new RSASSASigner(signingKey.toPrivateKey()));
+            return jwt.serialize();
+        } catch (JOSEException exception) {
+            throw new ExceptionInInitializerError(exception);
+        }
+    }
 }

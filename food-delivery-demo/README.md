@@ -11,6 +11,7 @@ It is intentionally not part of the runnable `samples/` catalog. The goal here i
 The local runtime starts:
 
 - `customer-ui`: Next.js chat UI for the customer-facing flow
+- `customer-service`: demo customer directory, sign-in API, JWT issuer, and JWKS publisher
 - `order-service`: public API, orchestration, Redis-backed chat session continuity, PostgreSQL-backed order persistence
 - `menu-service`: menu discovery and substitution suggestions behind `menu-agent`
 - `kitchen-service`: availability and prep timing behind `kitchen-agent`
@@ -23,13 +24,14 @@ Each downstream service owns its own service-local agent. The APIs remain plain 
 
 ## Main Demo Story
 
-1. The user opens the chat UI and asks for a cloud-kitchen order in natural language.
-2. `order-service` coordinates downstream services and keeps the active conversation in Redis.
-3. `menu-service`, `kitchen-service`, `delivery-service`, and `payment-service` answer through their own Arachne agents.
-4. `kitchen-agent` can ask `menu-agent` for same-brand fallback items when the only kitchen cannot serve a requested item.
-5. The UI shows both the user-facing reply and a visible service/agent trace so the microservice shape and multi-agent shape are both obvious.
-6. The user chooses between partner-standard delivery and in-house express delivery when both are available.
-7. When the user confirms the draft, `payment-service` performs a deterministic charge and `order-service` records the order in PostgreSQL.
+1. The customer signs in through `customer-service` with a demo ID/password and receives a JWT access token.
+2. The chat UI sends that bearer token to `order-service`.
+3. `order-service` coordinates downstream services and keeps the active conversation in Redis.
+4. `menu-service`, `kitchen-service`, `delivery-service`, and `payment-service` validate the same access token and answer through their own Arachne agents.
+5. `kitchen-agent` can ask `menu-agent` for same-brand fallback items when the only kitchen cannot serve a requested item.
+6. The UI shows both the user-facing reply and a visible service/agent trace so the microservice shape and multi-agent shape are both obvious.
+7. The user chooses between partner-standard delivery and in-house express delivery when both are available.
+8. When the user confirms the draft, `payment-service` performs a deterministic charge and `order-service` records the order in PostgreSQL.
 
 ## Local Commands
 
@@ -59,11 +61,24 @@ make test
 ## Endpoints
 
 - UI: `http://localhost:3000`
+- Customer service: `http://localhost:8085`
 - Public chat API: `http://localhost:8080/api/chat`
 - Menu service: `http://localhost:8081`
 - Kitchen service: `http://localhost:8082`
 - Delivery service: `http://localhost:8083`
 - Payment service: `http://localhost:8084`
+
+Demo sign-in accounts:
+
+- `demo / demo-pass`
+- `family / family-pass`
+
+Key customer-service endpoints:
+
+- `POST /api/auth/sign-in`
+- `GET /api/customers/me`
+- `GET /oauth2/jwks`
+
 
 ## Docs
 

@@ -1,6 +1,11 @@
 spring:
   application:
     name: payment-service
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${DELIVERY_JWK_SET_URI:http://customer-service:8080/oauth2/jwks}
 
 management:
   endpoints:

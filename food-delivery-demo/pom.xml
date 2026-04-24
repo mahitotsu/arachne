@@ -13,6 +13,7 @@
     <description>Standalone multi-module food delivery demo that embeds Arachne inside Spring microservices.</description>
 
     <modules>
+        <module>customer-service</module>
         <module>menu-service</module>
         <module>kitchen-service</module>
         <module>delivery-service</module>
