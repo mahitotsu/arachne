@@ -118,17 +118,17 @@ class MenuApplicationService {
         List<MenuItem> items = repository.search(request.message());
         String agentSummary = agentFactory.builder()
                 .systemPrompt("""
-                You are the menu-agent for a single-brand cloud kitchen app.
+                あなたは単一ブランドのクラウドキッチンアプリの menu-agent です。
 
-                The business has one kitchen only. Recommend items from the current menu only.
-                Do not mention alternate branches, alternate kitchens, or pickup plans.
+                このビジネスは1つのキッチンのみです。現在のメニューからのみアイテムを推奨してください。
+                別の支店、別のキッチン、またはテイクアウトの計画は言及しないでください。
 
-                        Use the available skills to tailor your response to the customer's situation:
-                        - Activate family-order-guide when the customer mentions multiple people, children, or family.
-                        - Activate proactive-recommendation when the customer is browsing without a specific item in mind.
+                        お客様の状況に合わせて返答をカスタマイズするために利用可能なスキルを活用してください:
+                        - お客様が複数人、お子様、またはファミリーに言及したときは family-order-guide を有効化する。
+                        - お客様が特定のアイテムを念頭に置かずにブラウジングしているときは proactive-recommendation を有効化する。
 
-                        After activating the relevant skill, call menu_catalog_lookup to find matching items, \
-                        then explain the best matches following the skill's instructions.""")
+                        関連するスキルを有効化した後、menu_catalog_lookup を呼び出してマッチするアイテムを検索し、\
+                        そのスキルの指示に従って最適なマッチを説明してください。""")
                 .tools(menuLookupTool)
                 .build()
                 .run("query=" + request.message())
@@ -142,9 +142,9 @@ class MenuApplicationService {
         String itemSummary = items.stream()
                 .map(item -> item.name() + " x" + item.suggestedQuantity())
                 .reduce((left, right) -> left + ", " + right)
-                .orElse("today's top combos");
+                .orElse("本日の人気コンボ");
         String prefix = skillPrefix.isBlank() ? "" : skillPrefix + " ";
-        return prefix + "menu-agent recommends " + itemSummary + ". It keeps the order aligned with the current menu.";
+        return prefix + "menu-agent が " + itemSummary + " をおすすめします。現在のメニューに沿った内容です。";
     }
 
     private String extractSkillPrefix(String agentSummary) {
@@ -162,12 +162,11 @@ class MenuApplicationService {
         List<MenuItem> items = repository.findSubstitutes(request.unavailableItemId(), request.message());
         String summary = agentFactory.builder()
                 .systemPrompt("""
-                You are the menu-agent supporting kitchen-agent when an item is unavailable at the only cloud kitchen.
+                あなたは唯一のクラウドキッチンでアイテムが在庫切れのときに kitchen-agent をサポートする menu-agent です。
 
-                        Call menu_substitution_lookup to prepare fallback items that stay close to the
-                customer's apparent intent. Stay within the same brand menu and do not mention alternate kitchens.
-                Keep the answer short and mention that these are
-                        substitute suggestions for kitchen-agent to validate.
+                        menu_substitution_lookup を呼び出して、お客様の意図に近い代替品の候補を準備してください。
+                同ブランドのメニュー内に留め、別のキッチンは言及しないでください。
+                答えは簡潔にし、kitchen-agent が検証する代替提案であることを言及してください。
                         """)
                 .tools(menuSubstitutionLookupTool)
                 .build()
@@ -186,22 +185,22 @@ class MenuApplicationService {
 class MenuRepository {
 
     private static final List<MenuItem> ITEMS = List.of(
-            new MenuItem("combo-crispy", "Crispy Chicken Box", "Crispy chicken, fries, and lemon soda.", new BigDecimal("980.00"), 1),
-            new MenuItem("combo-smash", "Smash Burger Combo", "Double smash burger with fries and cola.", new BigDecimal("1050.00"), 1),
-            new MenuItem("combo-kids", "Kids Cheeseburger Set", "Small cheeseburger, corn cup, and apple juice.", new BigDecimal("720.00"), 1),
-            new MenuItem("combo-teriyaki", "Teriyaki Chicken Box", "Teriyaki glazed chicken with steamed rice and miso soup.", new BigDecimal("920.00"), 1),
-            new MenuItem("combo-spicy-tuna", "Spicy Tuna Rice Box", "Seasonal spicy tuna over sushi rice with pickled ginger.", new BigDecimal("1080.00"), 1),
-            new MenuItem("side-fries", "Curly Fries", "Seasoned curly fries.", new BigDecimal("330.00"), 1),
-            new MenuItem("side-nuggets", "Nugget Share Box", "Ten-piece nugget box with sauces.", new BigDecimal("640.00"), 1),
-            new MenuItem("side-onion-rings", "Crispy Onion Rings", "Beer-battered onion rings with chipotle dip.", new BigDecimal("380.00"), 1),
-            new MenuItem("drink-lemon", "Lemon Soda", "Fresh lemon soda with low sweetness.", new BigDecimal("240.00"), 1),
-            new MenuItem("drink-latte", "Iced Latte", "Iced latte with milk foam.", new BigDecimal("320.00"), 1),
-            new MenuItem("drink-matcha-latte", "Hot Matcha Latte", "Ceremonial-grade matcha steamed with oat milk.", new BigDecimal("350.00"), 1),
-            new MenuItem("wrap-garden", "Garden Wrap", "Fresh veggie wrap with yogurt sauce.", new BigDecimal("760.00"), 1),
-            new MenuItem("bowl-salmon", "Salmon Rice Bowl", "Seared salmon fillet on seasoned rice with sesame and spring onion.", new BigDecimal("890.00"), 1),
-            new MenuItem("bowl-veggie", "Veggie Grain Bowl", "Roasted seasonal vegetables over quinoa with tahini dressing.", new BigDecimal("750.00"), 1),
-            new MenuItem("dessert-choco", "Chocolate Fondant", "Warm dark-chocolate fondant with vanilla ice cream.", new BigDecimal("380.00"), 1),
-            new MenuItem("dessert-matcha", "Matcha Soft Serve", "Creamy matcha soft serve with azuki bean topping.", new BigDecimal("290.00"), 1));
+            new MenuItem("combo-crispy", "Crispy Chicken Box", "クリスピーチキン、フライドポテト、レモンソーダのセット。", new BigDecimal("980.00"), 1),
+            new MenuItem("combo-smash", "Smash Burger Combo", "ダブルスマッシュバーガーにフライドポテトとコーラが付いたコンボ。", new BigDecimal("1050.00"), 1),
+            new MenuItem("combo-kids", "Kids Cheeseburger Set", "ミニチーズバーガー、コーンカップ、アップルジュースのキッズセット。", new BigDecimal("720.00"), 1),
+            new MenuItem("combo-teriyaki", "Teriyaki Chicken Box", "照り焼きチキン、ゴハン、味噌汁のセット。", new BigDecimal("920.00"), 1),
+            new MenuItem("combo-spicy-tuna", "Spicy Tuna Rice Box", "旬のスパイシーツナをすし飯にのせ、紅ショウガを添えたライスボックス。", new BigDecimal("1080.00"), 1),
+            new MenuItem("side-fries", "Curly Fries", "スパイスの効いたカーリーフライ。", new BigDecimal("330.00"), 1),
+            new MenuItem("side-nuggets", "Nugget Share Box", "ソース付き10個入りナゲットボックス。", new BigDecimal("640.00"), 1),
+            new MenuItem("side-onion-rings", "Crispy Onion Rings", "ビール衣のオニオンリング、チポトレディップ添え。", new BigDecimal("380.00"), 1),
+            new MenuItem("drink-lemon", "Lemon Soda", "甘さ控えめの生レモンソーダ。", new BigDecimal("240.00"), 1),
+            new MenuItem("drink-latte", "Iced Latte", "ミルクフォーム入りアイスカフェラテ。", new BigDecimal("320.00"), 1),
+            new MenuItem("drink-matcha-latte", "Hot Matcha Latte", "濃茶をオーツミルクで蒸し立てたホットマッチャラテ。", new BigDecimal("350.00"), 1),
+            new MenuItem("wrap-garden", "Garden Wrap", "新鮮な野菜をヨーグルトソースで包んだガーデンラップ。", new BigDecimal("760.00"), 1),
+            new MenuItem("bowl-salmon", "Salmon Rice Bowl", "焼き髦の切り身を味付けごはんにのせ、ごまとネギを添えたサーモン丼。", new BigDecimal("890.00"), 1),
+            new MenuItem("bowl-veggie", "Veggie Grain Bowl", "旬の野菜をローストしてキヌアにのせ、タヒニドレッシングをかけたグレインボウル。", new BigDecimal("750.00"), 1),
+            new MenuItem("dessert-choco", "Chocolate Fondant", "バニラアイスクリームを添えた温かいダークチョコレートフォンダン。", new BigDecimal("380.00"), 1),
+            new MenuItem("dessert-matcha", "Matcha Soft Serve", "抹茶ソフトクリームに小倉あんをのせた一品。", new BigDecimal("290.00"), 1));
 
     List<MenuItem> findAll() {
         return List.copyOf(ITEMS);
@@ -221,12 +220,12 @@ class MenuRepository {
     }
 
     String headline(List<MenuItem> items) {
-        return "menu-agent matched " + items.size() + " menu options";
+        return "menu-agent が " + items.size() + " 件のメニューオプションをマッチしました";
     }
 
     String describeSearch(String query) {
         List<MenuItem> matches = search(query);
-        return matches.stream().map(MenuItem::name).limit(3).reduce((left, right) -> left + ", " + right).orElse("today's top combos");
+        return matches.stream().map(MenuItem::name).limit(3).reduce((left, right) -> left + ", " + right).orElse("本日の人気コンボ");
     }
 
     List<MenuItem> findSubstitutes(String unavailableItemId, String customerMessage) {
@@ -254,14 +253,14 @@ class MenuRepository {
     }
 
     String substitutionHeadline(List<MenuItem> items) {
-        return "menu-agent prepared " + items.size() + " fallback options";
+        return "menu-agent が " + items.size() + " 件の代替候補を準備しました";
     }
 
     String describeSubstitutes(String unavailableItemId, String customerMessage) {
         return findSubstitutes(unavailableItemId, customerMessage).stream()
                 .map(MenuItem::name)
                 .reduce((left, right) -> left + ", " + right)
-                .orElse("the closest available combo");
+                .orElse("最も近い利用可能なコンボ");
     }
 
     private List<MenuItem> tuneQuantities(List<MenuItem> items, String query) {
@@ -348,7 +347,7 @@ class MenuArachneConfiguration {
         return new Tool() {
             @Override
             public ToolSpec spec() {
-                return new ToolSpec("menu_catalog_lookup", "Read the local menu catalog and summarize the best matches for the request.", schema());
+                return new ToolSpec("menu_catalog_lookup", "ローカルメニューカタログを参照し、リクエストに最も適したマッチをまとめる。", schema());
             }
 
             @Override
@@ -371,7 +370,7 @@ class MenuArachneConfiguration {
             public ToolSpec spec() {
                 return new ToolSpec(
                         "menu_substitution_lookup",
-                        "Prepare menu alternatives for kitchen-agent when a requested item is unavailable.",
+                        "リクエストされたアイテムが在庫切れのときに kitchen-agent 向けのメニュー代替品を準備する。",
                         substitutionSchema());
             }
 
@@ -477,16 +476,16 @@ class MenuArachneConfiguration {
 
             if (substitutionQuery) {
             return List.of(
-                new ModelEvent.TextDelta("menu-agent suggested "
-                    + toolContent.getOrDefault("substitutionSummary", "the closest substitutes")
-                    + " for kitchen-agent to validate."),
+                new ModelEvent.TextDelta("menu-agent が kitchen-agent に検証させる代替品として "
+                    + toolContent.getOrDefault("substitutionSummary", "最も近い代替品")
+                    + " を提案しました。"),
                 new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
             }
 
             String prefix = isFamilyQuery ? "[family-order-guide] " : "";
             return List.of(
-                    new ModelEvent.TextDelta(prefix + "menu-agent recommends " + toolContent.getOrDefault("matchSummary", "today's top combos")
-                            + ". It keeps the order lightweight and easy to confirm in chat."),
+                    new ModelEvent.TextDelta(prefix + "menu-agent が " + toolContent.getOrDefault("matchSummary", "本日の人気コンボ")
+                            + " をおすすめします。現在のメニューに沿った内容でチャットで簡単に確認できます。"),
                     new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
         }
 

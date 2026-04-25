@@ -1,52 +1,52 @@
-# Food Delivery Demo APIs
+# フードデリバリーデモ API 仕様
 
-## Public API
+## 公開 API
 
 `order-service`
 
 - `POST /api/chat`
-  Accepts a chat turn and returns the updated conversation, order draft, routing decision, and agent trace.
+  チャットターンを受け取り、更新された会話・注文下書き・ルーティング決定・エージェントトレースを返す。
 - `GET /api/session/{sessionId}`
-  Restores the current chat transcript and draft for a browser refresh.
+  ブラウザリフレッシュ用に現在のチャット履歴と下書きを復元する。
 
-## Internal APIs
+## 内部 API
 
 `menu-service`
 
 - `POST /internal/menu/suggest`
-  Accepts the current user intent and returns candidate menu items plus `menu-agent` commentary.
+  現在のユーザーの意図を受け取り、メニュー候補と `menu-agent` のコメントを返す。
 
 `kitchen-service`
 
 - `POST /internal/kitchen/check`
-  Accepts selected menu item ids and returns stock, prep timing, substitution guidance from `kitchen-agent`, and optional collaborator trace entries when `kitchen-agent` asks `menu-agent` for fallback help.
+  選択したメニューアイテムの ID を受け取り、在庫・調理時間・`kitchen-agent` からの代替ガイダンス、および `kitchen-agent` が `menu-agent` に代替ヘルプを求めた場合のコラボレータートレースエントリを返す。
 
 `menu-service`
 
 - `POST /internal/menu/substitutes`
-  Accepts an unavailable item plus the customer context and returns menu-agent fallback candidates for `kitchen-agent` to validate.
+  在庫切れアイテムとカスタマーコンテキストを受け取り、`kitchen-agent` が検証するための menu-agent フォールバック候補を返す。
 
 `delivery-service`
 
 - `POST /internal/delivery/quote`
-  Accepts the draft order and returns delivery ETA options from `delivery-agent`.
+  注文下書きを受け取り、`delivery-agent` から配送 ETA オプションを返す。
 
 `payment-service`
 
 - `POST /internal/payment/prepare`
-  Accepts the draft order and returns payment readiness plus optional deterministic charge execution.
+  注文下書きを受け取り、支払い準備状況とオプションの決定論的課金実行を返す。
 
-## Response Shape Principle
+## レスポンス設計の原則
 
-Each internal service returns both:
+各内部サービスは以下の両方を返す:
 
-- deterministic structured data for the orchestrator
-- an agent-facing summary string for the UI trace
+- オーケストレーター向けの決定論的な構造化データ
+- UI トレース向けのエージェントサマリー文字列
 
-`order-service` also returns a deterministic routing summary for the current turn so the trace can show:
+`order-service` は現在ターンの決定論的なルーティングサマリーも返すため、トレースには以下が表示される:
 
-- the interpreted customer intent
-- the selected workflow skill
-- the workflow entry step used for that turn
+- 解釈されたカスタマーの意図
+- 選択されたワークフロースキル
+- そのターンに使用されたワークフローエントリーステップ
 
-That split keeps Spring in charge of correctness while still making the Arachne layer visible.
+この分離により Spring が正確性を管理しつつ、Arachne レイヤーも可視化される。

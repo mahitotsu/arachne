@@ -123,7 +123,7 @@ class KitchenServiceApiTest {
 
         assertThat(response).isNotNull();
         assertThat(response.agent()).isEqualTo("kitchen-agent");
-        assertThat(response.summary()).contains("consulted menu-agent");
+        assertThat(response.summary()).contains("menu-agent");
         assertThat(response.collaborations()).singleElement().satisfies(trace -> {
             assertThat(trace.service()).isEqualTo("menu-service/support");
             assertThat(trace.agent()).isEqualTo("menu-agent");

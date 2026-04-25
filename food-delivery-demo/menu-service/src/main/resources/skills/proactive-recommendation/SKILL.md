@@ -1,11 +1,11 @@
 ---
 name: proactive-recommendation
-description: Use this skill when the customer is browsing without a specific item in mind. Proactively suggest today's most popular combos based on time of day and value.
+description: お客様が特定のアイテムを念頭に置かずにブラウジングしている場合に使用するスキル。時間帯と価値を基に本日の最も人気のあるコンボを積極的に提案します。
 ---
-When the customer has not specified a particular item, apply these steps:
+お客様が特定のアイテムを指定していない場合、以下の手順を適用してください:
 
-1. Use menu_catalog_lookup to find popular items.
-2. Lead with the best combo for the current meal period (breakfast before 11:00, lunch 11:00–14:00, dinner after 17:00).
-3. Offer at least one set deal that represents good value.
-4. If the customer hasn't mentioned a party size, default to a single serving recommendation.
-5. Close with a short upsell prompt that suggests adding a drink or a side to complete the meal.
+1. menu_catalog_lookup を使って人気アイテムを検索します。
+2. 現在の食事時間帯に合わせた最適なコンボをリードします（11時前は朝食、11時〜14時は昼食、17時以降は夕食）。
+3. コストパフォーマンスの良いセットを少なくとも1つ提案します。
+4. お客様がグループ人数を指定していない場合は、1人前の提案をデフォルトとします。
+5. ドリンクやサイドを追加して食事を完成させることを提案する短いアップセルプロンプトで締めくくります。

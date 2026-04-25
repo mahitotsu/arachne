@@ -256,11 +256,11 @@ class CustomerAccountRepository {
     void seedDemoAccounts(PasswordEncoder passwordEncoder) {
         insertAccount("cust-demo-001", "demo", "Aoi Sato", "ja-JP", "orders.read orders.write profile.read",
                 passwordEncoder.encode("demo-pass"));
-        insertAccount("cust-demo-002", "family", "Family Account", "ja-JP", "orders.read orders.write profile.read",
+        insertAccount("cust-demo-002", "family", "ファミリーアカウント", "ja-JP", "orders.read orders.write profile.read",
                 passwordEncoder.encode("family-pass"));
         insertAccount("cust-solo-001", "solo", "Hina Nakamura", "ja-JP", "orders.read orders.write profile.read",
                 passwordEncoder.encode("solo-pass"));
-        insertAccount("cust-corp-001", "corporate", "Corp Account", "ja-JP", "orders.read orders.write profile.read",
+        insertAccount("cust-corp-001", "corporate", "法人アカウント", "ja-JP", "orders.read orders.write profile.read",
                 passwordEncoder.encode("corp-pass"));
     }
 

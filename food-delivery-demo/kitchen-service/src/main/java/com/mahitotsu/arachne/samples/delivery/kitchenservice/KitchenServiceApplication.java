@@ -112,15 +112,15 @@ class KitchenApplicationService {
         AtomicReference<List<AgentCollaboration>> collaborations = new AtomicReference<>(List.of());
         String summary = agentFactory.builder()
                 .systemPrompt("""
-                You are the kitchen-agent for the app's only cloud kitchen.
+                あなたはこのアプリ唯一のクラウドキッチンの kitchen-agent です。
 
-                There is no alternate branch and no alternate kitchen to hand work to.
-                If the kitchen cannot serve an item, ask menu-agent for same-brand substitutes instead.
+                代替の支店も代替のキッチンも存在しません。
+                キッチンがアイテムを提供できない場合は、他のキッチンではなく menu-agent に同ブランドの代替品を尋ねてください。
 
-                        First call kitchen_inventory_lookup to inspect stock and prep timing.
-                        If any requested item is unavailable, call menu_substitution_lookup so menu-agent can
-                        propose fallback items. Approve only substitutes that your own kitchen line can actually serve.
-                        Explain the final decision in one short paragraph.
+                        まず kitchen_inventory_lookup を呼び出して在庫と調理時間を確認してください。
+                        リクエストされたアイテムが在庫切れの場合は、menu_substitution_lookup を呼び出して menu-agent に代替品の候補を提案させてください。
+                        自分のキッチンラインで実際に対応できる代替品のみを承認してください。
+                        最終的な判断を短い段落で説明してください。
                         """)
                 .tools(kitchenLookupTool, buildMenuSubstitutionTool(request, accessToken, approvedSubstitutions, collaborations))
                 .build()
@@ -148,7 +148,7 @@ class KitchenApplicationService {
             public ToolSpec spec() {
                 return new ToolSpec(
                         "menu_substitution_lookup",
-                        "Ask menu-agent for fallback items for the unavailable requests, then let kitchen-agent approve them.",
+                        "利用不可なリクエストに対して menu-agent に代替品を尋ね、その後 kitchen-agent が承認する。",
                         substitutionSchema());
             }
 
@@ -185,7 +185,7 @@ class KitchenApplicationService {
                 collaborations.set(List.copyOf(collaboratorEntries));
                 return ToolResult.success(context.toolUseId(), Map.of(
                         "substitutionSummary", approvedNames.isEmpty()
-                                ? "no approved substitutes"
+                                ? "承認された代替品はありません"
                                 : String.join(", ", approvedNames)));
             }
         };
@@ -270,9 +270,9 @@ class KitchenRepository {
     String headline(List<KitchenItemStatus> statuses) {
         long unavailable = statuses.stream().filter(status -> !status.available()).count();
         if (unavailable == 0) {
-            return "kitchen-agent cleared the whole draft";
+            return "kitchen-agent が全アイテムの在庫を確認しました";
         }
-        return "kitchen-agent found " + unavailable + " substitution point";
+        return "kitchen-agent が " + unavailable + " 件の代替点を検出しました";
     }
 
     String describe(List<String> itemIds) {
@@ -283,10 +283,10 @@ class KitchenRepository {
     String describeStatuses(List<KitchenItemStatus> statuses) {
         return statuses.stream()
                 .map(status -> status.available()
-                        ? status.itemId() + " ready in " + status.prepMinutes() + " min"
-                        : status.itemId() + " is unavailable and needs a substitute")
+                        ? status.itemId() + " は約" + status.prepMinutes() + "分で準備できます"
+                        : status.itemId() + " は在庫切れのため代替品が必要です")
                 .reduce((left, right) -> left + "; " + right)
-                .orElse("kitchen is ready");
+                .orElse("キッチンは準備完了です");
     }
 }
 
@@ -332,7 +332,7 @@ class KitchenArachneConfiguration {
         return new Tool() {
             @Override
             public ToolSpec spec() {
-                return new ToolSpec("kitchen_inventory_lookup", "Inspect stock pressure and prep timing for the selected items.", schema());
+                return new ToolSpec("kitchen_inventory_lookup", "選択したアイテムの在庫プレッシャーと調理時間を確認する。", schema());
             }
 
             @Override
@@ -436,15 +436,15 @@ class KitchenArachneConfiguration {
             String inventorySummary = String.valueOf(toolContent.getOrDefault("inventorySummary", "kitchen is ready"));
             if (substitutionContent != null) {
             return List.of(
-                new ModelEvent.TextDelta("kitchen-agent checked the line and found: "
+                new ModelEvent.TextDelta("kitchen-agent がラインを確認しました: "
                     + inventorySummary
-                    + ". It consulted menu-agent and approved "
-                    + substitutionContent.getOrDefault("substitutionSummary", "the closest substitute")
-                    + "."),
+                    + ". menu-agent に相談して "
+                    + substitutionContent.getOrDefault("substitutionSummary", "最適な代替品")
+                    + " を承認しました。"),
                 new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
             }
             return List.of(
-                new ModelEvent.TextDelta("kitchen-agent checked the line and found: " + inventorySummary + "."),
+                new ModelEvent.TextDelta("kitchen-agent がラインを確認しました: " + inventorySummary + "."),
                     new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
         }
 

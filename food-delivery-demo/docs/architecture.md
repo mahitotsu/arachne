@@ -1,46 +1,46 @@
-# Food Delivery Demo Architecture
+# フードデリバリーデモ アーキテクチャ
 
-This product track demonstrates a customer-facing delivery app for a single-brand cloud kitchen where service boundaries and agent boundaries line up.
+このプロダクトトラックは、サービス境界とエージェント境界が対応した単一ブランドのクラウドキッチン向けカスタマーデリバリーアプリをデモします。
 
-## Intent
+## 設計方針
 
-- keep the UI familiar: a chat-first food ordering flow
-- keep the backend recognizably Spring microservices
-- make the hidden agent mesh visible through traces instead of through an artificial orchestration UI
-- keep correctness-sensitive state changes deterministic inside Spring services
-- keep the setting concrete: one kitchen, delivery-only ordering, and two delivery lanes with distinct operational ownership
+- UIを親しみやすく保つ: チャット優先のフードオーダーフロー
+- バックエンドを標準的な Spring マイクロサービスとして認識できるように保つ
+- 人工的なオーケストレーションUIではなくトレースを通じて隠れたエージェントメッシュを可視化する
+- 正確性が重要な状態変更は Spring サービス内で決定論的に保つ
+- 具体的な設定を維持する: 1つのキッチン、デリバリー専用注文、異なる運用主体を持つ2つの配送レーン
 
-## Services
+## サービス
 
 - `order-service`
-  Public entrypoint, chat orchestration, Redis-backed session restore, PostgreSQL-backed confirmed orders.
+  公開エントリーポイント、チャットオーケストレーション、Redis バックドのセッション復元、PostgreSQL バックドの確定注文。
 - `menu-service`
-  Owns same-brand menu search and substitution suggestions through `menu-agent`.
+  `menu-agent` を通じた同一ブランドのメニュー検索と代替提案を管理。
 - `kitchen-service`
-  Owns stock and prep-time interpretation for the single kitchen through `kitchen-agent`.
+  `kitchen-agent` を通じた単一キッチンの在庫・調理時間の解釈を管理。
 - `delivery-service`
-  Owns ETA estimation and routing options through `delivery-agent`, including partner-standard and in-house express delivery.
+  `delivery-agent` を通じた ETA 推定と配送オプション（パートナースタンダード、自社エクスプレス含む）を管理。
 - `payment-service`
-  Owns payment method guidance through `payment-agent`, while the actual charge remains deterministic.
+  `payment-agent` を通じた支払い方法のガイドを管理。実際の課金は決定論的に処理。
 - `customer-ui`
-  Next.js web app that shows the customer chat, current order draft, and the service-to-agent trace.
+  カスタマーチャット、現在の注文下書き、サービスとエージェントのトレースを表示する Next.js ウェブアプリ。
 
-## Runtime Story
+## ランタイムストーリー
 
-1. The browser sends a chat turn to `order-service`.
-2. `order-service` restores the current chat session from Redis.
-3. `order-service` fans out to the downstream service APIs.
-4. Each downstream API invokes a service-local Arachne agent before returning.
-5. When `kitchen-agent` cannot serve an item, it can ask `menu-agent` for fallback options from the same brand menu, then approve only substitutes the single kitchen can actually fulfill.
-6. `order-service` merges those service results, runs its own `order-agent`, and returns a customer-facing reply plus a trace.
-7. The customer chooses between external partner-standard delivery and in-house express delivery when both lanes are available.
-8. On confirmation, `payment-service` executes the charge and `order-service` persists the final order in PostgreSQL.
+1. ブラウザがチャットターンを `order-service` へ送信する。
+2. `order-service` が Redis から現在のチャットセッションを復元する。
+3. `order-service` がダウンストリームサービスAPIへファンアウトする。
+4. 各ダウンストリームAPIは返答前にサービスローカルの Arachne エージェントを呼び出す。
+5. `kitchen-agent` がアイテムを提供できない場合、同一ブランドのメニューから代替候補を `menu-agent` に問い合わせ、単一キッチンで実際に対応できる代替品のみを承認する。
+6. `order-service` がサービス結果をマージし、自身の `order-agent` を実行して、カスタマー向けの返答とトレースを返す。
+7. 両レーンが利用可能な場合、カスタマーは外部パートナースタンダード配送と自社エクスプレス配送のどちらかを選択する。
+8. 確定時に `payment-service` が課金を実行し、`order-service` が最終注文を PostgreSQL に保存する。
 
-## Why This Fits Arachne
+## Arachne との親和性
 
-- the frontend interaction is naturally conversational
-- the service decomposition is still normal Spring Boot engineering
-- the multi-agent behavior emerges at backend seams instead of replacing the backend with a giant chat prompt
-- agent-to-agent collaboration can mirror the service mesh: `kitchen-agent` can temporarily consult `menu-agent` for substitution help
-- the setting stays easy to understand: one cloud kitchen, one brand menu, no alternate branch routing, and two delivery lanes with clear ownership
-- users can see why the answer changed: stock, ETA, menu substitutions, and payment readiness are all traceable to specific services and agents
+- フロントエンドのインタラクションは本質的に会話型
+- サービス分解は引き続き通常の Spring Boot エンジニアリング
+- マルチエージェント動作はバックエンドの接合点で自然に生まれ、バックエンド全体を巨大なチャットプロンプトに置き換えるものではない
+- エージェント間コラボレーションはサービスメッシュを反映できる: `kitchen-agent` は代替ヘルプのために `menu-agent` に一時的に相談できる
+- 設定は理解しやすいまま: 1つのクラウドキッチン、1つのブランドメニュー、代替ブランチルーティングなし、明確なオーナーシップを持つ2つの配送レーン
+- ユーザーは回答が変わった理由を確認できる: 在庫、ETA、メニュー代替、支払い準備状況はすべて特定のサービスとエージェントにトレース可能

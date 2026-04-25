@@ -97,9 +97,9 @@ class PaymentApplicationService {
         String paymentStatus = charged ? "CHARGED" : "READY";
         String summary = agentFactory.builder()
             .systemPrompt("""
-                You are the payment-agent for a single-brand cloud kitchen app.
-                Briefly explain the payment method and confirmation state.
-                The normal path is a saved digital payment method, but you can still acknowledge cash on delivery when the customer explicitly asks for it.
+                あなたは単一ブランドのクラウドキッチンアプリの payment-agent です。
+                支払方法と確認状態を簡潔に説明してください。
+                通常は登録済みのデジタル決済手段ですが、お客様が明示的に希望された場合は代金引換も受け付けてください。
                 """)
                 .tools(paymentProfileLookupTool)
                 .build()
@@ -108,7 +108,7 @@ class PaymentApplicationService {
         return new PaymentPrepareResponse(
                 "payment-service",
                 "payment-agent",
-                charged ? "payment-agent completed a deterministic charge" : "payment-agent prepared the preferred payment method",
+                charged ? "payment-agent が請求処理を完了しました" : "payment-agent が希望の支払方法を準備しました",
                 summary,
                 profile.methodLabel(),
                 request.total().setScale(2, RoundingMode.HALF_UP),
@@ -123,12 +123,12 @@ class PaymentProfileRepository {
 
     PaymentProfile profileFor(String message) {
         if (message != null && (message.toLowerCase().contains("apple") || message.contains("アップル"))) {
-            return new PaymentProfile("apple-pay", "Apple Pay", "Wallet ready on the primary iPhone.");
+            return new PaymentProfile("apple-pay", "Apple Pay", "メインの iPhone のウォレットに登録済みです。");
         }
         if (message != null && message.contains("現金")) {
-            return new PaymentProfile("cash", "Cash on delivery", "Cash handling is slower, but still available.");
+            return new PaymentProfile("cash", "代金引換", "現金払いは処理に少し時間がかかりますが、ご利用いただけます。");
         }
-        return new PaymentProfile("card-default", "Saved Visa ending in 2048", "Default card is already verified for one-tap confirmation.");
+        return new PaymentProfile("card-default", "登録済み Visa（下4桁: 2048）", "デフォルトカードはワンタップ確認済みです。");
     }
 }
 
@@ -140,7 +140,7 @@ class PaymentArachneConfiguration {
         return new Tool() {
             @Override
             public ToolSpec spec() {
-                return new ToolSpec("payment_profile_lookup", "Read the stored payment profile before recommending a payment path.", schema());
+                return new ToolSpec("payment_profile_lookup", "支払パスを提案する前に登録済みの支払プロファイルを読み込む。", schema());
             }
 
             @Override
@@ -205,8 +205,8 @@ class PaymentArachneConfiguration {
                         new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
             }
             return List.of(
-                    new ModelEvent.TextDelta("payment-agent prefers " + toolContent.getOrDefault("method", "the saved card")
-                            + ". " + toolContent.getOrDefault("note", "Payment is ready for confirmation.") + ""),
+                    new ModelEvent.TextDelta("payment-agent が " + toolContent.getOrDefault("method", "登録済みカード")
+                            + " を選択しました。" + toolContent.getOrDefault("note", "お支払いの確認が完了しました。") + ""),
                     new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
         }
 

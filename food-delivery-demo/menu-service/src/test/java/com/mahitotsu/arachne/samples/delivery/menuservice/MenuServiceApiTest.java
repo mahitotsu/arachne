@@ -125,7 +125,7 @@ class MenuServiceApiTest {
 
         assertThat(response).isNotNull();
         assertThat(response.agent()).isEqualTo("menu-agent");
-        assertThat(response.headline()).contains("fallback options");
+        assertThat(response.headline()).contains("代替候補");
         assertThat(response.summary()).contains("kitchen-agent");
         assertThat(response.items()).extracting(MenuItem::id).doesNotContain("side-fries");
     }

@@ -1,31 +1,31 @@
-# Customer UI
+# カスタマー UI
 
-This Next.js app is the customer-facing UI for the food delivery demo.
+この Next.js アプリはフードデリバリーデモのカスタマー向け UI です。
 
-It keeps the ordering interaction chat-first, but it also shows:
+注文インタラクションをチャット優先で提供しつつ、以下も表示します:
 
-- the customer sign-in state backed by `customer-service`
-- the current order draft
-- estimated delivery timing
-- payment state
-- the service-local agent trace behind the reply, including the order-agent's visible intent and workflow selection
+- `customer-service` が提供するカスタマーサインイン状態
+- 現在の注文下書き
+- 配送予定時間
+- 支払い状態
+- 返答の裏にあるサービスローカルエージェントトレース（order-agent の意図とワークフロー選択を含む）
 
-Run locally:
+ローカル実行:
 
 ```bash
 npm ci
 npm run dev
 ```
 
-Use one of the demo accounts to sign in before ordering:
+注文前にデモアカウントでサインイン:
 
 - `demo / demo-pass`
 - `family / family-pass`
 
-The app proxies `/api/customer/*` to `customer-service` through `CUSTOMER_SERVICE_ORIGIN` and `/api/backend/*` to `order-service` through `BACKEND_ORIGIN`.
+アプリは `CUSTOMER_SERVICE_ORIGIN` を通じて `/api/customer/*` を `customer-service` へ、`BACKEND_ORIGIN` を通じて `/api/backend/*` を `order-service` へプロキシします。
 
-For the demo, the browser stores the access token in local storage and sends it as a bearer token on chat and session requests.
+デモでは、ブラウザがアクセストークンをローカルストレージに保存し、チャットとセッションリクエストのベアラートークンとして送信します。
 
-For container builds, both `CUSTOMER_SERVICE_ORIGIN` and `BACKEND_ORIGIN` must be set at build time so Next.js bakes the correct rewrite targets into the standalone output. The compose setup passes `http://customer-service:8080` and `http://order-service:8080` for Docker, while local development defaults stay on `http://localhost:8085` and `http://localhost:8080`.
+コンテナビルドでは、Next.js がスタンドアロン出力に正しいリライトターゲットを組み込むために、ビルド時に `CUSTOMER_SERVICE_ORIGIN` と `BACKEND_ORIGIN` の両方を設定する必要があります。compose 設定は Docker 用に `http://customer-service:8080` と `http://order-service:8080` を渡し、ローカル開発のデフォルトは `http://localhost:8085` と `http://localhost:8080` のままです。
 
-The food-delivery services default to `DELIVERY_MODEL_MODE=deterministic` for repeatable local verification. For Bedrock-backed runs, use `make up-bedrock` so the host's temporary AWS credentials are exported into compose along with `ARACHNE_STRANDS_MODEL_ID` and `ARACHNE_STRANDS_MODEL_REGION`.
+フードデリバリーサービスは反復可能なローカル検証のため、デフォルトで `DELIVERY_MODEL_MODE=deterministic` を使用します。Bedrock を使用して実行する場合は `make up-bedrock` を使用することで、ホストの一時 AWS 認証情報が `ARACHNE_STRANDS_MODEL_ID` および `ARACHNE_STRANDS_MODEL_REGION` とともに compose にエクスポートされます。

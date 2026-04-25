@@ -1,42 +1,42 @@
-# Food Delivery Demo
+# フードデリバリーデモ
 
-This directory now hosts the replacement demo for the old marketplace workflow sample.
+このディレクトリは、旧マーケットプレイスワークフローサンプルに代わるデモを提供します。
 
-The demo is a chat-first delivery app for a single-brand cloud kitchen. There is one kitchen only, no dine-in flow, and no branch switching. The frontend looks like a normal delivery app, but every backend API is fronted by a service-local Arachne agent. What looks like ordinary microservice traffic is also a multi-agent collaboration path.
+デモは単一ブランドのクラウドキッチン向けのチャット優先デリバリーアプリです。キッチンは1つのみ、店内飲食フローなし、ブランチ切り替えなし。フロントエンドは通常のデリバリーアプリのように見えますが、すべてのバックエンド API はサービスローカルの Arachne エージェントが前面に立っています。普通のマイクロサービストラフィックに見えるものが、マルチエージェントコラボレーションパスでもあります。
 
-It is intentionally not part of the runnable `samples/` catalog. The goal here is a composed, practical application slice that shows how naturally Arachne can disappear into Spring Boot microservices.
+これは意図的に実行可能な `samples/` カタログには含めていません。ここでのゴールは、Arachne が Spring Boot マイクロサービスにいかに自然に溶け込めるかを示す、構成された実用的なアプリケーションスライスです。
 
-## Runtime Shape
+## ランタイム構成
 
-The local runtime starts:
+ローカルランタイムが起動するもの:
 
-- `customer-ui`: Next.js chat UI for the customer-facing flow
-- `customer-service`: demo customer directory, sign-in API, JWT issuer, and JWKS publisher
-- `order-service`: public API, orchestration, Redis-backed chat session continuity, PostgreSQL-backed order persistence
-- `menu-service`: menu discovery and substitution suggestions behind `menu-agent`
-- `kitchen-service`: availability and prep timing behind `kitchen-agent`
-- `delivery-service`: ETA and courier planning behind `delivery-agent`
-- `payment-service`: payment preparation and deterministic charge execution behind `payment-agent`
+- `customer-ui`: カスタマー向けフローの Next.js チャット UI
+- `customer-service`: デモカスタマーディレクトリ、サインイン API、JWT 発行、JWKS 公開
+- `order-service`: 公開 API、オーケストレーション、Redis バックドのチャットセッション継続、PostgreSQL バックドの注文永続化
+- `menu-service`: `menu-agent` によるメニュー検索と代替提案
+- `kitchen-service`: `kitchen-agent` による在庫確認と調理時間
+- `delivery-service`: `delivery-agent` による ETA 推定とクーリエ計画
+- `payment-service`: `payment-agent` による支払い準備と決定論的課金実行
 - `postgres`
 - `redis`
 
-Each downstream service owns its own service-local agent. The APIs remain plain Spring HTTP boundaries, but the response text and coordination behavior come from Arachne runtimes embedded inside each service.
+各ダウンストリームサービスは独自のサービスローカルエージェントを持ちます。API は通常の Spring HTTP 境界のままですが、レスポンステキストと調整動作は各サービス内に埋め込まれた Arachne ランタイムから来ます。
 
-## Main Demo Story
+## メインデモストーリー
 
-1. The customer signs in through `customer-service` with a demo ID/password and receives a JWT access token.
-2. The browser stays same-origin by calling `customer-ui` rewrites: `/api/customer/*` goes to `customer-service` and `/api/backend/*` goes to `order-service`.
-3. The chat UI sends that bearer token to `order-service`.
-4. `order-service` coordinates downstream services and keeps the active conversation in Redis.
-5. `menu-service`, `kitchen-service`, `delivery-service`, and `payment-service` validate the same access token and answer through their own Arachne agents.
-6. `kitchen-agent` can ask `menu-agent` for same-brand fallback items when the only kitchen cannot serve a requested item.
-7. The UI shows both the user-facing reply and a visible service/agent trace so the microservice shape and multi-agent shape are both obvious.
-8. The user chooses between partner-standard delivery and in-house express delivery when both are available.
-9. When the user confirms the draft, `payment-service` performs a deterministic charge and `order-service` records the order in PostgreSQL.
+1. カスタマーがデモ ID/パスワードで `customer-service` にサインインし、JWT アクセストークンを受け取る。
+2. ブラウザは `customer-ui` のリライトで同一オリジンを維持: `/api/customer/*` は `customer-service` へ、`/api/backend/*` は `order-service` へ転送される。
+3. チャット UI はそのベアラートークンを `order-service` へ送信する。
+4. `order-service` がダウンストリームサービスを調整し、アクティブな会話を Redis に保持する。
+5. `menu-service`、`kitchen-service`、`delivery-service`、`payment-service` が同じアクセストークンを検証し、それぞれの Arachne エージェントを通じて回答する。
+6. 唯一のキッチンがリクエストされたアイテムを提供できない場合、`kitchen-agent` は `menu-agent` に同一ブランドのフォールバックアイテムを問い合わせることができる。
+7. UI はユーザー向け返答とサービス/エージェントトレースの両方を表示し、マイクロサービス構造とマルチエージェント構造の両方が明確に見える。
+8. 両レーンが利用可能な場合、ユーザーはパートナースタンダード配送と自社エクスプレス配送のどちらかを選択する。
+9. ユーザーが下書きを確定すると、`payment-service` が決定論的課金を実行し、`order-service` が注文を PostgreSQL に記録する。
 
-## Local Commands
+## ローカルコマンド
 
-Use `make` from this directory:
+このディレクトリから `make` を使用:
 
 ```bash
 make up
@@ -45,7 +45,7 @@ make smoke
 make down
 ```
 
-Useful frontend-only commands:
+フロントエンド専用コマンド:
 
 ```bash
 make ui-install
@@ -53,35 +53,35 @@ make ui-build
 make ui-dev
 ```
 
-Backend verification:
+バックエンド検証:
 
 ```bash
 make test
 ```
 
-## Endpoints
+## エンドポイント
 
 - UI: `http://localhost:3000`
-- Customer service: `http://localhost:8085`
-- Public chat API: `http://localhost:8080/api/chat`
-- Menu service: `http://localhost:8081`
-- Kitchen service: `http://localhost:8082`
-- Delivery service: `http://localhost:8083`
-- Payment service: `http://localhost:8084`
+- カスタマーサービス: `http://localhost:8085`
+- 公開チャット API: `http://localhost:8080/api/chat`
+- メニューサービス: `http://localhost:8081`
+- キッチンサービス: `http://localhost:8082`
+- 配送サービス: `http://localhost:8083`
+- 支払いサービス: `http://localhost:8084`
 
-Demo sign-in accounts:
+デモサインインアカウント:
 
 - `demo / demo-pass`
 - `family / family-pass`
 
-Key customer-service endpoints:
+customer-service の主要エンドポイント:
 
 - `POST /api/auth/sign-in`
 - `GET /api/customers/me`
 - `GET /oauth2/jwks`
 
 
-## Docs
+## ドキュメント
 
-- `docs/architecture.md`: runtime roles and ownership boundaries
-- `docs/apis.md`: public and internal API surface
+- `docs/architecture.md`: ランタイムの役割とオーナーシップ境界
+- `docs/apis.md`: 公開・内部 API サーフェス

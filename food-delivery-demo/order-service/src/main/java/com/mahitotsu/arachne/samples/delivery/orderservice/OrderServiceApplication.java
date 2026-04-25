@@ -229,8 +229,8 @@ class OrderApplicationService {
                 : "\n\nCurrent draft order: " + existingSession.draft().items().stream()
                         .map(i -> i.quantity() + "x " + i.name() + " (¥" + i.unitPrice() + " each)")
                         .reduce((a, b) -> a + ", " + b).orElse("")
-                        + " | status: " + existingSession.draft().status()
-                        + " | total: ¥" + existingSession.draft().total();
+                        + " | ステータス: " + existingSession.draft().status()
+                        + " | 合計: ¥" + existingSession.draft().total();
 
         String assistantMessage = agentFactory.builder()
                 .systemPrompt("""
@@ -302,9 +302,9 @@ class OrderApplicationService {
                 .run(request.message() + draftContext)
                 .text();
 
-        // Only promote kitchen-resolved items to the draft when quote_delivery has also
-        // run in this same turn. That means the customer already saw and confirmed the
-        // kitchen status (proposal turn stops before quote_delivery).
+        // quote_delivery が同じターンで実行された場合のみ、キッチンが解決したアイテムを
+        // 下書きに昇格させる。これはお客様がすでにキッチンステータスを確認・承認したことを意味する
+        //（提案ターンは quote_delivery の前で止まる）。
         List<OrderLineItem> lineItems = (capturedLineItems.get().isEmpty() || capturedDeliveryOptions.get().isEmpty())
                 ? existingSession.draft().items()
                 : capturedLineItems.get();
@@ -342,7 +342,7 @@ class OrderApplicationService {
                 paymentResponse != null ? paymentResponse.selectedMethod() : existingSession.draft().paymentMethod(),
                 orderId);
 
-        // Parse [CHOICES: "A", "B", "C"] block from the assistant message
+        // アシスタントメッセージから [CHOICES: "A", "B", "C"] ブロックを解析する
         List<String> choices = List.of();
         String displayMessage = assistantMessage;
         Pattern choicesPattern = Pattern.compile("\\[CHOICES:\\s*((?:\"[^\"]+\"(?:,\\s*)?)+)\\]");
@@ -456,9 +456,7 @@ class OrderApplicationService {
             existingSession.draft().orderId());
 
         boolean japanese = looksJapanese(firstNonBlank(request.message(), pendingProposal.displayMessage(), request.locale()));
-        String acceptedLine = japanese
-            ? "おすすめの内容を下書きに追加し、配送候補を確認しました。"
-            : "I added the recommended items to your draft and checked the available delivery lanes.";
+        String acceptedLine = "おすすめの内容を下書きに追加し、配送候補を確認しました。";
         String assistantMessage = String.join("\n\n",
                 acceptedLine,
                 mergeDeliveryResponse("", deliveryResponse, request.message()));
@@ -468,7 +466,7 @@ class OrderApplicationService {
             "draft-confirmation",
             "order-skill",
             "delivery-quote",
-            "The customer explicitly accepted the pending recommendation, so the draft advanced directly to delivery quoting.");
+            "お客様が保留中の提案を明示的に承認したため、下書きは配送見積へ直接進みました。");
         List<ServiceTrace> trace = List.of(
             new ServiceTrace(
                 deliveryResponse.service(),
@@ -479,7 +477,7 @@ class OrderApplicationService {
             new ServiceTrace(
                 "order-service",
                 "order-agent",
-                "order-agent advanced the accepted proposal to delivery quoting",
+                "order-agent が承認済み提案を配送見積へ進めました",
                 assistantMessage,
                 routingDecision));
 
@@ -508,7 +506,7 @@ class OrderApplicationService {
         for (MenuItemView menuItem : menuItems) {
             KitchenItemStatusView status = statusByItemId.get(menuItem.id());
             if (status == null || status.available()) {
-                items.add(new OrderLineItem(menuItem.name(), menuItem.suggestedQuantity(), menuItem.price(), "kitchen ready"));
+                items.add(new OrderLineItem(menuItem.name(), menuItem.suggestedQuantity(), menuItem.price(), "調理可能"));
                 continue;
             }
             if (status.substituteName() != null && status.substitutePrice() != null) {
@@ -516,13 +514,13 @@ class OrderApplicationService {
                         status.substituteName(),
                         menuItem.suggestedQuantity(),
                         status.substitutePrice(),
-                        "swapped from " + menuItem.name()));
+                        menuItem.name() + " からの代替"));
             }
         }
         if (!items.isEmpty()) {
             return List.copyOf(items);
         }
-        return List.of(new OrderLineItem("Crispy Chicken Box", 1, new BigDecimal("980.00"), "fallback draft"));
+        return List.of(new OrderLineItem("Crispy Chicken Box", 1, new BigDecimal("980.00"), "フォールバック案"));
     }
 
     private DeliveryOptionView selectDeliveryOption(List<DeliveryOptionView> options, boolean fastestDelivery, String customerMessage) {
@@ -825,49 +823,49 @@ class OrderApplicationService {
                     "general-question",
                     "direct-answer",
                     "respond-directly",
-                    "The request asks for service information rather than a concrete order workflow.");
+                    "具体的な注文ワークフローではなくサービス情報を尋ねるリクエストです。");
         }
         if (asksForRecommendations(normalized)) {
             return new RoutingDecision(
                     "menu-discovery",
                     "proposal-skill",
                     "menu-suggestion",
-                    "The request asks for recommendations or preference-based curation, so the flow starts by proposing menu options.");
+                    "おすすめや好みに基づいた提案を求めるリクエストのため、メニュー提案からフローを開始します。");
         }
         if (hasDraft && choosesDeliveryTier(normalized)) {
             return new RoutingDecision(
                     "delivery-selection",
                     "order-skill",
                     "payment-prepare",
-                    "There is already a live draft and the customer chose a delivery tier, so the flow can continue at payment preparation.");
+                    "既存の下書きがあり、お客様が配送レーンを選択したため、支払い準備へ進みます。");
         }
         if (hasDraft && confirmsCurrentDraft(normalized)) {
             return new RoutingDecision(
                     "draft-confirmation",
                     "order-skill",
                     "delivery-quote",
-                    "There is already a live draft and the customer is confirming it, so the next step is delivery quoting.");
+                    "既存の下書きがあり、お客様が確認しているため、次のステップは配送見積です。");
         }
         return new RoutingDecision(
                 hasDraft ? "draft-adjustment" : "direct-order",
                 "order-skill",
                 "kitchen-validation",
                 hasDraft
-                        ? "The request changes or extends the active draft, so the order flow returns to kitchen validation."
-                        : "The request contains a concrete order, so the order flow starts at kitchen validation.");
+                        ? "リクエストがアクティブな下書きを変更または拡張しているため、注文フローはキッチン検証に戻ります。"
+                        : "具体的な注文を含むリクエストのため、注文フローはキッチン検証から開始します。");
     }
 
     private String routingHeadline(String status, RoutingDecision routingDecision) {
         if ("CONFIRMED".equals(status)) {
-            return "order-agent completed the order workflow";
+            return "order-agent が注文ワークフローを完了しました";
         }
         if ("direct-answer".equals(routingDecision.selectedSkill())) {
-            return "order-agent answered without a workflow skill";
+            return "order-agent がワークフロースキルなしで回答しました";
         }
         if ("proposal-skill".equals(routingDecision.selectedSkill())) {
-            return "order-agent selected the proposal workflow";
+            return "order-agent が提案ワークフローを選択しました";
         }
-        return "order-agent selected the order workflow";
+        return "order-agent が注文ワークフローを選択しました";
     }
 
     private static String normalize(String text) {
@@ -1044,7 +1042,8 @@ class OrderApplicationService {
         return normalized.startsWith("recommends ")
                 || normalized.startsWith("recommended items:")
                 || normalized.startsWith("今回のおすすめは")
-                || normalized.contains("current menu");
+                || normalized.contains("current menu")
+                || normalized.contains("menu-agent recommends");
     }
 
         private String mergeDeliveryResponse(
@@ -1483,7 +1482,7 @@ class OrderArachneConfiguration {
             @Override
             public ToolResult invoke(Object input, ToolInvocationContext context) {
         StoredOrder order = orderRepository.findLatestOrderForUser(authenticatedCustomerResolver.currentCustomerId())
-                        .orElse(new StoredOrder("", "No previous order found", BigDecimal.ZERO, BigDecimal.ZERO, "", "PENDING"));
+                        .orElse(new StoredOrder("", "注文履歴なし", BigDecimal.ZERO, BigDecimal.ZERO, "", "PENDING"));
                 return ToolResult.success(context.toolUseId(), Map.of(
                         "itemSummary", order.itemSummary(),
                         "etaLabel", order.etaLabel(),
@@ -1505,12 +1504,12 @@ class OrderArachneConfiguration {
                 orderRepository.saveConfirmedOrder(
                         "cust-demo-001",
                         List.of(
-                                new OrderLineItem("Crispy Chicken Box", 2, new BigDecimal("980.00"), "seed"),
-                                new OrderLineItem("Curly Fries", 1, new BigDecimal("330.00"), "seed"),
-                                new OrderLineItem("Lemon Soda", 2, new BigDecimal("240.00"), "seed")),
+                                new OrderLineItem("Crispy Chicken Box", 2, new BigDecimal("980.00"), "初期データ"),
+                                new OrderLineItem("Curly Fries", 1, new BigDecimal("330.00"), "初期データ"),
+                                new OrderLineItem("Lemon Soda", 2, new BigDecimal("240.00"), "初期データ")),
                         new BigDecimal("2530.00"),
                         new BigDecimal("2830.00"),
-                        "18 min via In-house Express",
+                        "18 分・自社エクスプレス",
                         "CHARGED");
             }
         };
@@ -1614,8 +1613,8 @@ final class OrderDeterministicModel implements Model {
                 }
                     boolean charged = Boolean.TRUE.equals(paymentResult.get("charged"));
                     String reply = charged
-                        ? "Your order is now confirmed and payment has been processed."
-                        : "Here is your draft order. Say 'confirm' to place it.";
+                        ? "ご注文が確定し、決済が完了しました。"
+                        : "注文内容をご確認ください。確定する場合は「注文確定して」とお知らせください。";
                     return List.of(
                         new ModelEvent.TextDelta(reply),
                         new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
@@ -1654,8 +1653,8 @@ final class OrderDeterministicModel implements Model {
             }
             boolean charged = Boolean.TRUE.equals(paymentResult.get("charged"));
             String reply = charged
-                    ? "Your order is now confirmed and payment has been processed."
-                    : "Here is your draft order. Say 'confirm' to place it.";
+                    ? "ご注文が確定し、決済が完了しました。"
+                    : "注文内容をご確認ください。確定する場合は「注文確定して」とお知らせください。";
             return List.of(
                     new ModelEvent.TextDelta(reply),
                     new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));

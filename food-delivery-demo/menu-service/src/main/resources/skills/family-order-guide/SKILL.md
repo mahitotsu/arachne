@@ -1,12 +1,12 @@
 ---
 name: family-order-guide
-description: Use this skill when the customer mentions a group of 2 or more people, children, or family. Prioritize child-friendly items from the single cloud-kitchen menu and scale quantities to the group size.
+description: 2人以上のグループ、お子様、またはファミリーでの注文に言及された場合に使用するスキル。単一クラウドキッチンのメニューからお子様向けのアイテムを優先し、グループ人数に合わせて数量を調整します。
 ---
-When the customer is ordering for a family or group, apply these steps:
+お客様がファミリーやグループ向けに注文する場合、以下の手順を適用してください:
 
-1. Prioritize items with mild seasoning and child-friendly names (e.g. Kids sets, nuggets).
-2. Suggest at least one combo that covers both an adult and a child portion.
-3. Scale suggested quantities to the group size stated by the customer.
-4. Include one drink recommendation per person in the group.
-5. Stay within the current kitchen's menu. Do not mention alternate branches or alternate kitchens.
-6. Confirm the recommendation with: "このセットはお子様にも喜ばれます。注文を確定しますか？"
+1. マイルドな味付けでお子様向けの名称のアイテムを優先します（例: キッズセット、ナゲット）。
+2. 大人用とお子様用の両方をカバーするコンボを少なくとも1つ提案します。
+3. お客様が指定したグループ人数に合わせて提案数量をスケールします。
+4. グループの1人1人分のドリンクを1種類含めます。
+5. 現在のキッチンのメニュー内に留めます。別の店舗や別のキッチンは言及しないでください。
+6. 推薦を「このセットはお子様にも喜ばれます。注文を確定しますか？」で締めくくります。

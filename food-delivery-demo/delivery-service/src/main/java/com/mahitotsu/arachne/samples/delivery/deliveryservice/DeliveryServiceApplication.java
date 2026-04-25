@@ -101,13 +101,13 @@ class DeliveryApplicationService {
         AtomicReference<CourierStatus> capturedCourier = new AtomicReference<>();
         AtomicReference<TrafficWeatherStatus> capturedConditions = new AtomicReference<>();
 
-        // Eagerly fetch both so the agent tools have data to return
+        // リアルタイム情報を取得し、エージェントツールが返すデータを準備する
         CourierStatus courierStatus = courierRepo.check(request.itemNames());
         TrafficWeatherStatus conditions = trafficRepo.current();
         capturedCourier.set(courierStatus);
         capturedConditions.set(conditions);
 
-        // Compute adjusted ETAs based on real conditions
+        // 実際の状況に基づいて調整後 ETA を計算する
         int trafficDelay = conditions.trafficDelayMinutes();
         int weatherDelay = conditions.weatherDelayMinutes();
         int expressBaseEta = 15 + trafficDelay / 2 + weatherDelay / 2;
@@ -115,35 +115,34 @@ class DeliveryApplicationService {
 
         List<DeliveryOption> options = new ArrayList<>();
         if (courierStatus.expressAvailable()) {
-            options.add(new DeliveryOption("express", "In-house Express", expressBaseEta, new BigDecimal("300.00")));
+            options.add(new DeliveryOption("express", "自社エクスプレス", expressBaseEta, new BigDecimal("300.00")));
         }
-        options.add(new DeliveryOption("standard", "Partner Standard", standardBaseEta, new BigDecimal("180.00")));
+        options.add(new DeliveryOption("standard", "パートナースタンダード", standardBaseEta, new BigDecimal("180.00")));
         options.sort(Comparator.comparingInt(DeliveryOption::etaMinutes));
 
         String prompt = """
-                You are the delivery-agent for a single-kitchen cloud kitchen app.
-                The app offers two lanes only:
-                - Partner Standard: fulfilled by an external delivery partner
-                - In-house Express: fulfilled by the kitchen's own staff when available
-                Use the check_courier_availability and get_traffic_weather tools to investigate real-time conditions, then
-                write a clear summary covering:
-                1. In-house express availability and current readiness
-                2. Traffic and weather conditions and their impact on ETA
-                3. The adjusted ETA for each available option (in-house express and/or partner standard)
-                Keep the tone concise and factual. Do not ask questions.
+                あなたは単一キッチンのクラウドキッチンアプリの delivery-agent です。
+                このアプリは2種類の配送レーンのみ提供します:
+                - パートナースタンダード: 外部配送パートナーが履行
+                - 自社エクスプレス: 利用可能な場合はキッチン専属スタッフが履行
+                check_courier_availability と get_traffic_weather ツールを使ってリアルタイムの状況を調査し、以下を網羅する簡潔なサマリーを書いてください:
+                1. 自社エクスプレスの利用可能性と現在の準備状況
+                2. 交通状況・天気状況と ETA への影響
+                3. 利用可能な各オプション（自社エクスプレスおよび/またはパートナースタンダード）の調整後 ETA
+                回答は簡潔・客観的にしてください。質問はしないでください。
                 """;
 
         String summary = agentFactory.builder()
                 .systemPrompt(prompt)
                 .tools(courierAvailabilityTool, trafficWeatherTool)
                 .build()
-                .run("Assess delivery conditions for order: " + request.message()
-                        + ". Items: " + request.itemNames())
+                .run("注文の配送状況を調査してください: " + request.message()
+                        + "。アイテム: " + request.itemNames())
                 .text();
 
         String headline = courierStatus.expressAvailable()
-            ? "delivery-agent assessed in-house express and partner-standard availability"
-            : "delivery-agent: in-house express unavailable — partner standard quoted";
+            ? "delivery-agent が自社エクスプレスとパートナースタンダードの利用可能性を確認しました"
+            : "delivery-agent: 自社エクスプレスは利用不可—パートナースタンダードを見積しました";
 
         return new DeliveryQuoteResponse("delivery-service", "delivery-agent", headline, summary, options);
     }
@@ -163,8 +162,8 @@ class CourierAvailabilityRepository {
         if ("deterministic".equals(modelMode)) {
             return new CourierStatus(true, 1 + itemCount, 3 + itemCount);
         }
-        // Simulate courier availability based on item count and pseudo-time
-        boolean expressAvailable = (System.currentTimeMillis() / 10000) % 3 != 0; // unavailable ~1/3 of time
+        // アイテム数と時刻に基づいてクーリエの空き状況をシミュレートする
+        boolean expressAvailable = (System.currentTimeMillis() / 10000) % 3 != 0; // 約1/3の時間で利用不可
         int expressReadyInMinutes = expressAvailable ? (1 + itemCount) : -1;
         int standardReadyInMinutes = 3 + itemCount;
         return new CourierStatus(expressAvailable, expressReadyInMinutes, standardReadyInMinutes);
@@ -175,10 +174,10 @@ class CourierAvailabilityRepository {
 class TrafficWeatherRepository {
 
     TrafficWeatherStatus current() {
-        // Simulate varying traffic and weather conditions
+        // 交通状況と天気状況を変動させてシミュレートする
         long slot = (System.currentTimeMillis() / 30000) % 4;
-        int trafficDelay = (int) (slot * 3);       // 0, 3, 6, or 9 min
-        int weatherDelay = slot >= 3 ? 5 : 0;      // heavy rain in worst slot
+        int trafficDelay = (int) (slot * 3);       // 0、3、6、9分
+        int weatherDelay = slot >= 3 ? 5 : 0;      // 最悪スロットは大雨
         String trafficLevel = switch ((int) slot) {
             case 0 -> "clear";
             case 1 -> "light";
@@ -204,11 +203,11 @@ class DeliveryArachneConfiguration {
                 ObjectNode itemsNode = props.putObject("itemNames");
                 itemsNode.put("type", "array");
                 itemsNode.putObject("items").put("type", "string");
-                itemsNode.put("description", "Names of items in the order");
+                itemsNode.put("description", "注文に含まれるアイテムの名前");
                 root.putArray("required").add("itemNames");
                 root.put("additionalProperties", false);
                 return new ToolSpec("check_courier_availability",
-                        "Check which courier tiers (express / standard) have riders available right now and their ready-in minutes.", root);
+                        "現在クーリエの空きのある配送レーン（エクスプレス/スタンダード）と準備までの所要時間を確認する。", root);
             }
 
             @Override
@@ -225,7 +224,7 @@ class DeliveryArachneConfiguration {
                 result.put("expressReadyInMinutes", status.expressReadyInMinutes());
                 result.put("standardReadyInMinutes", status.standardReadyInMinutes());
                 if (!status.expressAvailable()) {
-                    result.put("expressUnavailableReason", "No in-house express staff are available at this time");
+                    result.put("expressUnavailableReason", "自社エクスプレスのスタッフは現在対応可能な人数がいません");
                 }
                 return ToolResult.success(context.toolUseId(), result);
             }
@@ -242,7 +241,7 @@ class DeliveryArachneConfiguration {
                 root.put("properties", root.objectNode());
                 root.put("additionalProperties", false);
                 return new ToolSpec("get_traffic_weather",
-                        "Get current real-time traffic congestion level and weather conditions that affect delivery ETA.", root);
+                        "配送 ETA に影響する現在のリアルタイム交通湋滞レベルと天気状況を取得する。", root);
             }
 
             @Override
@@ -298,21 +297,21 @@ class DeliveryArachneConfiguration {
 
         @Override
         public Iterable<ModelEvent> converse(List<Message> messages, List<ToolSpec> tools, String systemPrompt, ToolSelection toolSelection) {
-            // Step 1: call check_courier_availability
+            // ステップ1: check_courier_availability を呼び出す
             Map<String, Object> courierResult = latestToolContent(messages, "courier-check");
             if (courierResult == null) {
                 return List.of(
                         new ModelEvent.ToolUse("courier-check", "check_courier_availability", Map.of("itemNames", List.of())),
                         new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
             }
-            // Step 2: call get_traffic_weather
+            // ステップ2: get_traffic_weather を呼び出す
             Map<String, Object> trafficResult = latestToolContent(messages, "traffic-check");
             if (trafficResult == null) {
                 return List.of(
                         new ModelEvent.ToolUse("traffic-check", "get_traffic_weather", Map.of()),
                         new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
             }
-            // Step 3: synthesize summary
+            // ステップ3: サマリーを合成する
             boolean expressAvailable = Boolean.parseBoolean(String.valueOf(courierResult.getOrDefault("expressAvailable", "true")));
             String trafficLevel = String.valueOf(trafficResult.getOrDefault("trafficLevel", "clear"));
             String weather = String.valueOf(trafficResult.getOrDefault("weather", "clear"));
@@ -321,11 +320,11 @@ class DeliveryArachneConfiguration {
             int expressEta = 15 + trafficDelay / 2 + weatherDelay / 2;
             int standardEta = expressEta + 12 + trafficDelay + weatherDelay;
             String expressLine = expressAvailable
-                    ? "In-house express is available (ready in " + courierResult.getOrDefault("expressReadyInMinutes", 2) + " min), estimated delivery " + expressEta + " min."
-                    : "In-house express is currently unavailable.";
-            String summary = expressLine + " Traffic is " + trafficLevel + ", weather is " + weather
-                    + " (combined delay +" + (trafficDelay + weatherDelay) + " min)."
-                    + " Partner Standard estimated delivery: " + standardEta + " min.";
+                    ? "自社エクスプレスは利用可能です (準備まで約" + courierResult.getOrDefault("expressReadyInMinutes", 2) + "分)、配送予定時間" + expressEta + "分です。"
+                    : "自社エクスプレスは現在利用できません。";
+            String summary = expressLine + "交通状況: " + trafficLevel + "、天気: " + weather
+                    + "（合計遅延+" + (trafficDelay + weatherDelay) + "分）。"
+                    + "パートナースタンダードの配送予定時間: " + standardEta + "分。";
             return List.of(
                     new ModelEvent.TextDelta(summary),
                     new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
