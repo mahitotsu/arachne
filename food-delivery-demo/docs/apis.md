@@ -17,6 +17,17 @@
 - `GET /api/orders/history`
   現在のカスタマーの直近注文履歴を返す。
 
+`registry-service`
+
+- `POST /registry/register`
+  サービス起動時にケイパビリティ、エンドポイント、エージェント仕様、ヘルス URL を登録する。
+- `POST /registry/discover`
+  自然言語クエリを受け取り、マッチしたサービス記述子と capability-registry-agent の要約を返す。
+- `GET /registry/services`
+  全登録サービスの仕様一覧を返す。停止中の `icarus-adapter` も含む。
+- `GET /registry/health`
+  登録済みサービスの集約ヘルス状態を返す。
+
 ## 内部 API
 
 `menu-service`
@@ -43,6 +54,20 @@
 
 - `POST /internal/payment/prepare`
   注文下書きを受け取り、支払い準備状況とオプションの決定論的課金実行を返す。
+
+`hermes-adapter`
+
+- `POST /adapter/eta`
+  外部高速配送パートナーの ETA、混雑度、料金を返す。混雑時は `NOT_AVAILABLE` になり得る。
+- `GET /adapter/health`
+  アダプター独自の `AVAILABLE` / `NOT_AVAILABLE` を返す。
+
+`idaten-adapter`
+
+- `POST /adapter/eta`
+  外部低コスト配送パートナーの ETA、混雑度、料金を返す。
+- `GET /adapter/health`
+  アダプター独自の `AVAILABLE` を返す。
 
 ## レスポンス設計の原則
 

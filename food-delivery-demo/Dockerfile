@@ -16,10 +16,13 @@ COPY food-delivery-demo/menu-service/pom.xml food-delivery-demo/menu-service/pom
 COPY food-delivery-demo/kitchen-service/pom.xml food-delivery-demo/kitchen-service/pom.xml
 COPY food-delivery-demo/delivery-service/pom.xml food-delivery-demo/delivery-service/pom.xml
 COPY food-delivery-demo/payment-service/pom.xml food-delivery-demo/payment-service/pom.xml
+COPY food-delivery-demo/registry-service/pom.xml food-delivery-demo/registry-service/pom.xml
+COPY food-delivery-demo/hermes-adapter/pom.xml food-delivery-demo/hermes-adapter/pom.xml
+COPY food-delivery-demo/idaten-adapter/pom.xml food-delivery-demo/idaten-adapter/pom.xml
 
 RUN --mount=type=cache,id=arachne-delivery-m2,target=/root/.m2,sharing=locked \
 	mvn -B -ntp -f food-delivery-demo/pom.xml \
-		-pl customer-service,menu-service,kitchen-service,delivery-service,payment-service,order-service \
+		-pl customer-service,menu-service,kitchen-service,delivery-service,payment-service,order-service,registry-service,hermes-adapter,idaten-adapter \
 		-am dependency:go-offline -DskipTests
 
 FROM dependencies AS build

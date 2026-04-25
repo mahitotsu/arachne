@@ -12,6 +12,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -69,6 +70,34 @@ public class KitchenServiceApplication {
     @Bean("menuRestClient")
     RestClient menuRestClient(@Value("${MENU_SERVICE_BASE_URL:http://localhost:8081}") String baseUrl) {
         return RestClient.builder().baseUrl(baseUrl).build();
+    }
+
+    @Bean
+    ApplicationRunner registerKitchenService(
+            RestClient.Builder restClientBuilder,
+            @Value("${DELIVERY_REGISTRY_BASE_URL:}") String registryBaseUrl,
+            @Value("${DELIVERY_KITCHEN_ENDPOINT:http://kitchen-service:8080}") String serviceEndpoint) {
+        return args -> {
+            if (registryBaseUrl.isBlank()) {
+                return;
+            }
+            restClientBuilder.baseUrl(registryBaseUrl).build().post()
+                    .uri("/registry/register")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of(
+                            "serviceName", "kitchen-service",
+                            "endpoint", serviceEndpoint,
+                            "capability", "在庫確認、調理 ETA 推定、調理ライン混雑に応じた代替提案を扱う。",
+                            "agentName", "kitchen-agent",
+                            "systemPrompt", "在庫と調理ラインの状況を確認し、必要に応じて代替調理ラインを提案する。",
+                            "skills", List.of(Map.of("name", "prep-scheduler", "content", "調理 ETA と混雑時の代替ライン提案")),
+                            "requestMethod", "POST",
+                            "requestPath", "/internal/kitchen/check",
+                            "healthEndpoint", serviceEndpoint + "/actuator/health",
+                            "status", "AVAILABLE"))
+                    .retrieve()
+                    .toBodilessEntity();
+        };
     }
 }
 

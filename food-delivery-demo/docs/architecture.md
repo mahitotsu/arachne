@@ -14,6 +14,8 @@
 
 - `order-service`
   公開ワークフロー API、Redis バックドのセッション復元、PostgreSQL バックドの確定注文。
+- `registry-service`
+  全サービスのケイパビリティ登録、自然言語 discover、集約ヘルス、仕様一覧を管理。
 - `menu-service`
   `menu-agent` を通じた同一ブランドのメニュー検索と代替提案を管理。
 - `kitchen-service`
@@ -22,20 +24,28 @@
   `delivery-agent` を通じた ETA 推定と配送オプション（パートナースタンダード、自社エクスプレス含む）を管理。
 - `payment-service`
   決定論的な支払い方法の提示と課金実行を管理。
+- `hermes-adapter`
+  高速配送パートナーの ETA モック。周期的に停止し、外部候補の可用性変動を表現する。
+- `idaten-adapter`
+  低コスト配送パートナーの ETA モック。常時利用可能な外部候補を表現する。
+- `icarus-adapter`
+  起動しない registry-only エントリ。停止中候補の可視化専用。
 - `customer-ui`
   カスタマーチャット、現在の注文下書き、サービスとエージェントのトレースを表示する Next.js ウェブアプリ。
 
 ## ランタイムストーリー
 
 1. ブラウザが注文ステップ入力を `order-service` の公開 API へ送信する。
-2. `order-service` が Redis から現在の注文セッションを復元する。
-3. `order-service` が現在ステップに応じて `menu-service`、`delivery-service`、`payment-service` へファンアウトする。
-4. 各ダウンストリーム API は返答前にサービスローカルの Arachne エージェント、または決定論的ロジックを実行する。
-5. `menu-service` は内部で `kitchen-service` を呼び、在庫、ETA、欠品代替、混雑提案をまとめて返す。
-6. `kitchen-agent` がアイテムを提供できない場合、同一ブランドのメニューから代替候補を `menu-agent` に問い合わせ、単一キッチンで実際に対応できる代替品のみを承認する。
-7. `order-service` は結果をワークフロー用の構造化レスポンスとトレースへ整形して返す。
-8. 両レーンが利用可能な場合、カスタマーは外部パートナースタンダード配送と自社エクスプレス配送のどちらかを選択する。
-9. 確定時に `payment-service` が課金を実行し、`order-service` が最終注文を PostgreSQL に保存する。
+2. 各バックエンドサービスは起動時に `registry-service` へ自分のケイパビリティとヘルス URL を登録する。
+3. `order-service` が Redis から現在の注文セッションを復元する。
+4. `order-service` が現在ステップに応じて `menu-service`、`delivery-service`、`payment-service` へファンアウトする。
+5. 各ダウンストリーム API は返答前にサービスローカルの Arachne エージェント、または決定論的ロジックを実行する。
+6. `menu-service` は内部で `kitchen-service` を呼び、在庫、ETA、欠品代替、混雑提案をまとめて返す。
+7. `kitchen-agent` がアイテムを提供できない場合、同一ブランドのメニューから代替候補を `menu-agent` に問い合わせ、単一キッチンで実際に対応できる代替品のみを承認する。
+8. `registry-service` はエージェント仕様ビューワー向け一覧と、将来の動的 collaborator discovery 向け capability query を提供する。外部 ETA 候補として `hermes-adapter`、`idaten-adapter`、停止中の `icarus-adapter` を扱う。
+9. `order-service` は結果をワークフロー用の構造化レスポンスとトレースへ整形して返す。
+10. 両レーンが利用可能な場合、カスタマーは外部パートナースタンダード配送と自社エクスプレス配送のどちらかを選択する。
+11. 確定時に `payment-service` が課金を実行し、`order-service` が最終注文を PostgreSQL に保存する。
 
 ## Arachne との親和性
 

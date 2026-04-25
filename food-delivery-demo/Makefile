@@ -4,7 +4,7 @@ COMPOSE := docker compose -f $(COMPOSE_FILE)
 UI_DIR := $(PROJECT_DIR)customer-ui
 BEDROCK_MODEL_PROVIDER ?= bedrock
 AWS_EXPORT_CREDENTIALS_CMD = aws configure export-credentials --format env-no-export $(if $(AWS_PROFILE),--profile $(AWS_PROFILE),)
-COMPOSE_PARALLEL_LIMIT ?= 5
+COMPOSE_PARALLEL_LIMIT ?= 1
 
 .PHONY: help up up-bedrock down reset ps logs test ui-install ui-build ui-dev smoke seed-data reinit-data
 

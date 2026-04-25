@@ -11,6 +11,7 @@ import java.util.regex.Pattern;
 
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -69,6 +70,34 @@ public class MenuServiceApplication {
     @Bean("kitchenRestClient")
     RestClient kitchenRestClient(@Value("${KITCHEN_SERVICE_BASE_URL:http://localhost:8082}") String baseUrl) {
         return RestClient.builder().baseUrl(baseUrl).build();
+    }
+
+    @Bean
+    ApplicationRunner registerMenuService(
+            RestClient.Builder restClientBuilder,
+            @Value("${DELIVERY_REGISTRY_BASE_URL:}") String registryBaseUrl,
+            @Value("${DELIVERY_MENU_ENDPOINT:http://menu-service:8080}") String serviceEndpoint) {
+        return args -> {
+            if (registryBaseUrl.isBlank()) {
+                return;
+            }
+            restClientBuilder.baseUrl(registryBaseUrl).build().post()
+                    .uri("/registry/register")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of(
+                            "serviceName", "menu-service",
+                            "endpoint", serviceEndpoint,
+                            "capability", "メニュー提案、カテゴリ検索、欠品時の代替候補提示、合計金額計算を扱う。",
+                            "agentName", "menu-agent",
+                            "systemPrompt", "注文候補の選定と代替案の説明、合計計算を行う。",
+                            "skills", List.of(Map.of("name", "menu-substitution", "content", "欠品時の代替候補と提案理由を整理する")),
+                            "requestMethod", "POST",
+                            "requestPath", "/internal/menu/suggest",
+                            "healthEndpoint", serviceEndpoint + "/actuator/health",
+                            "status", "AVAILABLE"))
+                    .retrieve()
+                    .toBodilessEntity();
+        };
     }
 }
 

@@ -19,5 +19,8 @@
         <module>delivery-service</module>
         <module>payment-service</module>
         <module>order-service</module>
+        <module>registry-service</module>
+        <module>hermes-adapter</module>
+        <module>idaten-adapter</module>
     </modules>
 </project>

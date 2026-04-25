@@ -90,6 +90,34 @@ public class OrderServiceApplication {
                 .build();
     }
 
+    @Bean
+    ApplicationRunner registerOrderService(
+            RestClient.Builder restClientBuilder,
+            @Value("${DELIVERY_REGISTRY_BASE_URL:}") String registryBaseUrl,
+            @Value("${DELIVERY_ORDER_ENDPOINT:http://order-service:8080}") String serviceEndpoint) {
+        return args -> {
+            if (registryBaseUrl.isBlank()) {
+                return;
+            }
+            restClientBuilder.baseUrl(registryBaseUrl).build().post()
+                    .uri("/registry/register")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of(
+                            "serviceName", "order-service",
+                            "endpoint", serviceEndpoint,
+                            "capability", "注文ワークフロー管理、メニュー提案、配送選択、支払い確認、注文履歴参照を扱う。",
+                            "agentName", "order-service",
+                            "systemPrompt", "注文ワークフローを段階的に進める。",
+                            "skills", List.of(Map.of("name", "order-workflow", "content", "注文の提案から確定までの段階進行")),
+                            "requestMethod", "POST",
+                            "requestPath", "/api/order/suggest",
+                            "healthEndpoint", serviceEndpoint + "/actuator/health",
+                            "status", "AVAILABLE"))
+                    .retrieve()
+                    .toBodilessEntity();
+        };
+    }
+
     private RestClient securedRestClient(String baseUrl) {
         ClientHttpRequestInterceptor bearerRelay = (request, body, execution) -> {
             SecurityAccessors.currentAccessToken().ifPresent(request.getHeaders()::setBearerAuth);

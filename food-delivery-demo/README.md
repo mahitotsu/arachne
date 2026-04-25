@@ -13,14 +13,20 @@
 - `customer-ui`: カスタマー向けフローの Next.js チャット UI
 - `customer-service`: デモカスタマーディレクトリ、サインイン API、JWT 発行、JWKS 公開
 - `order-service`: 公開ワークフロー API、Redis バックドのセッション継続、PostgreSQL バックドの注文永続化
+- `registry-service`: サービスのケイパビリティ登録、自然言語 discover、稼働状況集約
 - `menu-service`: `menu-agent` によるメニュー検索と代替提案
 - `kitchen-service`: `kitchen-agent` による在庫確認と調理時間
 - `delivery-service`: `delivery-agent` による ETA 推定とクーリエ計画
 - `payment-service`: 決定論的な支払い準備と課金実行
+- `hermes-adapter`: 外部 ETA モック、高速配送パートナー、周期的に停止
+- `idaten-adapter`: 外部 ETA モック、低コスト配送パートナー、常時稼働
 - `postgres`
 - `redis`
 
+`icarus-adapter` は起動しない registry-only エントリです。常時 `NOT_AVAILABLE` として登録され、停止中の候補表示をデモします。
+
 各ダウンストリームサービスは独自のサービスローカルエージェントを持ちます。API は通常の Spring HTTP 境界のままですが、レスポンステキストと調整動作は各サービス内に埋め込まれた Arachne ランタイムから来ます。
+さらに各バックエンドサービスは起動時に `registry-service` へ自分のケイパビリティを登録し、registry はエージェント仕様ビューワーや将来の動的 service discovery の土台を提供します。
 
 ## メインデモストーリー
 
@@ -64,12 +70,15 @@ make test
 - UI: `http://localhost:3000`
 - カスタマーサービス: `http://localhost:8085`
 - 公開注文 API: `http://localhost:8080/api/order/suggest`
+- レジストリサービス: `http://localhost:8087`
 - 公開注文セッション API: `http://localhost:8080/api/order/session/{sessionId}`
 - 注文履歴 API: `http://localhost:8080/api/orders/history`
 - メニューサービス: `http://localhost:8081`
 - キッチンサービス: `http://localhost:8082`
 - 配送サービス: `http://localhost:8083`
 - 支払いサービス: `http://localhost:8084`
+- Hermes アダプター: `http://localhost:8088`
+- Idaten アダプター: `http://localhost:8089`
 
 デモサインインアカウント:
 
@@ -81,6 +90,13 @@ customer-service の主要エンドポイント:
 - `POST /api/auth/sign-in`
 - `GET /api/customers/me`
 - `GET /oauth2/jwks`
+
+registry-service の主要エンドポイント:
+
+- `POST /registry/register`
+- `POST /registry/discover`
+- `GET /registry/services`
+- `GET /registry/health`
 
 
 ## ドキュメント

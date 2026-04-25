@@ -44,11 +44,14 @@ services:
         MODULE_ARTIFACT: delivery-customer-service
     environment:
       SERVER_PORT: 8080
+      DELIVERY_REGISTRY_BASE_URL: http://registry-service:8080
       DELIVERY_AUTH_ISSUER: http://customer-service:8080
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/food_delivery
       SPRING_DATASOURCE_USERNAME: delivery
       SPRING_DATASOURCE_PASSWORD: delivery
     depends_on:
+      registry-service:
+        condition: service_healthy
       postgres:
         condition: service_healthy
     healthcheck:
@@ -70,12 +73,12 @@ services:
     environment:
       DELIVERY_MODEL_MODE: ${DELIVERY_MODEL_MODE:-deterministic}
       SERVER_PORT: 8080
+      DELIVERY_REGISTRY_BASE_URL: http://registry-service:8080
       DELIVERY_JWK_SET_URI: http://customer-service:8080/oauth2/jwks
       MENU_SERVICE_BASE_URL: http://menu-service:8080
       KITCHEN_SERVICE_BASE_URL: http://kitchen-service:8080
       DELIVERY_SERVICE_BASE_URL: http://delivery-service:8080
       PAYMENT_SERVICE_BASE_URL: http://payment-service:8080
-      ARACHNE_STRANDS_MODEL_PROVIDER: ${ARACHNE_STRANDS_MODEL_PROVIDER:-}
       ARACHNE_STRANDS_MODEL_ID: ${ARACHNE_STRANDS_MODEL_ID:-}
       ARACHNE_STRANDS_MODEL_REGION: ${ARACHNE_STRANDS_MODEL_REGION:-}
       AWS_REGION: ${AWS_REGION:-}
@@ -90,6 +93,8 @@ services:
       SPRING_DATA_REDIS_PORT: 6379
       DELIVERY_ORDER_SESSION_STORE: redis
     depends_on:
+      registry-service:
+        condition: service_healthy
       postgres:
         condition: service_healthy
       redis:
@@ -103,6 +108,25 @@ services:
     ports:
       - "8080:8080"
 
+  registry-service:
+    build:
+      context: ..
+      dockerfile: food-delivery-demo/Dockerfile
+      args:
+        MODULE_DIR: food-delivery-demo/registry-service
+        MODULE_ARTIFACT: delivery-registry-service
+    environment:
+      SERVER_PORT: 8080
+      DELIVERY_REGISTRY_ENDPOINT: http://registry-service:8080
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:8080/actuator/health >/dev/null || exit 1"]
+      interval: 2s
+      timeout: 5s
+      retries: 50
+      start_period: 20s
+    ports:
+      - "8087:8080"
+
   menu-service:
     build:
       context: ..
@@ -112,6 +136,7 @@ services:
         MODULE_ARTIFACT: delivery-menu-service
     environment:
       DELIVERY_MODEL_MODE: ${DELIVERY_MODEL_MODE:-deterministic}
+      DELIVERY_REGISTRY_BASE_URL: http://registry-service:8080
       DELIVERY_JWK_SET_URI: http://customer-service:8080/oauth2/jwks
       ARACHNE_STRANDS_MODEL_PROVIDER: ${ARACHNE_STRANDS_MODEL_PROVIDER:-}
       ARACHNE_STRANDS_MODEL_ID: ${ARACHNE_STRANDS_MODEL_ID:-}
@@ -128,6 +153,9 @@ services:
       timeout: 5s
       retries: 50
       start_period: 20s
+    depends_on:
+      registry-service:
+        condition: service_healthy
     ports:
       - "8081:8080"
 
@@ -140,6 +168,7 @@ services:
         MODULE_ARTIFACT: delivery-kitchen-service
     environment:
       DELIVERY_MODEL_MODE: ${DELIVERY_MODEL_MODE:-deterministic}
+      DELIVERY_REGISTRY_BASE_URL: http://registry-service:8080
       DELIVERY_JWK_SET_URI: http://customer-service:8080/oauth2/jwks
       MENU_SERVICE_BASE_URL: http://menu-service:8080
       ARACHNE_STRANDS_MODEL_PROVIDER: ${ARACHNE_STRANDS_MODEL_PROVIDER:-}
@@ -157,6 +186,9 @@ services:
       timeout: 5s
       retries: 50
       start_period: 20s
+    depends_on:
+      registry-service:
+        condition: service_healthy
     ports:
       - "8082:8080"
 
@@ -169,6 +201,7 @@ services:
         MODULE_ARTIFACT: delivery-routing-service
     environment:
       DELIVERY_MODEL_MODE: ${DELIVERY_MODEL_MODE:-deterministic}
+      DELIVERY_REGISTRY_BASE_URL: http://registry-service:8080
       DELIVERY_JWK_SET_URI: http://customer-service:8080/oauth2/jwks
       ARACHNE_STRANDS_MODEL_PROVIDER: ${ARACHNE_STRANDS_MODEL_PROVIDER:-}
       ARACHNE_STRANDS_MODEL_ID: ${ARACHNE_STRANDS_MODEL_ID:-}
@@ -185,6 +218,9 @@ services:
       timeout: 5s
       retries: 50
       start_period: 20s
+    depends_on:
+      registry-service:
+        condition: service_healthy
     ports:
       - "8083:8080"
 
@@ -197,6 +233,7 @@ services:
         MODULE_ARTIFACT: delivery-payment-service
     environment:
       DELIVERY_MODEL_MODE: ${DELIVERY_MODEL_MODE:-deterministic}
+      DELIVERY_REGISTRY_BASE_URL: http://registry-service:8080
       DELIVERY_JWK_SET_URI: http://customer-service:8080/oauth2/jwks
       ARACHNE_STRANDS_MODEL_PROVIDER: ${ARACHNE_STRANDS_MODEL_PROVIDER:-}
       ARACHNE_STRANDS_MODEL_ID: ${ARACHNE_STRANDS_MODEL_ID:-}
@@ -213,8 +250,55 @@ services:
       timeout: 5s
       retries: 50
       start_period: 20s
+    depends_on:
+      registry-service:
+        condition: service_healthy
     ports:
       - "8084:8080"
+
+  hermes-adapter:
+    build:
+      context: ..
+      dockerfile: food-delivery-demo/Dockerfile
+      args:
+        MODULE_DIR: food-delivery-demo/hermes-adapter
+        MODULE_ARTIFACT: delivery-hermes-adapter
+    environment:
+      SERVER_PORT: 8080
+      DELIVERY_REGISTRY_BASE_URL: http://registry-service:8080
+    depends_on:
+      registry-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:8080/actuator/health >/dev/null || exit 1"]
+      interval: 2s
+      timeout: 5s
+      retries: 50
+      start_period: 20s
+    ports:
+      - "8088:8080"
+
+  idaten-adapter:
+    build:
+      context: ..
+      dockerfile: food-delivery-demo/Dockerfile
+      args:
+        MODULE_DIR: food-delivery-demo/idaten-adapter
+        MODULE_ARTIFACT: delivery-idaten-adapter
+    environment:
+      SERVER_PORT: 8080
+      DELIVERY_REGISTRY_BASE_URL: http://registry-service:8080
+    depends_on:
+      registry-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:8080/actuator/health >/dev/null || exit 1"]
+      interval: 2s
+      timeout: 5s
+      retries: 50
+      start_period: 20s
+    ports:
+      - "8089:8080"
 
   redis:
     image: redis:7.4-alpine
