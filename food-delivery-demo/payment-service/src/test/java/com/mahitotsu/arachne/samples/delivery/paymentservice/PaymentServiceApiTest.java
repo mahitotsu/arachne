@@ -1,12 +1,11 @@
 package com.mahitotsu.arachne.samples.delivery.paymentservice;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -14,8 +13,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
-import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -37,9 +36,7 @@ import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
 
-@SpringBootTest(
-        webEnvironment = WebEnvironment.RANDOM_PORT,
-        properties = {"delivery.model.mode=deterministic"})
+@SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 class PaymentServiceApiTest {
 
     private static MockWebServer jwkServer;
@@ -101,7 +98,7 @@ class PaymentServiceApiTest {
                 PaymentPrepareResponse.class);
 
         assertThat(response).isNotNull();
-        assertThat(response.agent()).isEqualTo("payment-agent");
+        assertThat(response.agent()).isEqualTo("payment-service");
         assertThat(response.charged()).isTrue();
         assertThat(response.authorizationId()).isNotBlank();
     }
