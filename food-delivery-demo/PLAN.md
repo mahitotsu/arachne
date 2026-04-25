@@ -463,7 +463,7 @@ Phase 1-B は registry-service（Phase 2-A）に依存するため、また Phas
 
 | フェーズ | ステータス |
 |---|---|
-| Phase 1-A: payment-agent 削除 | 🔲 未着手 |
+| Phase 1-A: payment-agent 削除 | ✅ 完了（commit 7c40053） |
 | Phase 1-C: menu-agent 強化 + order→kitchen パス廃止 | 🔲 未着手 |
 | Phase 2-A: registry-service + 外部 ETA モック追加 | 🔲 未着手 |
 | Phase 1-B: delivery-agent 強化（動的発見 + 外部 API 呼び出し） | 🔲 未着手 |
@@ -476,9 +476,14 @@ Phase 1-B は registry-service（Phase 2-A）に依存するため、また Phas
 
 ## Next Action
 
-**Phase 1-A（payment-agent 削除）から着手。**
+**Phase 1-C（menu-agent 強化 + order→kitchen パス廃止）を着手。**
 
-- 変更スコープが payment-service 単体に閉じている
-- 既存テストですぐに検証できる
-- デモのメッセージ（「AIを使う場所を選んでいる」）を最初に確立できる
-- registry-service に依存しないため今すぐ実装可能
+実装サブステップ（この順に進める）:
+1. `MenuItem` に `category` + `List<String> tags` フィールド追加、全16アイテムに付与
+2. `MenuRepository.findSubstituteCandidates(unavailableId)` 追加（同カテゴリ優先 → タグ重複ランキング → 最大3件）
+3. `MenuArachneConfiguration` に `catalog_lookup_tool` + `calculate_total_tool` 追加、menu-agent システムプロンプト書き換え
+4. `KitchenRepository` に調理ライン種別マップ + in-memory キューカウンタ追加、`prep_scheduler_tool` 追加、kitchen-agent システムプロンプト更新
+5. `MenuServiceApplication` に `suggest_menu_and_check` ファサード追加（kitchen-service への内部 REST 呼び出し）
+6. `order-service` から `buildKitchenTool` を削除、システムプロンプトの `check_kitchen` 参照を除去
+7. `/api/order/chat` を4ステップエンドポイントに分割、`OrderSession` にワークフローステップ追加
+8. 全3サービスのテストを更新・追加し `mvn -f food-delivery-demo/pom.xml test` 確認
