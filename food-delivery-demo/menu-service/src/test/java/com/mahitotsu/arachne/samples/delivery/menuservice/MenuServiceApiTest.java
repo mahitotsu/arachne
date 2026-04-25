@@ -1,6 +1,7 @@
 package com.mahitotsu.arachne.samples.delivery.menuservice;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 
@@ -40,6 +41,7 @@ import okhttp3.mockwebserver.RecordedRequest;
         properties = {"delivery.model.mode=deterministic"})
 class MenuServiceApiTest {
 
+    private static MockWebServer kitchenServer;
     private static MockWebServer jwkServer;
     private static RSAKey signingKey;
     private static String accessToken;
@@ -56,18 +58,23 @@ class MenuServiceApiTest {
     static void startServer() throws Exception {
         signingKey = new RSAKeyGenerator(2048).keyID("menu-test-key").generate();
         accessToken = createAccessToken();
+        kitchenServer = new MockWebServer();
+        kitchenServer.setDispatcher(kitchenDispatcher());
         jwkServer = new MockWebServer();
         jwkServer.setDispatcher(jwkDispatcher());
+        kitchenServer.start();
         jwkServer.start();
     }
 
     @AfterAll
     static void stopServer() throws IOException {
+        kitchenServer.shutdown();
         jwkServer.shutdown();
     }
 
     @DynamicPropertySource
     static void configureProperties(DynamicPropertyRegistry registry) {
+        registry.add("KITCHEN_SERVICE_BASE_URL", () -> kitchenServer.url("/").toString());
         registry.add("spring.security.oauth2.resourceserver.jwt.jwk-set-uri", () -> jwkServer.url("/oauth2/jwks").toString());
     }
 
@@ -101,6 +108,24 @@ class MenuServiceApiTest {
         assertThat(response).isNotNull();
         assertThat(response.agent()).isEqualTo("menu-agent");
         assertThat(response.items()).extracting(MenuItem::name).anyMatch(name -> name.contains("Kids"));
+        assertThat(response.etaMinutes()).isPositive();
+        assertThat(response.kitchenTrace()).isNotNull();
+    }
+
+    @Test
+    void catalogExposesCategoryAndTagsForAllSixteenItems() {
+        ResponseEntity<MenuItem[]> response = restTemplate.getForEntity("/api/menu/catalog", MenuItem[].class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody()).hasSize(16);
+        assertThat(response.getBody())
+                .filteredOn(item -> "combo-teriyaki".equals(item.id()))
+                .singleElement()
+                .satisfies(item -> {
+                    assertThat(item.category()).isEqualTo("combo");
+                    assertThat(item.tags()).containsExactly("chicken", "grill", "japanese");
+                });
     }
 
     @Test
@@ -115,6 +140,26 @@ class MenuServiceApiTest {
         assertThat(response.items()).isNotEmpty();
     }
 
+        @Test
+        void familyBudgetRequestReturnsKidFriendlySetWithinBudget() {
+        MenuSuggestionResponse response = restTemplate.postForObject(
+            "/internal/menu/suggest",
+            new MenuSuggestionRequest("session-family-budget", "4人で4000円以内、子ども1人います"),
+            MenuSuggestionResponse.class);
+
+        assertThat(response).isNotNull();
+        assertThat(response.summary()).contains("[family-order-guide]");
+        assertThat(response.items()).extracting(MenuItem::id)
+            .contains("combo-kids", "drink-lemon");
+        assertThat(response.items()).extracting(MenuItem::id)
+            .anyMatch(id -> id.startsWith("combo-") && !"combo-kids".equals(id));
+        assertThat(total(response.items())).isLessThanOrEqualTo(new BigDecimal("4000.00"));
+        assertThat(response.items())
+            .filteredOn(item -> "drink".equals(item.category()))
+            .singleElement()
+            .satisfies(item -> assertThat(item.suggestedQuantity()).isEqualTo(4));
+        }
+
     @Test
     void suggestsFallbackItemsForUnavailableRequest() {
         MenuSubstitutionResponse response = restTemplate.postForObject(
@@ -128,6 +173,36 @@ class MenuServiceApiTest {
         assertThat(response.summary()).contains("kitchen-agent");
         assertThat(response.items()).extracting(MenuItem::id).doesNotContain("side-fries");
     }
+
+    @Test
+    void substitutionCandidatesStayInCategoryAndPreferTagOverlap() {
+        MenuSubstitutionResponse response = restTemplate.postForObject(
+                "/internal/menu/substitutes",
+                new MenuSubstitutionRequest("session-sub-2", "チキン系でお願いします", "combo-crispy"),
+                MenuSubstitutionResponse.class);
+
+        assertThat(response).isNotNull();
+        assertThat(response.items()).hasSizeLessThanOrEqualTo(3);
+        assertThat(response.items()).extracting(MenuItem::category).containsOnly("combo");
+        assertThat(response.items()).extracting(MenuItem::id)
+                .startsWith("combo-teriyaki")
+                .doesNotContain("combo-crispy");
+    }
+
+            @Test
+            void suggestReplacesUnavailableItemWithIntentMatchedSubstitute() {
+            MenuSuggestionResponse response = restTemplate.postForObject(
+                "/internal/menu/suggest",
+                new MenuSuggestionRequest("session-sub-suggest", "クリスピーチキンお願いします"),
+                MenuSuggestionResponse.class);
+
+            assertThat(response).isNotNull();
+            assertThat(response.items()).extracting(MenuItem::id)
+                .contains("combo-teriyaki")
+                .doesNotContain("combo-crispy");
+            assertThat(response.kitchenTrace()).isNotNull();
+            assertThat(response.kitchenTrace().summary()).contains("代替");
+            }
 
     @Test
     void genericSuggestionSummaryMatchesReturnedItems() {
@@ -156,6 +231,80 @@ class MenuServiceApiTest {
                 return new MockResponse().setResponseCode(404);
             }
         };
+    }
+
+    private static Dispatcher kitchenDispatcher() {
+        return new Dispatcher() {
+            @Override
+            public MockResponse dispatch(RecordedRequest request) {
+                if (request.getPath() == null || !request.getPath().startsWith("/internal/kitchen/check")) {
+                    return new MockResponse().setResponseCode(404);
+                }
+                String body = request.getBody().readUtf8();
+                List<String> itemIds = java.util.regex.Pattern.compile("\"(combo-[^\"]+|side-[^\"]+|drink-[^\"]+|wrap-[^\"]+|bowl-[^\"]+|dessert-[^\"]+)\"")
+                        .matcher(body)
+                        .results()
+                        .map(match -> match.group(1))
+                        .distinct()
+                        .toList();
+                boolean crispyUnavailable = body.contains("クリスピーチキン") && itemIds.contains("combo-crispy");
+            String itemsJson = itemIds.stream()
+                .map(itemId -> kitchenItemJson(itemId, crispyUnavailable))
+                        .reduce((left, right) -> left + "," + right)
+                        .orElse("{\"itemId\": \"combo-crispy\", \"available\": true, \"prepMinutes\": 14, \"substituteItemId\": null, \"substituteName\": null, \"substitutePrice\": null}");
+            int readyInMinutes = itemIds.stream()
+                .map(itemId -> crispyUnavailable && "combo-crispy".equals(itemId) ? "combo-teriyaki" : itemId)
+                .mapToInt(MenuServiceApiTest::prepMinutes)
+                .max()
+                .orElse(14);
+            String summary = crispyUnavailable
+                ? "kitchen-agent が combo-crispy の欠品を検出し、チキン系の代替として combo-teriyaki を提案しました。"
+                : "kitchen-agent がラインを確認しました: すべて準備可能です。";
+                return new MockResponse()
+                        .setHeader("Content-Type", "application/json")
+                        .setBody("""
+                                {
+                                  "service": "kitchen-service",
+                                  "agent": "kitchen-agent",
+                                  "headline": "kitchen-agent が全アイテムの在庫を確認しました",
+                      "summary": "%s",
+                                  "readyInMinutes": %d,
+                                  "items": [%s],
+                                  "collaborations": []
+                                }
+                    """.formatted(summary, readyInMinutes, itemsJson));
+            }
+        };
+    }
+
+        private static String kitchenItemJson(String itemId, boolean crispyUnavailable) {
+        if (crispyUnavailable && "combo-crispy".equals(itemId)) {
+            return """
+                {"itemId": "combo-crispy", "available": false, "prepMinutes": 14, "substituteItemId": "combo-teriyaki", "substituteName": "Teriyaki Chicken Box", "substitutePrice": 920.00}
+                """;
+        }
+        return """
+            {"itemId": "%s", "available": true, "prepMinutes": %d, "substituteItemId": null, "substituteName": null, "substitutePrice": null}
+            """.formatted(itemId, prepMinutes(itemId));
+        }
+
+        private static BigDecimal total(List<MenuItem> items) {
+        return items.stream()
+            .map(item -> item.price().multiply(BigDecimal.valueOf(item.suggestedQuantity())))
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+        }
+
+    private static int prepMinutes(String itemId) {
+        if (itemId.startsWith("drink-")) {
+            return 4;
+        }
+        if (itemId.startsWith("side-")) {
+            return 8;
+        }
+        if (itemId.startsWith("bowl-") || itemId.startsWith("wrap-")) {
+            return 11;
+        }
+        return 14;
     }
 
     private static String createAccessToken() throws JOSEException {

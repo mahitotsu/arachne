@@ -52,6 +52,9 @@ class KitchenServiceApiTest {
     @Autowired
     private TestRestTemplate restTemplate;
 
+    @Autowired
+    private KitchenRepository kitchenRepository;
+
     @LocalServerPort
     private int port;
 
@@ -133,6 +136,23 @@ class KitchenServiceApiTest {
             assertThat(item.available()).isFalse();
             assertThat(item.substituteName()).isEqualTo("Nugget Share Box");
         });
+    }
+
+    @Test
+    void warnsAboutGrillCongestionAndSuggestsAssemblyAlternatives() {
+        kitchenRepository.setQueueDepth("grill", 4);
+
+        KitchenCheckResponse response = restTemplate.postForObject(
+                "/internal/kitchen/check",
+                new KitchenCheckRequest("session-rush", "ランチで急ぎです", List.of("combo-smash")),
+                KitchenCheckResponse.class);
+
+        assertThat(response).isNotNull();
+        assertThat(response.readyInMinutes()).isGreaterThan(30);
+        assertThat(response.summary())
+                .contains("grill-line")
+                .contains("assembly")
+                .contains("サーモン丼");
     }
 
     private static Dispatcher jwkDispatcher() {

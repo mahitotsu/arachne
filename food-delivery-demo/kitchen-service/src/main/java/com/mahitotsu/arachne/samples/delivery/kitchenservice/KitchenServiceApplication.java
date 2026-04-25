@@ -6,6 +6,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -92,16 +94,19 @@ class KitchenApplicationService {
     private final AgentFactory agentFactory;
     private final KitchenRepository repository;
     private final Tool kitchenLookupTool;
+    private final Tool prepSchedulerTool;
     private final MenuSubstitutionGateway menuSubstitutionGateway;
 
     KitchenApplicationService(
             AgentFactory agentFactory,
             KitchenRepository repository,
             @Qualifier("kitchenLookupTool") Tool kitchenLookupTool,
+            @Qualifier("prepSchedulerTool") Tool prepSchedulerTool,
             MenuSubstitutionGateway menuSubstitutionGateway) {
         this.agentFactory = agentFactory;
         this.repository = repository;
         this.kitchenLookupTool = kitchenLookupTool;
+        this.prepSchedulerTool = prepSchedulerTool;
         this.menuSubstitutionGateway = menuSubstitutionGateway;
     }
 
@@ -118,22 +123,27 @@ class KitchenApplicationService {
                 キッチンがアイテムを提供できない場合は、他のキッチンではなく menu-agent に同ブランドの代替品を尋ねてください。
 
                         まず kitchen_inventory_lookup を呼び出して在庫と調理時間を確認してください。
+                        続けて prep_scheduler を呼び、ライン別のキュー遅延と提供見込み時間を確認してください。
                         リクエストされたアイテムが在庫切れの場合は、menu_substitution_lookup を呼び出して menu-agent に代替品の候補を提案させてください。
                         自分のキッチンラインで実際に対応できる代替品のみを承認してください。
+                        grill-line の遅延が 15 分を超えるときは、assembly 系（例: サーモン丼）に切り替えると早く出せることを能動的に伝えてください。
                         最終的な判断を短い段落で説明してください。
                         """)
-                .tools(kitchenLookupTool, buildMenuSubstitutionTool(request, accessToken, approvedSubstitutions, collaborations))
+                    .tools(kitchenLookupTool, prepSchedulerTool,
+                        buildMenuSubstitutionTool(request, accessToken, approvedSubstitutions, collaborations))
                 .build()
                 .run("items=" + String.join(",", request.itemIds()) + "\nmessage=" + request.message())
                 .text();
         List<KitchenItemStatus> resolvedStatuses = applySubstitutions(statuses, approvedSubstitutions.get());
-        int readyInMinutes = resolvedStatuses.stream().mapToInt(KitchenItemStatus::prepMinutes).max().orElse(12);
+                PrepSchedule schedule = repository.schedule(resolvedStatuses.stream()
+                    .map(status -> status.substituteItemId() != null ? status.substituteItemId() : status.itemId())
+                    .toList());
         return new KitchenCheckResponse(
                 "kitchen-service",
                 "kitchen-agent",
                 repository.headline(resolvedStatuses),
                 summary,
-                readyInMinutes,
+                    schedule.readyInMinutes(),
                 resolvedStatuses,
                 collaborations.get());
     }
@@ -248,23 +258,77 @@ class KitchenApplicationService {
 @Component
 class KitchenRepository {
 
-    private static final Map<String, KitchenItemStatus> STOCK = Map.of(
-            "combo-crispy", new KitchenItemStatus("combo-crispy", true, 14, null, null, null),
-            "combo-smash", new KitchenItemStatus("combo-smash", true, 16, null, null, null),
-            "combo-kids", new KitchenItemStatus("combo-kids", true, 9, null, null, null),
-            "side-fries", new KitchenItemStatus("side-fries", false, 7, null, null, null),
-            "side-nuggets", new KitchenItemStatus("side-nuggets", true, 8, null, null, null),
-            "drink-lemon", new KitchenItemStatus("drink-lemon", true, 3, null, null, null),
-            "drink-latte", new KitchenItemStatus("drink-latte", true, 4, null, null, null),
-            "wrap-garden", new KitchenItemStatus("wrap-garden", true, 11, null, null, null));
+    private static final Map<String, KitchenStockState> STOCK = Map.ofEntries(
+            Map.entry("combo-crispy", stock(true, 14, "fry")),
+            Map.entry("combo-smash", stock(true, 16, "grill")),
+            Map.entry("combo-kids", stock(true, 9, "assembly")),
+            Map.entry("combo-teriyaki", stock(true, 14, "grill")),
+            Map.entry("combo-spicy-tuna", stock(true, 12, "assembly")),
+            Map.entry("side-fries", stock(false, 7, "fry")),
+            Map.entry("side-nuggets", stock(true, 8, "fry")),
+            Map.entry("side-onion-rings", stock(true, 7, "fry")),
+            Map.entry("drink-lemon", stock(true, 3, "drink")),
+            Map.entry("drink-latte", stock(true, 4, "drink")),
+            Map.entry("drink-matcha-latte", stock(true, 5, "drink")),
+            Map.entry("wrap-garden", stock(true, 11, "assembly")),
+            Map.entry("bowl-salmon", stock(true, 10, "assembly")),
+            Map.entry("bowl-veggie", stock(true, 8, "assembly")),
+            Map.entry("dessert-choco", stock(true, 6, "assembly")),
+            Map.entry("dessert-matcha", stock(true, 4, "assembly")));
+
+    private final ConcurrentMap<String, Integer> queueDepthByLine = new ConcurrentHashMap<>();
 
     List<KitchenItemStatus> check(List<String> itemIds) {
         if (itemIds == null || itemIds.isEmpty()) {
-            return List.of(new KitchenItemStatus("combo-crispy", true, 14, null, null, null));
+            return List.of(toStatus("combo-crispy", STOCK.get("combo-crispy")));
         }
         return itemIds.stream()
-                .map(itemId -> STOCK.getOrDefault(itemId, new KitchenItemStatus(itemId, true, 12, null, null, null)))
+                .map(itemId -> toStatus(itemId, STOCK.getOrDefault(itemId, stock(true, 12, "assembly"))))
                 .toList();
+    }
+
+    PrepSchedule schedule(List<String> itemIds) {
+        Map<String, Integer> maxPrepByLine = new LinkedHashMap<>();
+        for (String itemId : itemIds) {
+            KitchenStockState state = STOCK.getOrDefault(itemId, stock(true, 12, "assembly"));
+            maxPrepByLine.merge(state.lineType(), state.prepMinutes(), Math::max);
+        }
+        if (maxPrepByLine.isEmpty()) {
+            return new PrepSchedule(12, "assembly", "現在の負荷は軽く、通常どおり準備できます。", null);
+        }
+
+        int readyInMinutes = 0;
+        String slowestLine = "assembly";
+        for (Map.Entry<String, Integer> entry : maxPrepByLine.entrySet()) {
+            int delay = queueDelayMinutes(entry.getKey());
+            int candidateEta = entry.getValue() + delay;
+            if (candidateEta >= readyInMinutes) {
+                readyInMinutes = candidateEta;
+                slowestLine = entry.getKey();
+            }
+        }
+
+        String summary = slowestLine + "-line の見込みは約" + readyInMinutes + "分です。";
+        String alternative = null;
+        if ("grill".equals(slowestLine) && queueDelayMinutes("grill") > 15) {
+            int assemblyEta = assemblyEtaMinutes();
+            alternative = "現在 grill-line が混雑中です。assembly 系（サーモン丼など）であれば今すぐ約"
+                    + assemblyEta + "分で提供できます。";
+            summary += " " + alternative;
+        }
+        return new PrepSchedule(readyInMinutes, slowestLine, summary, alternative);
+    }
+
+    void setQueueDepth(String lineType, int depth) {
+        if (depth <= 0) {
+            queueDepthByLine.remove(lineType);
+            return;
+        }
+        queueDepthByLine.put(lineType, depth);
+    }
+
+    void clearQueueDepths() {
+        queueDepthByLine.clear();
     }
 
     String headline(List<KitchenItemStatus> statuses) {
@@ -280,6 +344,10 @@ class KitchenRepository {
         return describeStatuses(statuses);
     }
 
+    String describeSchedule(List<String> itemIds) {
+        return schedule(itemIds).summary();
+    }
+
     String describeStatuses(List<KitchenItemStatus> statuses) {
         return statuses.stream()
                 .map(status -> status.available()
@@ -287,6 +355,27 @@ class KitchenRepository {
                         : status.itemId() + " は在庫切れのため代替品が必要です")
                 .reduce((left, right) -> left + "; " + right)
                 .orElse("キッチンは準備完了です");
+    }
+
+    private static KitchenStockState stock(boolean available, int prepMinutes, String lineType) {
+        return new KitchenStockState(available, prepMinutes, lineType);
+    }
+
+    private static KitchenItemStatus toStatus(String itemId, KitchenStockState state) {
+        return new KitchenItemStatus(itemId, state.available(), state.prepMinutes(), null, null, null);
+    }
+
+    private int queueDelayMinutes(String lineType) {
+        return queueDepthByLine.getOrDefault(lineType, 0) * 4;
+    }
+
+    private int assemblyEtaMinutes() {
+        int maxPrep = STOCK.values().stream()
+                .filter(state -> "assembly".equals(state.lineType()))
+                .mapToInt(KitchenStockState::prepMinutes)
+                .max()
+                .orElse(10);
+        return maxPrep + queueDelayMinutes("assembly");
     }
 }
 
@@ -348,6 +437,34 @@ class KitchenArachneConfiguration {
                 return ToolResult.success(context.toolUseId(), Map.of(
                     "inventorySummary", repository.describeStatuses(statuses),
                         "unavailableItemIds", statuses.stream().filter(status -> !status.available()).map(KitchenItemStatus::itemId).toList()));
+            }
+        };
+    }
+
+    @Bean
+    Tool prepSchedulerTool(KitchenRepository repository) {
+        return new Tool() {
+            @Override
+            public ToolSpec spec() {
+                return new ToolSpec("prep_scheduler", "調理ラインごとのキュー遅延と提供見込み時間を計算する。", schema());
+            }
+
+            @Override
+            public ToolResult invoke(Object input) {
+                return invoke(input, new ToolInvocationContext("prep_scheduler", null, input, null));
+            }
+
+            @Override
+            public ToolResult invoke(Object input, ToolInvocationContext context) {
+                String rawItems = String.valueOf(values(input).getOrDefault("items", ""));
+                List<String> itemIds = rawItems.isBlank() ? List.of() : List.of(rawItems.split(","));
+                PrepSchedule schedule = repository.schedule(itemIds);
+                return ToolResult.success(context.toolUseId(), Map.of(
+                        "readyInMinutes", schedule.readyInMinutes(),
+                        "scheduleSummary", schedule.summary(),
+                        "alternativeSuggestion", schedule.alternativeSuggestion() == null
+                                ? ""
+                                : schedule.alternativeSuggestion()));
             }
         };
     }
@@ -420,6 +537,16 @@ class KitchenArachneConfiguration {
                         new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
             }
 
+                    Map<String, Object> scheduleContent = latestToolContent(messages, "prep-scheduler");
+                    if (scheduleContent == null) {
+                    return List.of(
+                        new ModelEvent.ToolUse(
+                            "prep-scheduler",
+                            "prep_scheduler",
+                            Map.of("items", requestArgs.getOrDefault("items", ""))),
+                        new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
+                    }
+
             List<String> unavailableItemIds = stringList(toolContent.get("unavailableItemIds"));
             Map<String, Object> substitutionContent = latestToolContent(messages, "menu-substitution-lookup");
             if (!unavailableItemIds.isEmpty() && substitutionContent == null) {
@@ -434,17 +561,19 @@ class KitchenArachneConfiguration {
             }
 
             String inventorySummary = String.valueOf(toolContent.getOrDefault("inventorySummary", "kitchen is ready"));
+            String scheduleSummary = String.valueOf(scheduleContent.getOrDefault("scheduleSummary", ""));
             if (substitutionContent != null) {
             return List.of(
                 new ModelEvent.TextDelta("kitchen-agent がラインを確認しました: "
                     + inventorySummary
+                    + " " + scheduleSummary
                     + ". menu-agent に相談して "
                     + substitutionContent.getOrDefault("substitutionSummary", "最適な代替品")
                     + " を承認しました。"),
                 new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
             }
             return List.of(
-                new ModelEvent.TextDelta("kitchen-agent がラインを確認しました: " + inventorySummary + "."),
+                new ModelEvent.TextDelta("kitchen-agent がラインを確認しました: " + inventorySummary + " " + scheduleSummary),
                     new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
         }
 
@@ -505,6 +634,10 @@ record KitchenCheckResponse(
         List<AgentCollaboration> collaborations) {}
 
 record KitchenItemStatus(String itemId, boolean available, int prepMinutes, String substituteItemId, String substituteName, BigDecimal substitutePrice) {}
+
+record KitchenStockState(boolean available, int prepMinutes, String lineType) {}
+
+record PrepSchedule(int readyInMinutes, String bottleneckLine, String summary, String alternativeSuggestion) {}
 
 record AgentCollaboration(String service, String agent, String headline, String summary) {}
 

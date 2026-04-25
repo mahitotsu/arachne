@@ -12,11 +12,11 @@
 
 - `customer-ui`: カスタマー向けフローの Next.js チャット UI
 - `customer-service`: デモカスタマーディレクトリ、サインイン API、JWT 発行、JWKS 公開
-- `order-service`: 公開 API、オーケストレーション、Redis バックドのチャットセッション継続、PostgreSQL バックドの注文永続化
+- `order-service`: 公開ワークフロー API、Redis バックドのセッション継続、PostgreSQL バックドの注文永続化
 - `menu-service`: `menu-agent` によるメニュー検索と代替提案
 - `kitchen-service`: `kitchen-agent` による在庫確認と調理時間
 - `delivery-service`: `delivery-agent` による ETA 推定とクーリエ計画
-- `payment-service`: `payment-agent` による支払い準備と決定論的課金実行
+- `payment-service`: 決定論的な支払い準備と課金実行
 - `postgres`
 - `redis`
 
@@ -26,8 +26,8 @@
 
 1. カスタマーがデモ ID/パスワードで `customer-service` にサインインし、JWT アクセストークンを受け取る。
 2. ブラウザは `customer-ui` のリライトで同一オリジンを維持: `/api/customer/*` は `customer-service` へ、`/api/backend/*` は `order-service` へ転送される。
-3. チャット UI はそのベアラートークンを `order-service` へ送信する。
-4. `order-service` がダウンストリームサービスを調整し、アクティブな会話を Redis に保持する。
+3. UI はそのベアラートークンを `order-service` へ送信する。
+4. `order-service` がステップ別ワークフロー API を通じてダウンストリームサービスを調整し、アクティブな注文セッションを Redis に保持する。
 5. `menu-service`、`kitchen-service`、`delivery-service`、`payment-service` が同じアクセストークンを検証し、それぞれの Arachne エージェントを通じて回答する。
 6. 唯一のキッチンがリクエストされたアイテムを提供できない場合、`kitchen-agent` は `menu-agent` に同一ブランドのフォールバックアイテムを問い合わせることができる。
 7. UI はユーザー向け返答とサービス/エージェントトレースの両方を表示し、マイクロサービス構造とマルチエージェント構造の両方が明確に見える。
@@ -63,7 +63,9 @@ make test
 
 - UI: `http://localhost:3000`
 - カスタマーサービス: `http://localhost:8085`
-- 公開チャット API: `http://localhost:8080/api/chat`
+- 公開注文 API: `http://localhost:8080/api/order/suggest`
+- 公開注文セッション API: `http://localhost:8080/api/order/session/{sessionId}`
+- 注文履歴 API: `http://localhost:8080/api/orders/history`
 - メニューサービス: `http://localhost:8081`
 - キッチンサービス: `http://localhost:8082`
 - 配送サービス: `http://localhost:8083`
