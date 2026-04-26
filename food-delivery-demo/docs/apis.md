@@ -17,6 +17,17 @@
 - `GET /api/orders/history`
   現在のカスタマーの直近注文履歴を返す。
 
+`support-service`
+
+- `POST /api/support/chat`
+  JWT 認証済みのサポート問い合わせを受け取り、FAQ、キャンペーン、稼働状況、必要に応じて注文履歴をまとめて返す。
+- `POST /api/support/feedback`
+  注文に関する問い合わせやフィードバックを受け取り、分類結果とエスカレーション要否を返す。
+- `GET /api/support/campaigns`
+  現在有効なキャンペーン一覧を返す。
+- `GET /api/support/status`
+  registry-service の集約ヘルスをもとにしたサービス稼働状況を返す。
+
 `registry-service`
 
 - `POST /registry/register`
@@ -54,6 +65,15 @@
 
 - `POST /internal/payment/prepare`
   注文下書きを受け取り、支払い準備状況とオプションの決定論的課金実行を返す。
+
+`support-service`
+
+- `GET /api/orders/history` (`order-service` 依存)
+  サポートチャットが認証済みカスタマーの直近注文履歴を参照する際に利用する。
+- `GET /registry/health` (`registry-service` 依存)
+  サポートチャットとダッシュボード向けに現在のサービス稼働状況を取得する。
+- `POST /api/support/feedback` (`order-service` 依存)
+  注文確定後に order-service が事後サポート受付を通知する際に利用する。
 
 `hermes-adapter`
 

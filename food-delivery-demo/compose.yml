@@ -7,10 +7,12 @@ services:
         BACKEND_ORIGIN: http://order-service:8080
         CUSTOMER_SERVICE_ORIGIN: http://customer-service:8080
         MENU_SERVICE_ORIGIN: http://menu-service:8080
+        SUPPORT_SERVICE_ORIGIN: http://support-service:8080
     environment:
       BACKEND_ORIGIN: http://order-service:8080
       CUSTOMER_SERVICE_ORIGIN: http://customer-service:8080
       MENU_SERVICE_ORIGIN: http://menu-service:8080
+      SUPPORT_SERVICE_ORIGIN: http://support-service:8080
       PORT: 3000
       HOSTNAME: 0.0.0.0
     depends_on:
@@ -25,6 +27,8 @@ services:
       delivery-service:
         condition: service_healthy
       payment-service:
+        condition: service_healthy
+      support-service:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000 || exit 1"]
@@ -63,6 +67,43 @@ services:
     ports:
       - "8085:8080"
 
+  support-service:
+    build:
+      context: ..
+      dockerfile: food-delivery-demo/Dockerfile
+      args:
+        MODULE_DIR: food-delivery-demo/support-service
+        MODULE_ARTIFACT: delivery-support-service
+    environment:
+      DELIVERY_MODEL_MODE: ${DELIVERY_MODEL_MODE:-deterministic}
+      DELIVERY_REGISTRY_BASE_URL: http://registry-service:8080
+      DELIVERY_JWK_SET_URI: http://customer-service:8080/oauth2/jwks
+      ORDER_SERVICE_BASE_URL: http://order-service:8080
+      ARACHNE_STRANDS_MODEL_PROVIDER: ${ARACHNE_STRANDS_MODEL_PROVIDER:-}
+      ARACHNE_STRANDS_MODEL_ID: ${ARACHNE_STRANDS_MODEL_ID:-}
+      ARACHNE_STRANDS_MODEL_REGION: ${ARACHNE_STRANDS_MODEL_REGION:-}
+      AWS_REGION: ${AWS_REGION:-}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+      SERVER_PORT: 8080
+    depends_on:
+      registry-service:
+        condition: service_healthy
+      customer-service:
+        condition: service_healthy
+      order-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:8080/actuator/health >/dev/null || exit 1"]
+      interval: 2s
+      timeout: 5s
+      retries: 50
+      start_period: 20s
+    ports:
+      - "8086:8080"
+
   order-service:
     build:
       context: ..
@@ -79,6 +120,7 @@ services:
       KITCHEN_SERVICE_BASE_URL: http://kitchen-service:8080
       DELIVERY_SERVICE_BASE_URL: http://delivery-service:8080
       PAYMENT_SERVICE_BASE_URL: http://payment-service:8080
+      SUPPORT_SERVICE_BASE_URL: http://support-service:8080
       ARACHNE_STRANDS_MODEL_ID: ${ARACHNE_STRANDS_MODEL_ID:-}
       ARACHNE_STRANDS_MODEL_REGION: ${ARACHNE_STRANDS_MODEL_REGION:-}
       AWS_REGION: ${AWS_REGION:-}

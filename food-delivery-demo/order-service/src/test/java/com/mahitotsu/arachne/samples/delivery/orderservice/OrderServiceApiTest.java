@@ -52,6 +52,7 @@ class OrderServiceApiTest {
     private static MockWebServer menuServer;
     private static MockWebServer deliveryServer;
     private static MockWebServer paymentServer;
+        private static MockWebServer supportServer;
     private static MockWebServer jwkServer;
     private static RSAKey signingKey;
     private static String accessToken;
@@ -71,11 +72,13 @@ class OrderServiceApiTest {
         menuServer = new MockWebServer();
         deliveryServer = new MockWebServer();
         paymentServer = new MockWebServer();
+        supportServer = new MockWebServer();
         jwkServer = new MockWebServer();
         jwkServer.setDispatcher(jwkDispatcher());
         menuServer.start();
         deliveryServer.start();
         paymentServer.start();
+        supportServer.start();
         jwkServer.start();
     }
 
@@ -84,6 +87,7 @@ class OrderServiceApiTest {
         menuServer.shutdown();
         deliveryServer.shutdown();
         paymentServer.shutdown();
+        supportServer.shutdown();
         jwkServer.shutdown();
     }
 
@@ -92,6 +96,7 @@ class OrderServiceApiTest {
         registry.add("MENU_SERVICE_BASE_URL", () -> menuServer.url("/").toString());
         registry.add("DELIVERY_SERVICE_BASE_URL", () -> deliveryServer.url("/").toString());
         registry.add("PAYMENT_SERVICE_BASE_URL", () -> paymentServer.url("/").toString());
+                registry.add("SUPPORT_SERVICE_BASE_URL", () -> supportServer.url("/").toString());
         registry.add("spring.security.oauth2.resourceserver.jwt.jwk-set-uri", () -> jwkServer.url("/oauth2/jwks").toString());
     }
 
@@ -100,6 +105,7 @@ class OrderServiceApiTest {
         drainRequests(menuServer);
         drainRequests(deliveryServer);
         drainRequests(paymentServer);
+                drainRequests(supportServer);
         restTemplate.getRestTemplate().setInterceptors(List.of((request, body, execution) -> {
             request.getHeaders().setBearerAuth(accessToken);
             return execution.execute(request, body);
@@ -326,6 +332,16 @@ class OrderServiceApiTest {
                   "authorizationId": "pay-test-01"
                 }
                 """));
+        supportServer.enqueue(jsonResponse("""
+                {
+                  "service": "support-service",
+                  "agent": "support-agent",
+                  "headline": "support-agent が問い合わせを受け付けました",
+                  "summary": "GENERAL 問い合わせとして記録しました。",
+                  "classification": "GENERAL",
+                  "escalationRequired": false
+                }
+                """));
 
         ConfirmPaymentResponse response = restTemplate.postForObject(
                 "/api/order/confirm-payment",
@@ -335,11 +351,19 @@ class OrderServiceApiTest {
         RecordedRequest paymentRequest = paymentServer.takeRequest(1, TimeUnit.SECONDS);
         assertThat(paymentRequest).isNotNull();
         assertThat(paymentRequest.getBody().readUtf8()).contains("\"confirmRequested\":true");
+        RecordedRequest supportRequest = supportServer.takeRequest(1, TimeUnit.SECONDS);
+        assertThat(supportRequest).isNotNull();
+        assertThat(supportRequest.getPath()).isEqualTo("/api/support/feedback");
+        assertThat(supportRequest.getBody().readUtf8())
+                .contains("\"orderId\":")
+                .contains("注文 ord-");
         assertThat(response).isNotNull();
         assertThat(response.workflowStep()).isEqualTo("completed");
         assertThat(response.draft().status()).isEqualTo("CONFIRMED");
         assertThat(response.draft().orderId()).isNotBlank();
         assertThat(response.summary()).contains("¥2500");
+        assertThat(response.trace()).extracting(ServiceTrace::service)
+                .contains("payment-service", "support-service", "order-service");
     }
 
     private static String menuSuggestBody() {

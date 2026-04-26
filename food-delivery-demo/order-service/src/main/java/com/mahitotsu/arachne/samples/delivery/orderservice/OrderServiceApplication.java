@@ -73,6 +73,11 @@ public class OrderServiceApplication {
         return securedRestClient(baseUrl);
     }
 
+    @Bean("supportRestClient")
+    RestClient supportRestClient(@Value("${SUPPORT_SERVICE_BASE_URL:http://localhost:8086}") String baseUrl) {
+        return securedRestClient(baseUrl);
+    }
+
     @Bean
     SecurityFilterChain orderSecurity(HttpSecurity http) throws Exception {
         return http
@@ -190,6 +195,7 @@ class OrderApplicationService {
     private final MenuGateway menuGateway;
     private final DeliveryGateway deliveryGateway;
     private final PaymentGateway paymentGateway;
+    private final SupportGateway supportGateway;
     private final AuthenticatedCustomerResolver authenticatedCustomerResolver;
 
     OrderApplicationService(
@@ -198,12 +204,14 @@ class OrderApplicationService {
             MenuGateway menuGateway,
             DeliveryGateway deliveryGateway,
             PaymentGateway paymentGateway,
+            SupportGateway supportGateway,
             AuthenticatedCustomerResolver authenticatedCustomerResolver) {
         this.sessionStore = sessionStore;
         this.orderRepository = orderRepository;
         this.menuGateway = menuGateway;
         this.deliveryGateway = deliveryGateway;
         this.paymentGateway = paymentGateway;
+        this.supportGateway = supportGateway;
         this.authenticatedCustomerResolver = authenticatedCustomerResolver;
     }
 
@@ -376,6 +384,7 @@ class OrderApplicationService {
 
         String orderId = session.draft().orderId();
         String status = session.draft().status();
+        SupportFeedbackResponse supportFeedback = null;
         if (paymentResponse.charged()) {
             orderId = orderRepository.saveConfirmedOrder(
                     authenticatedCustomerResolver.currentCustomerId(),
@@ -385,6 +394,13 @@ class OrderApplicationService {
                     selectedDelivery.etaMinutes() + " min via " + selectedDelivery.label(),
                     paymentResponse.paymentStatus());
             status = "CONFIRMED";
+                    supportFeedback = supportGateway.recordFeedback(
+                        new SupportFeedbackRequestPayload(
+                            orderId,
+                            null,
+                            confirmedOrderFeedbackMessage(orderId, session.draft(), selectedDelivery)),
+                        accessToken)
+                        .orElse(null);
         }
 
         OrderDraft draft = new OrderDraft(
@@ -405,19 +421,7 @@ class OrderApplicationService {
                 selectedDelivery);
         sessionStore.save(updated);
 
-        List<ServiceTrace> trace = List.of(
-                new ServiceTrace(
-                        paymentResponse.service(),
-                        paymentResponse.agent(),
-                        paymentResponse.headline(),
-                        paymentResponse.summary()),
-                new ServiceTrace(
-                        "order-service",
-                        "order-workflow",
-                        paymentResponse.charged() ? "order-service が注文を確定しました" : "order-service が支払い待ちです",
-                        paymentResponse.charged()
-                                ? "支払い完了後に注文を保存しました。"
-                                : "payment-service はまだ確定を待っています。"));
+        List<ServiceTrace> trace = buildConfirmPaymentTrace(paymentResponse, supportFeedback);
         String summary = paymentResponse.charged()
                 ? "注文を確定しました。合計は " + formatYen(draft.total()) + " です。"
                 : "payment-service がまだ明示的な確定を待っています。";
@@ -428,6 +432,47 @@ class OrderApplicationService {
                 draft,
                 trace);
     }
+
+            private List<ServiceTrace> buildConfirmPaymentTrace(
+                PaymentPrepareResponse paymentResponse,
+                SupportFeedbackResponse supportFeedback) {
+            List<ServiceTrace> trace = new java.util.ArrayList<>();
+            trace.add(new ServiceTrace(
+                paymentResponse.service(),
+                paymentResponse.agent(),
+                paymentResponse.headline(),
+                paymentResponse.summary()));
+            if (supportFeedback != null) {
+                trace.add(new ServiceTrace(
+                    supportFeedback.service(),
+                    supportFeedback.agent(),
+                    supportFeedback.headline(),
+                    supportFeedback.summary()));
+            }
+            trace.add(new ServiceTrace(
+                "order-service",
+                "order-workflow",
+                paymentResponse.charged() ? "order-service が注文を確定しました" : "order-service が支払い待ちです",
+                paymentResponse.charged()
+                    ? "支払い完了後に注文を保存しました。"
+                    : "payment-service はまだ確定を待っています。"));
+            return List.copyOf(trace);
+            }
+
+            private String confirmedOrderFeedbackMessage(
+                String orderId,
+                OrderDraft draft,
+                DeliveryOptionChoice selectedDelivery) {
+            String itemSummary = draft.items().stream()
+                .map(item -> item.quantity() + "x " + item.name())
+                .reduce((left, right) -> left + ", " + right)
+                .orElse("items pending");
+            return "注文 " + orderId + " が確定しました。"
+                + " items=" + itemSummary
+                + " total=" + formatYen(draft.total())
+                + " delivery=" + selectedDelivery.label()
+                + " eta=" + selectedDelivery.etaMinutes() + " min";
+            }
 
     OrderSessionView session(String sessionId) {
         OrderSession session = sessionStore.load(sessionId).orElse(emptySession(sessionId));
@@ -667,6 +712,30 @@ class PaymentGateway {
                 .body(request)
                 .retrieve()
                 .body(PaymentPrepareResponse.class));
+    }
+}
+
+@Component
+class SupportGateway {
+
+    private final RestClient restClient;
+
+    SupportGateway(@Qualifier("supportRestClient") RestClient restClient) {
+        this.restClient = restClient;
+    }
+
+    Optional<SupportFeedbackResponse> recordFeedback(SupportFeedbackRequestPayload request, String accessToken) {
+        try {
+            return Optional.ofNullable(restClient.post()
+                    .uri("/api/support/feedback")
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(request)
+                    .retrieve()
+                    .body(SupportFeedbackResponse.class));
+        } catch (Exception ignored) {
+            return Optional.empty();
+        }
     }
 }
 
@@ -1005,3 +1074,13 @@ record PaymentPrepareResponse(
         String paymentStatus,
         boolean charged,
         String authorizationId) {}
+
+    record SupportFeedbackRequestPayload(String orderId, Integer rating, String message) {}
+
+    record SupportFeedbackResponse(
+        String service,
+        String agent,
+        String headline,
+        String summary,
+        String classification,
+        boolean escalationRequired) {}

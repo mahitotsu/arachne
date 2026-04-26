@@ -340,11 +340,17 @@ export default function HomePage() {
             <h2>メニューが決まったら、AI に話しかけよう。</h2>
             <p>「2人分でスパイシー少なめ、自社エクスプレスで」と話しかけるだけで注文・支払い・配送まで完結します。</p>
           </div>
-          <Link href="/order" className="h-cta-btn">
-            <span>🗨</span>
-            <span>注文チャットを開く</span>
-            <span className="h-cta-arrow">→</span>
-          </Link>
+          <div className="h-bottom-cta-actions">
+            <Link href="/order" className="h-cta-btn">
+              <span>🗨</span>
+              <span>注文チャットを開く</span>
+              <span className="h-cta-arrow">→</span>
+            </Link>
+            <Link href="/support" className="h-support-btn">
+              <span>🎧</span>
+              <span>サポートセンター</span>
+            </Link>
+          </div>
         </div>
       </section>
     </div>

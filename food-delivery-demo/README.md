@@ -12,6 +12,7 @@
 
 - `customer-ui`: カスタマー向けフローの Next.js チャット UI
 - `customer-service`: デモカスタマーディレクトリ、サインイン API、JWT 発行、JWKS 公開
+- `support-service`: FAQ、問い合わせ受付、キャンペーン一覧、registry 連携の稼働状況集約
 - `order-service`: 公開ワークフロー API、Redis バックドのセッション継続、PostgreSQL バックドの注文永続化
 - `registry-service`: サービスのケイパビリティ登録、自然言語 discover、稼働状況集約
 - `menu-service`: `menu-agent` によるメニュー検索と代替提案
@@ -35,10 +36,11 @@
 3. UI はそのベアラートークンを `order-service` へ送信する。
 4. `order-service` がステップ別ワークフロー API を通じてダウンストリームサービスを調整し、アクティブな注文セッションを Redis に保持する。
 5. `menu-service`、`kitchen-service`、`delivery-service`、`payment-service` が同じアクセストークンを検証し、それぞれの Arachne エージェントを通じて回答する。
-6. 唯一のキッチンがリクエストされたアイテムを提供できない場合、`kitchen-agent` は `menu-agent` に同一ブランドのフォールバックアイテムを問い合わせることができる。
-7. UI はユーザー向け返答とサービス/エージェントトレースの両方を表示し、マイクロサービス構造とマルチエージェント構造の両方が明確に見える。
-8. 配送見積もりでは `delivery-agent` が自社エクスプレスに加え、registry-service で動的発見した `Hermes` / `Idaten` の外部 ETA 候補を比較し、文脈に応じて推奨を返す。
-9. ユーザーが下書きを確定すると、`payment-service` が決定論的課金を実行し、`order-service` が注文を PostgreSQL に記録する。
+6. `support-service` は FAQ、キャンペーン、問い合わせ事例を返し、必要に応じて registry-service の稼働状況と order-service の注文履歴を参照する。
+7. 唯一のキッチンがリクエストされたアイテムを提供できない場合、`kitchen-agent` は `menu-agent` に同一ブランドのフォールバックアイテムを問い合わせることができる。
+8. UI はユーザー向け返答とサービス/エージェントトレースの両方を表示し、マイクロサービス構造とマルチエージェント構造の両方が明確に見える。
+9. 配送見積もりでは `delivery-agent` が自社エクスプレスに加え、registry-service で動的発見した `Hermes` / `Idaten` の外部 ETA 候補を比較し、文脈に応じて推奨を返す。
+10. ユーザーが下書きを確定すると、`payment-service` が決定論的課金を実行し、`order-service` が注文を PostgreSQL に記録したうえで `support-service` に事後フィードバック受付を通知する。
 
 ## ローカルコマンド
 
@@ -70,6 +72,7 @@ make test
 - UI: `http://localhost:3000`
 - カスタマーサービス: `http://localhost:8085`
 - 公開注文 API: `http://localhost:8080/api/order/suggest`
+- サポートサービス: `http://localhost:8086`
 - レジストリサービス: `http://localhost:8087`
 - 公開注文セッション API: `http://localhost:8080/api/order/session/{sessionId}`
 - 注文履歴 API: `http://localhost:8080/api/orders/history`
@@ -97,6 +100,13 @@ registry-service の主要エンドポイント:
 - `POST /registry/discover`
 - `GET /registry/services`
 - `GET /registry/health`
+
+support-service の主要エンドポイント:
+
+- `POST /api/support/chat`
+- `POST /api/support/feedback`
+- `GET /api/support/campaigns`
+- `GET /api/support/status`
 
 
 ## ドキュメント

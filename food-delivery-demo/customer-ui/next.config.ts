@@ -3,6 +3,7 @@ import type { NextConfig } from 'next';
 const backendOrigin = process.env.BACKEND_ORIGIN ?? 'http://localhost:8080';
 const customerServiceOrigin = process.env.CUSTOMER_SERVICE_ORIGIN ?? 'http://localhost:8085';
 const menuServiceOrigin = process.env.MENU_SERVICE_ORIGIN ?? 'http://localhost:8081';
+const supportServiceOrigin = process.env.SUPPORT_SERVICE_ORIGIN ?? 'http://localhost:8086';
 
 const nextConfig: NextConfig = {
   output: 'standalone',
@@ -19,6 +20,10 @@ const nextConfig: NextConfig = {
       {
         source: '/api/backend/:path*',
         destination: `${backendOrigin}/api/:path*`
+      },
+      {
+        source: '/api/support/:path*',
+        destination: `${supportServiceOrigin}/api/support/:path*`
       }
     ];
   }
