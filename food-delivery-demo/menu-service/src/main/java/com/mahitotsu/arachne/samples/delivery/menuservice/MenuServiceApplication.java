@@ -7,8 +7,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.regex.Pattern;
 
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -19,7 +17,6 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -30,7 +27,6 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -141,10 +137,10 @@ class MenuApplicationService {
 
     private final AgentFactory agentFactory;
     private final MenuRepository repository;
-        private final Tool catalogLookupTool;
-        private final Tool calculateTotalTool;
+    private final Tool catalogLookupTool;
+    private final Tool calculateTotalTool;
     private final Tool menuSubstitutionLookupTool;
-        private final KitchenCheckGateway kitchenCheckGateway;
+    private final KitchenCheckGateway kitchenCheckGateway;
 
     MenuApplicationService(
             AgentFactory agentFactory,
@@ -175,27 +171,27 @@ class MenuApplicationService {
             その後は必ず catalog_lookup_tool を使って候補を確認し、人数・予算・好み・履歴文脈に合う提案セットを選んでください。
             提案後は calculate_total_tool を使って合計を検算し、短い理由文を添えてください。
             欠品や混雑の最終判断は kitchen-service 側で行われるため、推薦理由はメニュー意図に集中してください。""")
-            .tools(catalogLookupTool, calculateTotalTool)
+                .tools(catalogLookupTool, calculateTotalTool)
                 .build()
                 .run("query=" + request.message())
                 .text();
         KitchenCheckResponse kitchenResponse = kitchenCheckGateway.check(
-            new KitchenCheckRequest(request.sessionId(), request.message(), items.stream().map(MenuItem::id).toList()),
-            accessToken);
+                new KitchenCheckRequest(request.sessionId(), request.message(), items.stream().map(MenuItem::id).toList()),
+                accessToken);
         List<MenuItem> resolvedItems = resolveItems(items, kitchenResponse.items());
         BigDecimal total = repository.calculateTotal(resolvedItems);
         String summary = renderSuggestionSummary(resolvedItems, agentSummary, kitchenResponse, total);
         return new MenuSuggestionResponse(
-            "menu-service",
-            "menu-agent",
-            repository.headline(resolvedItems),
-            summary,
-            resolvedItems,
-            kitchenResponse.readyInMinutes(),
-            new KitchenTrace(kitchenResponse.summary(), kitchenTraceNotes(kitchenResponse)));
+                "menu-service",
+                "menu-agent",
+                repository.headline(resolvedItems),
+                summary,
+                resolvedItems,
+                kitchenResponse.readyInMinutes(),
+                new KitchenTrace(kitchenResponse.summary(), kitchenTraceNotes(kitchenResponse)));
     }
 
-        private String renderSuggestionSummary(
+    private String renderSuggestionSummary(
             List<MenuItem> items,
             String agentSummary,
             KitchenCheckResponse kitchenResponse,
@@ -207,8 +203,8 @@ class MenuApplicationService {
                 .orElse("本日の人気コンボ");
         String prefix = skillPrefix.isBlank() ? "" : skillPrefix + " ";
         return prefix + "menu-agent が " + itemSummary + " をおすすめします。"
-            + " キッチン確認後の提供目安は約" + kitchenResponse.readyInMinutes() + "分、合計は"
-            + formatYen(total) + "です。";
+                + " キッチン確認後の提供目安は約" + kitchenResponse.readyInMinutes() + "分、合計は"
+                + formatYen(total) + "です。";
     }
 
     private String extractSkillPrefix(String agentSummary) {
@@ -374,27 +370,27 @@ class MenuRepository {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
-        List<MenuItem> findSubstituteCandidates(String unavailableItemId) {
+    List<MenuItem> findSubstituteCandidates(String unavailableItemId) {
         MenuItem unavailableItem = ITEM_BY_ID.get(unavailableItemId);
         if (unavailableItem == null) {
             return ITEMS.stream().limit(3).toList();
         }
 
         List<MenuItem> sameCategory = ITEMS.stream()
-            .filter(item -> !item.id().equals(unavailableItemId))
-            .filter(item -> item.category().equals(unavailableItem.category()))
-            .toList();
+                .filter(item -> !item.id().equals(unavailableItemId))
+                .filter(item -> item.category().equals(unavailableItem.category()))
+                .toList();
         List<MenuItem> baseCandidates = sameCategory.isEmpty()
-            ? ITEMS.stream().filter(item -> !item.id().equals(unavailableItemId)).toList()
-            : sameCategory;
+                ? ITEMS.stream().filter(item -> !item.id().equals(unavailableItemId)).toList()
+                : sameCategory;
         return baseCandidates.stream()
-            .sorted(Comparator
-                .comparingInt((MenuItem item) -> tagOverlap(unavailableItem, item)).reversed()
-                .thenComparing(item -> unavailableItem.price().subtract(item.price()).abs())
-                .thenComparing(MenuItem::name))
-            .limit(3)
-            .toList();
-        }
+                .sorted(Comparator
+                        .comparingInt((MenuItem item) -> tagOverlap(unavailableItem, item)).reversed()
+                        .thenComparing(item -> unavailableItem.price().subtract(item.price()).abs())
+                        .thenComparing(MenuItem::name))
+                .limit(3)
+                .toList();
+    }
 
     List<MenuItem> findSubstitutes(String unavailableItemId, String customerMessage) {
         String normalized = normalize(customerMessage);
@@ -493,10 +489,6 @@ class MenuRepository {
             }
         }
         return false;
-    }
-
-    private boolean matchesIntent(String normalized, MenuItem item) {
-        return intentScore(normalized, item) > 0 || normalized.isBlank();
     }
 
     private int intentScore(String normalized, MenuItem item) {
@@ -847,116 +839,6 @@ class MenuArachneConfiguration {
             }
             return values;
         }
-    }
-}
-
-@Component
-class KitchenCheckGateway {
-
-    private final RestClient restClient;
-    private final RegistryServiceEndpointResolver endpointResolver;
-    private final String kitchenServiceName;
-    private final String fallbackBaseUrl;
-
-    KitchenCheckGateway(
-            RestClient.Builder restClientBuilder,
-            RegistryServiceEndpointResolver endpointResolver,
-            @Value("${KITCHEN_SERVICE_NAME:kitchen-service}") String kitchenServiceName,
-            @Value("${KITCHEN_SERVICE_BASE_URL:}") String fallbackBaseUrl) {
-        this.restClient = restClientBuilder.build();
-        this.endpointResolver = endpointResolver;
-        this.kitchenServiceName = kitchenServiceName;
-        this.fallbackBaseUrl = fallbackBaseUrl;
-    }
-
-    KitchenCheckResponse check(KitchenCheckRequest request, String accessToken) {
-        return java.util.Objects.requireNonNull(restClient.post()
-                .uri(endpointResolver.resolveUrl(kitchenServiceName, fallbackBaseUrl, "/internal/kitchen/check"))
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(request)
-                .retrieve()
-                .body(KitchenCheckResponse.class));
-    }
-}
-
-@Component
-class RegistryServiceEndpointResolver {
-
-    private final RestClient registryRestClient;
-    private final ConcurrentMap<String, String> cachedBaseUrls = new ConcurrentHashMap<>();
-
-    RegistryServiceEndpointResolver(
-            RestClient.Builder restClientBuilder,
-            @Value("${DELIVERY_REGISTRY_BASE_URL:}") String registryBaseUrl) {
-        this.registryRestClient = registryBaseUrl.isBlank() ? null : restClientBuilder.baseUrl(registryBaseUrl).build();
-    }
-
-    String resolveUrl(String serviceName, String fallbackBaseUrl, String requestPath) {
-        return joinUrl(resolveBaseUrl(serviceName, fallbackBaseUrl), requestPath);
-    }
-
-    void clearCache() {
-        cachedBaseUrls.clear();
-    }
-
-    private String resolveBaseUrl(String serviceName, String fallbackBaseUrl) {
-        if (StringUtils.hasText(serviceName)) {
-            String cachedBaseUrl = cachedBaseUrls.get(serviceName);
-            if (StringUtils.hasText(cachedBaseUrl)) {
-                return cachedBaseUrl;
-            }
-            String discoveredBaseUrl = discoverBaseUrl(serviceName);
-            if (StringUtils.hasText(discoveredBaseUrl)) {
-                cachedBaseUrls.put(serviceName, discoveredBaseUrl);
-                return discoveredBaseUrl;
-            }
-        }
-        return fallbackBaseUrl;
-    }
-
-    private String discoverBaseUrl(String serviceName) {
-        if (registryRestClient == null || !StringUtils.hasText(serviceName)) {
-            return "";
-        }
-        try {
-            RegistryServiceDescriptorPayload[] response = registryRestClient.get()
-                    .uri("/registry/services")
-                    .retrieve()
-                    .body(RegistryServiceDescriptorPayload[].class);
-            if (response == null) {
-                return "";
-            }
-            return List.of(response).stream()
-                    .filter(java.util.Objects::nonNull)
-                    .filter(service -> serviceName.equalsIgnoreCase(service.serviceName()))
-                    .filter(service -> "AVAILABLE".equalsIgnoreCase(service.status()))
-                    .map(RegistryServiceDescriptorPayload::endpoint)
-                    .filter(StringUtils::hasText)
-                    .findFirst()
-                    .orElse("");
-        } catch (Exception ignored) {
-            return "";
-        }
-    }
-
-    private String joinUrl(String endpoint, String requestPath) {
-        if (!StringUtils.hasText(endpoint)) {
-            return "";
-        }
-        if (!StringUtils.hasText(requestPath)) {
-            return endpoint;
-        }
-        if (requestPath.startsWith("http://") || requestPath.startsWith("https://")) {
-            return requestPath;
-        }
-        if (endpoint.endsWith("/") && requestPath.startsWith("/")) {
-            return endpoint.substring(0, endpoint.length() - 1) + requestPath;
-        }
-        if (!endpoint.endsWith("/") && !requestPath.startsWith("/")) {
-            return endpoint + "/" + requestPath;
-        }
-        return endpoint + requestPath;
     }
 }
 

@@ -4,8 +4,10 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
+import static com.mahitotsu.arachne.samples.delivery.testsupport.MockWebServerTestSupport.drainRequests;
+import static com.mahitotsu.arachne.samples.delivery.testsupport.MockWebServerTestSupport.recordedPaths;
+import static com.mahitotsu.arachne.samples.delivery.testsupport.MockWebServerTestSupport.trimTrailingSlash;
 import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -348,25 +350,6 @@ class MenuServiceApiTest {
             return 11;
         }
         return 14;
-    }
-
-    private static void drainRequests(MockWebServer server) throws InterruptedException {
-        while (server.takeRequest(10, TimeUnit.MILLISECONDS) != null) {
-            // Drain any startup or previous test traffic.
-        }
-    }
-
-    private static List<String> recordedPaths(MockWebServer server) throws InterruptedException {
-        java.util.ArrayList<String> paths = new java.util.ArrayList<>();
-        RecordedRequest request;
-        while ((request = server.takeRequest(10, TimeUnit.MILLISECONDS)) != null) {
-            paths.add(request.getPath());
-        }
-        return paths;
-    }
-
-    private static String trimTrailingSlash(String value) {
-        return value.replaceAll("/$", "");
     }
 
     private static String createAccessToken() throws JOSEException {

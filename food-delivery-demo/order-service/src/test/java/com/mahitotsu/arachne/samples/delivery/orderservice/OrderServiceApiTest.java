@@ -5,6 +5,9 @@ import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static com.mahitotsu.arachne.samples.delivery.testsupport.MockWebServerTestSupport.drainRequests;
+import static com.mahitotsu.arachne.samples.delivery.testsupport.MockWebServerTestSupport.recordedPaths;
+import static com.mahitotsu.arachne.samples.delivery.testsupport.MockWebServerTestSupport.trimTrailingSlash;
 import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -403,25 +406,6 @@ class OrderServiceApiTest {
                 .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .setBody(body);
     }
-
-    private static void drainRequests(MockWebServer server) throws InterruptedException {
-        while (server.takeRequest(10, TimeUnit.MILLISECONDS) != null) {
-            // Drain shared server state between tests.
-        }
-    }
-
-        private static List<String> recordedPaths(MockWebServer server) throws InterruptedException {
-                java.util.ArrayList<String> paths = new java.util.ArrayList<>();
-                RecordedRequest request;
-                while ((request = server.takeRequest(10, TimeUnit.MILLISECONDS)) != null) {
-                        paths.add(request.getPath());
-                }
-                return paths;
-        }
-
-        private static String trimTrailingSlash(String value) {
-                return value.replaceAll("/$", "");
-        }
 
     private static Dispatcher jwkDispatcher() {
         return new Dispatcher() {

@@ -3,8 +3,11 @@ package com.mahitotsu.arachne.samples.delivery.kitchenservice;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
+import static com.mahitotsu.arachne.samples.delivery.testsupport.MockWebServerTestSupport.drainRequests;
+import static com.mahitotsu.arachne.samples.delivery.testsupport.MockWebServerTestSupport.recordedPaths;
+import static com.mahitotsu.arachne.samples.delivery.testsupport.MockWebServerTestSupport.requireRequest;
+import static com.mahitotsu.arachne.samples.delivery.testsupport.MockWebServerTestSupport.trimTrailingSlash;
 import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -231,35 +234,4 @@ class KitchenServiceApiTest {
         return signedJwt.serialize();
     }
 
-    private static RecordedRequest requireRequest(MockWebServer server) {
-        try {
-            RecordedRequest request = server.takeRequest(1, TimeUnit.SECONDS);
-            assertThat(request).isNotNull();
-            return request;
-        } catch (InterruptedException ex) {
-            Thread.currentThread().interrupt();
-            throw new AssertionError("Expected downstream request", ex);
-        }
-    }
-
-    private static void drainRequests(MockWebServer server) throws InterruptedException {
-        while (server.getRequestCount() > 0) {
-            if (server.takeRequest(100, TimeUnit.MILLISECONDS) == null) {
-                break;
-            }
-        }
-    }
-
-    private static List<String> recordedPaths(MockWebServer server) throws InterruptedException {
-        java.util.ArrayList<String> paths = new java.util.ArrayList<>();
-        RecordedRequest request;
-        while ((request = server.takeRequest(10, TimeUnit.MILLISECONDS)) != null) {
-            paths.add(request.getPath());
-        }
-        return paths;
-    }
-
-    private static String trimTrailingSlash(String value) {
-        return value.replaceAll("/$", "");
-    }
 }

@@ -2,10 +2,10 @@ package com.mahitotsu.arachne.samples.delivery.supportservice;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
+import static com.mahitotsu.arachne.samples.delivery.testsupport.MockWebServerTestSupport.drainRequests;
+import static com.mahitotsu.arachne.samples.delivery.testsupport.MockWebServerTestSupport.recordedPaths;
 import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -264,18 +264,4 @@ class SupportServiceApiTest {
         return jwt.serialize();
     }
 
-    private static void drainRequests(MockWebServer server) throws InterruptedException {
-        while (server.takeRequest(10, TimeUnit.MILLISECONDS) != null) {
-            // drain previously recorded startup or test requests
-        }
-    }
-
-    private static List<String> recordedPaths(MockWebServer server) throws InterruptedException {
-        List<String> paths = new ArrayList<>();
-        RecordedRequest request;
-        while ((request = server.takeRequest(10, TimeUnit.MILLISECONDS)) != null) {
-            paths.add(request.getPath());
-        }
-        return paths;
-    }
 }
