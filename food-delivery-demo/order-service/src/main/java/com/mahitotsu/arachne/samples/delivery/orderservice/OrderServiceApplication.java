@@ -520,11 +520,9 @@ class OrderApplicationService {
     }
 
     private List<DeliveryOptionChoice> toDeliveryChoices(DeliveryQuoteResponse response) {
-        String recommendedCode = response.options().stream()
-                .filter(option -> "express".equals(option.code()))
-                .map(DeliveryOptionView::code)
-                .findFirst()
-                .orElseGet(() -> response.options().isEmpty() ? "" : response.options().get(0).code());
+        String recommendedCode = firstNonBlank(
+            response.recommendedTier(),
+            response.options().isEmpty() ? "" : response.options().get(0).code());
         return response.options().stream()
                 .map(option -> new DeliveryOptionChoice(
                         option.code(),
@@ -984,7 +982,14 @@ record KitchenTraceView(String summary, List<String> notes) {}
 
 record DeliveryQuoteRequest(String sessionId, String message, List<String> itemNames) {}
 
-record DeliveryQuoteResponse(String service, String agent, String headline, String summary, List<DeliveryOptionView> options) {}
+record DeliveryQuoteResponse(
+    String service,
+    String agent,
+    String headline,
+    String summary,
+    List<DeliveryOptionView> options,
+    String recommendedTier,
+    String recommendationReason) {}
 
 record DeliveryOptionView(String code, String label, int etaMinutes, BigDecimal fee) {}
 

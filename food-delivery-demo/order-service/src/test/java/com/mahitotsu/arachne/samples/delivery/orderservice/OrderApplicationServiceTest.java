@@ -105,7 +105,9 @@ class OrderApplicationServiceTest {
                 "delivery-agent",
                 "headline",
                 "summary",
-                List.of(new DeliveryOptionView("standard", "Partner Standard", 27, new BigDecimal("180.00")))));
+                List.of(new DeliveryOptionView("standard", "Partner Standard", 27, new BigDecimal("180.00"))),
+                "standard",
+                "「安く」の文脈なので最安候補を優先しました。"));
 
         OrderApplicationService service = new OrderApplicationService(
                 sessionStore,

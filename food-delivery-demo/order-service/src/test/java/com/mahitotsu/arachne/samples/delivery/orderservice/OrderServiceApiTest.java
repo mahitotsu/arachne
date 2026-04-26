@@ -153,8 +153,10 @@ class OrderServiceApiTest {
                   "summary": "delivery-agent prepared an express route.",
                   "options": [
                     {"code": "express", "label": "In-house Express", "etaMinutes": 18, "fee": 300.0},
-                    {"code": "standard", "label": "Partner Standard", "etaMinutes": 27, "fee": 180.0}
-                  ]
+                                                                                {"code": "idaten", "label": "Idaten Economy", "etaMinutes": 34, "fee": 180.0}
+                                                                        ],
+                                                                        "recommendedTier": "express",
+                                                                        "recommendationReason": "「急いで」の文脈なので最短ETAを優先しました。"
                 }
                 """));
 
@@ -170,6 +172,44 @@ class OrderServiceApiTest {
                 .containsExactly("Teriyaki Chicken Box", "Lemon Soda");
         assertThat(response.deliveryOptions()).hasSize(2);
         assertThat(response.deliveryOptions().get(0).recommended()).isTrue();
+        assertThat(response.deliveryOptions().get(0).code()).isEqualTo("express");
+    }
+
+    @Test
+    void confirmItemsUsesDeliveryServiceRecommendedTier() {
+        menuServer.enqueue(jsonResponse(menuSuggestBody()));
+        SuggestOrderResponse suggestion = restTemplate.postForObject(
+                "/api/order/suggest",
+                new SuggestOrderRequest("", "安く届けて", "ja-JP", null),
+                SuggestOrderResponse.class);
+
+        deliveryServer.enqueue(jsonResponse("""
+                {
+                  "service": "delivery-service",
+                  "agent": "delivery-agent",
+                  "headline": "delivery-agent recommends the economy lane",
+                  "summary": "delivery-agent prepared a cheaper route.",
+                  "options": [
+                    {"code": "idaten", "label": "Idaten Economy", "etaMinutes": 34, "fee": 180.0},
+                    {"code": "express", "label": "In-house Express", "etaMinutes": 18, "fee": 300.0}
+                  ],
+                  "recommendedTier": "idaten",
+                  "recommendationReason": "「安く」の文脈なので最安料金を優先しました。"
+                }
+                """));
+
+        ConfirmItemsResponse response = restTemplate.postForObject(
+                "/api/order/confirm-items",
+                new ConfirmItemsRequest(suggestion.sessionId(), null),
+                ConfirmItemsResponse.class);
+
+        assertThat(response).isNotNull();
+        assertThat(response.deliveryOptions()).extracting(DeliveryOptionChoice::code)
+                .containsExactly("idaten", "express");
+        assertThat(response.deliveryOptions()).filteredOn(DeliveryOptionChoice::recommended)
+                .singleElement()
+                .extracting(DeliveryOptionChoice::code)
+                .isEqualTo("idaten");
     }
 
     @Test
@@ -188,8 +228,10 @@ class OrderServiceApiTest {
                   "summary": "delivery-agent recommends express.",
                   "options": [
                     {"code": "express", "label": "In-house Express", "etaMinutes": 18, "fee": 300.0},
-                    {"code": "standard", "label": "Partner Standard", "etaMinutes": 27, "fee": 180.0}
-                  ]
+                                                                                {"code": "idaten", "label": "Idaten Economy", "etaMinutes": 34, "fee": 180.0}
+                                                                        ],
+                                                                        "recommendedTier": "express",
+                                                                        "recommendationReason": "「急いで」の文脈なので最短ETAを優先しました。"
                 }
                 """));
         restTemplate.postForObject(
@@ -213,7 +255,7 @@ class OrderServiceApiTest {
 
         ConfirmDeliveryResponse response = restTemplate.postForObject(
                 "/api/order/confirm-delivery",
-                new ConfirmDeliveryRequest(suggestion.sessionId(), "standard"),
+                new ConfirmDeliveryRequest(suggestion.sessionId(), "idaten"),
                 ConfirmDeliveryResponse.class);
 
         assertThat(response).isNotNull();
@@ -239,8 +281,10 @@ class OrderServiceApiTest {
                   "summary": "delivery-agent recommends express.",
                   "options": [
                     {"code": "express", "label": "In-house Express", "etaMinutes": 18, "fee": 300.0},
-                    {"code": "standard", "label": "Partner Standard", "etaMinutes": 27, "fee": 180.0}
-                  ]
+                                                                                {"code": "idaten", "label": "Idaten Economy", "etaMinutes": 34, "fee": 180.0}
+                                                                        ],
+                                                                        "recommendedTier": "express",
+                                                                        "recommendationReason": "「急いで」の文脈なので最短ETAを優先しました。"
                 }
                 """));
         restTemplate.postForObject(
@@ -263,7 +307,7 @@ class OrderServiceApiTest {
                 """));
         restTemplate.postForObject(
                 "/api/order/confirm-delivery",
-                new ConfirmDeliveryRequest(suggestion.sessionId(), "standard"),
+                new ConfirmDeliveryRequest(suggestion.sessionId(), "idaten"),
                 ConfirmDeliveryResponse.class);
         RecordedRequest prepareRequest = paymentServer.takeRequest(1, TimeUnit.SECONDS);
         assertThat(prepareRequest).isNotNull();

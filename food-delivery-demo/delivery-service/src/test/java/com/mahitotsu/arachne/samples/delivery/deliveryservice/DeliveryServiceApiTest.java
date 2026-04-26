@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -42,8 +43,16 @@ import okhttp3.mockwebserver.RecordedRequest;
 class DeliveryServiceApiTest {
 
     private static MockWebServer jwkServer;
+    private static MockWebServer registryServer;
+    private static MockWebServer hermesServer;
+    private static MockWebServer idatenServer;
     private static RSAKey signingKey;
     private static String accessToken;
+    private static volatile String registryDiscoverBody;
+    private static volatile String hermesEtaBody;
+    private static volatile int hermesEtaStatus;
+    private static volatile String idatenEtaBody;
+    private static final AtomicInteger hermesEtaRequests = new AtomicInteger();
 
     private static final String ISSUER = "http://customer-service";
 
@@ -60,16 +69,29 @@ class DeliveryServiceApiTest {
         jwkServer = new MockWebServer();
         jwkServer.setDispatcher(jwkDispatcher());
         jwkServer.start();
+        registryServer = new MockWebServer();
+        registryServer.setDispatcher(registryDispatcher());
+        registryServer.start();
+        hermesServer = new MockWebServer();
+        hermesServer.setDispatcher(hermesDispatcher());
+        hermesServer.start();
+        idatenServer = new MockWebServer();
+        idatenServer.setDispatcher(idatenDispatcher());
+        idatenServer.start();
     }
 
     @AfterAll
     static void stopServer() throws IOException {
         jwkServer.shutdown();
+        registryServer.shutdown();
+        hermesServer.shutdown();
+        idatenServer.shutdown();
     }
 
     @DynamicPropertySource
     static void configureProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.security.oauth2.resourceserver.jwt.jwk-set-uri", () -> jwkServer.url("/oauth2/jwks").toString());
+        registry.add("DELIVERY_REGISTRY_BASE_URL", () -> registryServer.url("").toString());
     }
 
     @BeforeEach
@@ -78,6 +100,31 @@ class DeliveryServiceApiTest {
             request.getHeaders().setBearerAuth(accessToken);
             return execution.execute(request, body);
         }));
+        registryDiscoverBody = registryDiscoverResponse(
+                serviceDescriptor("hermes-adapter", hermesServer.url("/adapter/eta").toString()),
+                serviceDescriptor("idaten-adapter", idatenServer.url("/adapter/eta").toString()));
+        hermesEtaStatus = 200;
+        hermesEtaBody = """
+                {
+                  "service": "hermes-adapter",
+                  "status": "AVAILABLE",
+                  "etaMinutes": 22,
+                  "congestion": "medium",
+                  "fee": 350.0,
+                  "note": "Hermes は高速配送を提供しています。"
+                }
+                """;
+        idatenEtaBody = """
+                {
+                  "service": "idaten-adapter",
+                  "status": "AVAILABLE",
+                  "etaMinutes": 34,
+                  "congestion": "low",
+                  "fee": 180.0,
+                  "note": "Idaten は低価格配送を提供しています。"
+                }
+                """;
+        hermesEtaRequests.set(0);
     }
 
     @Test
@@ -101,7 +148,29 @@ class DeliveryServiceApiTest {
 
         assertThat(response).isNotNull();
         assertThat(response.agent()).isEqualTo("delivery-agent");
-        assertThat(response.options()).first().extracting(DeliveryOption::code).isEqualTo("express");
+        assertThat(response.options()).extracting(DeliveryOption::code)
+            .containsExactly("express", "hermes", "idaten");
+        assertThat(response.recommendedTier()).isEqualTo("express");
+        assertThat(response.recommendationReason()).contains("急いで");
+        assertThat(response.summary()).contains("registry discovery", "Hermes スピード便", "Idaten エコノミー");
+        }
+
+        @Test
+        void prefersCheapestAvailableExternalOptionAndDoesNotCallExcludedHermes() {
+        registryDiscoverBody = registryDiscoverResponse(
+            serviceDescriptor("idaten-adapter", idatenServer.url("/adapter/eta").toString()));
+
+        DeliveryQuoteResponse response = restTemplate.postForObject(
+            "/internal/delivery/quote",
+            new DeliveryQuoteRequest("session-2", "できるだけ安く届けて", List.of("Teriyaki Chicken Box")),
+            DeliveryQuoteResponse.class);
+
+        assertThat(response).isNotNull();
+        assertThat(response.options()).extracting(DeliveryOption::code)
+            .containsExactly("idaten", "express");
+        assertThat(response.recommendedTier()).isEqualTo("idaten");
+        assertThat(response.recommendationReason()).contains("安く");
+        assertThat(hermesEtaRequests.get()).isZero();
     }
 
     private static Dispatcher jwkDispatcher() {
@@ -116,6 +185,94 @@ class DeliveryServiceApiTest {
                 return new MockResponse().setResponseCode(404);
             }
         };
+    }
+
+    private static Dispatcher registryDispatcher() {
+        return new Dispatcher() {
+            @Override
+            public MockResponse dispatch(RecordedRequest request) {
+                if (request.getPath() != null && request.getPath().startsWith("/registry/register")) {
+                    return new MockResponse()
+                            .setHeader("Content-Type", "application/json")
+                            .setBody("""
+                                    {
+                                      "serviceName": "delivery-service",
+                                      "endpoint": "http://delivery-service:8080",
+                                      "capability": "配送見積もり",
+                                      "agentName": "delivery-agent",
+                                      "systemPrompt": "prompt",
+                                      "skills": [],
+                                      "requestMethod": "POST",
+                                      "requestPath": "/internal/delivery/quote",
+                                      "status": "AVAILABLE"
+                                    }
+                                    """);
+                }
+                if (request.getPath() != null && request.getPath().startsWith("/registry/discover")) {
+                    return new MockResponse()
+                            .setHeader("Content-Type", "application/json")
+                            .setBody(registryDiscoverBody);
+                }
+                return new MockResponse().setResponseCode(404);
+            }
+        };
+    }
+
+    private static Dispatcher hermesDispatcher() {
+        return new Dispatcher() {
+            @Override
+            public MockResponse dispatch(RecordedRequest request) {
+                if (request.getPath() != null && request.getPath().startsWith("/adapter/eta")) {
+                    hermesEtaRequests.incrementAndGet();
+                    return new MockResponse()
+                            .setResponseCode(hermesEtaStatus)
+                            .setHeader("Content-Type", "application/json")
+                            .setBody(hermesEtaBody);
+                }
+                return new MockResponse().setResponseCode(404);
+            }
+        };
+    }
+
+    private static Dispatcher idatenDispatcher() {
+        return new Dispatcher() {
+            @Override
+            public MockResponse dispatch(RecordedRequest request) {
+                if (request.getPath() != null && request.getPath().startsWith("/adapter/eta")) {
+                    return new MockResponse()
+                            .setHeader("Content-Type", "application/json")
+                            .setBody(idatenEtaBody);
+                }
+                return new MockResponse().setResponseCode(404);
+            }
+        };
+    }
+
+    private static String registryDiscoverResponse(String... descriptors) {
+        return """
+                {
+                  "service": "registry-service",
+                  "agent": "capability-registry-agent",
+                  "summary": "external eta providers",
+                  "matches": [%s]
+                }
+                """.formatted(String.join(",", descriptors));
+    }
+
+    private static String serviceDescriptor(String serviceName, String url) {
+        return """
+                {
+                  "serviceName": "%s",
+                  "endpoint": "%s",
+                  "capability": "外部ETAを提供するサービス",
+                  "agentName": "%s",
+                  "systemPrompt": "prompt",
+                  "skills": [],
+                  "requestMethod": "POST",
+                  "requestPath": "",
+                  "status": "AVAILABLE"
+                }
+                """.formatted(serviceName, url, serviceName);
     }
 
     private static String createAccessToken() throws JOSEException {

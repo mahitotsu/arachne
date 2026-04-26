@@ -48,7 +48,7 @@
 `delivery-service`
 
 - `POST /internal/delivery/quote`
-  注文下書きを受け取り、`delivery-agent` から配送 ETA オプションを返す。
+  注文下書きを受け取り、`delivery-agent` から配送 ETA オプションを返す。自社エクスプレス、registry discover で見つかった AVAILABLE な外部 ETA 候補を同一レスポンスへまとめ、`recommendedTier` と `recommendationReason` で文脈別推奨も返す。
 
 `payment-service`
 

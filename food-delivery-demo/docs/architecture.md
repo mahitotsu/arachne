@@ -21,7 +21,7 @@
 - `kitchen-service`
   `kitchen-agent` を通じた単一キッチンの在庫・調理時間の解釈を管理。
 - `delivery-service`
-  `delivery-agent` を通じた ETA 推定と配送オプション（パートナースタンダード、自社エクスプレス含む）を管理。
+  `delivery-agent` を通じた ETA 推定と配送オプション（自社エクスプレス、Hermes、Idaten を含む）の比較を管理。registry-service 経由で AVAILABLE な外部 ETA サービスを動的発見し、実 API 呼び出しまで行う。
 - `payment-service`
   決定論的な支払い方法の提示と課金実行を管理。
 - `hermes-adapter`
@@ -42,9 +42,9 @@
 5. 各ダウンストリーム API は返答前にサービスローカルの Arachne エージェント、または決定論的ロジックを実行する。
 6. `menu-service` は内部で `kitchen-service` を呼び、在庫、ETA、欠品代替、混雑提案をまとめて返す。
 7. `kitchen-agent` がアイテムを提供できない場合、同一ブランドのメニューから代替候補を `menu-agent` に問い合わせ、単一キッチンで実際に対応できる代替品のみを承認する。
-8. `registry-service` はエージェント仕様ビューワー向け一覧と、将来の動的 collaborator discovery 向け capability query を提供する。外部 ETA 候補として `hermes-adapter`、`idaten-adapter`、停止中の `icarus-adapter` を扱う。
+8. `registry-service` はエージェント仕様ビューワー向け一覧と、動的 collaborator discovery 向け capability query を提供する。`delivery-service` はここから `hermes-adapter`、`idaten-adapter`、停止中の `icarus-adapter` を問い合わせる。
 9. `order-service` は結果をワークフロー用の構造化レスポンスとトレースへ整形して返す。
-10. 両レーンが利用可能な場合、カスタマーは外部パートナースタンダード配送と自社エクスプレス配送のどちらかを選択する。
+10. 利用可能な候補が複数ある場合、カスタマーは自社エクスプレス、Hermes、Idaten の中から選択する。`delivery-agent` は「急いで」なら最短 ETA を、「安く」なら最安料金を優先して推奨する。
 11. 確定時に `payment-service` が課金を実行し、`order-service` が最終注文を PostgreSQL に保存する。
 
 ## Arachne との親和性
