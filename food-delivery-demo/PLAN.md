@@ -618,9 +618,12 @@ Phase 1-B は registry-service（Phase 2-A）に依存するため、また Phas
 
 ## Next Action
 
-**Phase 4-A（ダッシュボード拡張）に進む。**
+**Phase 4-B（エージェント仕様ビューワー）に進む。**
 
 次アクション:
-1. ダッシュボードに support-service のキャンペーン情報バナーとサービス稼働状況インジケーターを追加する
-2. サポートチャットウィジェットの配置と導線を設計し、既存のホーム画面情報設計と衝突しない形にまとめる
-3. 4-B のエージェント仕様ビューワーに向けて、registry-service から必要な表示項目の最小取得面を確定する
+1. `customer-ui/app/agents/page.tsx` を新規作成し、`GET /api/registry/services` からサービス一覧を取得してカード表示する
+2. カードクリックでシステムプロンプト・スキル一覧をモーダル表示する
+3. `GET /api/registry/health` からヘルスバッジを取得して各カードに表示する
+4. `next.config.ts` に `/api/registry/*` プロキシを追加し、`REGISTRY_SERVICE_ORIGIN` を compose / Dockerfile に配線する
+5. `globals.css` に `ag-*` CSS クラスを追加する
+6. `customer-ui/README.md` を更新する
