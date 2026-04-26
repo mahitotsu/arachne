@@ -280,7 +280,7 @@ class OrderApplicationService {
                         "order-service",
                         "order-workflow",
                         "order-service が配送候補を返しました",
-                        "アイテム確定後に delivery-service へ進みました。"));
+                    "アイテム確定後に配送候補 capability を持つ協業先へ進みました。"));
         return new ConfirmItemsResponse(
                 session.sessionId(),
                 updated.workflowStep(),
@@ -390,7 +390,7 @@ class OrderApplicationService {
         List<ServiceTrace> trace = buildConfirmPaymentTrace(paymentResponse, supportFeedback);
         String summary = paymentResponse.charged()
                 ? "注文を確定しました。合計は " + formatYen(draft.total()) + " です。"
-                : "payment-service がまだ明示的な確定を待っています。";
+            : "支払い準備 capability はまだ明示的な確定を待っています。";
         return new ConfirmPaymentResponse(
                 session.sessionId(),
                 updated.workflowStep(),
@@ -421,7 +421,7 @@ class OrderApplicationService {
                 paymentResponse.charged() ? "order-service が注文を確定しました" : "order-service が支払い待ちです",
                 paymentResponse.charged()
                     ? "支払い完了後に注文を保存しました。"
-                    : "payment-service はまだ確定を待っています。"));
+                    : "支払い準備 capability はまだ確定を待っています。"));
             return List.copyOf(trace);
             }
 
@@ -498,7 +498,7 @@ class OrderApplicationService {
                             "order-service",
                             "order-workflow",
                             "order-service が提案ステップを開始しました",
-                            "menu-service の suggest_menu_and_check を1回呼び出しました。"));
+                            "メニュー提案 capability を1回解決して協業先を呼び出しました。"));
         }
         return List.of(
                 new ServiceTrace(
@@ -515,7 +515,7 @@ class OrderApplicationService {
                         "order-service",
                         "order-workflow",
                         "order-service が提案ステップを開始しました",
-                        "menu-service の suggest_menu_and_check を1回呼び出しました。"));
+                    "メニュー提案 capability を1回解決して協業先を呼び出しました。"));
     }
 
     private List<ProposalItem> selectProposalItems(List<ProposalItem> proposals, List<SelectedProposalItem> selectedItems) {
@@ -967,4 +967,11 @@ record PaymentPrepareResponse(
         String classification,
         boolean escalationRequired) {}
 
-    record RegistryServiceDescriptorPayload(String serviceName, String endpoint, String status) {}
+    record RegistryServiceDescriptorPayload(
+        String serviceName,
+        String endpoint,
+        String capability,
+        String agentName,
+        String requestMethod,
+        String requestPath,
+        String status) {}

@@ -52,6 +52,11 @@ import okhttp3.mockwebserver.RecordedRequest;
         })
 class OrderServiceApiTest {
 
+        private static final String MENU_META_PATH = "/meta/menu-suggest";
+        private static final String DELIVERY_META_PATH = "/meta/delivery-quote";
+        private static final String PAYMENT_META_PATH = "/meta/payment-prepare";
+        private static final String SUPPORT_META_PATH = "/meta/support-feedback";
+
     private static MockWebServer menuServer;
     private static MockWebServer deliveryServer;
     private static MockWebServer paymentServer;
@@ -105,10 +110,10 @@ class OrderServiceApiTest {
     @DynamicPropertySource
     static void configureProperties(DynamicPropertyRegistry registry) {
                 registry.add("DELIVERY_REGISTRY_BASE_URL", () -> registryServer.url("/").toString());
-                registry.add("MENU_SERVICE_NAME", () -> "menu-service");
-                registry.add("DELIVERY_SERVICE_NAME", () -> "delivery-service");
-                registry.add("PAYMENT_SERVICE_NAME", () -> "payment-service");
-                registry.add("SUPPORT_SERVICE_NAME", () -> "support-service");
+                                registry.add("MENU_SERVICE_NAME", () -> "legacy-menu-service");
+                                registry.add("DELIVERY_SERVICE_NAME", () -> "legacy-delivery-service");
+                                registry.add("PAYMENT_SERVICE_NAME", () -> "legacy-payment-service");
+                                registry.add("SUPPORT_SERVICE_NAME", () -> "legacy-support-service");
         registry.add("spring.security.oauth2.resourceserver.jwt.jwk-set-uri", () -> jwkServer.url("/oauth2/jwks").toString());
     }
 
@@ -153,13 +158,16 @@ class OrderServiceApiTest {
         assertThat(response.proposals()).hasSize(2);
         assertThat(response.proposals()).extracting(ProposalItem::itemId)
                 .containsExactly("combo-teriyaki", "drink-lemon");
+        RecordedRequest menuRequest = menuServer.takeRequest(1, TimeUnit.SECONDS);
+        assertThat(menuRequest).isNotNull();
+        assertThat(menuRequest.getPath()).isEqualTo(MENU_META_PATH);
         assertThat(response.trace()).extracting(ServiceTrace::service)
                 .contains("menu-service", "kitchen-service/support", "order-service");
         assertThat(recordedPaths(registryServer)).anyMatch(path -> path.startsWith("/registry/services"));
     }
 
     @Test
-    void confirmItemsReturnsDeliveryOptions() {
+        void confirmItemsReturnsDeliveryOptions() throws InterruptedException {
         menuServer.enqueue(jsonResponse(menuSuggestBody()));
         SuggestOrderResponse suggestion = restTemplate.postForObject(
                 "/api/order/suggest",
@@ -191,6 +199,7 @@ class OrderServiceApiTest {
         assertThat(response.draft().status()).isEqualTo("ITEMS_CONFIRMED");
         assertThat(response.items()).extracting(OrderLineItem::name)
                 .containsExactly("Teriyaki Chicken Box", "Lemon Soda");
+        assertThat(deliveryServer.takeRequest(1, TimeUnit.SECONDS).getPath()).isEqualTo(DELIVERY_META_PATH);
         assertThat(response.deliveryOptions()).hasSize(2);
         assertThat(response.deliveryOptions().get(0).recommended()).isTrue();
         assertThat(response.deliveryOptions().get(0).code()).isEqualTo("express");
@@ -234,7 +243,7 @@ class OrderServiceApiTest {
     }
 
     @Test
-    void confirmDeliveryReturnsPaymentSummary() {
+        void confirmDeliveryReturnsPaymentSummary() throws InterruptedException {
         menuServer.enqueue(jsonResponse(menuSuggestBody()));
         SuggestOrderResponse suggestion = restTemplate.postForObject(
                 "/api/order/suggest",
@@ -279,11 +288,15 @@ class OrderServiceApiTest {
                 new ConfirmDeliveryRequest(suggestion.sessionId(), "idaten"),
                 ConfirmDeliveryResponse.class);
 
+        RecordedRequest paymentPrepareRequest = paymentServer.takeRequest(1, TimeUnit.SECONDS);
+
         assertThat(response).isNotNull();
         assertThat(response.workflowStep()).isEqualTo("payment");
         assertThat(response.payment().paymentMethod()).isEqualTo("Saved Visa ending in 2048");
         assertThat(response.payment().total()).isEqualByComparingTo("2500.00");
         assertThat(response.draft().status()).isEqualTo("PAYMENT_READY");
+        assertThat(paymentPrepareRequest).isNotNull();
+        assertThat(paymentPrepareRequest.getPath()).isEqualTo(PAYMENT_META_PATH);
     }
 
     @Test
@@ -332,6 +345,7 @@ class OrderServiceApiTest {
                 ConfirmDeliveryResponse.class);
         RecordedRequest prepareRequest = paymentServer.takeRequest(1, TimeUnit.SECONDS);
         assertThat(prepareRequest).isNotNull();
+        assertThat(prepareRequest.getPath()).isEqualTo(PAYMENT_META_PATH);
         assertThat(prepareRequest.getBody().readUtf8()).contains("\"confirmRequested\":false");
 
         paymentServer.enqueue(jsonResponse("""
@@ -365,10 +379,11 @@ class OrderServiceApiTest {
 
         RecordedRequest paymentRequest = paymentServer.takeRequest(1, TimeUnit.SECONDS);
         assertThat(paymentRequest).isNotNull();
+        assertThat(paymentRequest.getPath()).isEqualTo(PAYMENT_META_PATH);
         assertThat(paymentRequest.getBody().readUtf8()).contains("\"confirmRequested\":true");
         RecordedRequest supportRequest = supportServer.takeRequest(1, TimeUnit.SECONDS);
         assertThat(supportRequest).isNotNull();
-        assertThat(supportRequest.getPath()).isEqualTo("/api/support/feedback");
+        assertThat(supportRequest.getPath()).isEqualTo(SUPPORT_META_PATH);
         assertThat(supportRequest.getBody().readUtf8())
                 .contains("\"orderId\":")
                 .contains("注文 ord-");
@@ -435,16 +450,20 @@ class OrderServiceApiTest {
                                 if (path != null && path.startsWith("/registry/services")) {
                                         return jsonResponse("""
                                                         [
-                                                          {"serviceName": "menu-service", "endpoint": "%s", "status": "AVAILABLE"},
-                                                          {"serviceName": "delivery-service", "endpoint": "%s", "status": "AVAILABLE"},
-                                                          {"serviceName": "payment-service", "endpoint": "%s", "status": "AVAILABLE"},
-                                                          {"serviceName": "support-service", "endpoint": "%s", "status": "AVAILABLE"}
+                                                                                                                                                                                                                                        {"serviceName": "capability-menu-collab", "endpoint": "%s", "capability": "メニュー提案、在庫付き提案、注文候補の提示を扱う。", "agentName": "menu-agent", "requestMethod": "POST", "requestPath": "%s", "status": "AVAILABLE"},
+                                                                                                                                                                                                                                        {"serviceName": "capability-delivery-collab", "endpoint": "%s", "capability": "配送候補、ETA 比較、配送選択肢の提示を扱う。", "agentName": "delivery-agent", "requestMethod": "POST", "requestPath": "%s", "status": "AVAILABLE"},
+                                                                                                                                                                                                                                        {"serviceName": "capability-payment-collab", "endpoint": "%s", "capability": "支払い準備、合計確認、課金確定を扱う。", "agentName": "payment-service", "requestMethod": "POST", "requestPath": "%s", "status": "AVAILABLE"},
+                                                                                                                                                                                                                                        {"serviceName": "capability-support-collab", "endpoint": "%s", "capability": "注文後フィードバック受付、問い合わせ受付、サポート連携を扱う。", "agentName": "support-agent", "requestMethod": "POST", "requestPath": "%s", "status": "AVAILABLE"}
                                                         ]
                                                         """.formatted(
                                                                         trimTrailingSlash(menuServer.url("/").toString()),
+                                                                                                                                                                                                                                                                                                MENU_META_PATH,
                                                                         trimTrailingSlash(deliveryServer.url("/").toString()),
+                                                                                                                                                                                                                                                                                                DELIVERY_META_PATH,
                                                                         trimTrailingSlash(paymentServer.url("/").toString()),
-                                                                        trimTrailingSlash(supportServer.url("/").toString())));
+                                                                                                                                                                                                                                                                                                PAYMENT_META_PATH,
+                                                                                                                                                                                                                                                                                                trimTrailingSlash(supportServer.url("/").toString()),
+                                                                                                                                                                                                                                                                                                SUPPORT_META_PATH));
                                 }
                                 return new MockResponse().setResponseCode(404);
                         }

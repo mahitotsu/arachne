@@ -11,26 +11,25 @@ import org.springframework.web.client.RestClient;
 @Component
 class RegistryBackedMenuSubstitutionGateway implements MenuSubstitutionGateway {
 
+    private static final String MENU_SUBSTITUTION_CAPABILITY_QUERY = "欠品時の代替候補提示";
+
     private final RestClient restClient;
     private final ServiceEndpointResolver endpointResolver;
-    private final String menuServiceName;
     private final String fallbackBaseUrl;
 
     RegistryBackedMenuSubstitutionGateway(
             RestClient.Builder restClientBuilder,
             ServiceEndpointResolver endpointResolver,
-            @Value("${MENU_SERVICE_NAME:menu-service}") String menuServiceName,
             @Value("${MENU_SERVICE_BASE_URL:}") String fallbackBaseUrl) {
         this.restClient = restClientBuilder.build();
         this.endpointResolver = endpointResolver;
-        this.menuServiceName = menuServiceName;
         this.fallbackBaseUrl = fallbackBaseUrl;
     }
 
     @Override
     public MenuSubstitutionResponse suggestSubstitutes(MenuSubstitutionRequest request, String accessToken) {
         return Objects.requireNonNull(restClient.post()
-                .uri(endpointResolver.resolveUrl(menuServiceName, fallbackBaseUrl, "/internal/menu/substitutes"))
+                .uri(endpointResolver.resolveUrl(MENU_SUBSTITUTION_CAPABILITY_QUERY, fallbackBaseUrl, "/internal/menu/substitutes"))
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(request)

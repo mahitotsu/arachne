@@ -3,10 +3,10 @@ package com.mahitotsu.arachne.samples.delivery.kitchenservice;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static com.mahitotsu.arachne.samples.delivery.testsupport.MockWebServerTestSupport.drainRequests;
 import static com.mahitotsu.arachne.samples.delivery.testsupport.MockWebServerTestSupport.recordedPaths;
-import static com.mahitotsu.arachne.samples.delivery.testsupport.MockWebServerTestSupport.requireRequest;
 import static com.mahitotsu.arachne.samples.delivery.testsupport.MockWebServerTestSupport.trimTrailingSlash;
 import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.AfterAll;
@@ -44,6 +44,8 @@ import okhttp3.mockwebserver.RecordedRequest;
         webEnvironment = WebEnvironment.RANDOM_PORT,
         properties = {"delivery.model.mode=deterministic"})
 class KitchenServiceApiTest {
+
+    private static final String MENU_SUBSTITUTION_META_PATH = "/meta/menu-substitutes";
 
     private static MockWebServer menuServer;
     private static MockWebServer registryServer;
@@ -100,7 +102,7 @@ class KitchenServiceApiTest {
     @DynamicPropertySource
     static void configureProperties(DynamicPropertyRegistry registry) {
         registry.add("DELIVERY_REGISTRY_BASE_URL", () -> registryServer.url("/").toString());
-        registry.add("MENU_SERVICE_NAME", () -> "menu-service");
+        registry.add("MENU_SERVICE_NAME", () -> "legacy-menu-service");
         registry.add("spring.security.oauth2.resourceserver.jwt.jwk-set-uri", () -> jwkServer.url("/oauth2/jwks").toString());
     }
 
@@ -146,7 +148,10 @@ class KitchenServiceApiTest {
             assertThat(trace.agent()).isEqualTo("menu-agent");
         });
         assertThat(recordedPaths(registryServer)).anyMatch(path -> path.startsWith("/registry/services"));
-        assertThat(requireRequest(menuServer).getHeader(HttpHeaders.AUTHORIZATION)).isEqualTo("Bearer " + accessToken);
+        RecordedRequest menuRequest = menuServer.takeRequest(1, TimeUnit.SECONDS);
+        assertThat(menuRequest).isNotNull();
+        assertThat(menuRequest.getPath()).isEqualTo(MENU_SUBSTITUTION_META_PATH);
+        assertThat(menuRequest.getHeader(HttpHeaders.AUTHORIZATION)).isEqualTo("Bearer " + accessToken);
         assertThat(response.items()).singleElement().satisfies(item -> {
             assertThat(item.available()).isFalse();
             assertThat(item.substituteName()).isEqualTo("Nugget Share Box");
@@ -205,9 +210,9 @@ class KitchenServiceApiTest {
                             .setHeader("Content-Type", "application/json")
                             .setBody("""
                                     [
-                                      {"serviceName": "menu-service", "endpoint": "%s", "status": "AVAILABLE"}
+                                                                            {"serviceName": "capability-menu-collab", "endpoint": "%s", "capability": "メニュー提案、問い合わせ受付、欠品時の代替候補提示を扱う。", "agentName": "menu-agent", "requestMethod": "POST", "requestPath": "%s", "status": "AVAILABLE"}
                                     ]
-                                    """.formatted(trimTrailingSlash(menuServer.url("/").toString())));
+                                                                        """.formatted(trimTrailingSlash(menuServer.url("/").toString()), MENU_SUBSTITUTION_META_PATH));
                 }
                 return new MockResponse().setResponseCode(404);
             }

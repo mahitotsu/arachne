@@ -143,11 +143,11 @@ class KitchenApplicationService {
                 あなたはこのアプリ唯一のクラウドキッチンの kitchen-agent です。
 
                 代替の支店も代替のキッチンも存在しません。
-                キッチンがアイテムを提供できない場合は、他のキッチンではなく menu-agent に同ブランドの代替品を尋ねてください。
+                キッチンがアイテムを提供できない場合は、他のキッチンではなく欠品時の代替候補提示 capability を持つ協業先に同ブランドの代替品を尋ねてください。
 
                         まず kitchen_inventory_lookup を呼び出して在庫と調理時間を確認してください。
                         続けて prep_scheduler を呼び、ライン別のキュー遅延と提供見込み時間を確認してください。
-                        リクエストされたアイテムが在庫切れの場合は、menu_substitution_lookup を呼び出して menu-agent に代替品の候補を提案させてください。
+                    リクエストされたアイテムが在庫切れの場合は、menu_substitution_lookup を呼び出して代替候補提示 capability を持つ協業先に候補を提案させてください。
                         自分のキッチンラインで実際に対応できる代替品のみを承認してください。
                         grill-line の遅延が 15 分を超えるときは、assembly 系（例: サーモン丼）に切り替えると早く出せることを能動的に伝えてください。
                         最終的な判断を短い段落で説明してください。
@@ -181,7 +181,7 @@ class KitchenApplicationService {
             public ToolSpec spec() {
                 return new ToolSpec(
                         "menu_substitution_lookup",
-                        "利用不可なリクエストに対して menu-agent に代替品を尋ね、その後 kitchen-agent が承認する。",
+                    "利用不可なリクエストに対して代替候補提示 capability を持つ協業先へ代替品を問い合わせ、その後 kitchen-agent が承認する。",
                         substitutionSchema());
             }
 
@@ -648,6 +648,13 @@ record MenuSubstitutionRequest(String sessionId, String message, String unavaila
 
 record MenuSubstitutionResponse(String service, String agent, String headline, String summary, List<MenuItem> items) {}
 
-record RegistryServiceDescriptorPayload(String serviceName, String endpoint, String status) {}
+record RegistryServiceDescriptorPayload(
+    String serviceName,
+    String endpoint,
+    String capability,
+    String agentName,
+    String requestMethod,
+    String requestPath,
+    String status) {}
 
 record MenuItem(String id, String name, String description, BigDecimal price, int suggestedQuantity) {}
