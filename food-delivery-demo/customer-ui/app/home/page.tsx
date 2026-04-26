@@ -197,6 +197,9 @@ export default function HomePage() {
               </div>
             </div>
           )}
+          <Link href="/agents" className="ag-nav-back" style={{ marginRight: 8 }}>
+            🤖 エージェント
+          </Link>
           <button type="button" className="h-nav-signout" onClick={signOut}>
             ログアウト
           </button>

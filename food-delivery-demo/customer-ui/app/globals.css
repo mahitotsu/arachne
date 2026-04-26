@@ -2711,3 +2711,336 @@ textarea {
   .h-float-support-text { display: none; }
   .h-float-support { padding: 14px; }
 }
+
+/* === Phase 4-B: Agent Spec Viewer (/agents) === */
+
+.ag-shell {
+  max-width: 1520px;
+  margin: 0 auto;
+  padding: 0 28px 48px;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.ag-nav-back {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ink-muted);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+.ag-nav-back:hover {
+  color: var(--accent);
+}
+
+.ag-header {
+  padding: 24px 0 20px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 28px;
+}
+
+.ag-header-title {
+  margin: 0 0 6px;
+  font-size: 1.6rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+}
+
+.ag-header-lead {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.ag-loading,
+.ag-error {
+  padding: 40px 0;
+  text-align: center;
+  font-size: 1rem;
+  color: var(--ink-muted);
+}
+
+.ag-error {
+  color: var(--red);
+}
+
+.ag-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.ag-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px 20px;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  text-align: left;
+  transition: box-shadow 0.18s, transform 0.12s, border-color 0.18s;
+}
+
+.ag-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+  border-color: var(--border-accent);
+}
+
+.ag-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ag-card-name {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+
+.ag-card-agent {
+  font-size: 0.78rem;
+  color: var(--ink-subtle);
+  font-weight: 500;
+}
+
+.ag-card-capability {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--ink-muted);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.ag-card-skills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 2px;
+}
+
+.ag-skill-chip {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--ink-muted);
+  border: 1px solid var(--border);
+}
+
+.ag-card-detail-hint {
+  margin-top: auto;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.01em;
+}
+
+.ag-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.ag-badge--up {
+  background: rgba(22, 163, 74, 0.1);
+  color: var(--green);
+}
+
+.ag-badge--down {
+  background: rgba(220, 38, 38, 0.08);
+  color: var(--red);
+}
+
+/* Modal */
+.ag-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 40px 16px;
+  z-index: 200;
+  overflow-y: auto;
+}
+
+.ag-modal {
+  background: var(--surface-1);
+  border-radius: 14px;
+  box-shadow: var(--shadow-lg);
+  width: 100%;
+  max-width: 680px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.ag-modal-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 22px 14px;
+  border-bottom: 1px solid var(--border);
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.ag-modal-service {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.ag-modal-agent {
+  font-size: 0.88rem;
+  color: var(--ink-muted);
+  font-weight: 500;
+}
+
+.ag-modal-close {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-muted);
+  font-size: 0.9rem;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.ag-modal-close:hover {
+  background: var(--surface-2);
+}
+
+.ag-modal-body {
+  padding: 20px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+  max-height: calc(80vh - 100px);
+}
+
+.ag-modal-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ag-modal-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--ink-subtle);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  min-width: 80px;
+}
+
+.ag-modal-value {
+  font-size: 0.84rem;
+  color: var(--ink-muted);
+}
+
+.ag-mono {
+  font-family: ui-monospace, "Cascadia Code", monospace;
+  font-size: 0.8rem;
+}
+
+.ag-modal-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ag-modal-section-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--ink-subtle);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ag-modal-text {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--ink-muted);
+  line-height: 1.55;
+}
+
+.ag-modal-pre {
+  margin: 0;
+  padding: 12px 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: ui-monospace, "Cascadia Code", monospace;
+  font-size: 0.78rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--ink);
+}
+
+.ag-skill-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ag-skill-detail {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.ag-skill-summary {
+  padding: 10px 14px;
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+  background: var(--surface-2);
+  color: var(--ink);
+  user-select: none;
+}
+
+.ag-skill-summary:hover {
+  background: var(--surface-3);
+}
+
+.ag-skill-content {
+  margin: 0;
+  padding: 12px 14px;
+  background: var(--surface-1);
+  font-family: ui-monospace, "Cascadia Code", monospace;
+  font-size: 0.78rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--ink-muted);
+  border-top: 1px solid var(--border);
+}
+
+@media (max-width: 640px) {
+  .ag-shell { padding: 0 16px 40px; }
+  .ag-grid { grid-template-columns: 1fr; }
+  .ag-modal-overlay { padding: 20px 12px; }
+}

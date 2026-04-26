@@ -10,6 +10,8 @@ ARG MENU_SERVICE_ORIGIN=http://localhost:8081
 ENV MENU_SERVICE_ORIGIN=$MENU_SERVICE_ORIGIN
 ARG SUPPORT_SERVICE_ORIGIN=http://localhost:8086
 ENV SUPPORT_SERVICE_ORIGIN=$SUPPORT_SERVICE_ORIGIN
+ARG REGISTRY_SERVICE_ORIGIN=http://localhost:8087
+ENV REGISTRY_SERVICE_ORIGIN=$REGISTRY_SERVICE_ORIGIN
 
 COPY food-delivery-demo/customer-ui/package*.json ./
 RUN --mount=type=cache,id=food-delivery-customer-ui-npm,target=/root/.npm,sharing=locked npm ci
