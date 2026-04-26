@@ -36,6 +36,23 @@ type OrderHistoryItem = {
   createdAt: string;
 };
 
+type CampaignSummary = {
+  campaignId: string;
+  title: string;
+  description: string;
+  badge: string;
+  validUntil: string;
+};
+
+type ServiceHealthSummary = {
+  serviceName: string;
+  status: string;
+};
+
+type SupportStatusResponse = {
+  services: ServiceHealthSummary[];
+};
+
 type ServiceState = 'loading' | 'ok' | 'error' | 'idle';
 
 const ACCESS_TOKEN_KEY = 'delivery-demo-access-token';
@@ -47,6 +64,9 @@ export default function HomePage() {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [recentDraft, setRecentDraft] = useState<RecentDraft | null>(null);
   const [orderHistory, setOrderHistory] = useState<OrderHistoryItem[]>([]);
+  const [campaigns, setCampaigns] = useState<CampaignSummary[]>([]);
+  const [serviceStatuses, setServiceStatuses] = useState<ServiceHealthSummary[]>([]);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
   const [svcState, setSvcState] = useState<Record<string, ServiceState>>({
     'customer-service': 'loading',
     'menu-service': 'loading',
@@ -123,6 +143,18 @@ export default function HomePage() {
       } catch {
         // history is non-critical — silently skip
       }
+
+      // Fetch support-service data (non-critical)
+      await Promise.allSettled([
+        fetch('/api/support/campaigns', { headers })
+          .then(r => (r.ok ? (r.json() as Promise<CampaignSummary[]>) : []))
+          .then(data => setCampaigns(data as CampaignSummary[]))
+          .catch(() => {}),
+        fetch('/api/support/status', { headers })
+          .then(r => (r.ok ? (r.json() as Promise<SupportStatusResponse>) : null))
+          .then(data => { if (data) setServiceStatuses(data.services ?? []); })
+          .catch(() => {}),
+      ]);
     }
 
     void load();
@@ -170,6 +202,26 @@ export default function HomePage() {
           </button>
         </div>
       </nav>
+
+      {/* Campaign banner */}
+      {campaigns.length > 0 && !bannerDismissed && (
+        <div className="h-campaign-banner">
+          <span className="h-campaign-banner-badge">{campaigns[0].badge}</span>
+          <div className="h-campaign-banner-body">
+            <span className="h-campaign-banner-title">{campaigns[0].title}</span>
+            <span className="h-campaign-banner-desc">{campaigns[0].description}</span>
+          </div>
+          <span className="h-campaign-banner-until">〜 {campaigns[0].validUntil}</span>
+          <button
+            type="button"
+            className="h-campaign-banner-close"
+            aria-label="バナーを閉じる"
+            onClick={() => setBannerDismissed(true)}
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Hero */}
       <section className="h-hero">
@@ -233,6 +285,25 @@ export default function HomePage() {
               <p className="h-recent-empty-text">
                 まだセッションはありません。下のメニューから注文を始めてください。
               </p>
+            </div>
+          )}
+
+          {/* Service health from support-service */}
+          {serviceStatuses.length > 0 && (
+            <div className="h-svc-status-card">
+              <p className="h-svc-status-title">📡 サービス稼働状況</p>
+              <div className="h-svc-status-list">
+                {serviceStatuses.map(s => (
+                  <div key={s.serviceName} className="h-svc-status-row">
+                    <span className={`sp-status-dot sp-status-dot--${s.status.toLowerCase()}`} />
+                    <span className="h-svc-status-name">{s.serviceName}</span>
+                    <span className={`h-svc-status-label h-svc-status-label--${s.status.toLowerCase()}`}>
+                      {s.status}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <Link href="/support" className="h-svc-status-link">詳細 → サポートセンター</Link>
             </div>
           )}
         </div>
@@ -353,6 +424,12 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* Floating support entry */}
+      <Link href="/support" className="h-float-support" aria-label="サポートセンターを開く">
+        <span className="h-float-support-icon">🎧</span>
+        <span className="h-float-support-text">サポート</span>
+      </Link>
     </div>
   );
 }
