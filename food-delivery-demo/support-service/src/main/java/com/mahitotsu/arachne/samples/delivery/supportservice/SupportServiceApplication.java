@@ -29,6 +29,7 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -538,21 +539,32 @@ class SupportStatusGateway {
 @Component
 class OrderHistoryGateway {
 
-    private final RestClient restClient;
+    private final RestClient.Builder restClientBuilder;
+    private final RestClient registryRestClient;
+    private final String orderServiceName;
+    private final String fallbackOrderServiceBaseUrl;
+    private volatile String cachedOrderServiceBaseUrl;
 
     OrderHistoryGateway(
             RestClient.Builder restClientBuilder,
+            @Value("${DELIVERY_REGISTRY_BASE_URL:}") String registryBaseUrl,
+            @Value("${ORDER_SERVICE_NAME:order-service}") String orderServiceName,
             @Value("${ORDER_SERVICE_BASE_URL:}") String orderServiceBaseUrl) {
-        this.restClient = orderServiceBaseUrl.isBlank() ? null : restClientBuilder.baseUrl(orderServiceBaseUrl).build();
+        this.restClientBuilder = restClientBuilder;
+        this.registryRestClient = registryBaseUrl.isBlank() ? null : restClientBuilder.baseUrl(registryBaseUrl).build();
+        this.orderServiceName = orderServiceName;
+        this.fallbackOrderServiceBaseUrl = orderServiceBaseUrl;
+        this.cachedOrderServiceBaseUrl = "";
     }
 
     List<CustomerOrderHistoryEntry> recentOrders(String accessToken) {
-        if (restClient == null || accessToken == null || accessToken.isBlank()) {
+        String orderHistoryUrl = joinUrl(resolveOrderServiceBaseUrl(), "/api/orders/history");
+        if (!StringUtils.hasText(orderHistoryUrl) || accessToken == null || accessToken.isBlank()) {
             return List.of();
         }
         try {
-            CustomerOrderHistoryEntry[] response = restClient.get()
-                    .uri("/api/orders/history")
+            CustomerOrderHistoryEntry[] response = restClientBuilder.build().get()
+                    .uri(orderHistoryUrl)
                     .headers(headers -> headers.setBearerAuth(accessToken))
                     .retrieve()
                     .body(CustomerOrderHistoryEntry[].class);
@@ -560,6 +572,62 @@ class OrderHistoryGateway {
         } catch (Exception ignored) {
             return List.of();
         }
+    }
+
+    private String resolveOrderServiceBaseUrl() {
+        if (StringUtils.hasText(cachedOrderServiceBaseUrl)) {
+            return cachedOrderServiceBaseUrl;
+        }
+        String discoveredBaseUrl = discoverOrderServiceBaseUrl();
+        if (StringUtils.hasText(discoveredBaseUrl)) {
+            cachedOrderServiceBaseUrl = discoveredBaseUrl;
+            return discoveredBaseUrl;
+        }
+        return fallbackOrderServiceBaseUrl;
+    }
+
+    private String discoverOrderServiceBaseUrl() {
+        if (registryRestClient == null || !StringUtils.hasText(orderServiceName)) {
+            return "";
+        }
+        try {
+            RegistryServiceDescriptorPayload[] response = registryRestClient.get()
+                    .uri("/registry/services")
+                    .retrieve()
+                    .body(RegistryServiceDescriptorPayload[].class);
+            if (response == null) {
+                return "";
+            }
+            return List.of(response).stream()
+                    .filter(Objects::nonNull)
+                    .filter(service -> orderServiceName.equalsIgnoreCase(service.serviceName()))
+                    .filter(service -> "AVAILABLE".equalsIgnoreCase(service.status()))
+                    .map(RegistryServiceDescriptorPayload::endpoint)
+                    .filter(StringUtils::hasText)
+                    .findFirst()
+                    .orElse("");
+        } catch (Exception ignored) {
+            return "";
+        }
+    }
+
+    private String joinUrl(String endpoint, String requestPath) {
+        if (!StringUtils.hasText(endpoint)) {
+            return "";
+        }
+        if (!StringUtils.hasText(requestPath)) {
+            return endpoint;
+        }
+        if (requestPath.startsWith("http://") || requestPath.startsWith("https://")) {
+            return requestPath;
+        }
+        if (endpoint.endsWith("/") && requestPath.startsWith("/")) {
+            return endpoint.substring(0, endpoint.length() - 1) + requestPath;
+        }
+        if (!endpoint.endsWith("/") && !requestPath.startsWith("/")) {
+            return endpoint + "/" + requestPath;
+        }
+        return endpoint + requestPath;
     }
 }
 
@@ -1117,4 +1185,7 @@ record RegistryHealthResponsePayload(List<RegistryHealthEntryPayload> services) 
 }
 
 record RegistryHealthEntryPayload(String serviceName, String status, String healthEndpoint) {
+}
+
+record RegistryServiceDescriptorPayload(String serviceName, String endpoint, String status) {
 }

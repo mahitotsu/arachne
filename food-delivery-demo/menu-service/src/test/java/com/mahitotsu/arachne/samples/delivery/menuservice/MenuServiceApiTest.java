@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.AfterAll;
@@ -42,6 +43,7 @@ import okhttp3.mockwebserver.RecordedRequest;
 class MenuServiceApiTest {
 
     private static MockWebServer kitchenServer;
+    private static MockWebServer registryServer;
     private static MockWebServer jwkServer;
     private static RSAKey signingKey;
     private static String accessToken;
@@ -50,6 +52,9 @@ class MenuServiceApiTest {
 
     @Autowired
     private TestRestTemplate restTemplate;
+
+    @Autowired
+    private RegistryServiceEndpointResolver endpointResolver;
 
     @LocalServerPort
     private int port;
@@ -60,26 +65,33 @@ class MenuServiceApiTest {
         accessToken = createAccessToken();
         kitchenServer = new MockWebServer();
         kitchenServer.setDispatcher(kitchenDispatcher());
+        registryServer = new MockWebServer();
+        registryServer.setDispatcher(registryDispatcher());
         jwkServer = new MockWebServer();
         jwkServer.setDispatcher(jwkDispatcher());
         kitchenServer.start();
+        registryServer.start();
         jwkServer.start();
     }
 
     @AfterAll
     static void stopServer() throws IOException {
         kitchenServer.shutdown();
+        registryServer.shutdown();
         jwkServer.shutdown();
     }
 
     @DynamicPropertySource
     static void configureProperties(DynamicPropertyRegistry registry) {
-        registry.add("KITCHEN_SERVICE_BASE_URL", () -> kitchenServer.url("/").toString());
+        registry.add("DELIVERY_REGISTRY_BASE_URL", () -> registryServer.url("/").toString());
+        registry.add("KITCHEN_SERVICE_NAME", () -> "kitchen-service");
         registry.add("spring.security.oauth2.resourceserver.jwt.jwk-set-uri", () -> jwkServer.url("/oauth2/jwks").toString());
     }
 
     @BeforeEach
-    void prepareAuthenticatedClient() {
+    void prepareAuthenticatedClient() throws InterruptedException {
+        endpointResolver.clearCache();
+        drainRequests(registryServer);
         restTemplate.getRestTemplate().setInterceptors(List.of((request, body, execution) -> {
             request.getHeaders().setBearerAuth(accessToken);
             return execution.execute(request, body);
@@ -99,7 +111,7 @@ class MenuServiceApiTest {
     }
 
     @Test
-    void suggestsKidFriendlyMenuItems() {
+    void suggestsKidFriendlyMenuItems() throws InterruptedException {
         MenuSuggestionResponse response = restTemplate.postForObject(
                 "/internal/menu/suggest",
                 new MenuSuggestionRequest("session-1", "2人で子ども向けのセットを見せて"),
@@ -110,6 +122,7 @@ class MenuServiceApiTest {
         assertThat(response.items()).extracting(MenuItem::name).anyMatch(name -> name.contains("Kids"));
         assertThat(response.etaMinutes()).isPositive();
         assertThat(response.kitchenTrace()).isNotNull();
+        assertThat(recordedPaths(registryServer)).anyMatch(path -> path.startsWith("/registry/services"));
     }
 
     @Test
@@ -277,6 +290,36 @@ class MenuServiceApiTest {
         };
     }
 
+    private static Dispatcher registryDispatcher() {
+        return new Dispatcher() {
+            @Override
+            public MockResponse dispatch(RecordedRequest request) {
+                String path = request.getPath();
+                if (path != null && path.startsWith("/registry/register")) {
+                    return new MockResponse()
+                            .setHeader("Content-Type", "application/json")
+                            .setBody("""
+                                    {
+                                      "serviceName": "menu-service",
+                                      "endpoint": "http://menu-service:8080",
+                                      "status": "AVAILABLE"
+                                    }
+                                    """);
+                }
+                if (path != null && path.startsWith("/registry/services")) {
+                    return new MockResponse()
+                            .setHeader("Content-Type", "application/json")
+                            .setBody("""
+                                    [
+                                      {"serviceName": "kitchen-service", "endpoint": "%s", "status": "AVAILABLE"}
+                                    ]
+                                    """.formatted(trimTrailingSlash(kitchenServer.url("/").toString())));
+                }
+                return new MockResponse().setResponseCode(404);
+            }
+        };
+    }
+
         private static String kitchenItemJson(String itemId, boolean crispyUnavailable) {
         if (crispyUnavailable && "combo-crispy".equals(itemId)) {
             return """
@@ -305,6 +348,25 @@ class MenuServiceApiTest {
             return 11;
         }
         return 14;
+    }
+
+    private static void drainRequests(MockWebServer server) throws InterruptedException {
+        while (server.takeRequest(10, TimeUnit.MILLISECONDS) != null) {
+            // Drain any startup or previous test traffic.
+        }
+    }
+
+    private static List<String> recordedPaths(MockWebServer server) throws InterruptedException {
+        java.util.ArrayList<String> paths = new java.util.ArrayList<>();
+        RecordedRequest request;
+        while ((request = server.takeRequest(10, TimeUnit.MILLISECONDS)) != null) {
+            paths.add(request.getPath());
+        }
+        return paths;
+    }
+
+    private static String trimTrailingSlash(String value) {
+        return value.replaceAll("/$", "");
     }
 
     private static String createAccessToken() throws JOSEException {

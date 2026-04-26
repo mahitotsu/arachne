@@ -78,7 +78,7 @@ services:
       DELIVERY_MODEL_MODE: ${DELIVERY_MODEL_MODE:-deterministic}
       DELIVERY_REGISTRY_BASE_URL: http://registry-service:8080
       DELIVERY_JWK_SET_URI: http://customer-service:8080/oauth2/jwks
-      ORDER_SERVICE_BASE_URL: http://order-service:8080
+      ORDER_SERVICE_NAME: order-service
       ARACHNE_STRANDS_MODEL_PROVIDER: ${ARACHNE_STRANDS_MODEL_PROVIDER:-}
       ARACHNE_STRANDS_MODEL_ID: ${ARACHNE_STRANDS_MODEL_ID:-}
       ARACHNE_STRANDS_MODEL_REGION: ${ARACHNE_STRANDS_MODEL_REGION:-}
@@ -116,11 +116,10 @@ services:
       SERVER_PORT: 8080
       DELIVERY_REGISTRY_BASE_URL: http://registry-service:8080
       DELIVERY_JWK_SET_URI: http://customer-service:8080/oauth2/jwks
-      MENU_SERVICE_BASE_URL: http://menu-service:8080
-      KITCHEN_SERVICE_BASE_URL: http://kitchen-service:8080
-      DELIVERY_SERVICE_BASE_URL: http://delivery-service:8080
-      PAYMENT_SERVICE_BASE_URL: http://payment-service:8080
-      SUPPORT_SERVICE_BASE_URL: http://support-service:8080
+      MENU_SERVICE_NAME: menu-service
+      DELIVERY_SERVICE_NAME: delivery-service
+      PAYMENT_SERVICE_NAME: payment-service
+      SUPPORT_SERVICE_NAME: support-service
       ARACHNE_STRANDS_MODEL_ID: ${ARACHNE_STRANDS_MODEL_ID:-}
       ARACHNE_STRANDS_MODEL_REGION: ${ARACHNE_STRANDS_MODEL_REGION:-}
       AWS_REGION: ${AWS_REGION:-}
@@ -179,6 +178,7 @@ services:
     environment:
       DELIVERY_MODEL_MODE: ${DELIVERY_MODEL_MODE:-deterministic}
       DELIVERY_REGISTRY_BASE_URL: http://registry-service:8080
+      KITCHEN_SERVICE_NAME: kitchen-service
       DELIVERY_JWK_SET_URI: http://customer-service:8080/oauth2/jwks
       ARACHNE_STRANDS_MODEL_PROVIDER: ${ARACHNE_STRANDS_MODEL_PROVIDER:-}
       ARACHNE_STRANDS_MODEL_ID: ${ARACHNE_STRANDS_MODEL_ID:-}
@@ -198,6 +198,8 @@ services:
     depends_on:
       registry-service:
         condition: service_healthy
+      kitchen-service:
+        condition: service_healthy
     ports:
       - "8081:8080"
 
@@ -212,7 +214,7 @@ services:
       DELIVERY_MODEL_MODE: ${DELIVERY_MODEL_MODE:-deterministic}
       DELIVERY_REGISTRY_BASE_URL: http://registry-service:8080
       DELIVERY_JWK_SET_URI: http://customer-service:8080/oauth2/jwks
-      MENU_SERVICE_BASE_URL: http://menu-service:8080
+      MENU_SERVICE_NAME: menu-service
       ARACHNE_STRANDS_MODEL_PROVIDER: ${ARACHNE_STRANDS_MODEL_PROVIDER:-}
       ARACHNE_STRANDS_MODEL_ID: ${ARACHNE_STRANDS_MODEL_ID:-}
       ARACHNE_STRANDS_MODEL_REGION: ${ARACHNE_STRANDS_MODEL_REGION:-}

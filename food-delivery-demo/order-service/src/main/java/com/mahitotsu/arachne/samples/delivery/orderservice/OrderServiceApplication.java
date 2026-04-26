@@ -16,7 +16,6 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.SpringApplication;
@@ -28,7 +27,6 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
-import org.springframework.http.client.ClientHttpRequestInterceptor;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -39,6 +37,7 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -56,26 +55,6 @@ public class OrderServiceApplication {
 
     public static void main(String[] args) {
         SpringApplication.run(OrderServiceApplication.class, args);
-    }
-
-    @Bean("menuRestClient")
-    RestClient menuRestClient(@Value("${MENU_SERVICE_BASE_URL:http://localhost:8081}") String baseUrl) {
-        return securedRestClient(baseUrl);
-    }
-
-    @Bean("deliveryRestClient")
-    RestClient deliveryRestClient(@Value("${DELIVERY_SERVICE_BASE_URL:http://localhost:8083}") String baseUrl) {
-        return securedRestClient(baseUrl);
-    }
-
-    @Bean("paymentRestClient")
-    RestClient paymentRestClient(@Value("${PAYMENT_SERVICE_BASE_URL:http://localhost:8084}") String baseUrl) {
-        return securedRestClient(baseUrl);
-    }
-
-    @Bean("supportRestClient")
-    RestClient supportRestClient(@Value("${SUPPORT_SERVICE_BASE_URL:http://localhost:8086}") String baseUrl) {
-        return securedRestClient(baseUrl);
     }
 
     @Bean
@@ -121,17 +100,6 @@ public class OrderServiceApplication {
                     .retrieve()
                     .toBodilessEntity();
         };
-    }
-
-    private RestClient securedRestClient(String baseUrl) {
-        ClientHttpRequestInterceptor bearerRelay = (request, body, execution) -> {
-            SecurityAccessors.currentAccessToken().ifPresent(request.getHeaders()::setBearerAuth);
-            return execution.execute(request, body);
-        };
-        return RestClient.builder()
-                .baseUrl(baseUrl)
-                .requestInterceptor(bearerRelay)
-                .build();
     }
 }
 
@@ -659,14 +627,24 @@ class OrderApplicationService {
 class MenuGateway {
 
     private final RestClient restClient;
+    private final RegistryServiceEndpointResolver endpointResolver;
+    private final String menuServiceName;
+    private final String fallbackBaseUrl;
 
-    MenuGateway(@Qualifier("menuRestClient") RestClient restClient) {
-        this.restClient = restClient;
+    MenuGateway(
+            RestClient.Builder restClientBuilder,
+            RegistryServiceEndpointResolver endpointResolver,
+            @Value("${MENU_SERVICE_NAME:menu-service}") String menuServiceName,
+            @Value("${MENU_SERVICE_BASE_URL:}") String fallbackBaseUrl) {
+        this.restClient = restClientBuilder.build();
+        this.endpointResolver = endpointResolver;
+        this.menuServiceName = menuServiceName;
+        this.fallbackBaseUrl = fallbackBaseUrl;
     }
 
     MenuSuggestionResponse suggest(MenuSuggestionRequest request, String accessToken) {
         return Objects.requireNonNull(restClient.post()
-                .uri("/internal/menu/suggest")
+                .uri(endpointResolver.resolveUrl(menuServiceName, fallbackBaseUrl, "/internal/menu/suggest"))
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(request)
@@ -679,14 +657,24 @@ class MenuGateway {
 class DeliveryGateway {
 
     private final RestClient restClient;
+    private final RegistryServiceEndpointResolver endpointResolver;
+    private final String deliveryServiceName;
+    private final String fallbackBaseUrl;
 
-    DeliveryGateway(@Qualifier("deliveryRestClient") RestClient restClient) {
-        this.restClient = restClient;
+    DeliveryGateway(
+            RestClient.Builder restClientBuilder,
+            RegistryServiceEndpointResolver endpointResolver,
+            @Value("${DELIVERY_SERVICE_NAME:delivery-service}") String deliveryServiceName,
+            @Value("${DELIVERY_SERVICE_BASE_URL:}") String fallbackBaseUrl) {
+        this.restClient = restClientBuilder.build();
+        this.endpointResolver = endpointResolver;
+        this.deliveryServiceName = deliveryServiceName;
+        this.fallbackBaseUrl = fallbackBaseUrl;
     }
 
     DeliveryQuoteResponse quote(DeliveryQuoteRequest request, String accessToken) {
         return Objects.requireNonNull(restClient.post()
-                .uri("/internal/delivery/quote")
+                .uri(endpointResolver.resolveUrl(deliveryServiceName, fallbackBaseUrl, "/internal/delivery/quote"))
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(request)
@@ -699,14 +687,24 @@ class DeliveryGateway {
 class PaymentGateway {
 
     private final RestClient restClient;
+    private final RegistryServiceEndpointResolver endpointResolver;
+    private final String paymentServiceName;
+    private final String fallbackBaseUrl;
 
-    PaymentGateway(@Qualifier("paymentRestClient") RestClient restClient) {
-        this.restClient = restClient;
+    PaymentGateway(
+            RestClient.Builder restClientBuilder,
+            RegistryServiceEndpointResolver endpointResolver,
+            @Value("${PAYMENT_SERVICE_NAME:payment-service}") String paymentServiceName,
+            @Value("${PAYMENT_SERVICE_BASE_URL:}") String fallbackBaseUrl) {
+        this.restClient = restClientBuilder.build();
+        this.endpointResolver = endpointResolver;
+        this.paymentServiceName = paymentServiceName;
+        this.fallbackBaseUrl = fallbackBaseUrl;
     }
 
     PaymentPrepareResponse prepare(PaymentPrepareRequest request, String accessToken) {
         return Objects.requireNonNull(restClient.post()
-                .uri("/internal/payment/prepare")
+                .uri(endpointResolver.resolveUrl(paymentServiceName, fallbackBaseUrl, "/internal/payment/prepare"))
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(request)
@@ -719,15 +717,25 @@ class PaymentGateway {
 class SupportGateway {
 
     private final RestClient restClient;
+    private final RegistryServiceEndpointResolver endpointResolver;
+    private final String supportServiceName;
+    private final String fallbackBaseUrl;
 
-    SupportGateway(@Qualifier("supportRestClient") RestClient restClient) {
-        this.restClient = restClient;
+    SupportGateway(
+            RestClient.Builder restClientBuilder,
+            RegistryServiceEndpointResolver endpointResolver,
+            @Value("${SUPPORT_SERVICE_NAME:support-service}") String supportServiceName,
+            @Value("${SUPPORT_SERVICE_BASE_URL:}") String fallbackBaseUrl) {
+        this.restClient = restClientBuilder.build();
+        this.endpointResolver = endpointResolver;
+        this.supportServiceName = supportServiceName;
+        this.fallbackBaseUrl = fallbackBaseUrl;
     }
 
     Optional<SupportFeedbackResponse> recordFeedback(SupportFeedbackRequestPayload request, String accessToken) {
         try {
             return Optional.ofNullable(restClient.post()
-                    .uri("/api/support/feedback")
+                    .uri(endpointResolver.resolveUrl(supportServiceName, fallbackBaseUrl, "/api/support/feedback"))
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(request)
@@ -736,6 +744,86 @@ class SupportGateway {
         } catch (Exception ignored) {
             return Optional.empty();
         }
+    }
+}
+
+@Component
+class RegistryServiceEndpointResolver {
+
+    private final RestClient registryRestClient;
+    private final ConcurrentMap<String, String> cachedBaseUrls = new ConcurrentHashMap<>();
+
+    RegistryServiceEndpointResolver(
+            RestClient.Builder restClientBuilder,
+            @Value("${DELIVERY_REGISTRY_BASE_URL:}") String registryBaseUrl) {
+        this.registryRestClient = registryBaseUrl.isBlank() ? null : restClientBuilder.baseUrl(registryBaseUrl).build();
+    }
+
+    String resolveUrl(String serviceName, String fallbackBaseUrl, String requestPath) {
+        return joinUrl(resolveBaseUrl(serviceName, fallbackBaseUrl), requestPath);
+    }
+
+    void clearCache() {
+        cachedBaseUrls.clear();
+    }
+
+    private String resolveBaseUrl(String serviceName, String fallbackBaseUrl) {
+        if (StringUtils.hasText(serviceName)) {
+            String cachedBaseUrl = cachedBaseUrls.get(serviceName);
+            if (StringUtils.hasText(cachedBaseUrl)) {
+                return cachedBaseUrl;
+            }
+            String discoveredBaseUrl = discoverBaseUrl(serviceName);
+            if (StringUtils.hasText(discoveredBaseUrl)) {
+                cachedBaseUrls.put(serviceName, discoveredBaseUrl);
+                return discoveredBaseUrl;
+            }
+        }
+        return fallbackBaseUrl;
+    }
+
+    private String discoverBaseUrl(String serviceName) {
+        if (registryRestClient == null || !StringUtils.hasText(serviceName)) {
+            return "";
+        }
+        try {
+            RegistryServiceDescriptorPayload[] response = registryRestClient.get()
+                    .uri("/registry/services")
+                    .retrieve()
+                    .body(RegistryServiceDescriptorPayload[].class);
+            if (response == null) {
+                return "";
+            }
+            return List.of(response).stream()
+                    .filter(Objects::nonNull)
+                    .filter(service -> serviceName.equalsIgnoreCase(service.serviceName()))
+                    .filter(service -> "AVAILABLE".equalsIgnoreCase(service.status()))
+                    .map(RegistryServiceDescriptorPayload::endpoint)
+                    .filter(StringUtils::hasText)
+                    .findFirst()
+                    .orElse("");
+        } catch (Exception ignored) {
+            return "";
+        }
+    }
+
+    private String joinUrl(String endpoint, String requestPath) {
+        if (!StringUtils.hasText(endpoint)) {
+            return "";
+        }
+        if (!StringUtils.hasText(requestPath)) {
+            return endpoint;
+        }
+        if (requestPath.startsWith("http://") || requestPath.startsWith("https://")) {
+            return requestPath;
+        }
+        if (endpoint.endsWith("/") && requestPath.startsWith("/")) {
+            return endpoint.substring(0, endpoint.length() - 1) + requestPath;
+        }
+        if (!endpoint.endsWith("/") && !requestPath.startsWith("/")) {
+            return endpoint + "/" + requestPath;
+        }
+        return endpoint + requestPath;
     }
 }
 
@@ -1084,3 +1172,5 @@ record PaymentPrepareResponse(
         String summary,
         String classification,
         boolean escalationRequired) {}
+
+    record RegistryServiceDescriptorPayload(String serviceName, String endpoint, String status) {}

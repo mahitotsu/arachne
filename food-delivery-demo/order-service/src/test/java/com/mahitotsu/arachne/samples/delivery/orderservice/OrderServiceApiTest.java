@@ -53,6 +53,7 @@ class OrderServiceApiTest {
     private static MockWebServer deliveryServer;
     private static MockWebServer paymentServer;
         private static MockWebServer supportServer;
+        private static MockWebServer registryServer;
     private static MockWebServer jwkServer;
     private static RSAKey signingKey;
     private static String accessToken;
@@ -61,6 +62,9 @@ class OrderServiceApiTest {
 
     @Autowired
     private TestRestTemplate restTemplate;
+
+        @Autowired
+        private RegistryServiceEndpointResolver endpointResolver;
 
     @LocalServerPort
     private int port;
@@ -73,12 +77,15 @@ class OrderServiceApiTest {
         deliveryServer = new MockWebServer();
         paymentServer = new MockWebServer();
         supportServer = new MockWebServer();
+                registryServer = new MockWebServer();
+                registryServer.setDispatcher(registryDispatcher());
         jwkServer = new MockWebServer();
         jwkServer.setDispatcher(jwkDispatcher());
         menuServer.start();
         deliveryServer.start();
         paymentServer.start();
         supportServer.start();
+                registryServer.start();
         jwkServer.start();
     }
 
@@ -88,20 +95,24 @@ class OrderServiceApiTest {
         deliveryServer.shutdown();
         paymentServer.shutdown();
         supportServer.shutdown();
+                registryServer.shutdown();
         jwkServer.shutdown();
     }
 
     @DynamicPropertySource
     static void configureProperties(DynamicPropertyRegistry registry) {
-        registry.add("MENU_SERVICE_BASE_URL", () -> menuServer.url("/").toString());
-        registry.add("DELIVERY_SERVICE_BASE_URL", () -> deliveryServer.url("/").toString());
-        registry.add("PAYMENT_SERVICE_BASE_URL", () -> paymentServer.url("/").toString());
-                registry.add("SUPPORT_SERVICE_BASE_URL", () -> supportServer.url("/").toString());
+                registry.add("DELIVERY_REGISTRY_BASE_URL", () -> registryServer.url("/").toString());
+                registry.add("MENU_SERVICE_NAME", () -> "menu-service");
+                registry.add("DELIVERY_SERVICE_NAME", () -> "delivery-service");
+                registry.add("PAYMENT_SERVICE_NAME", () -> "payment-service");
+                registry.add("SUPPORT_SERVICE_NAME", () -> "support-service");
         registry.add("spring.security.oauth2.resourceserver.jwt.jwk-set-uri", () -> jwkServer.url("/oauth2/jwks").toString());
     }
 
     @BeforeEach
     void prepareAuthenticatedClient() throws InterruptedException {
+                endpointResolver.clearCache();
+                drainRequests(registryServer);
         drainRequests(menuServer);
         drainRequests(deliveryServer);
         drainRequests(paymentServer);
@@ -125,7 +136,7 @@ class OrderServiceApiTest {
     }
 
     @Test
-    void suggestReturnsStructuredProposalAndWorkflowStep() {
+        void suggestReturnsStructuredProposalAndWorkflowStep() throws InterruptedException {
         menuServer.enqueue(jsonResponse(menuSuggestBody()));
 
         SuggestOrderResponse response = restTemplate.postForObject(
@@ -141,6 +152,7 @@ class OrderServiceApiTest {
                 .containsExactly("combo-teriyaki", "drink-lemon");
         assertThat(response.trace()).extracting(ServiceTrace::service)
                 .contains("menu-service", "kitchen-service/support", "order-service");
+        assertThat(recordedPaths(registryServer)).anyMatch(path -> path.startsWith("/registry/services"));
     }
 
     @Test
@@ -398,6 +410,19 @@ class OrderServiceApiTest {
         }
     }
 
+        private static List<String> recordedPaths(MockWebServer server) throws InterruptedException {
+                java.util.ArrayList<String> paths = new java.util.ArrayList<>();
+                RecordedRequest request;
+                while ((request = server.takeRequest(10, TimeUnit.MILLISECONDS)) != null) {
+                        paths.add(request.getPath());
+                }
+                return paths;
+        }
+
+        private static String trimTrailingSlash(String value) {
+                return value.replaceAll("/$", "");
+        }
+
     private static Dispatcher jwkDispatcher() {
         return new Dispatcher() {
             @Override
@@ -408,6 +433,39 @@ class OrderServiceApiTest {
             }
         };
     }
+
+        private static Dispatcher registryDispatcher() {
+                return new Dispatcher() {
+                        @Override
+                        public MockResponse dispatch(RecordedRequest request) {
+                                String path = request.getPath();
+                                if (path != null && path.startsWith("/registry/register")) {
+                                        return jsonResponse("""
+                                                        {
+                                                          "serviceName": "order-service",
+                                                          "endpoint": "http://order-service:8080",
+                                                          "status": "AVAILABLE"
+                                                        }
+                                                        """);
+                                }
+                                if (path != null && path.startsWith("/registry/services")) {
+                                        return jsonResponse("""
+                                                        [
+                                                          {"serviceName": "menu-service", "endpoint": "%s", "status": "AVAILABLE"},
+                                                          {"serviceName": "delivery-service", "endpoint": "%s", "status": "AVAILABLE"},
+                                                          {"serviceName": "payment-service", "endpoint": "%s", "status": "AVAILABLE"},
+                                                          {"serviceName": "support-service", "endpoint": "%s", "status": "AVAILABLE"}
+                                                        ]
+                                                        """.formatted(
+                                                                        trimTrailingSlash(menuServer.url("/").toString()),
+                                                                        trimTrailingSlash(deliveryServer.url("/").toString()),
+                                                                        trimTrailingSlash(paymentServer.url("/").toString()),
+                                                                        trimTrailingSlash(supportServer.url("/").toString())));
+                                }
+                                return new MockResponse().setResponseCode(404);
+                        }
+                };
+        }
 
     private static String createAccessToken() {
         try {

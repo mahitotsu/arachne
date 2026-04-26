@@ -2,7 +2,9 @@ package com.mahitotsu.arachne.samples.delivery.supportservice;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.AfterAll;
@@ -80,11 +82,13 @@ class SupportServiceApiTest {
     static void configureProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.security.oauth2.resourceserver.jwt.jwk-set-uri", () -> jwkServer.url("/oauth2/jwks").toString());
         registry.add("DELIVERY_REGISTRY_BASE_URL", () -> registryServer.url("/").toString());
-        registry.add("ORDER_SERVICE_BASE_URL", () -> orderServer.url("/").toString());
+        registry.add("ORDER_SERVICE_NAME", () -> "order-service");
     }
 
     @BeforeEach
-    void prepareAuthenticatedClient() {
+    void prepareAuthenticatedClient() throws InterruptedException {
+        drainRequests(registryServer);
+        drainRequests(orderServer);
         restTemplate.getRestTemplate().setInterceptors(List.of((request, body, execution) -> {
             request.getHeaders().setBearerAuth(accessToken);
             return execution.execute(request, body);
@@ -104,7 +108,7 @@ class SupportServiceApiTest {
     }
 
     @Test
-    void chatReturnsCampaignsStatusesAndRecentOrdersForAuthenticatedCustomer() {
+    void chatReturnsCampaignsStatusesAndRecentOrdersForAuthenticatedCustomer() throws InterruptedException {
         SupportChatResponse response = restTemplate.postForObject(
                 "/api/support/chat",
                 new SupportChatRequest("session-support", "使えるキャンペーンと配送の稼働状況、最近の注文を教えて"),
@@ -119,6 +123,8 @@ class SupportServiceApiTest {
         assertThat(response.recentOrders()).extracting(CustomerOrderHistoryEntry::orderId)
                 .contains("ord-1001");
         assertThat(response.summary()).contains("雨の日ポイント2倍", "delivery-service", "照り焼き");
+        assertThat(recordedPaths(registryServer)).anyMatch(path -> path.startsWith("/registry/services"));
+        assertThat(recordedPaths(orderServer)).anyMatch(path -> path.startsWith("/api/orders/history"));
     }
 
     @Test
@@ -191,6 +197,19 @@ class SupportServiceApiTest {
                                     }
                                     """);
                 }
+                                if (path != null && path.startsWith("/registry/services")) {
+                                        return new MockResponse()
+                                                        .setHeader("Content-Type", "application/json")
+                                                        .setBody("""
+                                                                        [
+                                                                            {
+                                                                                "serviceName": "order-service",
+                                                                                "endpoint": "%s",
+                                                                                "status": "AVAILABLE"
+                                                                            }
+                                                                        ]
+                                                                        """.formatted(orderServer.url("/").toString().replaceAll("/$", "")));
+                                }
                 return new MockResponse().setResponseCode(404);
             }
         };
@@ -243,5 +262,20 @@ class SupportServiceApiTest {
                 claims);
         jwt.sign(new RSASSASigner(signingKey.toPrivateKey()));
         return jwt.serialize();
+    }
+
+    private static void drainRequests(MockWebServer server) throws InterruptedException {
+        while (server.takeRequest(10, TimeUnit.MILLISECONDS) != null) {
+            // drain previously recorded startup or test requests
+        }
+    }
+
+    private static List<String> recordedPaths(MockWebServer server) throws InterruptedException {
+        List<String> paths = new ArrayList<>();
+        RecordedRequest request;
+        while ((request = server.takeRequest(10, TimeUnit.MILLISECONDS)) != null) {
+            paths.add(request.getPath());
+        }
+        return paths;
     }
 }

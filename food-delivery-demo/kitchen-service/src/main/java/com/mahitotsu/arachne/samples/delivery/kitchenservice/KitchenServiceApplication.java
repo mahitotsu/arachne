@@ -29,6 +29,7 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -65,11 +66,6 @@ public class KitchenServiceApplication {
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> {}))
                 .build();
-    }
-
-    @Bean("menuRestClient")
-    RestClient menuRestClient(@Value("${MENU_SERVICE_BASE_URL:http://localhost:8081}") String baseUrl) {
-        return RestClient.builder().baseUrl(baseUrl).build();
     }
 
     @Bean
@@ -412,19 +408,109 @@ class KitchenRepository {
 class MenuSubstitutionGateway {
 
     private final RestClient restClient;
+    private final RegistryServiceEndpointResolver endpointResolver;
+    private final String menuServiceName;
+    private final String fallbackBaseUrl;
 
-    MenuSubstitutionGateway(@Qualifier("menuRestClient") RestClient restClient) {
-        this.restClient = restClient;
+    MenuSubstitutionGateway(
+            RestClient.Builder restClientBuilder,
+            RegistryServiceEndpointResolver endpointResolver,
+            @Value("${MENU_SERVICE_NAME:menu-service}") String menuServiceName,
+            @Value("${MENU_SERVICE_BASE_URL:}") String fallbackBaseUrl) {
+        this.restClient = restClientBuilder.build();
+        this.endpointResolver = endpointResolver;
+        this.menuServiceName = menuServiceName;
+        this.fallbackBaseUrl = fallbackBaseUrl;
     }
 
     MenuSubstitutionResponse suggestSubstitutes(MenuSubstitutionRequest request, String accessToken) {
         return Objects.requireNonNull(restClient.post()
-                .uri("/internal/menu/substitutes")
+                .uri(endpointResolver.resolveUrl(menuServiceName, fallbackBaseUrl, "/internal/menu/substitutes"))
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(request)
                 .retrieve()
                 .body(MenuSubstitutionResponse.class));
+    }
+}
+
+@Component
+class RegistryServiceEndpointResolver {
+
+    private final RestClient registryRestClient;
+    private final ConcurrentMap<String, String> cachedBaseUrls = new ConcurrentHashMap<>();
+
+    RegistryServiceEndpointResolver(
+            RestClient.Builder restClientBuilder,
+            @Value("${DELIVERY_REGISTRY_BASE_URL:}") String registryBaseUrl) {
+        this.registryRestClient = registryBaseUrl.isBlank() ? null : restClientBuilder.baseUrl(registryBaseUrl).build();
+    }
+
+    String resolveUrl(String serviceName, String fallbackBaseUrl, String requestPath) {
+        return joinUrl(resolveBaseUrl(serviceName, fallbackBaseUrl), requestPath);
+    }
+
+    void clearCache() {
+        cachedBaseUrls.clear();
+    }
+
+    private String resolveBaseUrl(String serviceName, String fallbackBaseUrl) {
+        if (StringUtils.hasText(serviceName)) {
+            String cachedBaseUrl = cachedBaseUrls.get(serviceName);
+            if (StringUtils.hasText(cachedBaseUrl)) {
+                return cachedBaseUrl;
+            }
+            String discoveredBaseUrl = discoverBaseUrl(serviceName);
+            if (StringUtils.hasText(discoveredBaseUrl)) {
+                cachedBaseUrls.put(serviceName, discoveredBaseUrl);
+                return discoveredBaseUrl;
+            }
+        }
+        return fallbackBaseUrl;
+    }
+
+    private String discoverBaseUrl(String serviceName) {
+        if (registryRestClient == null || !StringUtils.hasText(serviceName)) {
+            return "";
+        }
+        try {
+            RegistryServiceDescriptorPayload[] response = registryRestClient.get()
+                    .uri("/registry/services")
+                    .retrieve()
+                    .body(RegistryServiceDescriptorPayload[].class);
+            if (response == null) {
+                return "";
+            }
+            return List.of(response).stream()
+                    .filter(Objects::nonNull)
+                    .filter(service -> serviceName.equalsIgnoreCase(service.serviceName()))
+                    .filter(service -> "AVAILABLE".equalsIgnoreCase(service.status()))
+                    .map(RegistryServiceDescriptorPayload::endpoint)
+                    .filter(StringUtils::hasText)
+                    .findFirst()
+                    .orElse("");
+        } catch (Exception ignored) {
+            return "";
+        }
+    }
+
+    private String joinUrl(String endpoint, String requestPath) {
+        if (!StringUtils.hasText(endpoint)) {
+            return "";
+        }
+        if (!StringUtils.hasText(requestPath)) {
+            return endpoint;
+        }
+        if (requestPath.startsWith("http://") || requestPath.startsWith("https://")) {
+            return requestPath;
+        }
+        if (endpoint.endsWith("/") && requestPath.startsWith("/")) {
+            return endpoint.substring(0, endpoint.length() - 1) + requestPath;
+        }
+        if (!endpoint.endsWith("/") && !requestPath.startsWith("/")) {
+            return endpoint + "/" + requestPath;
+        }
+        return endpoint + requestPath;
     }
 }
 
@@ -673,5 +759,7 @@ record AgentCollaboration(String service, String agent, String headline, String 
 record MenuSubstitutionRequest(String sessionId, String message, String unavailableItemId) {}
 
 record MenuSubstitutionResponse(String service, String agent, String headline, String summary, List<MenuItem> items) {}
+
+record RegistryServiceDescriptorPayload(String serviceName, String endpoint, String status) {}
 
 record MenuItem(String id, String name, String description, BigDecimal price, int suggestedQuantity) {}

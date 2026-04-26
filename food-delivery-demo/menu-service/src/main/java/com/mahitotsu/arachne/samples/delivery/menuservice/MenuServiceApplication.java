@@ -7,6 +7,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.regex.Pattern;
 
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -28,6 +30,7 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -65,11 +68,6 @@ public class MenuServiceApplication {
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> {}))
                 .build();
-    }
-
-    @Bean("kitchenRestClient")
-    RestClient kitchenRestClient(@Value("${KITCHEN_SERVICE_BASE_URL:http://localhost:8082}") String baseUrl) {
-        return RestClient.builder().baseUrl(baseUrl).build();
     }
 
     @Bean
@@ -856,19 +854,109 @@ class MenuArachneConfiguration {
 class KitchenCheckGateway {
 
     private final RestClient restClient;
+    private final RegistryServiceEndpointResolver endpointResolver;
+    private final String kitchenServiceName;
+    private final String fallbackBaseUrl;
 
-    KitchenCheckGateway(@Qualifier("kitchenRestClient") RestClient restClient) {
-        this.restClient = restClient;
+    KitchenCheckGateway(
+            RestClient.Builder restClientBuilder,
+            RegistryServiceEndpointResolver endpointResolver,
+            @Value("${KITCHEN_SERVICE_NAME:kitchen-service}") String kitchenServiceName,
+            @Value("${KITCHEN_SERVICE_BASE_URL:}") String fallbackBaseUrl) {
+        this.restClient = restClientBuilder.build();
+        this.endpointResolver = endpointResolver;
+        this.kitchenServiceName = kitchenServiceName;
+        this.fallbackBaseUrl = fallbackBaseUrl;
     }
 
     KitchenCheckResponse check(KitchenCheckRequest request, String accessToken) {
         return java.util.Objects.requireNonNull(restClient.post()
-                .uri("/internal/kitchen/check")
+                .uri(endpointResolver.resolveUrl(kitchenServiceName, fallbackBaseUrl, "/internal/kitchen/check"))
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(request)
                 .retrieve()
                 .body(KitchenCheckResponse.class));
+    }
+}
+
+@Component
+class RegistryServiceEndpointResolver {
+
+    private final RestClient registryRestClient;
+    private final ConcurrentMap<String, String> cachedBaseUrls = new ConcurrentHashMap<>();
+
+    RegistryServiceEndpointResolver(
+            RestClient.Builder restClientBuilder,
+            @Value("${DELIVERY_REGISTRY_BASE_URL:}") String registryBaseUrl) {
+        this.registryRestClient = registryBaseUrl.isBlank() ? null : restClientBuilder.baseUrl(registryBaseUrl).build();
+    }
+
+    String resolveUrl(String serviceName, String fallbackBaseUrl, String requestPath) {
+        return joinUrl(resolveBaseUrl(serviceName, fallbackBaseUrl), requestPath);
+    }
+
+    void clearCache() {
+        cachedBaseUrls.clear();
+    }
+
+    private String resolveBaseUrl(String serviceName, String fallbackBaseUrl) {
+        if (StringUtils.hasText(serviceName)) {
+            String cachedBaseUrl = cachedBaseUrls.get(serviceName);
+            if (StringUtils.hasText(cachedBaseUrl)) {
+                return cachedBaseUrl;
+            }
+            String discoveredBaseUrl = discoverBaseUrl(serviceName);
+            if (StringUtils.hasText(discoveredBaseUrl)) {
+                cachedBaseUrls.put(serviceName, discoveredBaseUrl);
+                return discoveredBaseUrl;
+            }
+        }
+        return fallbackBaseUrl;
+    }
+
+    private String discoverBaseUrl(String serviceName) {
+        if (registryRestClient == null || !StringUtils.hasText(serviceName)) {
+            return "";
+        }
+        try {
+            RegistryServiceDescriptorPayload[] response = registryRestClient.get()
+                    .uri("/registry/services")
+                    .retrieve()
+                    .body(RegistryServiceDescriptorPayload[].class);
+            if (response == null) {
+                return "";
+            }
+            return List.of(response).stream()
+                    .filter(java.util.Objects::nonNull)
+                    .filter(service -> serviceName.equalsIgnoreCase(service.serviceName()))
+                    .filter(service -> "AVAILABLE".equalsIgnoreCase(service.status()))
+                    .map(RegistryServiceDescriptorPayload::endpoint)
+                    .filter(StringUtils::hasText)
+                    .findFirst()
+                    .orElse("");
+        } catch (Exception ignored) {
+            return "";
+        }
+    }
+
+    private String joinUrl(String endpoint, String requestPath) {
+        if (!StringUtils.hasText(endpoint)) {
+            return "";
+        }
+        if (!StringUtils.hasText(requestPath)) {
+            return endpoint;
+        }
+        if (requestPath.startsWith("http://") || requestPath.startsWith("https://")) {
+            return requestPath;
+        }
+        if (endpoint.endsWith("/") && requestPath.startsWith("/")) {
+            return endpoint.substring(0, endpoint.length() - 1) + requestPath;
+        }
+        if (!endpoint.endsWith("/") && !requestPath.startsWith("/")) {
+            return endpoint + "/" + requestPath;
+        }
+        return endpoint + requestPath;
     }
 }
 
@@ -907,5 +995,7 @@ record KitchenItemStatus(String itemId, boolean available, int prepMinutes, Stri
         BigDecimal substitutePrice) {}
 
 record AgentCollaboration(String service, String agent, String headline, String summary) {}
+
+record RegistryServiceDescriptorPayload(String serviceName, String endpoint, String status) {}
 
 record KitchenTrace(String summary, List<String> notes) {}
