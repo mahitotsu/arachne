@@ -927,7 +927,8 @@ record MenuSuggestionResponse(
         int etaMinutes,
         KitchenTraceView kitchenTrace) {}
 
-record MenuItemView(String id, String name, String description, BigDecimal price, int suggestedQuantity) {}
+record MenuItemView(String id, String name, String description, BigDecimal price, int suggestedQuantity,
+    String category, List<String> tags) {}
 
 record KitchenTraceView(String summary, List<String> notes) {}
 

@@ -657,4 +657,5 @@ record RegistryServiceDescriptorPayload(
     String requestPath,
     String status) {}
 
-record MenuItem(String id, String name, String description, BigDecimal price, int suggestedQuantity) {}
+record MenuItem(String id, String name, String description, BigDecimal price, int suggestedQuantity,
+    String category, List<String> tags) {}

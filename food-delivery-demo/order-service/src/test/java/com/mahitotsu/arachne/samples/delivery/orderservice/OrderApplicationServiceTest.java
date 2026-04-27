@@ -58,7 +58,8 @@ class OrderApplicationServiceTest {
                 "menu-agent",
                 "headline",
                 "summary",
-                List.of(new MenuItemView("combo-teriyaki", "Teriyaki Chicken Box", "", new BigDecimal("920.00"), 1)),
+                List.of(new MenuItemView("combo-teriyaki", "Teriyaki Chicken Box", "", new BigDecimal("920.00"), 1,
+                        "combo", List.of("teriyaki", "chicken"))),
                 14,
                 new KitchenTraceView("kitchen ok", List.of())));
 

@@ -10,7 +10,9 @@ WORKDIR /workspace
 COPY pom.xml pom.xml
 COPY arachne/pom.xml arachne/pom.xml
 COPY food-delivery-demo/pom.xml food-delivery-demo/pom.xml
+COPY food-delivery-demo/test-support/pom.xml food-delivery-demo/test-support/pom.xml
 COPY food-delivery-demo/customer-service/pom.xml food-delivery-demo/customer-service/pom.xml
+COPY food-delivery-demo/support-service/pom.xml food-delivery-demo/support-service/pom.xml
 COPY food-delivery-demo/order-service/pom.xml food-delivery-demo/order-service/pom.xml
 COPY food-delivery-demo/menu-service/pom.xml food-delivery-demo/menu-service/pom.xml
 COPY food-delivery-demo/kitchen-service/pom.xml food-delivery-demo/kitchen-service/pom.xml
@@ -33,10 +35,13 @@ WORKDIR /workspace
 COPY . .
 
 RUN --mount=type=cache,id=arachne-delivery-m2,target=/root/.m2,sharing=locked \
-	mvn -B -ntp -f arachne/pom.xml install -DskipTests
+	mvn -B -ntp -f arachne/pom.xml install -Dmaven.test.skip=true
 
 RUN --mount=type=cache,id=arachne-delivery-m2,target=/root/.m2,sharing=locked \
-	mvn -B -ntp -f ${MODULE_DIR}/pom.xml package -DskipTests
+	mvn -B -ntp -f food-delivery-demo/test-support/pom.xml install -Dmaven.test.skip=true
+
+RUN --mount=type=cache,id=arachne-delivery-m2,target=/root/.m2,sharing=locked \
+	mvn -B -ntp -f ${MODULE_DIR}/pom.xml package -Dmaven.test.skip=true
 
 FROM ${RUNTIME_IMAGE} AS runtime
 

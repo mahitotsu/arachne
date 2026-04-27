@@ -405,8 +405,8 @@ class OrderServiceApiTest {
                   "summary": "menu-agent recommends Teriyaki Chicken Box and Lemon Soda.",
                   "etaMinutes": 14,
                   "items": [
-                    {"id": "combo-teriyaki", "name": "Teriyaki Chicken Box", "description": "Teriyaki set.", "price": 920.0, "suggestedQuantity": 2},
-                    {"id": "drink-lemon", "name": "Lemon Soda", "description": "Fresh lemon soda.", "price": 240.0, "suggestedQuantity": 2}
+                                                                                {"id": "combo-teriyaki", "name": "Teriyaki Chicken Box", "description": "Teriyaki set.", "price": 920.0, "suggestedQuantity": 2, "category": "combo", "tags": ["teriyaki", "chicken"]},
+                                                                                {"id": "drink-lemon", "name": "Lemon Soda", "description": "Fresh lemon soda.", "price": 240.0, "suggestedQuantity": 2, "category": "drink", "tags": ["lemon", "soda"]}
                   ],
                   "kitchenTrace": {
                     "summary": "kitchen-agent cleared the draft with a 14 minute ETA.",
@@ -450,10 +450,10 @@ class OrderServiceApiTest {
                                 if (path != null && path.startsWith("/registry/services")) {
                                         return jsonResponse("""
                                                         [
-                                                                                                                                                                                                                                        {"serviceName": "capability-menu-collab", "endpoint": "%s", "capability": "メニュー提案、在庫付き提案、注文候補の提示を扱う。", "agentName": "menu-agent", "requestMethod": "POST", "requestPath": "%s", "status": "AVAILABLE"},
-                                                                                                                                                                                                                                        {"serviceName": "capability-delivery-collab", "endpoint": "%s", "capability": "配送候補、ETA 比較、配送選択肢の提示を扱う。", "agentName": "delivery-agent", "requestMethod": "POST", "requestPath": "%s", "status": "AVAILABLE"},
-                                                                                                                                                                                                                                        {"serviceName": "capability-payment-collab", "endpoint": "%s", "capability": "支払い準備、合計確認、課金確定を扱う。", "agentName": "payment-service", "requestMethod": "POST", "requestPath": "%s", "status": "AVAILABLE"},
-                                                                                                                                                                                                                                        {"serviceName": "capability-support-collab", "endpoint": "%s", "capability": "注文後フィードバック受付、問い合わせ受付、サポート連携を扱う。", "agentName": "support-agent", "requestMethod": "POST", "requestPath": "%s", "status": "AVAILABLE"}
+                                                                                                                                                                                                                                        {"serviceName": "legacy-menu-service", "endpoint": "%s", "capability": "メニュー提案、在庫付き提案、注文候補の提示を扱う。", "agentName": "menu-agent", "requestMethod": "POST", "requestPath": "%s", "status": "AVAILABLE"},
+                                                                                                                                                                                                                                        {"serviceName": "legacy-delivery-service", "endpoint": "%s", "capability": "配送候補、ETA 比較、配送選択肢の提示を扱う。", "agentName": "delivery-agent", "requestMethod": "POST", "requestPath": "%s", "status": "AVAILABLE"},
+                                                                                                                                                                                                                                        {"serviceName": "legacy-payment-service", "endpoint": "%s", "capability": "支払い準備、合計確認、課金確定を扱う。", "agentName": "payment-service", "requestMethod": "POST", "requestPath": "%s", "status": "AVAILABLE"},
+                                                                                                                                                                                                                                        {"serviceName": "legacy-support-service", "endpoint": "%s", "capability": "注文後フィードバック受付、問い合わせ受付、サポート連携を扱う。", "agentName": "support-agent", "requestMethod": "POST", "requestPath": "%s", "status": "AVAILABLE"}
                                                         ]
                                                         """.formatted(
                                                                         trimTrailingSlash(menuServer.url("/").toString()),

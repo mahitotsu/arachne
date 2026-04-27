@@ -129,8 +129,8 @@ class KitchenServiceApiTest {
                           "headline": "menu-agent prepared 2 fallback options",
                           "summary": "menu-agent suggested Nugget Share Box and Garden Wrap for kitchen-agent to validate.",
                           "items": [
-                            {"id": "side-nuggets", "name": "Nugget Share Box", "description": "Ten-piece nugget box with sauces.", "price": 640.0, "suggestedQuantity": 1},
-                            {"id": "wrap-garden", "name": "Garden Wrap", "description": "Fresh veggie wrap with yogurt sauce.", "price": 760.0, "suggestedQuantity": 1}
+                                                        {"id": "side-nuggets", "name": "Nugget Share Box", "description": "Ten-piece nugget box with sauces.", "price": 640.0, "suggestedQuantity": 1, "category": "side", "tags": ["share", "chicken"]},
+                                                        {"id": "wrap-garden", "name": "Garden Wrap", "description": "Fresh veggie wrap with yogurt sauce.", "price": 760.0, "suggestedQuantity": 1, "category": "wrap", "tags": ["veggie"]}
                           ]
                         }
                         """));
@@ -210,7 +210,7 @@ class KitchenServiceApiTest {
                             .setHeader("Content-Type", "application/json")
                             .setBody("""
                                     [
-                                                                            {"serviceName": "capability-menu-collab", "endpoint": "%s", "capability": "メニュー提案、問い合わせ受付、欠品時の代替候補提示を扱う。", "agentName": "menu-agent", "requestMethod": "POST", "requestPath": "%s", "status": "AVAILABLE"}
+                                                {"serviceName": "legacy-menu-service", "endpoint": "%s", "capability": "メニュー提案、問い合わせ受付、欠品時の代替候補提示を扱う。", "agentName": "menu-agent", "requestMethod": "POST", "requestPath": "%s", "status": "AVAILABLE"}
                                     ]
                                                                         """.formatted(trimTrailingSlash(menuServer.url("/").toString()), MENU_SUBSTITUTION_META_PATH));
                 }

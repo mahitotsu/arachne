@@ -9,6 +9,8 @@ import org.springframework.web.client.RestClient;
 @Component
 class RegistryBackedKitchenCheckGateway implements KitchenCheckGateway {
 
+    private static final String DEFAULT_KITCHEN_SERVICE_NAME = "kitchen-service";
+
     private final RestClient restClient;
     private final ServiceEndpointResolver endpointResolver;
     private final String kitchenServiceName;
@@ -17,12 +19,14 @@ class RegistryBackedKitchenCheckGateway implements KitchenCheckGateway {
     RegistryBackedKitchenCheckGateway(
             RestClient.Builder restClientBuilder,
             ServiceEndpointResolver endpointResolver,
-            @Value("${KITCHEN_SERVICE_NAME:kitchen-service}") String kitchenServiceName,
+            @Value("${KITCHEN_SERVICE_NAME:" + DEFAULT_KITCHEN_SERVICE_NAME + "}") String kitchenServiceName,
             @Value("${KITCHEN_SERVICE_BASE_URL:}") String fallbackBaseUrl) {
         this.restClient = restClientBuilder.build();
         this.endpointResolver = endpointResolver;
         this.kitchenServiceName = kitchenServiceName;
-        this.fallbackBaseUrl = fallbackBaseUrl;
+        this.fallbackBaseUrl = fallbackBaseUrl.isBlank()
+                ? "http://" + kitchenServiceName + ":8080"
+                : fallbackBaseUrl;
     }
 
     @Override
