@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 
+import { fetchAuthSession } from '../../lib/browser-session';
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 type OrderLineItem = {
@@ -81,6 +83,16 @@ type SessionView = {
   draft: OrderDraft;
   pendingProposal: ProposalItem[];
   pendingDeliveryOptions: DeliveryOptionChoice[];
+  snapshot: OrderSnapshot | null;
+};
+
+type OrderSnapshot = {
+  sessionId: string;
+  message: string;
+  suggestSummary: string;
+  suggestEta: number;
+  pendingProposals: ProposalItem[];
+  confirmedItems: ProposalItem[];
 };
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -96,9 +108,32 @@ const EMPTY_DRAFT: OrderDraft = {
   orderId: '',
 };
 
-const SESSION_KEY = 'delivery-demo-session-id';
-const ACCESS_TOKEN_KEY = 'delivery-demo-access-token';
 const STEPS = ['初期入力', 'アイテム選択', '配送選択', '支払い承認'];
+
+function mapWorkflowStepToStep(workflowStep: string) {
+  switch (workflowStep) {
+    case 'item-selection':
+      return 1;
+    case 'delivery-selection':
+      return 2;
+    case 'payment':
+      return 3;
+    case 'completed':
+      return 4;
+    default:
+      return 0;
+  }
+}
+
+function proposalItemsFromDraft(draft: OrderDraft) {
+  return draft.items.map((item, index) => ({
+    itemId: `confirmed-${index}-${item.name}`,
+    name: item.name,
+    quantity: item.quantity,
+    unitPrice: item.unitPrice,
+    reason: item.note,
+  }));
+}
 
 // ── Main export ───────────────────────────────────────────────────────────────
 
@@ -116,10 +151,10 @@ function OrderPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [accessToken, setAccessToken] = useState('');
   const [sessionId, setSessionId] = useState('');
   // step: 0=入力, 1=アイテム選択, 2=配送選択, 3=支払い, 4=完了
   const [step, setStep] = useState(0);
+  const [committedStep, setCommittedStep] = useState(0);
   const [message, setMessage] = useState('');
   const [refinement, setRefinement] = useState('');
   const [suggestSummary, setSuggestSummary] = useState('');
@@ -135,64 +170,90 @@ function OrderPageInner() {
   // ── Auth & session restore ─────────────────────────────────────────────────
 
   useEffect(() => {
-    const token = window.localStorage.getItem(ACCESS_TOKEN_KEY);
-    if (!token) {
-      router.replace('/');
-      return;
-    }
-    setAccessToken(token);
+    void (async () => {
+      const auth = await fetchAuthSession();
+      if (!auth.authenticated) {
+        router.replace('/');
+        return;
+      }
 
-    const itemParam = searchParams.get('item');
-    const reorderParam = searchParams.get('reorder');
-    if (reorderParam) {
-      setMessage(`注文ID ${reorderParam} と同じ内容を再注文したいです。`);
-    } else if (itemParam) {
-      setMessage(`「${itemParam}」を注文したいです。`);
-    }
+      const itemParam = searchParams.get('item');
+      const reorderParam = searchParams.get('reorder');
+      if (reorderParam) {
+        setMessage(`注文ID ${reorderParam} と同じ内容を再注文したいです。`);
+      } else if (itemParam) {
+        setMessage(`「${itemParam}」を注文したいです。`);
+      }
 
-    const savedSessionId = window.localStorage.getItem(SESSION_KEY);
-    if (!savedSessionId) return;
+      try {
+        const res = await fetch('/api/backend/order/session', { cache: 'no-store' });
+        if (res.status === 404) {
+          return;
+        }
+        if (res.status === 401) {
+          router.replace('/');
+          return;
+        }
+        if (!res.ok) {
+          throw new Error(`restore failed: ${res.status}`);
+        }
 
-    void fetch(`/api/backend/order/session/${savedSessionId}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(r => r.ok ? r.json() as Promise<SessionView> : null)
-      .then(view => {
-        if (!view) return;
+        const view = await res.json() as SessionView;
+        const restoredDraft = view.draft ?? EMPTY_DRAFT;
+        const restoredStep = mapWorkflowStepToStep(view.workflowStep);
+        const snapshot = view.snapshot;
+
         setSessionId(view.sessionId);
-        setDraft(view.draft ?? EMPTY_DRAFT);
+        setDraft(restoredDraft);
+        setCommittedStep(restoredStep);
+        setRemovedItemIds(new Set());
+        if (snapshot) {
+          setMessage(snapshot.message ?? '');
+          setSuggestSummary(snapshot.suggestSummary ?? '');
+          setSuggestEta(snapshot.suggestEta ?? 0);
+        }
+
         switch (view.workflowStep) {
           case 'item-selection':
-            setProposals(view.pendingProposal ?? []);
+            setProposals(view.pendingProposal?.length ? view.pendingProposal : snapshot?.pendingProposals ?? []);
+            setDeliveryOptions([]);
+            setSelectedDeliveryCode('');
             setStep(1);
             break;
           case 'delivery-selection':
+            setProposals(snapshot?.confirmedItems?.length ? snapshot.confirmedItems : proposalItemsFromDraft(restoredDraft));
             setDeliveryOptions(view.pendingDeliveryOptions ?? []);
+            setSelectedDeliveryCode(
+              view.pendingDeliveryOptions?.find(o => o.recommended)?.code
+              ?? view.pendingDeliveryOptions?.[0]?.code
+              ?? ''
+            );
             setStep(2);
             break;
           case 'payment':
-            setStep(3);
-            break;
           case 'completed':
-            setStep(4);
+            setProposals(snapshot?.confirmedItems?.length ? snapshot.confirmedItems : proposalItemsFromDraft(restoredDraft));
+            setDeliveryOptions([]);
+            setSelectedDeliveryCode('');
+            setStep(restoredStep);
             break;
           default:
+            setProposals([]);
+            setDeliveryOptions([]);
+            setSelectedDeliveryCode('');
+            setCommittedStep(0);
             setStep(0);
         }
-      })
-      .catch(() => window.localStorage.removeItem(SESSION_KEY));
-  }, [router]);
+      } catch {
+        setError('注文セッションの復元に失敗しました');
+      }
+    })();
+  }, [router, searchParams]);
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
-  function withBearer(headersInit?: HeadersInit) {
-    const headers = new Headers(headersInit);
-    headers.set('Authorization', `Bearer ${accessToken}`);
-    return headers;
-  }
-
-  function startNewOrder() {
-    window.localStorage.removeItem(SESSION_KEY);
+  async function startNewOrder() {
+    await fetch('/api/backend/order/session', { method: 'DELETE' }).catch(() => {});
     setSessionId('');
     setMessage('');
     setRefinement('');
@@ -202,6 +263,8 @@ function OrderPageInner() {
     setDeliveryOptions([]);
     setSelectedDeliveryCode('');
     setDraft(EMPTY_DRAFT);
+    setCommittedStep(0);
+    setRemovedItemIds(new Set());
     setStep(0);
     setError('');
   }
@@ -216,9 +279,8 @@ function OrderPageInner() {
     try {
       const res = await fetch('/api/backend/order/suggest', {
         method: 'POST',
-        headers: withBearer({ 'Content-Type': 'application/json' }),
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          sessionId: sessionId || undefined,
           message: message.trim(),
           locale: navigator.languages?.[0] ?? navigator.language ?? '',
         }),
@@ -227,12 +289,14 @@ function OrderPageInner() {
       if (!res.ok) throw new Error(`提案取得に失敗しました (${res.status})`);
       const payload: SuggestResponse = await res.json();
       setSessionId(payload.sessionId);
-      window.localStorage.setItem(SESSION_KEY, payload.sessionId);
       setProposals(payload.proposals ?? []);
       setRemovedItemIds(new Set());
       setSuggestSummary(payload.summary ?? '');
       setSuggestEta(payload.etaMinutes ?? 0);
       setDraft(payload.draft ?? EMPTY_DRAFT);
+      setDeliveryOptions([]);
+      setSelectedDeliveryCode('');
+      setCommittedStep(1);
       setStep(1);
     } catch (e) {
       setError(e instanceof Error ? e.message : '提案取得に失敗しました');
@@ -250,9 +314,8 @@ function OrderPageInner() {
     try {
       const res = await fetch('/api/backend/order/suggest', {
         method: 'POST',
-        headers: withBearer({ 'Content-Type': 'application/json' }),
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          sessionId,
           message: message.trim(),
           locale: navigator.languages?.[0] ?? navigator.language ?? '',
           refinement: refinement.trim(),
@@ -262,12 +325,12 @@ function OrderPageInner() {
       if (!res.ok) throw new Error(`再提案に失敗しました (${res.status})`);
       const payload: SuggestResponse = await res.json();
       setSessionId(payload.sessionId);
-      window.localStorage.setItem(SESSION_KEY, payload.sessionId);
       setProposals(payload.proposals ?? []);
       setRemovedItemIds(new Set());
       setSuggestSummary(payload.summary ?? '');
       setSuggestEta(payload.etaMinutes ?? 0);
       setDraft(payload.draft ?? EMPTY_DRAFT);
+      setCommittedStep(1);
       setRefinement('');
     } catch (e) {
       setError(e instanceof Error ? e.message : '再提案に失敗しました');
@@ -284,22 +347,31 @@ function OrderPageInner() {
     setError('');
     try {
       // items: [] means "accept all proposals"; pass explicit IDs when user removed some
-      const keptIds = proposals
-        .filter(p => !removedItemIds.has(p.itemId))
-        .map(p => ({ itemId: p.itemId }));
+      const confirmedItems = proposals.filter(p => !removedItemIds.has(p.itemId));
+      if (committedStep >= 2) {
+        setProposals(confirmedItems);
+        setRemovedItemIds(new Set());
+        setStep(2);
+        return;
+      }
+      const keptIds = confirmedItems.map(p => ({ itemId: p.itemId }));
       const items = removedItemIds.size > 0 ? keptIds : [];
       const res = await fetch('/api/backend/order/confirm-items', {
         method: 'POST',
-        headers: withBearer({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ sessionId, items }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items }),
       });
       if (res.status === 401) { router.replace('/'); return; }
       if (!res.ok) throw new Error(`アイテム確定に失敗しました (${res.status})`);
       const payload: ConfirmItemsResponse = await res.json();
+      setSessionId(payload.sessionId);
+      setProposals(confirmedItems);
+      setRemovedItemIds(new Set());
       setDeliveryOptions(payload.deliveryOptions ?? []);
       setDraft(payload.draft ?? EMPTY_DRAFT);
       const recommended = payload.deliveryOptions?.find(o => o.recommended);
       setSelectedDeliveryCode(recommended?.code ?? payload.deliveryOptions?.[0]?.code ?? '');
+      setCommittedStep(2);
       setStep(2);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'アイテム確定に失敗しました');
@@ -317,13 +389,15 @@ function OrderPageInner() {
     try {
       const res = await fetch('/api/backend/order/confirm-delivery', {
         method: 'POST',
-        headers: withBearer({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ sessionId, deliveryCode: selectedDeliveryCode }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deliveryCode: selectedDeliveryCode }),
       });
       if (res.status === 401) { router.replace('/'); return; }
       if (!res.ok) throw new Error(`配送確定に失敗しました (${res.status})`);
       const payload: ConfirmDeliveryResponse = await res.json();
+      setSessionId(payload.sessionId);
       setDraft(payload.draft ?? EMPTY_DRAFT);
+      setCommittedStep(3);
       setStep(3);
     } catch (e) {
       setError(e instanceof Error ? e.message : '配送確定に失敗しました');
@@ -341,13 +415,15 @@ function OrderPageInner() {
     try {
       const res = await fetch('/api/backend/order/confirm-payment', {
         method: 'POST',
-        headers: withBearer({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ sessionId }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
       });
       if (res.status === 401) { router.replace('/'); return; }
       if (!res.ok) throw new Error(`注文確定に失敗しました (${res.status})`);
       const payload: ConfirmPaymentResponse = await res.json();
+      setSessionId(payload.sessionId);
       setDraft(payload.draft ?? EMPTY_DRAFT);
+      setCommittedStep(4);
       setStep(4);
     } catch (e) {
       setError(e instanceof Error ? e.message : '注文確定に失敗しました');
@@ -358,9 +434,10 @@ function OrderPageInner() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
-  const progressIndex = step < 4 ? step : 3;
+  const progressIndex = committedStep < 4 ? committedStep : 3;
   const deliveryFee = Math.max(Number(draft.total) - Number(draft.subtotal), 0);
   const keptProposals = proposals.filter(p => !removedItemIds.has(p.itemId));
+  const itemSelectionLocked = step === 1 && committedStep >= 2;
 
   return (
     <main className="shell">
@@ -395,7 +472,7 @@ function OrderPageInner() {
           return (
           <div
             key={label}
-            className={`wf-step${i < progressIndex ? ' wf-step--done' : ''}${i < progressIndex && canGoBack ? ' wf-step--clickable' : ''}${i === progressIndex ? ' wf-step--active' : ''}`}
+            className={`wf-step${i < progressIndex ? ' wf-step--done' : ''}${i < progressIndex && canGoBack ? ' wf-step--clickable' : ''}${i === step ? ' wf-step--active' : ''}`}
             onClick={canGoBack ? () => setStep(i) : undefined}
             role={canGoBack ? 'button' : undefined}
             tabIndex={canGoBack ? 0 : undefined}
@@ -453,6 +530,9 @@ function OrderPageInner() {
               {suggestEta > 0 && (
                 <p className="wf-eta">🕐 調理 ETA: 約 {suggestEta} 分</p>
               )}
+              {itemSelectionLocked && (
+                <p className="wf-card-hint">確定済みのアイテムを表示しています。内容を変更するには新しい提案からやり直してください。</p>
+              )}
             </div>
 
             <div className="wf-proposal-grid">
@@ -463,7 +543,7 @@ function OrderPageInner() {
                 >
                   <div className="wf-proposal-header">
                     <div className="wf-proposal-name">{item.name}</div>
-                    {!removedItemIds.has(item.itemId) ? (
+                    {!itemSelectionLocked && !removedItemIds.has(item.itemId) ? (
                       <button
                         type="button"
                         className="wf-proposal-remove"
@@ -473,7 +553,7 @@ function OrderPageInner() {
                       >
                         ×
                       </button>
-                    ) : (
+                    ) : !itemSelectionLocked ? (
                       <button
                         type="button"
                         className="wf-proposal-restore"
@@ -483,6 +563,9 @@ function OrderPageInner() {
                       >
                         ↩
                       </button>
+                    ) : null}
+                    {itemSelectionLocked && (
+                      <span className="wf-proposal-qty">確定済み</span>
                     )}
                   </div>
                   {!removedItemIds.has(item.itemId) && (
@@ -509,12 +592,12 @@ function OrderPageInner() {
                 onChange={e => setRefinement(e.target.value)}
                 placeholder="気になる点があれば: 「辛さを抑えて」「もう少し野菜を増やして」など"
                 rows={2}
-                disabled={loading}
+                disabled={loading || itemSelectionLocked}
               />
               <button
                 type="button"
                 className="wf-btn wf-btn--secondary"
-                disabled={loading || !refinement.trim()}
+                disabled={loading || itemSelectionLocked || !refinement.trim()}
                 onClick={handleRefinement}
               >
                 {loading ? '再提案中…' : '↺ フィードバックして再提案'}
@@ -536,7 +619,7 @@ function OrderPageInner() {
                 disabled={loading || keptProposals.length === 0}
                 onClick={handleConfirmItems}
               >
-                {loading ? '確定中…' : 'この内容で確定 →'}
+                {loading ? '確定中…' : itemSelectionLocked ? '配送選択へ戻る →' : 'この内容で確定 →'}
               </button>
             </div>
           </div>

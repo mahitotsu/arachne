@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
+import { clearAuthSession, fetchAuthSession } from '../../lib/browser-session';
+
 type CustomerProfile = {
   customerId: string;
   loginId: string;
@@ -61,9 +63,6 @@ type SupportStatusResponse = {
 
 type ServiceState = 'loading' | 'ok' | 'error' | 'idle';
 
-const ACCESS_TOKEN_KEY = 'delivery-demo-access-token';
-const SESSION_KEY = 'delivery-demo-session-id';
-
 export default function HomePage() {
   const router = useRouter();
   const [profile, setProfile] = useState<CustomerProfile | null>(null);
@@ -81,21 +80,20 @@ export default function HomePage() {
   });
 
   useEffect(() => {
-    const token = window.localStorage.getItem(ACCESS_TOKEN_KEY);
-    if (!token) {
-      router.replace('/');
-      return;
-    }
-    const headers = { Authorization: `Bearer ${token}` };
-
     async function load() {
+      const auth = await fetchAuthSession();
+      if (!auth.authenticated) {
+        router.replace('/');
+        return;
+      }
+
       const [profileResult, menuResult] = await Promise.allSettled([
-        fetch('/api/customer/customers/me', { headers }).then(r => {
+        fetch('/api/customer/customers/me').then(r => {
           if (r.status === 401) throw Object.assign(new Error('UNAUTH'), { status: 401 });
           if (!r.ok) throw new Error(`${r.status}`);
           return r.json() as Promise<CustomerProfile>;
         }),
-        fetch('/api/menu/catalog', { headers }).then(r => {
+        fetch('/api/menu/catalog').then(r => {
           if (!r.ok) throw new Error(`${r.status}`);
           return r.json() as Promise<MenuItem[]>;
         }),
@@ -107,7 +105,6 @@ export default function HomePage() {
       } else {
         setSvcState(s => ({ ...s, 'customer-service': 'error' }));
         if ((profileResult.reason as { status?: number })?.status === 401) {
-          window.localStorage.removeItem(ACCESS_TOKEN_KEY);
           router.replace('/');
           return;
         }
@@ -120,30 +117,25 @@ export default function HomePage() {
         setSvcState(s => ({ ...s, 'menu-service': 'error' }));
       }
 
-      const sessionId = window.localStorage.getItem(SESSION_KEY);
-      if (!sessionId) {
-        setSvcState(s => ({ ...s, 'order-service': 'idle' }));
-      } else {
-        try {
-          const r = await fetch(`/api/backend/session/${sessionId}`, { headers });
-          if (r.ok) {
-            const data = await r.json();
-            if (data.workflowStep && data.workflowStep !== 'completed') {
-              setRecentDraft(data.draft as RecentDraft);
-              setRecentWorkflowStep(data.workflowStep as string);
-            }
-            setSvcState(s => ({ ...s, 'order-service': 'ok' }));
-          } else {
-            setSvcState(s => ({ ...s, 'order-service': r.status === 404 ? 'idle' : 'error' }));
+      try {
+        const r = await fetch('/api/backend/order/session', { cache: 'no-store' });
+        if (r.ok) {
+          const data = await r.json();
+          if (data.workflowStep && data.workflowStep !== 'completed') {
+            setRecentDraft(data.draft as RecentDraft);
+            setRecentWorkflowStep(data.workflowStep as string);
           }
-        } catch {
-          setSvcState(s => ({ ...s, 'order-service': 'error' }));
+          setSvcState(s => ({ ...s, 'order-service': 'ok' }));
+        } else {
+          setSvcState(s => ({ ...s, 'order-service': r.status === 404 ? 'idle' : 'error' }));
         }
+      } catch {
+        setSvcState(s => ({ ...s, 'order-service': 'idle' }));
       }
 
       // Fetch order history regardless of active session
       try {
-        const hr = await fetch('/api/backend/orders/history', { headers });
+        const hr = await fetch('/api/backend/orders/history');
         if (hr.ok) {
           const data = await hr.json() as OrderHistoryItem[];
           setOrderHistory(data);
@@ -154,11 +146,11 @@ export default function HomePage() {
 
       // Fetch support-service data (non-critical)
       await Promise.allSettled([
-        fetch('/api/support/campaigns', { headers })
+        fetch('/api/support/campaigns')
           .then(r => (r.ok ? (r.json() as Promise<CampaignSummary[]>) : []))
           .then(data => setCampaigns(data as CampaignSummary[]))
           .catch(() => {}),
-        fetch('/api/support/status', { headers })
+        fetch('/api/support/status')
           .then(r => (r.ok ? (r.json() as Promise<SupportStatusResponse>) : null))
           .then(data => { if (data) setServiceStatuses(data.services ?? []); })
           .catch(() => {}),
@@ -169,9 +161,7 @@ export default function HomePage() {
   }, [router]);
 
   function signOut() {
-    window.localStorage.removeItem(ACCESS_TOKEN_KEY);
-    window.localStorage.removeItem(SESSION_KEY);
-    router.push('/');
+    void clearAuthSession().finally(() => router.push('/'));
   }
 
   const combos = menuItems.filter(m => m.id.startsWith('combo-'));

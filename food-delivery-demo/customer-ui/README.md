@@ -29,9 +29,9 @@
 3. **配送選択** — delivery-agent の選択肢カード（推奨マーク付き） → `POST /api/backend/order/confirm-delivery`
 4. **支払い承認** — 注文サマリー（アイテム・配送料・合計・支払い方法） → `POST /api/backend/order/confirm-payment`
 
-セッションはブラウザリロード後も `GET /api/backend/order/session/{sessionId}` で復元されます。
+認証トークン、注文セッション、サポート会話セッション、注文スナップショットは customer-ui のサーバー側セッションに保持されます。ブラウザ側には `HttpOnly` Cookie の BFF セッション ID のみを置き、注文復元は `GET /api/backend/order/session` で行います。
 
-## 同一オリジンプロキシ契約
+## 同一オリジン BFF 契約
 
 | フロントエンドパス | 転送先 |
 |---|---|
@@ -40,6 +40,8 @@
 | `/api/menu/*` | `MENU_SERVICE_ORIGIN/api/menu/*` |
 | `/api/support/*` | `SUPPORT_SERVICE_ORIGIN/api/support/*` |
 | `/api/registry/*` | `REGISTRY_SERVICE_ORIGIN/registry/*` |
+
+`/api/auth/session` は customer-ui 自身が持つ認証確認・ログアウト用エンドポイントです。サインイン時に customer-ui が upstream のアクセストークンを受け取り、サーバー側セッションへ保存します。
 
 ## ローカル実行
 

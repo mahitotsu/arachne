@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 
+import { fetchAuthSession } from '../../lib/browser-session';
+
 type CampaignSummary = {
   campaignId: string;
   title: string;
@@ -55,9 +57,6 @@ type ChatMessage = {
   handoffMessage?: string | null;
 };
 
-const ACCESS_TOKEN_KEY = 'delivery-demo-access-token';
-const SUPPORT_SESSION_KEY = 'delivery-demo-support-session-id';
-
 const QUICK_SUGGESTIONS = [
   '現在のキャンペーンを教えて',
   'サービスの稼働状況は？',
@@ -67,7 +66,6 @@ const QUICK_SUGGESTIONS = [
 
 export default function SupportPage() {
   const router = useRouter();
-  const [accessToken, setAccessToken] = useState('');
   const [campaigns, setCampaigns] = useState<CampaignSummary[]>([]);
   const [serviceStatuses, setServiceStatuses] = useState<ServiceHealthSummary[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -83,30 +81,25 @@ export default function SupportPage() {
   }, [messages, loading]);
 
   useEffect(() => {
-    const token = window.localStorage.getItem(ACCESS_TOKEN_KEY);
-    if (!token) {
-      router.replace('/');
-      return;
-    }
-    setAccessToken(token);
+    void fetchAuthSession().then(auth => {
+      if (!auth.authenticated) {
+        router.replace('/');
+        return;
+      }
 
-    const savedSession = window.localStorage.getItem(SUPPORT_SESSION_KEY);
-    if (savedSession) setSessionId(savedSession);
-
-    const headers = { Authorization: `Bearer ${token}` };
-
-    void Promise.allSettled([
-      fetch('/api/support/campaigns', { headers })
+      void Promise.allSettled([
+        fetch('/api/support/campaigns')
         .then(r => (r.ok ? (r.json() as Promise<CampaignSummary[]>) : []))
         .then(data => setCampaigns(data as CampaignSummary[]))
         .catch(() => {}),
-      fetch('/api/support/status', { headers })
+        fetch('/api/support/status')
         .then(r => (r.ok ? (r.json() as Promise<SupportStatusResponse>) : null))
         .then(data => {
           if (data) setServiceStatuses((data as SupportStatusResponse).services ?? []);
         })
         .catch(() => {}),
-    ]);
+      ]);
+    });
   }, [router]);
 
   async function sendChat(text: string) {
@@ -117,14 +110,10 @@ export default function SupportPage() {
     try {
       const res = await fetch('/api/support/chat', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({ sessionId: sessionId || null, message: text }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text }),
       });
       if (res.status === 401) {
-        window.localStorage.removeItem(ACCESS_TOKEN_KEY);
         router.replace('/');
         return;
       }
@@ -132,7 +121,6 @@ export default function SupportPage() {
       const payload: SupportChatResponse = await res.json();
       if (payload.sessionId) {
         setSessionId(payload.sessionId);
-        window.localStorage.setItem(SUPPORT_SESSION_KEY, payload.sessionId);
       }
       setMessages(prev => [
         ...prev,

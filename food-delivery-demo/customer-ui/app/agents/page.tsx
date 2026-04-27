@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
+import { fetchAuthSession } from '../../lib/browser-session';
+
 type SkillPayload = {
   name: string;
   content: string;
@@ -31,8 +33,6 @@ type HealthResponse = {
   services: HealthEntry[];
 };
 
-const ACCESS_TOKEN_KEY = 'delivery-demo-access-token';
-
 export default function AgentsPage() {
   const router = useRouter();
   const [services, setServices] = useState<AgentServiceDescriptor[]>([]);
@@ -42,13 +42,13 @@ export default function AgentsPage() {
   const [selected, setSelected] = useState<AgentServiceDescriptor | null>(null);
 
   useEffect(() => {
-    const token = window.localStorage.getItem(ACCESS_TOKEN_KEY);
-    if (!token) {
-      router.replace('/');
-      return;
-    }
+    void fetchAuthSession().then(auth => {
+      if (!auth.authenticated) {
+        router.replace('/');
+        return;
+      }
 
-    void Promise.allSettled([
+      void Promise.allSettled([
       fetch('/api/registry/services')
         .then(r => (r.ok ? (r.json() as Promise<AgentServiceDescriptor[]>) : []))
         .then(data => setServices(data as AgentServiceDescriptor[]))
@@ -64,7 +64,8 @@ export default function AgentsPage() {
           setHealthMap(map);
         })
         .catch(() => {}),
-    ]).finally(() => setLoading(false));
+      ]).finally(() => setLoading(false));
+    });
   }, [router]);
 
   function statusOf(serviceName: string): 'AVAILABLE' | 'NOT_AVAILABLE' {

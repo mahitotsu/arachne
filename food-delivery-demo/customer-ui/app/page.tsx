@@ -3,17 +3,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-type AccessTokenResponse = {
-  tokenType: string;
-  accessToken: string;
-  expiresIn: number;
-  subject: string;
-  displayName: string;
-  locale: string;
-  scopes: string[];
-};
-
-const ACCESS_TOKEN_KEY = 'delivery-demo-access-token';
+import { fetchAuthSession } from '../lib/browser-session';
 
 export default function SignInPage() {
   const router = useRouter();
@@ -24,11 +14,13 @@ export default function SignInPage() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    if (window.localStorage.getItem(ACCESS_TOKEN_KEY)) {
-      router.replace('/home');
-    } else {
+    void fetchAuthSession().then(session => {
+      if (session.authenticated) {
+        router.replace('/home');
+        return;
+      }
       setReady(true);
-    }
+    });
   }, [router]);
 
   function fill(id: string, pass: string) {
@@ -53,8 +45,7 @@ export default function SignInPage() {
         return;
       }
       if (!res.ok) throw new Error(`sign-in failed: ${res.status}`);
-      const payload: AccessTokenResponse = await res.json();
-      window.localStorage.setItem(ACCESS_TOKEN_KEY, payload.accessToken);
+      await res.json();
       router.push('/home');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'sign-in failed');
