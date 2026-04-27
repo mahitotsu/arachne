@@ -1,5 +1,6 @@
 package com.mahitotsu.arachne.samples.delivery.idatenadapter;
 
+import static com.mahitotsu.arachne.samples.delivery.idatenadapter.domain.IdatenAdapterTypes.*;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;

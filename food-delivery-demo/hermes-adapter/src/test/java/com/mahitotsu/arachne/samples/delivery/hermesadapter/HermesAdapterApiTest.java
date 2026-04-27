@@ -1,5 +1,6 @@
 package com.mahitotsu.arachne.samples.delivery.hermesadapter;
 
+import static com.mahitotsu.arachne.samples.delivery.hermesadapter.domain.HermesAdapterTypes.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
@@ -15,6 +16,8 @@ import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+
+import com.mahitotsu.arachne.samples.delivery.hermesadapter.application.HermesAdapterService;
 
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 class HermesAdapterApiTest {

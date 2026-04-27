@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.*;
 import static com.mahitotsu.arachne.samples.delivery.testsupport.MockWebServerTestSupport.drainRequests;
 import static com.mahitotsu.arachne.samples.delivery.testsupport.MockWebServerTestSupport.recordedPaths;
 import static com.mahitotsu.arachne.samples.delivery.testsupport.MockWebServerTestSupport.trimTrailingSlash;
@@ -35,6 +36,7 @@ import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.gen.RSAKeyGenerator;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
+import com.mahitotsu.arachne.samples.delivery.orderservice.infrastructure.RegistryServiceEndpointResolver;
 
 import okhttp3.mockwebserver.Dispatcher;
 import okhttp3.mockwebserver.MockResponse;

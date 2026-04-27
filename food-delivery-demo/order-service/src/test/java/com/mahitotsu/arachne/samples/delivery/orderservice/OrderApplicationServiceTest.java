@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import static com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -20,6 +21,15 @@ import static org.mockito.Mockito.when;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+
+import com.mahitotsu.arachne.samples.delivery.orderservice.application.OrderApplicationService;
+import com.mahitotsu.arachne.samples.delivery.orderservice.config.AuthenticatedCustomerResolver;
+import com.mahitotsu.arachne.samples.delivery.orderservice.infrastructure.DeliveryGateway;
+import com.mahitotsu.arachne.samples.delivery.orderservice.infrastructure.MenuGateway;
+import com.mahitotsu.arachne.samples.delivery.orderservice.infrastructure.OrderRepository;
+import com.mahitotsu.arachne.samples.delivery.orderservice.infrastructure.OrderSessionStore;
+import com.mahitotsu.arachne.samples.delivery.orderservice.infrastructure.PaymentGateway;
+import com.mahitotsu.arachne.samples.delivery.orderservice.infrastructure.SupportGateway;
 
 class OrderApplicationServiceTest {
 

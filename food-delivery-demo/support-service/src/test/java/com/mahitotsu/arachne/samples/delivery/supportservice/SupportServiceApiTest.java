@@ -21,6 +21,13 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
+import com.mahitotsu.arachne.samples.delivery.supportservice.api.SupportChatRequest;
+import com.mahitotsu.arachne.samples.delivery.supportservice.api.SupportChatResponse;
+import com.mahitotsu.arachne.samples.delivery.supportservice.api.SupportFeedbackRequest;
+import com.mahitotsu.arachne.samples.delivery.supportservice.api.SupportFeedbackResponse;
+import com.mahitotsu.arachne.samples.delivery.supportservice.domain.CampaignSummary;
+import com.mahitotsu.arachne.samples.delivery.supportservice.domain.CustomerOrderHistoryEntry;
+import com.mahitotsu.arachne.samples.delivery.supportservice.domain.ServiceHealthSummary;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.JWSAlgorithm;

@@ -1,5 +1,6 @@
 package com.mahitotsu.arachne.samples.delivery.customerservice;
 
+import static com.mahitotsu.arachne.samples.delivery.customerservice.domain.CustomerTypes.*;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;

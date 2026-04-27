@@ -1,5 +1,6 @@
 package com.mahitotsu.arachne.samples.delivery.deliveryservice;
 
+import static com.mahitotsu.arachne.samples.delivery.deliveryservice.domain.DeliveryTypes.*;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
