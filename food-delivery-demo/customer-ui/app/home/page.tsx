@@ -27,6 +27,12 @@ type RecentDraft = {
   orderId: string;
 };
 
+const WORKFLOW_STEP_LABEL: Record<string, string> = {
+  'item-selection': 'アイテム選択中',
+  'delivery-selection': '配送選択中',
+  'payment': 'お支払い確認中',
+};
+
 type OrderHistoryItem = {
   orderId: string;
   itemSummary: string;
@@ -63,6 +69,7 @@ export default function HomePage() {
   const [profile, setProfile] = useState<CustomerProfile | null>(null);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [recentDraft, setRecentDraft] = useState<RecentDraft | null>(null);
+  const [recentWorkflowStep, setRecentWorkflowStep] = useState<string>('');
   const [orderHistory, setOrderHistory] = useState<OrderHistoryItem[]>([]);
   const [campaigns, setCampaigns] = useState<CampaignSummary[]>([]);
   const [serviceStatuses, setServiceStatuses] = useState<ServiceHealthSummary[]>([]);
@@ -121,8 +128,9 @@ export default function HomePage() {
           const r = await fetch(`/api/backend/session/${sessionId}`, { headers });
           if (r.ok) {
             const data = await r.json();
-            if (data.draft?.items?.length > 0) {
+            if (data.workflowStep && data.workflowStep !== 'completed') {
               setRecentDraft(data.draft as RecentDraft);
+              setRecentWorkflowStep(data.workflowStep as string);
             }
             setSvcState(s => ({ ...s, 'order-service': 'ok' }));
           } else {
@@ -269,14 +277,23 @@ export default function HomePage() {
           {/* Recent session */}
           {recentDraft ? (
             <div className="h-recent-card">
-              <p className="h-recent-label">📦 前回のセッション</p>
-              <div className="h-recent-items">
-                {recentDraft.items.slice(0, 4).map(item => (
-                  <span key={item.name} className="h-recent-item">
-                    {item.quantity}× {item.name}
-                  </span>
-                ))}
-              </div>
+              <p className="h-recent-label">📦 現在のセッション</p>
+              {recentWorkflowStep && (
+                <span className="h-recent-step-badge">
+                  {WORKFLOW_STEP_LABEL[recentWorkflowStep] ?? recentWorkflowStep}
+                </span>
+              )}
+              {recentDraft.items.length > 0 ? (
+                <div className="h-recent-items">
+                  {recentDraft.items.slice(0, 4).map(item => (
+                    <span key={item.name} className="h-recent-item">
+                      {item.quantity}× {item.name}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="h-recent-pending">アイテムを選択中です</p>
+              )}
               <div className="h-recent-footer">
                 <span className="h-recent-status">{recentDraft.status}</span>
                 <Link href="/order" className="h-recent-continue">続きから →</Link>
@@ -284,9 +301,9 @@ export default function HomePage() {
             </div>
           ) : (
             <div className="h-recent-card h-recent-empty">
-              <p className="h-recent-label">📦 前回のセッション</p>
+              <p className="h-recent-label">📦 現在のセッション</p>
               <p className="h-recent-empty-text">
-                まだセッションはありません。下のメニューから注文を始めてください。
+                現在の注文はありません。下のメニューから注文を始めてください。
               </p>
             </div>
           )}

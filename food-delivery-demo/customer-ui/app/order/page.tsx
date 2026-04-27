@@ -3,6 +3,7 @@
 import { FormEvent, Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import ReactMarkdown from 'react-markdown';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -124,6 +125,7 @@ function OrderPageInner() {
   const [suggestSummary, setSuggestSummary] = useState('');
   const [suggestEta, setSuggestEta] = useState(0);
   const [proposals, setProposals] = useState<ProposalItem[]>([]);
+  const [removedItemIds, setRemovedItemIds] = useState<Set<string>>(new Set());
   const [deliveryOptions, setDeliveryOptions] = useState<DeliveryOptionChoice[]>([]);
   const [selectedDeliveryCode, setSelectedDeliveryCode] = useState('');
   const [draft, setDraft] = useState<OrderDraft>(EMPTY_DRAFT);
@@ -227,6 +229,7 @@ function OrderPageInner() {
       setSessionId(payload.sessionId);
       window.localStorage.setItem(SESSION_KEY, payload.sessionId);
       setProposals(payload.proposals ?? []);
+      setRemovedItemIds(new Set());
       setSuggestSummary(payload.summary ?? '');
       setSuggestEta(payload.etaMinutes ?? 0);
       setDraft(payload.draft ?? EMPTY_DRAFT);
@@ -261,6 +264,7 @@ function OrderPageInner() {
       setSessionId(payload.sessionId);
       window.localStorage.setItem(SESSION_KEY, payload.sessionId);
       setProposals(payload.proposals ?? []);
+      setRemovedItemIds(new Set());
       setSuggestSummary(payload.summary ?? '');
       setSuggestEta(payload.etaMinutes ?? 0);
       setDraft(payload.draft ?? EMPTY_DRAFT);
@@ -279,11 +283,15 @@ function OrderPageInner() {
     setLoading(true);
     setError('');
     try {
-      // items: [] means "accept all proposals" (see selectProposalItems in order-service)
+      // items: [] means "accept all proposals"; pass explicit IDs when user removed some
+      const keptIds = proposals
+        .filter(p => !removedItemIds.has(p.itemId))
+        .map(p => ({ itemId: p.itemId }));
+      const items = removedItemIds.size > 0 ? keptIds : [];
       const res = await fetch('/api/backend/order/confirm-items', {
         method: 'POST',
         headers: withBearer({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ sessionId, items: [] }),
+        body: JSON.stringify({ sessionId, items }),
       });
       if (res.status === 401) { router.replace('/'); return; }
       if (!res.ok) throw new Error(`アイテム確定に失敗しました (${res.status})`);
@@ -352,6 +360,7 @@ function OrderPageInner() {
 
   const progressIndex = step < 4 ? step : 3;
   const deliveryFee = Math.max(Number(draft.total) - Number(draft.subtotal), 0);
+  const keptProposals = proposals.filter(p => !removedItemIds.has(p.itemId));
 
   return (
     <main className="shell">
@@ -381,15 +390,22 @@ function OrderPageInner() {
 
       {/* Step progress indicator */}
       <nav className="wf-steps">
-        {STEPS.map((label, i) => (
+        {STEPS.map((label, i) => {
+          const canGoBack = i < progressIndex && progressIndex < 3 && !loading;
+          return (
           <div
             key={label}
-            className={`wf-step${i < progressIndex ? ' wf-step--done' : ''}${i === progressIndex ? ' wf-step--active' : ''}`}
+            className={`wf-step${i < progressIndex ? ' wf-step--done' : ''}${i < progressIndex && canGoBack ? ' wf-step--clickable' : ''}${i === progressIndex ? ' wf-step--active' : ''}`}
+            onClick={canGoBack ? () => setStep(i) : undefined}
+            role={canGoBack ? 'button' : undefined}
+            tabIndex={canGoBack ? 0 : undefined}
+            onKeyDown={canGoBack ? e => { if (e.key === 'Enter' || e.key === ' ') setStep(i); } : undefined}
           >
             <span className="wf-step-num">{i < progressIndex ? '✓' : i + 1}</span>
             <span className="wf-step-label">{label}</span>
           </div>
-        ))}
+          );
+        })}
       </nav>
 
       {/* Step content */}
@@ -429,7 +445,11 @@ function OrderPageInner() {
           <div className="wf-step-section">
             <div className="wf-step-header">
               <h2>アイテム提案</h2>
-              {suggestSummary && <p className="wf-summary">{suggestSummary}</p>}
+              {suggestSummary && (
+                <div className="wf-summary wf-md">
+                  <ReactMarkdown>{suggestSummary}</ReactMarkdown>
+                </div>
+              )}
               {suggestEta > 0 && (
                 <p className="wf-eta">🕐 調理 ETA: 約 {suggestEta} 分</p>
               )}
@@ -437,14 +457,46 @@ function OrderPageInner() {
 
             <div className="wf-proposal-grid">
               {proposals.map(item => (
-                <div key={item.itemId} className="wf-proposal-card">
-                  <div className="wf-proposal-name">{item.name}</div>
-                  <div className="wf-proposal-meta">
-                    <span className="wf-proposal-qty">×{item.quantity}</span>
-                    <span className="wf-proposal-price">¥{Number(item.unitPrice).toFixed(0)}</span>
+                <div
+                  key={item.itemId}
+                  className={`wf-proposal-card${removedItemIds.has(item.itemId) ? ' wf-proposal-card--removed' : ''}`}
+                >
+                  <div className="wf-proposal-header">
+                    <div className="wf-proposal-name">{item.name}</div>
+                    {!removedItemIds.has(item.itemId) ? (
+                      <button
+                        type="button"
+                        className="wf-proposal-remove"
+                        onClick={() => setRemovedItemIds(prev => new Set([...prev, item.itemId]))}
+                        title="このアイテムを削除"
+                        aria-label={`${item.name}を削除`}
+                      >
+                        ×
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="wf-proposal-restore"
+                        onClick={() => setRemovedItemIds(prev => { const next = new Set(prev); next.delete(item.itemId); return next; })}
+                        title="削除を取り消す"
+                        aria-label={`${item.name}を元に戻す`}
+                      >
+                        ↩
+                      </button>
+                    )}
                   </div>
-                  {item.reason && (
-                    <p className="wf-proposal-reason">{item.reason}</p>
+                  {!removedItemIds.has(item.itemId) && (
+                    <>
+                      <div className="wf-proposal-meta">
+                        <span className="wf-proposal-qty">×{item.quantity}</span>
+                        <span className="wf-proposal-price">¥{Number(item.unitPrice).toFixed(0)}</span>
+                      </div>
+                      {item.reason && (
+                        <div className="wf-proposal-reason wf-md">
+                          <ReactMarkdown>{item.reason}</ReactMarkdown>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               ))}
@@ -472,8 +524,16 @@ function OrderPageInner() {
             <div className="wf-actions">
               <button
                 type="button"
+                className="wf-btn wf-btn--secondary"
+                disabled={loading}
+                onClick={() => setStep(0)}
+              >
+                ← 前のステップへ
+              </button>
+              <button
+                type="button"
                 className="wf-btn wf-btn--primary"
-                disabled={loading || proposals.length === 0}
+                disabled={loading || keptProposals.length === 0}
                 onClick={handleConfirmItems}
               >
                 {loading ? '確定中…' : 'この内容で確定 →'}
@@ -487,10 +547,17 @@ function OrderPageInner() {
           <div className="wf-step-section">
             <div className="wf-step-header">
               <h2>配送方法を選択</h2>
-              <p className="wf-summary">
-                delivery-agent が自社エクスプレスと外部パートナーを比較しました。
-              </p>
             </div>
+
+            {/* Shared delivery assessment — same summary for all options, show once */}
+            {deliveryOptions[0]?.reason && (
+              <div className="wf-delivery-assessment">
+                <p className="wf-delivery-assessment-label">📋 delivery-agent アセスメント</p>
+                <div className="wf-md">
+                  <ReactMarkdown>{deliveryOptions[0].reason}</ReactMarkdown>
+                </div>
+              </div>
+            )}
 
             <div className="wf-delivery-grid">
               {deliveryOptions.map(opt => (
@@ -507,14 +574,19 @@ function OrderPageInner() {
                   <div className="wf-delivery-label">{opt.label}</div>
                   <div className="wf-delivery-eta">🕐 {opt.etaMinutes} 分</div>
                   <div className="wf-delivery-fee">¥{Number(opt.fee).toFixed(0)}</div>
-                  {opt.reason && (
-                    <p className="wf-delivery-reason">{opt.reason}</p>
-                  )}
                 </button>
               ))}
             </div>
 
             <div className="wf-actions">
+              <button
+                type="button"
+                className="wf-btn wf-btn--secondary"
+                disabled={loading}
+                onClick={() => setStep(1)}
+              >
+                ← 前のステップへ
+              </button>
               <button
                 type="button"
                 className="wf-btn wf-btn--primary"

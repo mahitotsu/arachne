@@ -293,26 +293,27 @@ class DeliveryArachneConfiguration {
                             new BigDecimal(String.valueOf(etaResult.getOrDefault("fee", "250.00"))));
                 };
                 options.add(option);
-                externalLines.add("✓ " + option.label() + " API 呼び出し -> ETA " + option.etaMinutes()
+                externalLines.add("- ✔ **" + option.label() + "**: ETA " + option.etaMinutes()
                         + "分、料金 ¥" + option.fee().stripTrailingZeros().toPlainString()
                         + "、混雑:" + etaResult.getOrDefault("congestion", "unknown"));
             }
             DeliveryRanking ranking = DeliveryRankingPolicy.rank(options, latestUserText(messages));
             String discoverLine = discoveredServices.isEmpty()
-                    ? "✓ registry discovery -> 利用可能な外部 ETA サービスは見つかりませんでした"
-                    : "✓ registry discovery -> " + discoveredServices.stream()
+                    ? "- ✔ **レジストリ検索**: 利用可能な外部 ETA サービスは見つかりませんでした"
+                    : "- ✔ **レジストリ検索**: " + discoveredServices.stream()
                             .map(service -> String.valueOf(service.getOrDefault("serviceName", "external-service")))
                             .reduce((left, right) -> left + ", " + right)
                             .orElse("")
                     + " を発見";
             String courierLine = expressAvailable
-                    ? "✓ 自社スタッフ確認 -> 自社エクスプレス利用可能、ETA " + expressEta + "分"
-                    : "✓ 自社スタッフ確認 -> 自社エクスプレスは現在利用不可";
-            String trafficLine = "✓ 交通・天候確認 -> " + trafficLevel + " / " + weather
+                    ? "- ✔ **自社スタッフ確認**: 自社エクスプレス利用可能、ETA " + expressEta + "分"
+                    : "- ✔ **自社スタッフ確認**: 自社エクスプレスは現在利用不可";
+            String trafficLine = "- ✔ **交通・天候確認**: " + trafficLevel + " / " + weather
                     + "、遅延+" + (trafficDelay + weatherDelay) + "分";
             String recommendationLine = ranking.recommendedTier().isBlank()
-                    ? "→ 推奨候補を提示できませんでした"
-                    : "→ 推奨: " + ranking.options().get(0).label() + "。理由: " + ranking.recommendationReason();
+                    ? "\n> 推奨候補を提示できませんでした"
+                    : "\n> **推奨**: " + ranking.options().get(0).label()
+                            + "  \n> **理由**: " + ranking.recommendationReason();
             List<String> lines = new ArrayList<>();
             lines.add(courierLine);
             lines.add(trafficLine);

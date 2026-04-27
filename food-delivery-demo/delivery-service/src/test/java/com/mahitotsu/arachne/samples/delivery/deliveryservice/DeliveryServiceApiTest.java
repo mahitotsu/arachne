@@ -152,7 +152,7 @@ class DeliveryServiceApiTest {
             .containsExactly("express", "hermes", "idaten");
         assertThat(response.recommendedTier()).isEqualTo("express");
         assertThat(response.recommendationReason()).contains("急いで");
-        assertThat(response.summary()).contains("registry discovery", "Hermes スピード便", "Idaten エコノミー");
+        assertThat(response.summary()).contains("レジストリ検索", "Hermes スピード便", "Idaten エコノミー");
         }
 
         @Test

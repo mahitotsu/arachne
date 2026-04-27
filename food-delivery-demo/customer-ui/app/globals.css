@@ -1673,6 +1673,24 @@ textarea {
 
 .h-recent-continue:hover { text-decoration: underline; }
 
+.h-recent-step-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(232, 69, 10, 0.09);
+  border: 1px solid var(--border-accent);
+  color: var(--accent-dark);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.h-recent-pending {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--ink-subtle);
+  font-style: italic;
+}
+
 .h-recent-empty-text {
   margin: 0;
   font-size: 0.88rem;
@@ -3087,6 +3105,15 @@ textarea {
   color: var(--green);
 }
 
+.wf-step--clickable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.wf-step--clickable:hover {
+  color: var(--accent);
+}
+
 .wf-step-num {
   display: inline-flex;
   align-items: center;
@@ -3280,12 +3307,65 @@ textarea {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  transition: opacity 0.2s;
+}
+
+.wf-proposal-card--removed {
+  opacity: 0.45;
+  border-style: dashed;
+  background: var(--surface-2);
+}
+
+/* Proposal card header row: name + remove/restore button */
+.wf-proposal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .wf-proposal-name {
   font-size: 0.95rem;
   font-weight: 700;
   color: var(--ink);
+  flex: 1;
+  min-width: 0;
+}
+
+.wf-proposal-remove,
+.wf-proposal-restore {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: none;
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s;
+  padding: 0;
+}
+
+.wf-proposal-remove {
+  background: rgba(220, 38, 38, 0.1);
+  color: var(--red);
+}
+
+.wf-proposal-remove:hover {
+  background: rgba(220, 38, 38, 0.22);
+}
+
+.wf-proposal-restore {
+  background: rgba(22, 163, 74, 0.1);
+  color: var(--green);
+}
+
+.wf-proposal-restore:hover {
+  background: rgba(22, 163, 74, 0.22);
 }
 
 .wf-proposal-meta {
@@ -3313,6 +3393,53 @@ textarea {
   line-height: 1.4;
   border-top: 1px solid var(--border);
   padding-top: 8px;
+}
+
+/* ── Markdown wrapper for wf sections ── */
+.wf-md {
+  font-size: 0.82rem;
+  color: var(--ink-muted);
+  line-height: 1.5;
+}
+
+.wf-md p {
+  margin: 0;
+}
+
+.wf-md p + p {
+  margin-top: 0.4em;
+}
+
+.wf-md ul,
+.wf-md ol {
+  margin: 0.3em 0 0;
+  padding-left: 1.3em;
+}
+
+.wf-md li {
+  margin-bottom: 0.2em;
+}
+
+.wf-md strong {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.wf-md em {
+  font-style: italic;
+}
+
+.wf-md h1, .wf-md h2, .wf-md h3 {
+  margin: 0.4em 0 0.15em;
+  font-weight: 700;
+  color: var(--ink);
+  font-size: 0.88rem;
+  line-height: 1.3;
+}
+
+/* In step header, summary markdown may be slightly larger */
+.wf-step-header .wf-md {
+  font-size: 0.88rem;
 }
 
 /* ── Refinement (step 1) ── */
@@ -3405,6 +3532,48 @@ textarea {
   line-height: 1.4;
   border-top: 1px solid var(--border);
   padding-top: 8px;
+}
+
+/* ── Delivery assessment panel (shown once above the cards) ── */
+.wf-delivery-assessment {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.wf-delivery-assessment-label {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--accent);
+}
+
+.wf-delivery-assessment .wf-md {
+  font-size: 0.85rem;
+  color: var(--ink-muted);
+}
+
+/* blockquote inside wf-md (recommendation callout) */
+.wf-md blockquote {
+  margin: 0.5em 0 0;
+  padding: 10px 14px;
+  border-left: 3px solid var(--accent);
+  border-radius: 0 8px 8px 0;
+  background: var(--accent-glow);
+  color: var(--ink);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.wf-md blockquote p {
+  margin: 0;
+  color: var(--ink);
 }
 
 /* ── Payment summary table (step 3) ── */
