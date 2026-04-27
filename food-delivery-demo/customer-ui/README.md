@@ -6,28 +6,28 @@
 
 - `customer-service` が提供するカスタマーサインイン状態
 - `support-service` から取得するキャンペーンバナー（ホームダッシュボード上部）
-- `support-service` から取得するサービス稼働状況インジケーター（ダッシュボード右カラム）
-- フローティングサポートエントリボタン（`/support` への常時アクセス可能なエントリポイント）
-- エージェント仕様ビューワー（`/agents`）: `registry-service` から全エージェントのケイパビリティ・プロンプト・スキルを取得してカード一覧＋モーダル表示
+- ホームの主要 CTA 直下に置かれたサポートセンター導線（`/support`）
+- サポートページで表示するサービス稼働状況インジケーター
+- エージェント仕様ビューワー（`/agents`）: `registry-service` から AI エージェントのシステムプロンプト・利用ツール・スキルを取得してカード一覧＋モーダル表示
 
 ## ページ一覧
 
 | パス | 概要 |
 |---|---|
 | `/` | サインインページ（demo/family アカウント） |
-| `/home` | ホームダッシュボード（メニュー一覧・注文履歴・キャンペーン・稼働状況） |
+| `/home` | ホームダッシュボード（メニュー一覧・注文履歴・キャンペーン・サポート導線） |
 | `/order` | 注文ワークフロー（4ステップ: 初期入力 → アイテム選択 → 配送選択 → 支払い承認） |
 | `/support` | サポートチャット（`support-service` の会話型 AI） |
-| `/agents` | エージェント仕様ビューワー（`registry-service` から全サービス一覧） |
+| `/agents` | エージェント仕様ビューワー（`registry-service` から AI エージェント一覧） |
 
 ## 注文ワークフロー（Phase 4-C）
 
 `/order` ページはチャット UI を廃止し、4ステップのワークフロー UI になっています。
 
 1. **初期入力** — 自然言語でリクエストを入力 → `POST /api/backend/order/suggest`
-2. **アイテム選択** — menu-agent の提案カード一覧 + フィードバックして再提案（`refinement`） → `POST /api/backend/order/confirm-items`
+2. **アイテム選択** — menu-agent の提案カード一覧 + 削除/復元 + フィードバックして再提案（`refinement`） → `POST /api/backend/order/confirm-items`
 3. **配送選択** — delivery-agent の選択肢カード（推奨マーク付き） → `POST /api/backend/order/confirm-delivery`
-4. **支払い承認** — 注文サマリー（アイテム・配送料・合計・支払い方法） → `POST /api/backend/order/confirm-payment`
+4. **支払い承認** — 注文サマリー（アイテム・配送料・合計・支払い方法） + 承認前なら前ステップへ戻る導線 → `POST /api/backend/order/confirm-payment`
 
 認証トークン、注文セッション、サポート会話セッション、注文スナップショットは customer-ui のサーバー側セッションに保持されます。ブラウザ側には `HttpOnly` Cookie の BFF セッション ID のみを置き、注文復元は `GET /api/backend/order/session` で行います。
 

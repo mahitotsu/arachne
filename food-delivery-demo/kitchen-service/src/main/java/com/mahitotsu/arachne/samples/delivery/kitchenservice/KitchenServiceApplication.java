@@ -78,17 +78,21 @@ public class KitchenServiceApplication {
             restClientBuilder.baseUrl(registryBaseUrl).build().post()
                     .uri("/registry/register")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(Map.of(
-                            "serviceName", "kitchen-service",
-                            "endpoint", serviceEndpoint,
-                            "capability", "在庫確認、調理 ETA 推定、調理ライン混雑に応じた代替提案を扱う。",
-                            "agentName", "kitchen-agent",
-                            "systemPrompt", "在庫と調理ラインの状況を確認し、必要に応じて代替調理ラインを提案する。",
-                            "skills", List.of(Map.of("name", "prep-scheduler", "content", "調理 ETA と混雑時の代替ライン提案")),
-                            "requestMethod", "POST",
-                            "requestPath", "/internal/kitchen/check",
-                            "healthEndpoint", serviceEndpoint + "/actuator/health",
-                            "status", "AVAILABLE"))
+                    .body(Map.ofEntries(
+                            Map.entry("serviceName", "kitchen-service"),
+                            Map.entry("endpoint", serviceEndpoint),
+                            Map.entry("capability", "在庫確認、調理 ETA 推定、調理ライン混雑に応じた代替提案を扱う。"),
+                            Map.entry("agentName", "kitchen-agent"),
+                            Map.entry("systemPrompt", "在庫と調理ラインの状況を確認し、必要に応じて代替調理ラインを提案する。"),
+                            Map.entry("skills", List.of(Map.of("name", "prep-scheduler", "content", "調理 ETA と混雑時の代替ライン提案"))),
+                            Map.entry("tools", List.of(
+                                    Map.of("name", "menu_substitution_lookup", "content", "利用不可アイテムの代替候補を協業先に問い合わせる"),
+                                    Map.of("name", "kitchen_inventory_lookup", "content", "選択アイテムの在庫プレッシャーと調理時間を確認する"),
+                                    Map.of("name", "prep_scheduler", "content", "調理ラインごとのキュー遅延と提供見込み時間を計算する"))),
+                            Map.entry("requestMethod", "POST"),
+                            Map.entry("requestPath", "/internal/kitchen/check"),
+                            Map.entry("healthEndpoint", serviceEndpoint + "/actuator/health"),
+                            Map.entry("status", "AVAILABLE")))
                     .retrieve()
                     .toBodilessEntity();
         };

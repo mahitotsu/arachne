@@ -78,17 +78,21 @@ public class MenuServiceApplication {
             restClientBuilder.baseUrl(registryBaseUrl).build().post()
                     .uri("/registry/register")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(Map.of(
-                            "serviceName", "menu-service",
-                            "endpoint", serviceEndpoint,
-                            "capability", "メニュー提案、カテゴリ検索、欠品時の代替候補提示、合計金額計算を扱う。",
-                            "agentName", "menu-agent",
-                            "systemPrompt", "注文候補の選定と代替案の説明、合計計算を行う。",
-                            "skills", List.of(Map.of("name", "menu-substitution", "content", "欠品時の代替候補と提案理由を整理する")),
-                            "requestMethod", "POST",
-                            "requestPath", "/internal/menu/suggest",
-                            "healthEndpoint", serviceEndpoint + "/actuator/health",
-                            "status", "AVAILABLE"))
+                    .body(Map.ofEntries(
+                            Map.entry("serviceName", "menu-service"),
+                            Map.entry("endpoint", serviceEndpoint),
+                            Map.entry("capability", "メニュー提案、カテゴリ検索、欠品時の代替候補提示、合計金額計算を扱う。"),
+                            Map.entry("agentName", "menu-agent"),
+                            Map.entry("systemPrompt", "注文候補の選定と代替案の説明、合計計算を行う。"),
+                            Map.entry("skills", List.of(Map.of("name", "menu-substitution", "content", "欠品時の代替候補と提案理由を整理する"))),
+                            Map.entry("tools", List.of(
+                                    Map.of("name", "catalog_lookup_tool", "content", "ローカルメニューカタログを参照し、候補一覧を返す"),
+                                    Map.of("name", "calculate_total_tool", "content", "候補セットの合計金額を計算する"),
+                                    Map.of("name", "menu_substitution_lookup", "content", "欠品時に代替候補を準備する"))),
+                            Map.entry("requestMethod", "POST"),
+                            Map.entry("requestPath", "/internal/menu/suggest"),
+                            Map.entry("healthEndpoint", serviceEndpoint + "/actuator/health"),
+                            Map.entry("status", "AVAILABLE")))
                     .retrieve()
                     .toBodilessEntity();
         };

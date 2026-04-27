@@ -297,7 +297,14 @@ class DeliveryArachneConfiguration {
                         + "分、料金 ¥" + option.fee().stripTrailingZeros().toPlainString()
                         + "、混雑:" + etaResult.getOrDefault("congestion", "unknown"));
             }
-            DeliveryRanking ranking = DeliveryRankingPolicy.rank(options, latestUserText(messages));
+            String userText = latestUserText(messages);
+            String outerRecommendedCode = extractMarkerValue(userText, "推奨候補: ");
+            String outerRecommendationReason = extractMarkerValue(userText, "推奨理由: ");
+            String outerRecommendedLabel = options.stream()
+                    .filter(o -> o.code().equals(outerRecommendedCode))
+                    .map(DeliveryOption::label)
+                    .findFirst()
+                    .orElse(outerRecommendedCode);
             String discoverLine = discoveredServices.isEmpty()
                     ? "- ✔ **レジストリ検索**: 利用可能な外部 ETA サービスは見つかりませんでした"
                     : "- ✔ **レジストリ検索**: " + discoveredServices.stream()
@@ -310,10 +317,10 @@ class DeliveryArachneConfiguration {
                     : "- ✔ **自社スタッフ確認**: 自社エクスプレスは現在利用不可";
             String trafficLine = "- ✔ **交通・天候確認**: " + trafficLevel + " / " + weather
                     + "、遅延+" + (trafficDelay + weatherDelay) + "分";
-            String recommendationLine = ranking.recommendedTier().isBlank()
+            String recommendationLine = outerRecommendedCode.isBlank() || outerRecommendationReason.isBlank()
                     ? "\n> 推奨候補を提示できませんでした"
-                    : "\n> **推奨**: " + ranking.options().get(0).label()
-                            + "  \n> **理由**: " + ranking.recommendationReason();
+                    : "\n> **推奨**: " + outerRecommendedLabel
+                            + "  \n> **理由**: " + outerRecommendationReason;
             List<String> lines = new ArrayList<>();
             lines.add(courierLine);
             lines.add(trafficLine);
@@ -351,6 +358,16 @@ class DeliveryArachneConfiguration {
                 }
             }
             return "";
+        }
+
+        private String extractMarkerValue(String text, String marker) {
+            int start = text.indexOf(marker);
+            if (start < 0) {
+                return "";
+            }
+            start += marker.length();
+            int end = text.indexOf("。", start);
+            return end < 0 ? text.substring(start).trim() : text.substring(start, end).trim();
         }
 
         private Map<String, Object> latestToolContent(List<Message> messages, String toolUseId) {

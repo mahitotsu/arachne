@@ -6,7 +6,7 @@ import Link from 'next/link';
 
 import { fetchAuthSession } from '../../lib/browser-session';
 
-type SkillPayload = {
+type ToolPayload = {
   name: string;
   content: string;
 };
@@ -17,7 +17,8 @@ type AgentServiceDescriptor = {
   capability: string;
   agentName: string;
   systemPrompt: string;
-  skills: SkillPayload[];
+  skills: ToolPayload[];
+  tools: ToolPayload[];
   requestMethod: string;
   requestPath: string;
   status: 'AVAILABLE' | 'NOT_AVAILABLE';
@@ -33,9 +34,21 @@ type HealthResponse = {
   services: HealthEntry[];
 };
 
+const AGENT_ICONS: Record<string, string> = {
+  'delivery-agent':          '🚚',
+  'menu-agent':              '🍱',
+  'kitchen-agent':           '🍳',
+  'support-agent':           '🎧',
+  'capability-registry-agent': '🗂️',
+};
+
+function agentIcon(agentName: string): string {
+  return AGENT_ICONS[agentName] ?? '🤖';
+}
+
 export default function AgentsPage() {
   const router = useRouter();
-  const [services, setServices] = useState<AgentServiceDescriptor[]>([]);
+  const [agents, setAgents] = useState<AgentServiceDescriptor[]>([]);
   const [healthMap, setHealthMap] = useState<Record<string, 'AVAILABLE' | 'NOT_AVAILABLE'>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -49,21 +62,26 @@ export default function AgentsPage() {
       }
 
       void Promise.allSettled([
-      fetch('/api/registry/services')
-        .then(r => (r.ok ? (r.json() as Promise<AgentServiceDescriptor[]>) : []))
-        .then(data => setServices(data as AgentServiceDescriptor[]))
-        .catch(() => setError('サービス一覧の取得に失敗しました')),
-      fetch('/api/registry/health')
-        .then(r => (r.ok ? (r.json() as Promise<HealthResponse>) : null))
-        .then(data => {
-          if (!data) return;
-          const map: Record<string, 'AVAILABLE' | 'NOT_AVAILABLE'> = {};
-          for (const entry of (data as HealthResponse).services ?? []) {
-            map[entry.serviceName] = entry.status;
-          }
-          setHealthMap(map);
-        })
-        .catch(() => {}),
+        fetch('/api/registry/services')
+          .then(r => (r.ok ? (r.json() as Promise<AgentServiceDescriptor[]>) : []))
+          .then(data => {
+            const aiAgents = (data as AgentServiceDescriptor[]).filter(
+              s => Array.isArray(s.tools) && s.tools.length > 0,
+            );
+            setAgents(aiAgents);
+          })
+          .catch(() => setError('エージェント一覧の取得に失敗しました')),
+        fetch('/api/registry/health')
+          .then(r => (r.ok ? (r.json() as Promise<HealthResponse>) : null))
+          .then(data => {
+            if (!data) return;
+            const map: Record<string, 'AVAILABLE' | 'NOT_AVAILABLE'> = {};
+            for (const entry of (data as HealthResponse).services ?? []) {
+              map[entry.serviceName] = entry.status;
+            }
+            setHealthMap(map);
+          })
+          .catch(() => {}),
       ]).finally(() => setLoading(false));
     });
   }, [router]);
@@ -89,9 +107,9 @@ export default function AgentsPage() {
 
       {/* Header */}
       <header className="ag-header">
-        <h1 className="ag-header-title">エージェント仕様ビューワー</h1>
+        <h1 className="ag-header-title">AI エージェント一覧</h1>
         <p className="ag-header-lead">
-          registry-service に登録された全エージェントのケイパビリティ・プロンプト・スキルを確認できます。
+          このシステムで稼働中の Arachne AI エージェントです。各エージェントのシステムプロンプト・利用ツール・スキルを確認できます。
         </p>
       </header>
 
@@ -102,31 +120,32 @@ export default function AgentsPage() {
         <div className="ag-error">{error}</div>
       ) : (
         <div className="ag-grid">
-          {services.map(svc => {
-            const live = statusOf(svc.serviceName);
-            const isUp = live === 'AVAILABLE';
+          {agents.map(agent => {
+            const isUp = statusOf(agent.serviceName) === 'AVAILABLE';
             return (
               <button
-                key={svc.serviceName}
+                key={agent.serviceName}
                 type="button"
                 className="ag-card"
-                onClick={() => setSelected(svc)}
+                onClick={() => setSelected(agent)}
               >
+                <div className="ag-card-icon" aria-hidden="true">{agentIcon(agent.agentName)}</div>
                 <div className="ag-card-header">
-                  <span className="ag-card-name">{svc.serviceName}</span>
+                  <span className="ag-card-name">{agent.agentName}</span>
                   <span className={`ag-badge ag-badge--${isUp ? 'up' : 'down'}`}>
-                    {isUp ? '● UP' : '○ DOWN'}
+                    {isUp ? 'UP' : 'DOWN'}
                   </span>
                 </div>
-                <div className="ag-card-agent">{svc.agentName}</div>
-                <p className="ag-card-capability">{svc.capability}</p>
-                {svc.skills.length > 0 && (
-                  <div className="ag-card-skills">
-                    {svc.skills.map(sk => (
-                      <span key={sk.name} className="ag-skill-chip">{sk.name}</span>
-                    ))}
-                  </div>
-                )}
+                <p className="ag-card-service">via {agent.serviceName}</p>
+                <p className="ag-card-capability">{agent.capability}</p>
+                <div className="ag-card-chips">
+                  {agent.tools.slice(0, 3).map(t => (
+                    <span key={t.name} className="ag-tool-chip">{t.name}</span>
+                  ))}
+                  {agent.tools.length > 3 && (
+                    <span className="ag-tool-chip ag-tool-chip--more">+{agent.tools.length - 3}</span>
+                  )}
+                </div>
                 <span className="ag-card-detail-hint">詳細を見る →</span>
               </button>
             );
@@ -134,20 +153,26 @@ export default function AgentsPage() {
         </div>
       )}
 
-      {/* Modal */}
+      {/* Detail modal */}
       {selected && (
         <div
           className="ag-modal-overlay"
           role="dialog"
           aria-modal="true"
-          aria-label={`${selected.serviceName} の詳細`}
+          aria-label={`${selected.agentName} の詳細`}
           onClick={e => { if (e.target === e.currentTarget) setSelected(null); }}
         >
           <div className="ag-modal">
             <div className="ag-modal-titlebar">
-              <div>
-                <span className="ag-modal-service">{selected.serviceName}</span>
-                <span className="ag-modal-agent"> / {selected.agentName}</span>
+              <div className="ag-modal-title-group">
+                <span className="ag-modal-icon" aria-hidden="true">{agentIcon(selected.agentName)}</span>
+                <div>
+                  <div className="ag-modal-service">{selected.agentName}</div>
+                  <div className="ag-modal-sub">via {selected.serviceName}</div>
+                </div>
+                <span className={`ag-badge ag-badge--${statusOf(selected.serviceName) === 'AVAILABLE' ? 'up' : 'down'}`}>
+                  {statusOf(selected.serviceName) === 'AVAILABLE' ? 'UP' : 'DOWN'}
+                </span>
               </div>
               <button
                 type="button"
@@ -160,20 +185,6 @@ export default function AgentsPage() {
             </div>
 
             <div className="ag-modal-body">
-              {/* Status & endpoint */}
-              <div className="ag-modal-row">
-                <span className="ag-modal-label">稼働状態</span>
-                <span className={`ag-badge ag-badge--${statusOf(selected.serviceName) === 'AVAILABLE' ? 'up' : 'down'}`}>
-                  {statusOf(selected.serviceName) === 'AVAILABLE' ? '● UP' : '○ DOWN'}
-                </span>
-              </div>
-              {selected.endpoint && (
-                <div className="ag-modal-row">
-                  <span className="ag-modal-label">エンドポイント</span>
-                  <span className="ag-modal-value ag-mono">{selected.endpoint}{selected.requestPath}</span>
-                </div>
-              )}
-
               {/* Capability */}
               <div className="ag-modal-section">
                 <span className="ag-modal-section-title">ケイパビリティ</span>
@@ -185,6 +196,21 @@ export default function AgentsPage() {
                 <div className="ag-modal-section">
                   <span className="ag-modal-section-title">システムプロンプト</span>
                   <pre className="ag-modal-pre">{selected.systemPrompt}</pre>
+                </div>
+              )}
+
+              {/* Tools */}
+              {selected.tools.length > 0 && (
+                <div className="ag-modal-section">
+                  <span className="ag-modal-section-title">利用ツール ({selected.tools.length})</span>
+                  <div className="ag-tool-list">
+                    {selected.tools.map(tool => (
+                      <div key={tool.name} className="ag-tool-row">
+                        <code className="ag-tool-name">{tool.name}</code>
+                        <span className="ag-tool-desc">{tool.content}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 

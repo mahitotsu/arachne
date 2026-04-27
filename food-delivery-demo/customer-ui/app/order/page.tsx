@@ -437,7 +437,6 @@ function OrderPageInner() {
   const progressIndex = committedStep < 4 ? committedStep : 3;
   const deliveryFee = Math.max(Number(draft.total) - Number(draft.subtotal), 0);
   const keptProposals = proposals.filter(p => !removedItemIds.has(p.itemId));
-  const itemSelectionLocked = step === 1 && committedStep >= 2;
 
   return (
     <main className="shell">
@@ -468,7 +467,7 @@ function OrderPageInner() {
       {/* Step progress indicator */}
       <nav className="wf-steps">
         {STEPS.map((label, i) => {
-          const canGoBack = i < progressIndex && progressIndex < 3 && !loading;
+          const canGoBack = i < progressIndex && committedStep < 4 && !loading;
           return (
           <div
             key={label}
@@ -530,9 +529,7 @@ function OrderPageInner() {
               {suggestEta > 0 && (
                 <p className="wf-eta">🕐 調理 ETA: 約 {suggestEta} 分</p>
               )}
-              {itemSelectionLocked && (
-                <p className="wf-card-hint">確定済みのアイテムを表示しています。内容を変更するには新しい提案からやり直してください。</p>
-              )}
+
             </div>
 
             <div className="wf-proposal-grid">
@@ -543,7 +540,7 @@ function OrderPageInner() {
                 >
                   <div className="wf-proposal-header">
                     <div className="wf-proposal-name">{item.name}</div>
-                    {!itemSelectionLocked && !removedItemIds.has(item.itemId) ? (
+                    {!removedItemIds.has(item.itemId) ? (
                       <button
                         type="button"
                         className="wf-proposal-remove"
@@ -553,7 +550,7 @@ function OrderPageInner() {
                       >
                         ×
                       </button>
-                    ) : !itemSelectionLocked ? (
+                    ) : (
                       <button
                         type="button"
                         className="wf-proposal-restore"
@@ -563,9 +560,6 @@ function OrderPageInner() {
                       >
                         ↩
                       </button>
-                    ) : null}
-                    {itemSelectionLocked && (
-                      <span className="wf-proposal-qty">確定済み</span>
                     )}
                   </div>
                   {!removedItemIds.has(item.itemId) && (
@@ -592,12 +586,12 @@ function OrderPageInner() {
                 onChange={e => setRefinement(e.target.value)}
                 placeholder="気になる点があれば: 「辛さを抑えて」「もう少し野菜を増やして」など"
                 rows={2}
-                disabled={loading || itemSelectionLocked}
+                disabled={loading}
               />
               <button
                 type="button"
                 className="wf-btn wf-btn--secondary"
-                disabled={loading || itemSelectionLocked || !refinement.trim()}
+                disabled={loading || !refinement.trim()}
                 onClick={handleRefinement}
               >
                 {loading ? '再提案中…' : '↺ フィードバックして再提案'}
@@ -619,7 +613,7 @@ function OrderPageInner() {
                 disabled={loading || keptProposals.length === 0}
                 onClick={handleConfirmItems}
               >
-                {loading ? '確定中…' : itemSelectionLocked ? '配送選択へ戻る →' : 'この内容で確定 →'}
+                {loading ? '確定中…' : 'この内容で確定 →'}
               </button>
             </div>
           </div>
@@ -721,6 +715,14 @@ function OrderPageInner() {
             </div>
 
             <div className="wf-actions">
+              <button
+                type="button"
+                className="wf-btn wf-btn--secondary"
+                disabled={loading}
+                onClick={() => setStep(2)}
+              >
+                ← 前のステップへ
+              </button>
               <button
                 type="button"
                 className="wf-btn wf-btn--primary"

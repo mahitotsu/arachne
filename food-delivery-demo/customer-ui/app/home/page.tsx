@@ -52,15 +52,6 @@ type CampaignSummary = {
   validUntil: string;
 };
 
-type ServiceHealthSummary = {
-  serviceName: string;
-  status: string;
-};
-
-type SupportStatusResponse = {
-  services: ServiceHealthSummary[];
-};
-
 type ServiceState = 'loading' | 'ok' | 'error' | 'idle';
 
 export default function HomePage() {
@@ -71,7 +62,6 @@ export default function HomePage() {
   const [recentWorkflowStep, setRecentWorkflowStep] = useState<string>('');
   const [orderHistory, setOrderHistory] = useState<OrderHistoryItem[]>([]);
   const [campaigns, setCampaigns] = useState<CampaignSummary[]>([]);
-  const [serviceStatuses, setServiceStatuses] = useState<ServiceHealthSummary[]>([]);
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [svcState, setSvcState] = useState<Record<string, ServiceState>>({
     'customer-service': 'loading',
@@ -145,16 +135,10 @@ export default function HomePage() {
       }
 
       // Fetch support-service data (non-critical)
-      await Promise.allSettled([
-        fetch('/api/support/campaigns')
-          .then(r => (r.ok ? (r.json() as Promise<CampaignSummary[]>) : []))
-          .then(data => setCampaigns(data as CampaignSummary[]))
-          .catch(() => {}),
-        fetch('/api/support/status')
-          .then(r => (r.ok ? (r.json() as Promise<SupportStatusResponse>) : null))
-          .then(data => { if (data) setServiceStatuses(data.services ?? []); })
-          .catch(() => {}),
-      ]);
+      await fetch('/api/support/campaigns')
+        .then(r => (r.ok ? (r.json() as Promise<CampaignSummary[]>) : []))
+        .then(data => setCampaigns(data as CampaignSummary[]))
+        .catch(() => {});
     }
 
     void load();
@@ -242,6 +226,9 @@ export default function HomePage() {
             <span>AI エージェントに注文する</span>
             <span className="h-cta-arrow">→</span>
           </Link>
+          <Link href="/support" className="h-hero-support-link">
+            🎧 サポートセンターへ
+          </Link>
         </div>
 
         <div className="h-hero-right">
@@ -298,24 +285,7 @@ export default function HomePage() {
             </div>
           )}
 
-          {/* Service health from support-service */}
-          {serviceStatuses.length > 0 && (
-            <div className="h-svc-status-card">
-              <p className="h-svc-status-title">📡 サービス稼働状況</p>
-              <div className="h-svc-status-list">
-                {serviceStatuses.map(s => (
-                  <div key={s.serviceName} className="h-svc-status-row">
-                    <span className={`sp-status-dot sp-status-dot--${s.status.toLowerCase()}`} />
-                    <span className="h-svc-status-name">{s.serviceName}</span>
-                    <span className={`h-svc-status-label h-svc-status-label--${s.status.toLowerCase()}`}>
-                      {s.status}
-                    </span>
-                  </div>
-                ))}
-              </div>
-              <Link href="/support" className="h-svc-status-link">詳細 → サポートセンター</Link>
-            </div>
-          )}
+
         </div>
       </section>
 

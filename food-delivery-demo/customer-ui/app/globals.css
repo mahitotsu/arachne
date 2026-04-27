@@ -2204,21 +2204,29 @@ textarea {
   border-radius: 12px;
   background: var(--surface-2);
   border: 1px solid var(--border);
+  transition: background 0.15s;
+}
+
+.sp-status-row:hover {
+  background: var(--surface-3);
 }
 
 .sp-status-dot {
-  width: 8px;
-  height: 8px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
   flex-shrink: 0;
+  box-shadow: 0 0 0 2px rgba(0,0,0,0.06);
 }
 
 .sp-status-dot--up,
 .sp-status-dot--ok,
-.sp-status-dot--healthy { background: var(--green); }
+.sp-status-dot--healthy,
+.sp-status-dot--available { background: var(--green); }
 .sp-status-dot--degraded { background: var(--gold); }
 .sp-status-dot--down,
-.sp-status-dot--error { background: var(--red); }
+.sp-status-dot--error,
+.sp-status-dot--not_available { background: var(--red); }
 .sp-status-dot--unknown { background: var(--ink-subtle); }
 
 .sp-status-name {
@@ -2229,33 +2237,41 @@ textarea {
 }
 
 .sp-status-label {
-  font-size: 0.74rem;
-  font-weight: 700;
-  padding: 3px 9px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 3px 10px;
   border-radius: 999px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .sp-status-label--up,
 .sp-status-label--ok,
-.sp-status-label--healthy {
+.sp-status-label--healthy,
+.sp-status-label--available {
   color: var(--green);
-  background: rgba(22, 163, 74, 0.1);
+  background: rgba(22, 163, 74, 0.12);
+  border: 1px solid rgba(22, 163, 74, 0.25);
 }
 
 .sp-status-label--degraded {
   color: var(--gold);
-  background: rgba(217, 119, 6, 0.1);
+  background: rgba(217, 119, 6, 0.12);
+  border: 1px solid rgba(217, 119, 6, 0.25);
 }
 
 .sp-status-label--down,
-.sp-status-label--error {
+.sp-status-label--error,
+.sp-status-label--not_available {
   color: var(--red);
-  background: rgba(220, 38, 38, 0.1);
+  background: rgba(220, 38, 38, 0.12);
+  border: 1px solid rgba(220, 38, 38, 0.25);
 }
 
 .sp-status-label--unknown {
   color: var(--ink-subtle);
   background: var(--surface-3);
+  border: 1px solid var(--border);
 }
 
 /* --- Chat panel --- */
@@ -2688,6 +2704,21 @@ textarea {
   opacity: 0.75;
 }
 
+/* --- Support link below hero CTA --- */
+.h-hero-support-link {
+  display: inline-block;
+  margin-top: 10px;
+  font-size: 0.84rem;
+  color: var(--ink-muted);
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.15s;
+}
+
+.h-hero-support-link:hover {
+  color: var(--accent);
+}
+
 /* --- Floating support entry button --- */
 .h-float-support {
   position: fixed;
@@ -2868,6 +2899,97 @@ textarea {
   letter-spacing: 0.01em;
 }
 
+.ag-card-icon {
+  font-size: 2rem;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.ag-card-service {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--ink-subtle);
+  font-weight: 500;
+}
+
+.ag-card-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 2px;
+}
+
+.ag-tool-chip {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(99, 102, 241, 0.08);
+  color: var(--accent);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  font-family: ui-monospace, "Cascadia Code", monospace;
+}
+
+.ag-tool-chip--more {
+  background: var(--surface-2);
+  color: var(--ink-subtle);
+  border-color: var(--border);
+  font-family: inherit;
+}
+
+.ag-modal-title-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+}
+
+.ag-modal-icon {
+  font-size: 1.8rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.ag-modal-sub {
+  font-size: 0.8rem;
+  color: var(--ink-subtle);
+  font-weight: 500;
+  margin-top: 2px;
+}
+
+.ag-tool-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ag-tool-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.ag-tool-name {
+  font-family: ui-monospace, "Cascadia Code", monospace;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--accent);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.ag-tool-desc {
+  font-size: 0.82rem;
+  color: var(--ink-muted);
+  line-height: 1.45;
+}
+
+
 .ag-badge {
   font-size: 0.72rem;
   font-weight: 700;
@@ -2919,6 +3041,7 @@ textarea {
   border-bottom: 1px solid var(--border);
   gap: 12px;
   flex-shrink: 0;
+  flex-wrap: wrap;
 }
 
 .ag-modal-service {
