@@ -3044,3 +3044,434 @@ textarea {
   .ag-grid { grid-template-columns: 1fr; }
   .ag-modal-overlay { padding: 20px 12px; }
 }
+
+/* ============================================================
+   Order workflow (.wf-*)
+   ============================================================ */
+
+/* ── Step progress bar ── */
+.wf-steps {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 18px 0 20px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 28px;
+  overflow-x: auto;
+}
+
+.wf-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 18px 8px 0;
+  color: var(--ink-subtle);
+  font-size: 0.84rem;
+  font-weight: 600;
+  white-space: nowrap;
+  position: relative;
+}
+
+.wf-step + .wf-step::before {
+  content: '›';
+  margin-right: 18px;
+  color: var(--ink-subtle);
+  font-size: 1rem;
+}
+
+.wf-step--active {
+  color: var(--accent);
+}
+
+.wf-step--done {
+  color: var(--green);
+}
+
+.wf-step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.wf-step--active .wf-step-num {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.wf-step--done .wf-step-num {
+  background: var(--green);
+  border-color: var(--green);
+  color: #fff;
+}
+
+/* ── Content area ── */
+.wf-content {
+  flex: 1;
+  max-width: 740px;
+}
+
+.wf-error {
+  margin: 0 0 18px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: rgba(220, 38, 38, 0.07);
+  color: var(--red);
+  font-size: 0.88rem;
+  font-weight: 500;
+}
+
+/* ── Generic card ── */
+.wf-card {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 32px;
+  box-shadow: var(--shadow-sm);
+}
+
+.wf-card-title {
+  margin: 0 0 10px;
+  font-size: 1.45rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.wf-card-hint {
+  margin: 0 0 22px;
+  color: var(--ink-muted);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+/* ── Input form (step 0) ── */
+.wf-input-card {
+  max-width: 540px;
+}
+
+.wf-input-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.wf-textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1.5px solid var(--border);
+  background: var(--surface-2);
+  color: var(--ink);
+  font-size: 0.92rem;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.wf-textarea:focus {
+  border-color: var(--accent);
+  background: var(--surface-1);
+}
+
+.wf-textarea--sm {
+  font-size: 0.85rem;
+}
+
+/* ── Buttons ── */
+.wf-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 11px 22px;
+  border-radius: 10px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s, opacity 0.15s;
+  text-decoration: none;
+  border: none;
+  white-space: nowrap;
+}
+
+.wf-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.wf-btn--primary {
+  background: var(--accent);
+  color: #fff;
+}
+
+.wf-btn--primary:hover:not(:disabled) {
+  background: var(--accent-light);
+  transform: translateY(-1px);
+}
+
+.wf-btn--secondary {
+  background: var(--surface-2);
+  color: var(--ink);
+  border: 1.5px solid var(--border);
+}
+
+.wf-btn--secondary:hover:not(:disabled) {
+  background: var(--surface-3);
+  transform: translateY(-1px);
+}
+
+/* ── Step sections ── */
+.wf-step-section {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.wf-step-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.wf-step-header h2 {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.wf-summary {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.wf-eta {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--gold);
+  font-weight: 600;
+}
+
+/* ── Proposal cards (step 1) ── */
+.wf-proposal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px;
+}
+
+.wf-proposal-card {
+  background: var(--surface-1);
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  padding: 16px 18px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wf-proposal-name {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.wf-proposal-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.wf-proposal-qty {
+  font-size: 0.82rem;
+  color: var(--ink-muted);
+  font-weight: 600;
+}
+
+.wf-proposal-price {
+  font-size: 0.85rem;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.wf-proposal-reason {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--ink-muted);
+  line-height: 1.4;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
+/* ── Refinement (step 1) ── */
+.wf-refinement {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ── Actions row ── */
+.wf-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.wf-actions--center {
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* ── Delivery option cards (step 2) ── */
+.wf-delivery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px;
+}
+
+.wf-delivery-card {
+  background: var(--surface-1);
+  border: 2px solid var(--border);
+  border-radius: 14px;
+  padding: 18px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
+  position: relative;
+}
+
+.wf-delivery-card:hover:not(:disabled) {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.wf-delivery-card--selected {
+  border-color: var(--accent);
+  background: var(--accent-glow);
+  box-shadow: var(--glow-accent);
+}
+
+.wf-recommended-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  align-self: flex-start;
+  letter-spacing: 0.02em;
+}
+
+.wf-delivery-label {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.wf-delivery-eta {
+  font-size: 0.84rem;
+  color: var(--gold);
+  font-weight: 600;
+}
+
+.wf-delivery-fee {
+  font-size: 0.88rem;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.wf-delivery-reason {
+  margin: 0;
+  font-size: 0.76rem;
+  color: var(--ink-muted);
+  line-height: 1.4;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
+/* ── Payment summary table (step 3) ── */
+.wf-summary-table {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+
+.wf-summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 18px;
+  font-size: 0.9rem;
+  color: var(--ink-muted);
+  border-bottom: 1px solid var(--border);
+}
+
+.wf-summary-row:last-child {
+  border-bottom: none;
+}
+
+.wf-summary-row--total {
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: var(--ink);
+  background: var(--surface-2);
+}
+
+/* ── Completion card (step 4) ── */
+.wf-complete-card {
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  text-align: center;
+  padding: 44px 36px;
+}
+
+.wf-complete-icon {
+  font-size: 3rem;
+  line-height: 1;
+}
+
+.wf-complete-id,
+.wf-complete-eta,
+.wf-complete-total {
+  margin: 0;
+  font-size: 0.92rem;
+  color: var(--ink-muted);
+}
+
+.wf-complete-total {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+@media (max-width: 640px) {
+  .wf-content { max-width: 100%; }
+  .wf-proposal-grid { grid-template-columns: 1fr; }
+  .wf-delivery-grid { grid-template-columns: 1fr; }
+  .wf-card { padding: 22px 18px; }
+  .wf-steps { gap: 0; }
+  .wf-step { padding: 8px 12px 8px 0; font-size: 0.8rem; }
+}

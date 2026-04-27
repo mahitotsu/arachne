@@ -1,14 +1,10 @@
 'use client';
 
-import { FormEvent, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import ReactMarkdown from 'react-markdown';
 import Link from 'next/link';
 
-type ConversationMessage = {
-  role: string;
-  text: string;
-};
+// ── Types ────────────────────────────────────────────────────────────────────
 
 type OrderLineItem = {
   name: string;
@@ -28,52 +24,82 @@ type OrderDraft = {
   orderId: string;
 };
 
-type RoutingDecision = {
-  intent: string;
-  selectedSkill: string;
-  entryStep: string;
+type ProposalItem = {
+  itemId: string;
+  name: string;
+  quantity: number;
+  unitPrice: number;
   reason: string;
 };
 
-type ServiceTrace = {
-  service: string;
-  agent: string;
-  headline: string;
-  detail: string;
-  routing?: RoutingDecision | null;
+type DeliveryOptionChoice = {
+  code: string;
+  label: string;
+  etaMinutes: number;
+  fee: number;
+  reason: string;
+  recommended: boolean;
 };
 
-type ChatResponse = {
+type SuggestResponse = {
   sessionId: string;
-  conversation: ConversationMessage[];
-  assistantMessage: string;
+  workflowStep: string;
+  headline: string;
+  summary: string;
+  etaMinutes: number;
+  proposals: ProposalItem[];
   draft: OrderDraft;
-  trace: ServiceTrace[];
-  routing?: RoutingDecision | null;
-  suggestions: string[];
-  choices: string[];
 };
+
+type ConfirmItemsResponse = {
+  sessionId: string;
+  workflowStep: string;
+  headline: string;
+  items: OrderLineItem[];
+  deliveryOptions: DeliveryOptionChoice[];
+  draft: OrderDraft;
+};
+
+type ConfirmDeliveryResponse = {
+  sessionId: string;
+  workflowStep: string;
+  headline: string;
+  draft: OrderDraft;
+};
+
+type ConfirmPaymentResponse = {
+  sessionId: string;
+  workflowStep: string;
+  summary: string;
+  draft: OrderDraft;
+};
+
+type SessionView = {
+  sessionId: string;
+  workflowStep: string;
+  draft: OrderDraft;
+  pendingProposal: ProposalItem[];
+  pendingDeliveryOptions: DeliveryOptionChoice[];
+};
+
+// ── Constants ────────────────────────────────────────────────────────────────
 
 const EMPTY_DRAFT: OrderDraft = {
-  status: 'EMPTY',
+  status: 'INITIAL',
   items: [],
   subtotal: 0,
   total: 0,
   etaLabel: '',
   paymentStatus: 'PENDING',
   paymentMethod: '',
-  orderId: ''
+  orderId: '',
 };
 
 const SESSION_KEY = 'delivery-demo-session-id';
 const ACCESS_TOKEN_KEY = 'delivery-demo-access-token';
+const STEPS = ['初期入力', 'アイテム選択', '配送選択', '支払い承認'];
 
-function formatRoutingValue(value: string) {
-  return value
-    .split('-')
-    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
-}
+// ── Main export ───────────────────────────────────────────────────────────────
 
 export default function OrderPage() {
   return (
@@ -83,27 +109,28 @@ export default function OrderPage() {
   );
 }
 
+// ── Inner component ───────────────────────────────────────────────────────────
+
 function OrderPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
+
   const [accessToken, setAccessToken] = useState('');
   const [sessionId, setSessionId] = useState('');
+  // step: 0=入力, 1=アイテム選択, 2=配送選択, 3=支払い, 4=完了
+  const [step, setStep] = useState(0);
   const [message, setMessage] = useState('');
-  const [conversation, setConversation] = useState<ConversationMessage[]>([]);
+  const [refinement, setRefinement] = useState('');
+  const [suggestSummary, setSuggestSummary] = useState('');
+  const [suggestEta, setSuggestEta] = useState(0);
+  const [proposals, setProposals] = useState<ProposalItem[]>([]);
+  const [deliveryOptions, setDeliveryOptions] = useState<DeliveryOptionChoice[]>([]);
+  const [selectedDeliveryCode, setSelectedDeliveryCode] = useState('');
   const [draft, setDraft] = useState<OrderDraft>(EMPTY_DRAFT);
-  const [traceMemory, setTraceMemory] = useState<Record<string, ServiceTrace>>({});
-  const [activeTurn, setActiveTurn] = useState<Set<string>>(new Set());
-  const [suggestions, setSuggestions] = useState<string[]>([]);
-  const [choices, setChoices] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const messageListEndRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (messageListEndRef.current) {
-      messageListEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [conversation, loading]);
+  // ── Auth & session restore ─────────────────────────────────────────────────
 
   useEffect(() => {
     const token = window.localStorage.getItem(ACCESS_TOKEN_KEY);
@@ -124,31 +151,37 @@ function OrderPageInner() {
     const savedSessionId = window.localStorage.getItem(SESSION_KEY);
     if (!savedSessionId) return;
 
-    setSessionId(savedSessionId);
-    void fetch(`/api/backend/session/${savedSessionId}`, {
+    void fetch(`/api/backend/order/session/${savedSessionId}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then(r => r.ok ? r.json() as Promise<ChatResponse> : null)
-      .then(payload => {
-        if (!payload) return;
-        setSessionId(payload.sessionId);
-        setConversation(payload.conversation ?? []);
-        setDraft(payload.draft ?? EMPTY_DRAFT);
-        setSuggestions(payload.suggestions ?? []);
-        setChoices(payload.choices ?? []);
+      .then(r => r.ok ? r.json() as Promise<SessionView> : null)
+      .then(view => {
+        if (!view) return;
+        setSessionId(view.sessionId);
+        setDraft(view.draft ?? EMPTY_DRAFT);
+        switch (view.workflowStep) {
+          case 'item-selection':
+            setProposals(view.pendingProposal ?? []);
+            setStep(1);
+            break;
+          case 'delivery-selection':
+            setDeliveryOptions(view.pendingDeliveryOptions ?? []);
+            setStep(2);
+            break;
+          case 'payment':
+            setStep(3);
+            break;
+          case 'completed':
+            setStep(4);
+            break;
+          default:
+            setStep(0);
+        }
       })
       .catch(() => window.localStorage.removeItem(SESSION_KEY));
   }, [router]);
 
-  const totalItems = useMemo(
-    () => draft.items.reduce((sum, item) => sum + item.quantity, 0),
-    [draft.items]
-  );
-
-  const deliveryFee = useMemo(
-    () => Math.max(draft.total - draft.subtotal, 0),
-    [draft.subtotal, draft.total]
-  );
+  // ── Helpers ────────────────────────────────────────────────────────────────
 
   function withBearer(headersInit?: HeadersInit) {
     const headers = new Headers(headersInit);
@@ -160,68 +193,165 @@ function OrderPageInner() {
     window.localStorage.removeItem(SESSION_KEY);
     setSessionId('');
     setMessage('');
-    setConversation([]);
+    setRefinement('');
+    setSuggestSummary('');
+    setSuggestEta(0);
+    setProposals([]);
+    setDeliveryOptions([]);
+    setSelectedDeliveryCode('');
     setDraft(EMPTY_DRAFT);
-    setTraceMemory({});
-    setActiveTurn(new Set());
-    setSuggestions([]);
-    setChoices([]);
+    setStep(0);
     setError('');
   }
 
-  async function sendChat(nextMessage: string) {
-    const locale = navigator.languages?.[0] ?? navigator.language ?? '';
-    const optimisticConversation: ConversationMessage[] = [
-      ...conversation,
-      { role: 'user', text: nextMessage }
-    ];
-    setConversation(optimisticConversation);
-    setChoices([]);
+  // ── Step 1: initial suggest ────────────────────────────────────────────────
+
+  async function handleSuggest(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!message.trim() || loading) return;
     setLoading(true);
     setError('');
     try {
-      const response = await fetch('/api/backend/chat', {
+      const res = await fetch('/api/backend/order/suggest', {
         method: 'POST',
         headers: withBearer({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ sessionId, message: nextMessage, locale }),
+        body: JSON.stringify({
+          sessionId: sessionId || undefined,
+          message: message.trim(),
+          locale: navigator.languages?.[0] ?? navigator.language ?? '',
+        }),
       });
-      if (response.status === 401) {
-        window.localStorage.removeItem(ACCESS_TOKEN_KEY);
-        router.replace('/');
-        return;
-      }
-      if (!response.ok) {
-        throw new Error(`chat request failed: ${response.status}`);
-      }
-      const payload: ChatResponse = await response.json();
+      if (res.status === 401) { router.replace('/'); return; }
+      if (!res.ok) throw new Error(`提案取得に失敗しました (${res.status})`);
+      const payload: SuggestResponse = await res.json();
       setSessionId(payload.sessionId);
       window.localStorage.setItem(SESSION_KEY, payload.sessionId);
-      setConversation(payload.conversation ?? []);
+      setProposals(payload.proposals ?? []);
+      setSuggestSummary(payload.summary ?? '');
+      setSuggestEta(payload.etaMinutes ?? 0);
       setDraft(payload.draft ?? EMPTY_DRAFT);
-      setTraceMemory(prev => {
-        const next = { ...prev };
-        for (const entry of payload.trace ?? []) {
-          next[entry.service] = entry;
-        }
-        return next;
-      });
-      setActiveTurn(new Set((payload.trace ?? []).map(e => e.service)));
-      setSuggestions(payload.suggestions ?? []);
-      setChoices(payload.choices ?? []);
-      setMessage('');
-    } catch (nextError) {
-      setConversation(conversation);
-      setError(nextError instanceof Error ? nextError.message : 'chat request failed');
+      setStep(1);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '提案取得に失敗しました');
     } finally {
       setLoading(false);
     }
   }
 
-  function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!message.trim() || loading) return;
-    void sendChat(message.trim());
+  // ── Step 1: refinement re-suggest ─────────────────────────────────────────
+
+  async function handleRefinement() {
+    if (!refinement.trim() || loading) return;
+    setLoading(true);
+    setError('');
+    try {
+      const res = await fetch('/api/backend/order/suggest', {
+        method: 'POST',
+        headers: withBearer({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          sessionId,
+          message: message.trim(),
+          locale: navigator.languages?.[0] ?? navigator.language ?? '',
+          refinement: refinement.trim(),
+        }),
+      });
+      if (res.status === 401) { router.replace('/'); return; }
+      if (!res.ok) throw new Error(`再提案に失敗しました (${res.status})`);
+      const payload: SuggestResponse = await res.json();
+      setSessionId(payload.sessionId);
+      window.localStorage.setItem(SESSION_KEY, payload.sessionId);
+      setProposals(payload.proposals ?? []);
+      setSuggestSummary(payload.summary ?? '');
+      setSuggestEta(payload.etaMinutes ?? 0);
+      setDraft(payload.draft ?? EMPTY_DRAFT);
+      setRefinement('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '再提案に失敗しました');
+    } finally {
+      setLoading(false);
+    }
   }
+
+  // ── Step 2: confirm items → delivery options ───────────────────────────────
+
+  async function handleConfirmItems() {
+    if (loading) return;
+    setLoading(true);
+    setError('');
+    try {
+      // items: [] means "accept all proposals" (see selectProposalItems in order-service)
+      const res = await fetch('/api/backend/order/confirm-items', {
+        method: 'POST',
+        headers: withBearer({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ sessionId, items: [] }),
+      });
+      if (res.status === 401) { router.replace('/'); return; }
+      if (!res.ok) throw new Error(`アイテム確定に失敗しました (${res.status})`);
+      const payload: ConfirmItemsResponse = await res.json();
+      setDeliveryOptions(payload.deliveryOptions ?? []);
+      setDraft(payload.draft ?? EMPTY_DRAFT);
+      const recommended = payload.deliveryOptions?.find(o => o.recommended);
+      setSelectedDeliveryCode(recommended?.code ?? payload.deliveryOptions?.[0]?.code ?? '');
+      setStep(2);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'アイテム確定に失敗しました');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // ── Step 3: confirm delivery → payment summary ────────────────────────────
+
+  async function handleConfirmDelivery() {
+    if (!selectedDeliveryCode || loading) return;
+    setLoading(true);
+    setError('');
+    try {
+      const res = await fetch('/api/backend/order/confirm-delivery', {
+        method: 'POST',
+        headers: withBearer({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ sessionId, deliveryCode: selectedDeliveryCode }),
+      });
+      if (res.status === 401) { router.replace('/'); return; }
+      if (!res.ok) throw new Error(`配送確定に失敗しました (${res.status})`);
+      const payload: ConfirmDeliveryResponse = await res.json();
+      setDraft(payload.draft ?? EMPTY_DRAFT);
+      setStep(3);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '配送確定に失敗しました');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // ── Step 4: confirm payment → completion ──────────────────────────────────
+
+  async function handleConfirmPayment() {
+    if (loading) return;
+    setLoading(true);
+    setError('');
+    try {
+      const res = await fetch('/api/backend/order/confirm-payment', {
+        method: 'POST',
+        headers: withBearer({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ sessionId }),
+      });
+      if (res.status === 401) { router.replace('/'); return; }
+      if (!res.ok) throw new Error(`注文確定に失敗しました (${res.status})`);
+      const payload: ConfirmPaymentResponse = await res.json();
+      setDraft(payload.draft ?? EMPTY_DRAFT);
+      setStep(4);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '注文確定に失敗しました');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+
+  const progressIndex = step < 4 ? step : 3;
+  const deliveryFee = Math.max(Number(draft.total) - Number(draft.subtotal), 0);
 
   return (
     <main className="shell">
@@ -249,208 +379,231 @@ function OrderPageInner() {
         </button>
       </header>
 
-      {/* Main workspace */}
-      <section className="workspace">
-        {/* Chat panel */}
-        <div className="panel chat-panel">
-          <div className="panel-header">
-            <div>
-              <p className="panel-label">🗨 Customer Chat</p>
-              <h2>自然言語で注文する</h2>
-            </div>
+      {/* Step progress indicator */}
+      <nav className="wf-steps">
+        {STEPS.map((label, i) => (
+          <div
+            key={label}
+            className={`wf-step${i < progressIndex ? ' wf-step--done' : ''}${i === progressIndex ? ' wf-step--active' : ''}`}
+          >
+            <span className="wf-step-num">{i < progressIndex ? '✓' : i + 1}</span>
+            <span className="wf-step-label">{label}</span>
           </div>
+        ))}
+      </nav>
 
-          <div className="message-list">
-            {conversation.length === 0 ? (
-              <div className="message system">
-                「2人分で辛さ控えめ」「子ども向けで自社エクスプレス」など自然に話しかけてください。
-                右のトレースパネルには、単一キッチンの在庫判断や配送レーン選択を含む各エージェントの動きが表示されます。
-              </div>
-            ) : null}
+      {/* Step content */}
+      <section className="wf-content">
+        {error && <p className="wf-error">⚠ {error}</p>}
 
-            {conversation.map((entry, index) => (
-              <div
-                className={`message ${entry.role === 'assistant' ? 'assistant' : 'user'}`}
-                key={`${entry.role}-${index}`}
+        {/* ── Step 0: Initial Input ── */}
+        {step === 0 && (
+          <div className="wf-card wf-input-card">
+            <h2 className="wf-card-title">ご注文内容を教えてください</h2>
+            <p className="wf-card-hint">
+              「2人分で辛さ控えめ」「子ども1人います」「予算¥3000以内」など自由に入力できます。
+              AI がメニューと配送を提案します。
+            </p>
+            <form onSubmit={handleSuggest} className="wf-input-form">
+              <textarea
+                className="wf-textarea"
+                value={message}
+                onChange={e => setMessage(e.target.value)}
+                placeholder="例: 2人分、予算3000円、子どもが1人います"
+                rows={3}
+                disabled={loading}
+              />
+              <button
+                type="submit"
+                className="wf-btn wf-btn--primary"
+                disabled={loading || !message.trim()}
               >
-                <span className="message-role">
-                  {entry.role === 'assistant' ? '🤖 Arachne Kitchen order-agent' : '🙋 Customer'}
-                </span>
-                {entry.role === 'assistant'
-                  ? <div className="message-md"><ReactMarkdown>{entry.text}</ReactMarkdown></div>
-                  : <p>{entry.text}</p>}
-              </div>
-            ))}
-
-            {loading && (
-              <div className="typing-indicator">
-                <span className="typing-dot" />
-                <span className="typing-dot" />
-                <span className="typing-dot" />
-              </div>
-            )}
-
-            <div ref={messageListEndRef} />
+                {loading ? '提案中…' : 'AI に提案してもらう →'}
+              </button>
+            </form>
           </div>
+        )}
 
-          {choices.length > 0 && (
-            <div className="choices">
-              {choices.map((choice) => (
-                <button
-                  key={choice}
-                  type="button"
-                  className="choice-btn"
-                  onClick={() => { setChoices([]); void sendChat(choice); }}
-                  disabled={loading}
-                >
-                  {choice}
-                </button>
+        {/* ── Step 1: Item Selection ── */}
+        {step === 1 && (
+          <div className="wf-step-section">
+            <div className="wf-step-header">
+              <h2>アイテム提案</h2>
+              {suggestSummary && <p className="wf-summary">{suggestSummary}</p>}
+              {suggestEta > 0 && (
+                <p className="wf-eta">🕐 調理 ETA: 約 {suggestEta} 分</p>
+              )}
+            </div>
+
+            <div className="wf-proposal-grid">
+              {proposals.map(item => (
+                <div key={item.itemId} className="wf-proposal-card">
+                  <div className="wf-proposal-name">{item.name}</div>
+                  <div className="wf-proposal-meta">
+                    <span className="wf-proposal-qty">×{item.quantity}</span>
+                    <span className="wf-proposal-price">¥{Number(item.unitPrice).toFixed(0)}</span>
+                  </div>
+                  {item.reason && (
+                    <p className="wf-proposal-reason">{item.reason}</p>
+                  )}
+                </div>
               ))}
             </div>
-          )}
 
-          {suggestions.length > 0 && (
-            <div className="suggestions">
-              {suggestions.map((suggestion) => (
-                <button
-                  key={suggestion}
-                  type="button"
-                  onClick={() => void sendChat(suggestion)}
-                  disabled={loading}
-                >
-                  {suggestion}
-                </button>
-              ))}
-            </div>
-          )}
-
-          <form className="composer" onSubmit={onSubmit}>
-            <textarea
-              value={message}
-              onChange={(event) => setMessage(event.target.value)}
-              placeholder="例: 2人分で辛さ控えめ。自社エクスプレスが使えるならそれで。"
-              rows={3}
-              disabled={loading}
-            />
-            <div className="composer-footer">
-              <div>
-                {error
-                  ? <span className="error">⚠ {error}</span>
-                  : <span>単一クラウドキッチンの各エージェントが裏で連携中</span>
-                }
-              </div>
-              <button type="submit" className="send-btn" disabled={loading || !message.trim()}>
-                送信 →
+            <div className="wf-refinement">
+              <textarea
+                className="wf-textarea wf-textarea--sm"
+                value={refinement}
+                onChange={e => setRefinement(e.target.value)}
+                placeholder="気になる点があれば: 「辛さを抑えて」「もう少し野菜を増やして」など"
+                rows={2}
+                disabled={loading}
+              />
+              <button
+                type="button"
+                className="wf-btn wf-btn--secondary"
+                disabled={loading || !refinement.trim()}
+                onClick={handleRefinement}
+              >
+                {loading ? '再提案中…' : '↺ フィードバックして再提案'}
               </button>
             </div>
-          </form>
-        </div>
 
-        {/* Sidebar */}
-        <aside className="sidebar">
-          {/* Live draft */}
-          <div className="panel draft-panel">
-            <div className="panel-header compact">
-              <div>
-                <p className="panel-label">🛒 Live Draft</p>
-                <h2>{draft.status}</h2>
-              </div>
-              <span className="badge">{totalItems} items</span>
+            <div className="wf-actions">
+              <button
+                type="button"
+                className="wf-btn wf-btn--primary"
+                disabled={loading || proposals.length === 0}
+                onClick={handleConfirmItems}
+              >
+                {loading ? '確定中…' : 'この内容で確定 →'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Step 2: Delivery Selection ── */}
+        {step === 2 && (
+          <div className="wf-step-section">
+            <div className="wf-step-header">
+              <h2>配送方法を選択</h2>
+              <p className="wf-summary">
+                delivery-agent が自社エクスプレスと外部パートナーを比較しました。
+              </p>
             </div>
 
-            <ul className="draft-list">
-              {draft.items.length === 0
-                ? <li className="draft-empty">まだアイテムがありません</li>
-                : null}
-              {draft.items.map((item) => (
-                <li key={`${item.name}-${item.note}`}>
-                  <div>
-                    <strong>{item.quantity}× {item.name}</strong>
-                    <span>{item.note}</span>
-                  </div>
-                  <em>¥{(item.unitPrice * item.quantity).toFixed(0)}</em>
-                </li>
+            <div className="wf-delivery-grid">
+              {deliveryOptions.map(opt => (
+                <button
+                  key={opt.code}
+                  type="button"
+                  className={`wf-delivery-card${selectedDeliveryCode === opt.code ? ' wf-delivery-card--selected' : ''}`}
+                  onClick={() => setSelectedDeliveryCode(opt.code)}
+                  disabled={loading}
+                >
+                  {opt.recommended && (
+                    <span className="wf-recommended-badge">推奨</span>
+                  )}
+                  <div className="wf-delivery-label">{opt.label}</div>
+                  <div className="wf-delivery-eta">🕐 {opt.etaMinutes} 分</div>
+                  <div className="wf-delivery-fee">¥{Number(opt.fee).toFixed(0)}</div>
+                  {opt.reason && (
+                    <p className="wf-delivery-reason">{opt.reason}</p>
+                  )}
+                </button>
               ))}
-            </ul>
+            </div>
 
-            {(draft.items.length > 0 || draft.etaLabel) && (
-              <div className="draft-summary">
-                {draft.etaLabel
-                  ? <div><span>🕐 ETA</span><strong>{draft.etaLabel}</strong></div>
-                  : null}
-                <div><span>小計</span><strong>¥{draft.subtotal.toFixed(0)}</strong></div>
-                {deliveryFee > 0
-                  ? <div><span>配送料</span><strong>¥{deliveryFee.toFixed(0)}</strong></div>
-                  : null}
-                <div className="total-row">
-                  <span>合計</span><strong>¥{draft.total.toFixed(0)}</strong>
+            <div className="wf-actions">
+              <button
+                type="button"
+                className="wf-btn wf-btn--primary"
+                disabled={loading || !selectedDeliveryCode}
+                onClick={handleConfirmDelivery}
+              >
+                {loading ? '確定中…' : '配送方法を確定 →'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Step 3: Payment Approval ── */}
+        {step === 3 && (
+          <div className="wf-step-section">
+            <div className="wf-step-header">
+              <h2>注文内容の確認</h2>
+            </div>
+
+            <div className="wf-summary-table">
+              {draft.items.map(item => (
+                <div key={`${item.name}-${item.note}`} className="wf-summary-row">
+                  <span>{item.quantity}× {item.name}</span>
+                  <span>¥{(Number(item.unitPrice) * item.quantity).toFixed(0)}</span>
                 </div>
-                <div>
-                  <span>支払い</span>
-                  <strong>
-                    {draft.paymentStatus}{draft.paymentMethod ? ` · ${draft.paymentMethod}` : ''}
-                  </strong>
+              ))}
+              {deliveryFee > 0 && (
+                <div className="wf-summary-row">
+                  <span>配送料</span>
+                  <span>¥{deliveryFee.toFixed(0)}</span>
                 </div>
-                {draft.orderId
-                  ? <div><span>Order ID</span><strong>{draft.orderId}</strong></div>
-                  : null}
+              )}
+              <div className="wf-summary-row wf-summary-row--total">
+                <span>合計</span>
+                <span>¥{Number(draft.total).toFixed(0)}</span>
               </div>
+              {draft.paymentMethod && (
+                <div className="wf-summary-row">
+                  <span>支払い方法</span>
+                  <span>{draft.paymentMethod}</span>
+                </div>
+              )}
+              {draft.etaLabel && (
+                <div className="wf-summary-row">
+                  <span>ETA</span>
+                  <span>{draft.etaLabel}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="wf-actions">
+              <button
+                type="button"
+                className="wf-btn wf-btn--primary"
+                disabled={loading}
+                onClick={handleConfirmPayment}
+              >
+                {loading ? '注文確定中…' : '注文を確定する ✓'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Step 4: Completion ── */}
+        {step === 4 && (
+          <div className="wf-card wf-complete-card">
+            <div className="wf-complete-icon">✅</div>
+            <h2 className="wf-card-title">注文が確定しました！</h2>
+            {draft.orderId && (
+              <p className="wf-complete-id">注文 ID: {draft.orderId}</p>
             )}
-          </div>
-
-          {/* Trace panel */}
-          <div className="panel trace-panel">
-            <div className="panel-header compact">
-              <div>
-                <p className="panel-label">⚡ Service Mesh Trace</p>
-                <h2>裏で動くエージェント</h2>
-              </div>
-            </div>
-
-            <div className="trace-list">
-              {Object.keys(traceMemory).length === 0
-                ? <p className="trace-empty">まだトレースがありません</p>
-                : null}
-              {Object.values(traceMemory).map((entry) => {
-                const isActive = activeTurn.has(entry.service);
-                const routing = entry.routing;
-                return (
-                  <article
-                    key={entry.service}
-                    className={`trace-card${isActive ? ' trace-card--active' : ' trace-card--stale'}`}
-                  >
-                    <div className="trace-meta">
-                      <span className="trace-service">{entry.service}</span>
-                      <span className="trace-agent">{entry.agent}</span>
-                      {!isActive && <em className="stale-label">前回</em>}
-                    </div>
-                    <h3>{entry.headline}</h3>
-                    {routing ? (
-                      <>
-                        <div className="trace-route">
-                          <span className="trace-chip trace-chip--intent">
-                            <span className="trace-chip-label">Intent</span>
-                            <span>{formatRoutingValue(routing.intent)}</span>
-                          </span>
-                          <span className="trace-chip trace-chip--skill">
-                            <span className="trace-chip-label">Skill</span>
-                            <span>{formatRoutingValue(routing.selectedSkill)}</span>
-                          </span>
-                          <span className="trace-chip trace-chip--step">
-                            <span className="trace-chip-label">Entry</span>
-                            <span>{formatRoutingValue(routing.entryStep)}</span>
-                          </span>
-                        </div>
-                        <p className="trace-reason">{routing.reason}</p>
-                      </>
-                    ) : null}
-                    <p>{entry.detail}</p>
-                  </article>
-                );
-              })}
+            {draft.etaLabel && (
+              <p className="wf-complete-eta">📦 配送 ETA: {draft.etaLabel}</p>
+            )}
+            <p className="wf-complete-total">合計: ¥{Number(draft.total).toFixed(0)}</p>
+            <div className="wf-actions wf-actions--center">
+              <button
+                type="button"
+                className="wf-btn wf-btn--primary"
+                onClick={startNewOrder}
+              >
+                ＋ 新しい注文
+              </button>
+              <Link href="/home" className="wf-btn wf-btn--secondary">
+                ホームへ戻る
+              </Link>
             </div>
           </div>
-        </aside>
+        )}
       </section>
     </main>
   );
