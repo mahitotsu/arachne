@@ -443,9 +443,13 @@ function OrderPageInner() {
       {/* Top navigation */}
       <header className="topbar">
         <div className="order-topbar-left">
-          <Link href="/home" className="order-back-btn">← ホームへ</Link>
+          <div className="h-nav-links">
+            <Link href="/home" className="h-nav-link">ホーム</Link>
+            <Link href="/support" className="h-nav-link">サポート</Link>
+            <Link href="/agents" className="h-nav-link">エージェント</Link>
+          </div>
           <div className="brand">
-            <span className="brand-icon">🍜</span>
+            <span className="brand-icon">🕷️</span>
             <span className="brand-name">Arachne Kitchen</span>
             <span className="brand-tagline">single-kitchen cloud delivery</span>
           </div>

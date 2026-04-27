@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 import { clearAuthSession, fetchAuthSession } from '../../lib/browser-session';
+import AppNav from '../components/app-nav';
+import AppFooter from '../components/app-footer';
 
 type CustomerProfile = {
   customerId: string;
@@ -164,12 +166,8 @@ export default function HomePage() {
   return (
     <div className="h-shell">
       {/* Nav */}
-      <nav className="h-nav">
-        <Link href="/home" className="h-nav-brand">
-          <span>🍜</span>
-          <span className="h-nav-name">Arachne Kitchen</span>
-        </Link>
-        <div className="h-nav-right">
+      <AppNav right={
+        <>
           {profile && (
             <div className="h-nav-profile">
               <span className="h-nav-avatar">👤</span>
@@ -179,14 +177,11 @@ export default function HomePage() {
               </div>
             </div>
           )}
-          <Link href="/agents" className="ag-nav-back" style={{ marginRight: 8 }}>
-            🤖 エージェント
-          </Link>
           <button type="button" className="h-nav-signout" onClick={signOut}>
             ログアウト
           </button>
-        </div>
-      </nav>
+        </>
+      } />
 
       {/* Campaign banner */}
       {campaigns.length > 0 && !bannerDismissed && (
@@ -405,11 +400,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Floating support entry */}
-      <Link href="/support" className="h-float-support" aria-label="サポートセンターを開く">
-        <span className="h-float-support-icon">🎧</span>
-        <span className="h-float-support-text">サポート</span>
-      </Link>
+      <AppFooter />
     </div>
   );
 }

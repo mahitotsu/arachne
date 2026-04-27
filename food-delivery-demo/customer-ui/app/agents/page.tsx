@@ -5,6 +5,9 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 import { fetchAuthSession } from '../../lib/browser-session';
+import AppNav from '../components/app-nav';
+import PageHeader from '../components/page-header';
+import AppFooter from '../components/app-footer';
 
 type ToolPayload = {
   name: string;
@@ -93,25 +96,14 @@ export default function AgentsPage() {
   return (
     <div className="ag-shell">
       {/* Nav */}
-      <nav className="h-nav">
-        <Link href="/home" className="h-nav-brand">
-          <span>🍜</span>
-          <span className="h-nav-name">Arachne Kitchen</span>
-        </Link>
-        <div className="h-nav-right">
-          <Link href="/home" className="ag-nav-back">
-            ← ホームへ
-          </Link>
-        </div>
-      </nav>
+      <AppNav />
 
       {/* Header */}
-      <header className="ag-header">
-        <h1 className="ag-header-title">AI エージェント一覧</h1>
-        <p className="ag-header-lead">
-          このシステムで稼働中の Arachne AI エージェントです。各エージェントのシステムプロンプト・利用ツール・スキルを確認できます。
-        </p>
-      </header>
+      <PageHeader
+        icon="🤖"
+        title="AI エージェント一覧"
+        lead="このシステムで稼働中の Arachne AI エージェントです。各エージェントのシステムプロンプト・利用ツール・スキルを確認できます。"
+      />
 
       {/* Content */}
       {loading ? (
@@ -232,6 +224,8 @@ export default function AgentsPage() {
           </div>
         </div>
       )}
+
+      <AppFooter />
     </div>
   );
 }

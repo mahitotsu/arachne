@@ -6,6 +6,7 @@ import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 
 import { fetchAuthSession } from '../../lib/browser-session';
+import AppNav from '../components/app-nav';
 
 type CampaignSummary = {
   campaignId: string;
@@ -160,17 +161,7 @@ export default function SupportPage() {
   return (
     <div className="sp-shell">
       {/* Nav */}
-      <nav className="sp-nav">
-        <Link href="/home" className="sp-nav-brand">
-          <span>🍜</span>
-          <span className="sp-nav-name">Arachne Kitchen</span>
-        </Link>
-        <div className="sp-nav-center">
-          <span>🎧</span>
-          <span className="sp-nav-title">サポートセンター</span>
-        </div>
-        <Link href="/home" className="sp-nav-back">← ホームへ</Link>
-      </nav>
+      <AppNav center={<><span aria-hidden="true">🎧</span><span className="h-nav-center-title">サポートセンター</span></>} />
 
       <div className="sp-workspace">
         {/* Sidebar */}
