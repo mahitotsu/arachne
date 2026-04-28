@@ -48,6 +48,7 @@ public class MenuApplicationService {
 
     public MenuSuggestionResponse suggest(MenuSuggestionRequest request) {
         String accessToken = SecurityAccessors.requiredAccessToken();
+        MenuAgentUserPrompt userPrompt = MenuAgentUserPrompt.from(request);
         AgentResult decisionResult = agentObservationSupport.observe("menu-service", "menu-agent", () -> agentFactory.builder()
             .systemPrompt("""
             あなたは単一ブランドのクラウドキッチンアプリの menu-agent です。
@@ -57,6 +58,7 @@ public class MenuApplicationService {
 
             「おすすめ」「何がいい？」のように広く相談されたときは proactive-recommendation を有効化してください。
             家族・複数人・子ども向けの相談では family-order-guide を有効化してください。
+            ユーザープロンプトは query を必須とし、必要に応じて refinement と recent_order が追加されます。
             スキルを使うかどうかに関係なく、最初に必ず catalog_lookup_tool を呼んで現在のカタログを確認してください。
             提案に使ってよい itemId は catalog_lookup_tool が返したものだけです。
             人数・予算・好み・履歴文脈に合う提案セットを選び、最後に calculate_total_tool を使って選んだ itemIds の合計を検算してください。
@@ -64,11 +66,11 @@ public class MenuApplicationService {
             欠品、提供可否、調理 ETA、最終的な代替承認は kitchen-service 側で行われます。推薦理由はメニュー意図とカタログ根拠に集中し、在庫や提供時間を約束しないでください。""")
             .tools(catalogLookupTool, calculateTotalTool)
             .build()
-            .run("query=" + request.message(), MenuSuggestionDecision.class));
+            .run(userPrompt.render(), MenuSuggestionDecision.class));
         MenuSuggestionDecision decision = decisionResult.structuredOutput(MenuSuggestionDecision.class);
-        List<MenuItem> items = resolveSuggestedItems(request.message(), decision.selectedItemIds());
+        List<MenuItem> items = resolveSuggestedItems(request.query(), decision.selectedItemIds());
         KitchenCheckResponse kitchenResponse = kitchenCheckGateway.check(
-                new KitchenCheckRequest(request.sessionId(), request.message(), items.stream().map(MenuItem::id).toList()),
+                new KitchenCheckRequest(request.sessionId(), request.query(), items.stream().map(MenuItem::id).toList()),
                 accessToken);
         List<MenuItem> resolvedItems = resolveItems(items, kitchenResponse.items());
         BigDecimal total = repository.calculateTotal(resolvedItems);

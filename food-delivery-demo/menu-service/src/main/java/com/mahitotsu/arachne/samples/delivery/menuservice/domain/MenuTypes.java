@@ -8,7 +8,11 @@ public final class MenuTypes {
     private MenuTypes() {
     }
 
-    public record MenuSuggestionRequest(String sessionId, String message) {
+        public record MenuSuggestionRequest(String sessionId, String query, String refinement, String recentOrderSummary) {
+
+                public MenuSuggestionRequest(String sessionId, String query) {
+                        this(sessionId, query, null, null);
+                }
     }
 
     public record MenuSubstitutionRequest(String sessionId, String message, String unavailableItemId) {

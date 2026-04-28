@@ -36,6 +36,7 @@ public class SupportApplicationService {
 
     private static final String SUPPORT_PROMPT = """
             あなたは support-agent です。
+            ユーザープロンプトには inquiry と customerId が渡されます。
             問い合わせ内容に応じて support-guide を有効化し、必要なツールだけを使い分けてください。
             FAQ や使い方の質問では faq_lookup、キャンペーンでは campaign_lookup、稼働状況では service_status_lookup を優先してください。
             顧客固有の状況が必要なときだけ order_history_lookup を使い、過去事例の参照が必要なときだけ feedback_lookup を使ってください。
@@ -93,6 +94,7 @@ public class SupportApplicationService {
         String safeMessage = Objects.requireNonNullElse(request.message(), "");
         String accessToken = SecurityAccessors.requiredAccessToken();
         String customerId = SecurityAccessors.currentCustomerId();
+        SupportAgentUserPrompt userPrompt = SupportAgentUserPrompt.from(request, customerId);
         List<FaqEntry> faqMatches = intent.includesFaq() ? faqRepository.lookup(safeMessage, 3) : List.of();
         List<CampaignSummary> campaigns = intent.includesCampaigns() ? campaignRepository.activeCampaigns() : List.of();
         List<ServiceHealthSummary> statuses = intent.includesStatuses() ? statusGateway.currentStatuses() : List.of();
@@ -108,7 +110,7 @@ public class SupportApplicationService {
             .systemPrompt(SUPPORT_PROMPT)
             .tools(faqLookupTool, campaignLookupTool, serviceStatusLookupTool, feedbackLookupTool, orderHistoryLookupTool)
             .build()
-            .run("問い合わせ: " + safeMessage + "。customerId=" + customerId, SupportReplyDecision.class));
+            .run(userPrompt.render(), SupportReplyDecision.class));
         SupportReplyDecision decision = decisionResult.structuredOutput(SupportReplyDecision.class);
 
         return new SupportChatResponse(

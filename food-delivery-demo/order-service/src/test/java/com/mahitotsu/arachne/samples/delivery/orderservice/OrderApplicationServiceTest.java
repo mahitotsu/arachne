@@ -111,7 +111,8 @@ class OrderApplicationServiceTest {
 
         ArgumentCaptor<MenuSuggestionRequest> captor = ArgumentCaptor.forClass(MenuSuggestionRequest.class);
         verify(menuGateway).suggest(captor.capture(), anyString());
-        assertThat(captor.getValue().message()).contains("recent_order=2x Teriyaki Chicken Box");
+        assertThat(captor.getValue().query()).isEqualTo("いつものやつで");
+        assertThat(captor.getValue().recentOrderSummary()).isEqualTo("2x Teriyaki Chicken Box");
     }
 
     @Test

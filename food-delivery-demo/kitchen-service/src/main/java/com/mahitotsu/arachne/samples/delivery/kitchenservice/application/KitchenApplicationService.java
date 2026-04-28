@@ -48,12 +48,14 @@ public class KitchenApplicationService {
         String accessToken = SecurityAccessors.requiredAccessToken();
         List<KitchenItemStatus> statuses = repository.check(request.itemIds());
         Map<String, MenuSubstitutionResponse> substitutionResponses = fetchSubstitutionResponses(request, accessToken, statuses);
+        KitchenAgentUserPrompt userPrompt = KitchenAgentUserPrompt.from(request);
         AgentResult decisionResult = agentFactory.builder()
                 .systemPrompt("""
                 あなたはこのアプリ唯一のクラウドキッチンの kitchen-agent です。
 
                 代替の支店も代替のキッチンも存在しません。
                 キッチンがアイテムを提供できない場合は、他のキッチンではなく欠品時の代替候補提示 capability を持つ協業先に同ブランドの代替品を尋ねてください。
+            ユーザープロンプトには items と message が渡されます。
 
                 最初に必ず kitchen_inventory_lookup を呼び出して在庫と調理時間を確認してください。
                 次に prep-scheduler を有効化し、prep_scheduler を呼んでライン別のキュー遅延と提供見込み時間を確認してください。
@@ -66,7 +68,7 @@ public class KitchenApplicationService {
                 .tools(kitchenLookupTool, prepSchedulerTool,
                     buildMenuSubstitutionTool(request, substitutionResponses))
                 .build()
-                .run("items=" + String.join(",", request.itemIds()) + "\nmessage=" + request.message(), KitchenDecision.class);
+                .run(userPrompt.render(), KitchenDecision.class);
         KitchenDecision decision = decisionResult.structuredOutput(KitchenDecision.class);
         Map<String, KitchenItemStatus> approvedSubstitutions = approveSubstitutions(decision.approvedSubstitutions(), substitutionResponses);
         List<KitchenItemStatus> resolvedStatuses = applySubstitutions(statuses, approvedSubstitutions);

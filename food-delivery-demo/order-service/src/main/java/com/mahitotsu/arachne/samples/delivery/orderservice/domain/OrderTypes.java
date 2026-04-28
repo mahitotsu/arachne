@@ -122,7 +122,11 @@ public final class OrderTypes {
     public record StoredOrderSummary(String orderId, String itemSummary, BigDecimal total, String etaLabel, String paymentStatus, String createdAt) {
     }
 
-    public record MenuSuggestionRequest(String sessionId, String message) {
+        public record MenuSuggestionRequest(String sessionId, String query, String refinement, String recentOrderSummary) {
+
+                public MenuSuggestionRequest(String sessionId, String query) {
+                        this(sessionId, query, null, null);
+                }
     }
 
     public record MenuSuggestionResponse(

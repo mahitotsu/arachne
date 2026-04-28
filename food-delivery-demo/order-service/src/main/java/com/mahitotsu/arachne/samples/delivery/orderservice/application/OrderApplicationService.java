@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Supplier;
 
@@ -92,10 +93,18 @@ public class OrderApplicationService {
             String sessionId = sessionId(request.sessionId());
             OrderSession existing = sessionStore.load(sessionId).orElse(emptySession(sessionId));
             String accessToken = SecurityAccessors.requiredAccessToken();
-            String suggestionMessage = buildSuggestionMessage(request, existing);
+            MenuSuggestionRequest menuSuggestionRequest = MenuSuggestionPromptRequestFactory.build(
+                    sessionId,
+                    request,
+                    existing,
+                    needsRecentOrderContext(firstNonBlank(
+                            request.message(),
+                            existing.pendingProposal() == null ? null : existing.pendingProposal().customerMessage()))
+                                    ? orderRepository.findLatestOrderForUser(authenticatedCustomerResolver.currentCustomerId())
+                                    : Optional.empty());
 
             MenuSuggestionResponse menuResponse = menuGateway.suggest(
-                    new MenuSuggestionRequest(sessionId, suggestionMessage),
+                    menuSuggestionRequest,
                     accessToken);
             List<ProposalItem> proposals = menuResponse.items().stream()
                     .map(item -> new ProposalItem(
@@ -374,21 +383,6 @@ public class OrderApplicationService {
                 + " total=" + formatYen(draft.total())
                 + " delivery=" + selectedDelivery.label()
                 + " eta=" + selectedDelivery.etaMinutes() + " min";
-    }
-
-    private String buildSuggestionMessage(SuggestOrderRequest request, OrderSession existing) {
-        String baseMessage = firstNonBlank(
-                request.message(),
-                existing.pendingProposal() == null ? null : existing.pendingProposal().customerMessage());
-        String refinement = request.refinement() == null || request.refinement().isBlank()
-                ? ""
-                : "\nrefinement=" + request.refinement().trim();
-        String recentOrderContext = needsRecentOrderContext(baseMessage)
-                ? orderRepository.findLatestOrderForUser(authenticatedCustomerResolver.currentCustomerId())
-                        .map(order -> "\nrecent_order=" + order.itemSummary())
-                        .orElse("\nrecent_order=none")
-                : "";
-        return baseMessage + refinement + recentOrderContext;
     }
 
     private boolean needsRecentOrderContext(String message) {
