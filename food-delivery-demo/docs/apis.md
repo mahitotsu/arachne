@@ -35,10 +35,12 @@
 - `POST /api/order/suggest`
   初期入力または refinement を受け取り、提案アイテム、ETA、提案トレースを返す。
   ユーザープロンプト契約:
-  `message` は今回の注文意図を表す自然言語入力。必須。
+  `intent` は今回の注文意図を表す構造化入力。必須。
+  `intent.rawMessage` は自由記述の元メッセージ。人数や予算などで表しきれないニュアンスも保持する。
+  `intent.partySize`、`intent.budgetUpperBound`、`intent.childCount` は注文意図の主要制約を決定論的に渡す任意フィールド。
   `refinement` は直前の提案に対する追加条件や修正指示。任意。
   `locale` は応答言語ヒント。任意。
-  `message` が「前回」「いつもの」などを含む場合、order-service は直近注文履歴を取得し、menu-service へ recent-order 文脈を補強して渡してよい。
+  `intent.rawMessage` が「前回」「いつもの」などを含む場合、order-service は直近注文履歴を取得し、menu-service へ recent-order 文脈を補強して渡してよい。
 - `POST /api/order/confirm-items`
   選択した提案アイテムを受け取り、配送候補と更新済み下書きを返す。
 - `POST /api/order/confirm-delivery`
@@ -115,14 +117,22 @@
 - `POST /internal/delivery/quote`
   注文下書きを受け取り、`delivery-agent` から配送 ETA オプションを返す。自社エクスプレス、registry discover で見つかった AVAILABLE な外部 ETA 候補を同一レスポンスへまとめ、`recommendedTier` と `recommendationReason` で文脈別推奨も返す。
   ユーザープロンプト契約:
-  `message` は配送方針に関わるカスタマー意図。必須。例: 早さ重視、安さ重視。
+  `preference` は配送希望を表す構造化入力。必須。
+  `preference.priority` は速さ重視、安さ重視、バランス重視の優先度を決定論的に渡す任意フィールド。
+  `preference.rawMessage` は配送メモや補足ニュアンスを保持する任意フィールド。
   `itemNames` は配送見積もり対象のアイテム名一覧。必須。
-  delivery-agent には customer_message と item_names を渡し、優先度判断と説明に使う。
+  delivery-agent には `preference` と `itemNames` を渡し、優先度判断と説明に使う。
 
 `payment-service`
 
 - `POST /internal/payment/prepare`
   注文下書きを受け取り、支払い準備状況とオプションの決定論的課金実行を返す。
+  ユーザープロンプト契約:
+  `instruction` は支払い方法の希望を表す構造化入力。必須。
+  `instruction.requestedMethod` は明示的に選ばれた支払い方法を渡す任意フィールド。
+  `instruction.rawMessage` は補足の支払い指示や自然言語メモを保持する任意フィールド。
+  `total` は payment-service が準備または課金する決定論的な合計金額。必須。
+  `confirmRequested` は準備のみか即時課金まで進めるかを表す任意フラグ。
 
 `support-service`
 
@@ -137,6 +147,7 @@
 
 - `POST /adapter/eta`
   外部高速配送パートナーの ETA、混雑度、料金を返す。混雑時は `NOT_AVAILABLE` になり得る。
+  request では `itemNames` に加えて `preference` を受け取り、`preference.priority` と `preference.rawMessage` を ETA 見積もりの文脈として扱う。
 - `GET /adapter/health`
   アダプター独自の `AVAILABLE` / `NOT_AVAILABLE` を返す。
 
@@ -144,6 +155,7 @@
 
 - `POST /adapter/eta`
   外部低コスト配送パートナーの ETA、混雑度、料金を返す。
+  request では `itemNames` に加えて `preference` を受け取り、`preference.priority` と `preference.rawMessage` を ETA 見積もりの文脈として扱う。
 - `GET /adapter/health`
   アダプター独自の `AVAILABLE` を返す。
 

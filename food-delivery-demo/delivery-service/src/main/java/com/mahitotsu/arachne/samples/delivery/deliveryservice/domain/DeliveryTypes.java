@@ -14,11 +14,27 @@ public final class DeliveryTypes {
     private DeliveryTypes() {
     }
 
-        @Schema(description = "配送見積もり要求です。")
-        public record DeliveryQuoteRequest(
+    @Schema(description = "配送見積もり要求です。")
+    public record DeliveryQuoteRequest(
             @Schema(description = "親ワークフローの相関 ID。") String sessionId,
-            @Schema(description = "速さや価格などの自然言語の配送希望。", example = "最速配送でお願い") String message,
+            @Schema(description = "配送希望を表す構造化入力です。") DeliveryPreferenceInput preference,
             @Schema(description = "見積もり対象の注文下書きに含まれる商品名。") List<String> itemNames) {
+
+        public DeliveryQuoteRequest {
+            if (preference == null) {
+                preference = new DeliveryPreferenceInput(null, null);
+            }
+        }
+
+        public DeliveryQuoteRequest(String sessionId, String message, List<String> itemNames) {
+            this(sessionId, new DeliveryPreferenceInput(message, null), itemNames);
+        }
+    }
+
+    @Schema(description = "配送優先度と補足メモを表す構造化入力です。")
+    public record DeliveryPreferenceInput(
+            @Schema(description = "自由記述の配送希望。構造化項目で表しきれない補足を保持します。", example = "最速配送でお願い") String rawMessage,
+            @Schema(description = "配送優先度。明示されていれば ranking と agent prompt で優先します。") DeliveryPreference priority) {
     }
 
         @Schema(description = "順位付き候補と推奨メタデータを含む配送見積もり応答です。")
@@ -65,7 +81,7 @@ public final class DeliveryTypes {
     public record EtaServiceTarget(String serviceName, String url) {
     }
 
-    public record AdapterEtaRequestPayload(List<String> itemNames, String context) {
+    public record AdapterEtaRequestPayload(List<String> itemNames, DeliveryPreferenceInput preference) {
     }
 
     public record AdapterEtaResponsePayload(String service, String status, int etaMinutes, String congestion, BigDecimal fee, String note) {
@@ -82,12 +98,12 @@ public final class DeliveryTypes {
         private DeliveryRankingPolicy() {
         }
 
-        public static DeliveryRanking rank(List<DeliveryOption> options, String message) {
+        public static DeliveryRanking rank(List<DeliveryOption> options, DeliveryPreferenceInput preferenceInput) {
             List<DeliveryOption> safeOptions = options == null ? List.of() : List.copyOf(options);
             if (safeOptions.isEmpty()) {
                 return new DeliveryRanking(List.of(), "", "現在利用可能な配送候補がありません。");
             }
-            DeliveryPreference preference = preferenceFor(message);
+            DeliveryPreference preference = preferenceFor(preferenceInput);
             Comparator<DeliveryOption> comparator = switch (preference) {
                 case CHEAP -> Comparator.comparing(DeliveryOption::fee, BigDecimal::compareTo)
                         .thenComparingInt(DeliveryOption::etaMinutes)
@@ -106,8 +122,16 @@ public final class DeliveryTypes {
             return new DeliveryRanking(ranked, best.code(), reason);
         }
 
-        private static DeliveryPreference preferenceFor(String message) {
-            String normalized = Objects.requireNonNullElse(message, "").toLowerCase(Locale.ROOT);
+        public static DeliveryRanking rank(List<DeliveryOption> options, String message) {
+            return rank(options, new DeliveryPreferenceInput(message, null));
+        }
+
+        private static DeliveryPreference preferenceFor(DeliveryPreferenceInput preferenceInput) {
+            if (preferenceInput != null && preferenceInput.priority() != null) {
+                return preferenceInput.priority();
+            }
+            String normalized = Objects.requireNonNullElse(preferenceInput == null ? null : preferenceInput.rawMessage(), "")
+                    .toLowerCase(Locale.ROOT);
             if (containsAny(normalized, "安く", "節約", "料金", "cheap", "budget")) {
                 return DeliveryPreference.CHEAP;
             }

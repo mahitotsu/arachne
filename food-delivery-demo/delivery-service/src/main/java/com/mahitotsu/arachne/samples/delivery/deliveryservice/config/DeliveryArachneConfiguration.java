@@ -154,7 +154,12 @@ class DeliveryArachneConfiguration {
                 ObjectNode itemsNode = props.putObject("itemNames");
                 itemsNode.put("type", "array");
                 itemsNode.putObject("items").put("type", "string");
-                props.putObject("context").put("type", "string").put("description", "配送判断の文脈");
+                ObjectNode preferenceNode = props.putObject("preference");
+                preferenceNode.put("type", "object");
+                ObjectNode preferenceProps = preferenceNode.putObject("properties");
+                preferenceProps.putObject("rawMessage").put("type", "string").put("description", "配送希望の自由記述メモ");
+                preferenceProps.putObject("priority").put("type", "string").put("description", "配送優先度");
+                preferenceNode.put("additionalProperties", false);
                 root.putArray("required").add("url").add("itemNames");
                 root.put("additionalProperties", false);
                 return new ToolSpec("call_eta_service",
@@ -175,7 +180,7 @@ class DeliveryArachneConfiguration {
                 Optional<ExternalEtaQuote> quote = gateway.quote(
                         target,
                         stringList(inputValues.get("itemNames")),
-                        String.valueOf(inputValues.getOrDefault("context", "")));
+                    preferenceValue(inputValues.get("preference")));
                 if (quote.isEmpty()) {
                     return ToolResult.success(context.toolUseId(), Map.of(
                             "service", target.serviceName(),
@@ -216,6 +221,18 @@ class DeliveryArachneConfiguration {
         return Map.of();
     }
 
+    private static DeliveryPreferenceInput preferenceValue(Object rawPreference) {
+        if (!(rawPreference instanceof Map<?, ?> preferenceMap)) {
+            return new DeliveryPreferenceInput(null, null);
+        }
+        Object rawMessageValue = preferenceMap.get("rawMessage");
+        Object priorityValue = preferenceMap.get("priority");
+        String rawMessage = rawMessageValue == null ? null : String.valueOf(rawMessageValue);
+        String priority = priorityValue == null ? "" : String.valueOf(priorityValue);
+        DeliveryPreference deliveryPreference = priority.isBlank() ? null : DeliveryPreference.valueOf(priority);
+        return new DeliveryPreferenceInput(rawMessage, deliveryPreference);
+    }
+
     private static final class DeliveryDeterministicModel implements Model {
 
         @Override
@@ -251,6 +268,7 @@ class DeliveryArachneConfiguration {
                         new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
             }
             List<Map<String, Object>> discoveredServices = mapList(discoveryResult.get("services"));
+            Map<String, String> requestArgs = latestRequestArgs(messages);
             for (int index = 0; index < discoveredServices.size(); index++) {
                 String toolUseId = "eta-call-" + index;
                 if (latestToolContent(messages, toolUseId) == null) {
@@ -260,7 +278,7 @@ class DeliveryArachneConfiguration {
                                     "serviceName", String.valueOf(service.getOrDefault("serviceName", "external-service")),
                                     "url", String.valueOf(service.getOrDefault("url", "")),
                                     "itemNames", List.of(),
-                                    "context", latestUserText(messages))),
+                                "preference", preferencePayload(requestArgs))),
                             new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
                 }
             }
@@ -304,8 +322,7 @@ class DeliveryArachneConfiguration {
                         + "分、料金 ¥" + option.fee().stripTrailingZeros().toPlainString()
                         + "、混雑:" + etaResult.getOrDefault("congestion", "unknown"));
             }
-            String userText = latestUserText(messages);
-                DeliveryRanking ranking = DeliveryRankingPolicy.rank(options, userText);
+            DeliveryRanking ranking = DeliveryRankingPolicy.rank(options, preferenceInput(requestArgs));
                 String outerRecommendedCode = ranking.recommendedTier();
                 String outerRecommendationReason = ranking.recommendationReason();
             String outerRecommendedLabel = options.stream()
@@ -377,6 +394,43 @@ class DeliveryArachneConfiguration {
                 }
             }
             return "";
+        }
+
+        private Map<String, String> latestRequestArgs(List<Message> messages) {
+            LinkedHashMap<String, String> values = new LinkedHashMap<>();
+            for (String line : latestUserText(messages).split("\\R")) {
+                int separator = line.indexOf('=');
+                if (separator <= 0) {
+                    continue;
+                }
+                values.put(line.substring(0, separator).trim(), line.substring(separator + 1).trim());
+            }
+            return values;
+        }
+
+        private DeliveryPreferenceInput preferenceInput(Map<String, String> requestArgs) {
+            String priority = requestArgs.getOrDefault("delivery_priority", "");
+            DeliveryPreference deliveryPreference = priority.isBlank() ? null : DeliveryPreference.valueOf(priority);
+            return new DeliveryPreferenceInput(requestArgs.getOrDefault("delivery_notes", ""), deliveryPreference);
+        }
+
+        private Map<String, Object> preferencePayload(Map<String, String> requestArgs) {
+            DeliveryPreferenceInput preference = preferenceInput(requestArgs);
+            return Map.of(
+                    "rawMessage", preference.rawMessage() == null ? "" : preference.rawMessage(),
+                    "priority", preference.priority() == null ? "" : preference.priority().name());
+        }
+
+        private DeliveryPreferenceInput preferenceValue(Object rawPreference) {
+            if (!(rawPreference instanceof Map<?, ?> preferenceMap)) {
+                return new DeliveryPreferenceInput(null, null);
+            }
+            Object rawMessageValue = preferenceMap.get("rawMessage");
+            Object priorityValue = preferenceMap.get("priority");
+            String rawMessage = rawMessageValue == null ? null : String.valueOf(rawMessageValue);
+            String priority = priorityValue == null ? "" : String.valueOf(priorityValue);
+            DeliveryPreference deliveryPreference = priority.isBlank() ? null : DeliveryPreference.valueOf(priority);
+            return new DeliveryPreferenceInput(rawMessage, deliveryPreference);
         }
 
         private Map<String, Object> latestToolContent(List<Message> messages, String toolUseId) {

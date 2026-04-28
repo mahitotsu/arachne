@@ -9,6 +9,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.DeliveryOptionChoice;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.OrderIntentInput;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.OrderDraft;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.OrderSession;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.PendingDeliverySelection;
@@ -45,6 +46,23 @@ class MenuSuggestionPromptRequestFactoryTest {
 
         assertThat(prompt.query()).isEqualTo("前回と同じ感じで");
         assertThat(prompt.recentOrderSummary()).isEqualTo("none");
+    }
+
+    @Test
+    void buildsQueryFromStructuredIntentWhenRawMessageIsMissing() {
+        SuggestOrderRequest request = new SuggestOrderRequest(
+                "session-1",
+                new OrderIntentInput(null, 4, new BigDecimal("4000"), 1),
+                "ja-JP",
+                null);
+
+        var prompt = MenuSuggestionPromptRequestFactory.build(
+                "session-1",
+                request,
+                emptySession(),
+                Optional.empty());
+
+        assertThat(prompt.query()).contains("4人", "4000円以内", "子ども1人");
     }
 
     private static OrderSession emptySession() {

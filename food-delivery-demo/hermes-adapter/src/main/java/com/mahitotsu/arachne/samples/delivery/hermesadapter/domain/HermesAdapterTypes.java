@@ -13,7 +13,26 @@ public final class HermesAdapterTypes {
 	@Schema(description = "Hermes ETA 見積もり要求です。")
 	public record AdapterEtaRequest(
 			@Schema(description = "注文下書きに含まれる商品名。") List<String> itemNames,
-			@Schema(description = "通常は速さや価格に関する顧客の配送希望を表すコンテキスト。") String context) {
+			@Schema(description = "配送希望を表す構造化入力です。") DeliveryPreferenceInput preference) {
+
+		public AdapterEtaRequest {
+			if (preference == null) {
+				preference = new DeliveryPreferenceInput(null, null);
+			}
+		}
+
+		public AdapterEtaRequest(List<String> itemNames, String context) {
+			this(itemNames, new DeliveryPreferenceInput(context, null));
+		}
+	}
+
+	public record DeliveryPreferenceInput(String rawMessage, DeliveryPriority priority) {
+	}
+
+	public enum DeliveryPriority {
+		URGENT,
+		CHEAP,
+		BALANCED
 	}
 
 	@Schema(description = "Hermes ETA 見積もり応答です。")

@@ -103,14 +103,19 @@ class PaymentServiceApiTest {
         assertThat(response.getBody())
                 .contains("/internal/payment/prepare")
                 .contains("x-ai-prompt-contract")
-            .contains("自然言語の支払い指示またはチェックアウト指示");
+            .contains("instruction")
+            .contains("requestedMethod");
     }
 
     @Test
     void chargesWhenTheRequestIsConfirmed() {
         PaymentPrepareResponse response = restTemplate.postForObject(
                 "/internal/payment/prepare",
-                new PaymentPrepareRequest("session-1", "この内容でApple Payで確定", new BigDecimal("3280.00"), true),
+            new PaymentPrepareRequest(
+                "session-1",
+                new PaymentInstructionInput(null, PaymentMethodPreference.APPLE_PAY),
+                new BigDecimal("3280.00"),
+                true),
                 PaymentPrepareResponse.class);
 
         assertThat(response).isNotNull();

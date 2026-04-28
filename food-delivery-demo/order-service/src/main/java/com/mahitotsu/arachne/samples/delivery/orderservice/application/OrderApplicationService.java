@@ -33,6 +33,7 @@ import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.Ord
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.OrderLineItem;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.OrderSession;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.OrderSessionView;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.PaymentInstructionInput;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.PaymentPrepareRequest;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.PaymentPrepareResponse;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.PaymentSummary;
@@ -93,13 +94,12 @@ public class OrderApplicationService {
             String sessionId = sessionId(request.sessionId());
             OrderSession existing = sessionStore.load(sessionId).orElse(emptySession(sessionId));
             String accessToken = SecurityAccessors.requiredAccessToken();
+            String menuQuery = MenuSuggestionPromptRequestFactory.resolveQuery(request, existing);
             MenuSuggestionRequest menuSuggestionRequest = MenuSuggestionPromptRequestFactory.build(
                     sessionId,
                     request,
                     existing,
-                    needsRecentOrderContext(firstNonBlank(
-                            request.message(),
-                            existing.pendingProposal() == null ? null : existing.pendingProposal().customerMessage()))
+                    needsRecentOrderContext(menuQuery)
                                     ? orderRepository.findLatestOrderForUser(authenticatedCustomerResolver.currentCustomerId())
                                     : Optional.empty());
 
@@ -130,7 +130,7 @@ public class OrderApplicationService {
                     "item-selection",
                     draft,
                     new PendingProposal(
-                            request.message(),
+                            menuSuggestionRequest.query(),
                             request.locale(),
                             menuResponse.summary(),
                             proposals,
@@ -220,7 +220,7 @@ public class OrderApplicationService {
             BigDecimal subtotal = session.draft().subtotal();
             BigDecimal total = subtotal.add(selectedDelivery.fee()).setScale(2, RoundingMode.HALF_UP);
             PaymentPrepareResponse paymentResponse = paymentGateway.prepare(
-                    new PaymentPrepareRequest(session.sessionId(), "", total, false),
+                    new PaymentPrepareRequest(session.sessionId(), new PaymentInstructionInput(null, null), total, false),
                     accessToken);
             OrderDraft draft = new OrderDraft(
                     "PAYMENT_READY",
@@ -267,7 +267,7 @@ public class OrderApplicationService {
             DeliveryOptionChoice selectedDelivery = requireSelectedDelivery(session.selectedDelivery());
             String accessToken = SecurityAccessors.requiredAccessToken();
             PaymentPrepareResponse paymentResponse = paymentGateway.prepare(
-                    new PaymentPrepareRequest(session.sessionId(), "", session.draft().total(), true),
+                    new PaymentPrepareRequest(session.sessionId(), new PaymentInstructionInput(null, null), session.draft().total(), true),
                     accessToken);
 
             String orderId = session.draft().orderId();

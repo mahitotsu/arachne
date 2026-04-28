@@ -54,9 +54,7 @@ final class KitchenDeterministicModel implements Model {
                     new ModelEvent.ToolUse(
                             "menu-substitution-lookup",
                             "menu_substitution_lookup",
-                            Map.of(
-                                    "unavailableItemIds", unavailableItemIds,
-                                    "customerMessage", requestArgs.getOrDefault("message", ""))),
+                    Map.of("unavailableItemIds", unavailableItemIds)),
                     new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
         }
 

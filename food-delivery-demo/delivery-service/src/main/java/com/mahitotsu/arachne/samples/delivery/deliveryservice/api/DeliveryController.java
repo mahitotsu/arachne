@@ -32,7 +32,7 @@ public class DeliveryController {
             description = "顧客の配送意図と商品名を受け取り、自社配送と外部配送を順位付きで返します。",
             extensions = @Extension(name = "x-ai-prompt-contract", properties = {
                     @ExtensionProperty(name = "agent", value = "delivery-agent"),
-                    @ExtensionProperty(name = "contract", value = "{\"requiredInputs\":[{\"field\":\"message\",\"meaning\":\"速さや価格などに関する自然言語の配送希望。\"},{\"field\":\"itemNames\",\"meaning\":\"配送見積もり対象に含まれる商品名。\"}],\"optionalInputs\":[{\"field\":\"sessionId\",\"meaning\":\"親ワークフローの相関 ID。\"}]}", parseValue = true)
+                @ExtensionProperty(name = "contract", value = "{\"requiredInputs\":[{\"field\":\"preference\",\"meaning\":\"配送希望。priority と rawMessage を使って速さ・価格の優先度や補足を渡します。\"},{\"field\":\"itemNames\",\"meaning\":\"配送見積もり対象に含まれる商品名。\"}],\"optionalInputs\":[{\"field\":\"sessionId\",\"meaning\":\"親ワークフローの相関 ID。\"}]}", parseValue = true)
             }))
     DeliveryQuoteResponse quote(@RequestBody DeliveryQuoteRequest request) {
         return applicationService.quote(request);

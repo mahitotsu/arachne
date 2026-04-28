@@ -41,7 +41,9 @@ class HermesAdapterApiTest {
 
     @Test
     void returnsServiceUnavailableWhenEtaProviderIsUnavailable() {
-        when(adapterService.quote(new AdapterEtaRequest(List.of("combo-crispy"), "急ぎで届けてほしい")))
+        when(adapterService.quote(new AdapterEtaRequest(
+            List.of("combo-crispy"),
+            new DeliveryPreferenceInput(null, DeliveryPriority.URGENT))))
                 .thenReturn(new AdapterEtaResponse(
                         "hermes-adapter",
                         "NOT_AVAILABLE",
@@ -52,7 +54,7 @@ class HermesAdapterApiTest {
 
         ResponseEntity<AdapterEtaResponse> response = restTemplate.postForEntity(
                 "/adapter/eta",
-                new AdapterEtaRequest(List.of("combo-crispy"), "急ぎで届けてほしい"),
+            new AdapterEtaRequest(List.of("combo-crispy"), new DeliveryPreferenceInput(null, DeliveryPriority.URGENT)),
                 AdapterEtaResponse.class);
         AdapterEtaResponse body = Objects.requireNonNull(response.getBody());
 

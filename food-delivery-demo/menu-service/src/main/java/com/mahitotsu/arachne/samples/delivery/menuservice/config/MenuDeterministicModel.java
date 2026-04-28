@@ -47,13 +47,14 @@ final class MenuDeterministicModel implements Model {
         Map<String, Object> toolContent = latestToolContent(messages, toolUseId);
         if (toolContent == null) {
             if (substitutionQuery) {
+            String substitutionMessage = requestArgs.getOrDefault("message", requestArgs.getOrDefault("customerMessage", ""));
                 return List.of(
                         new ModelEvent.ToolUse(
                                 "menu-substitution-lookup",
                                 "menu_substitution_lookup",
                                 Map.of(
                                         "unavailableItemId", requestArgs.getOrDefault("unavailableItemId", ""),
-                                        "customerMessage", requestArgs.getOrDefault("customerMessage", ""))),
+                        "message", substitutionMessage)),
                         new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
             }
             return List.of(

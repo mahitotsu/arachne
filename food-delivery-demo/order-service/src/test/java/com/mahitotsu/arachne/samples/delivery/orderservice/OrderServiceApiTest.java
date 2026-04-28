@@ -1,6 +1,7 @@
 package com.mahitotsu.arachne.samples.delivery.orderservice;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -29,6 +30,7 @@ import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.Con
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.ConfirmPaymentRequest;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.ConfirmPaymentResponse;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.DeliveryOptionChoice;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.OrderIntentInput;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.OrderLineItem;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.ProposalItem;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.ServiceTrace;
@@ -170,7 +172,8 @@ class OrderServiceApiTest {
                                 .contains("/api/order/suggest")
                                 .contains("/api/order/confirm-items")
                                 .contains("x-ai-prompt-contract")
-                                .contains("message")
+                                .contains("intent")
+                                .contains("partySize")
                                 .contains("workflowStep");
         }
 
@@ -204,7 +207,7 @@ class OrderServiceApiTest {
 
         SuggestOrderResponse response = restTemplate.postForObject(
                 "/api/order/suggest",
-                new SuggestOrderRequest("", "4人で4000円以内、子ども1人います", "ja-JP", null),
+                new SuggestOrderRequest("", new OrderIntentInput(null, 4, new BigDecimal("4000"), 1), "ja-JP", null),
                 SuggestOrderResponse.class);
 
         assertThat(response).isNotNull();

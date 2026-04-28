@@ -7,5 +7,5 @@ import java.util.Optional;
 
 public interface ExternalEtaGateway {
 
-    Optional<ExternalEtaQuote> quote(EtaServiceTarget service, List<String> itemNames, String context);
+    Optional<ExternalEtaQuote> quote(EtaServiceTarget service, List<String> itemNames, DeliveryPreferenceInput preference);
 }

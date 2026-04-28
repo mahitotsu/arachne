@@ -19,7 +19,7 @@ public class PaymentApplicationService {
     }
 
     public PaymentPrepareResponse prepare(PaymentPrepareRequest request) {
-        PaymentProfile profile = repository.profileFor(request.message());
+        PaymentProfile profile = repository.profileFor(request.instruction());
         boolean charged = request.confirmRequested();
         String authorizationId = charged ? "pay-" + UUID.randomUUID().toString().substring(0, 8) : null;
         String paymentStatus = charged ? "CHARGED" : "READY";

@@ -36,7 +36,9 @@ class IdatenAdapterApiTest {
     void returnsEtaQuoteForAvailableLowCostPartner() {
         ResponseEntity<AdapterEtaResponse> response = restTemplate.postForEntity(
                 "/adapter/eta",
-                new AdapterEtaRequest(List.of("combo-crispy", "drink-lemon"), "なるべく安く届けてほしい"),
+            new AdapterEtaRequest(
+                List.of("combo-crispy", "drink-lemon"),
+                new DeliveryPreferenceInput(null, DeliveryPriority.CHEAP)),
                 AdapterEtaResponse.class);
         AdapterEtaResponse body = Objects.requireNonNull(response.getBody());
 

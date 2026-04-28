@@ -100,9 +100,9 @@ class MenuArachneConfiguration {
             public ToolResult invoke(Object input, ToolInvocationContext context) {
                 Map<String, Object> values = values(input);
                 String unavailableItemId = String.valueOf(values.getOrDefault("unavailableItemId", ""));
-                String customerMessage = String.valueOf(values.getOrDefault("customerMessage", ""));
+                String message = String.valueOf(values.getOrDefault("message", ""));
                 return ToolResult.success(context.toolUseId(), Map.of(
-                        "substitutionSummary", repository.describeSubstitutes(unavailableItemId, customerMessage)));
+                        "substitutionSummary", repository.describeSubstitutes(unavailableItemId, message)));
             }
         };
     }
@@ -128,8 +128,8 @@ class MenuArachneConfiguration {
         root.put("type", "object");
         ObjectNode properties = root.putObject("properties");
         properties.putObject("unavailableItemId").put("type", "string");
-        properties.putObject("customerMessage").put("type", "string");
-        root.putArray("required").add("unavailableItemId").add("customerMessage");
+        properties.putObject("message").put("type", "string");
+        root.putArray("required").add("unavailableItemId").add("message");
         root.put("additionalProperties", false);
         return root;
     }

@@ -29,7 +29,7 @@ public class HttpExternalEtaGateway implements ExternalEtaGateway {
     }
 
     @Override
-    public Optional<ExternalEtaQuote> quote(EtaServiceTarget service, List<String> itemNames, String context) {
+    public Optional<ExternalEtaQuote> quote(EtaServiceTarget service, List<String> itemNames, DeliveryPreferenceInput preference) {
         try {
             AdapterEtaResponsePayload response = observationSupport.observe(
                     "delivery.delivery.downstream",
@@ -38,7 +38,7 @@ public class HttpExternalEtaGateway implements ExternalEtaGateway {
                     () -> restClientBuilder.build().post()
                             .uri(service.url())
                             .contentType(MediaType.APPLICATION_JSON)
-                            .body(new AdapterEtaRequestPayload(itemNames, context))
+                            .body(new AdapterEtaRequestPayload(itemNames, preference))
                             .retrieve()
                             .body(AdapterEtaResponsePayload.class));
             return toQuote(service, response);

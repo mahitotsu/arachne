@@ -13,9 +13,27 @@ public final class OrderTypes {
     @Schema(description = "注文ワークフローで商品提案または再調整を依頼する要求です。")
     public record SuggestOrderRequest(
             @Schema(description = "既存ワークフローのセッション ID。新規注文では空にします。") String sessionId,
-            @Schema(description = "このターンの自然言語の注文意図。", example = "4人で4000円以内、子ども1人います") String message,
+                        @Schema(description = "このターンの注文意図を表す構造化入力です。") OrderIntentInput intent,
             @Schema(description = "応答言語に関する任意の locale ヒント。", example = "ja-JP") String locale,
             @Schema(description = "前回提案を絞り込む任意の追加入力。") String refinement) {
+
+                public SuggestOrderRequest {
+                        if (intent == null) {
+                                intent = new OrderIntentInput(null, null, null, null);
+                        }
+                }
+
+                public SuggestOrderRequest(String sessionId, String message, String locale, String refinement) {
+                        this(sessionId, new OrderIntentInput(message, null, null, null), locale, refinement);
+                }
+        }
+
+        @Schema(description = "商品提案に使う注文意図の構造化入力です。")
+        public record OrderIntentInput(
+                        @Schema(description = "自由記述の元メッセージ。構造化項目で表しきれない意図やニュアンスを保持します。", example = "4人で4000円以内、子ども1人います") String rawMessage,
+                        @Schema(description = "想定している人数。", example = "4") Integer partySize,
+                        @Schema(description = "許容する予算上限。", example = "4000") BigDecimal budgetUpperBound,
+                        @Schema(description = "子どもの人数。", example = "1") Integer childCount) {
     }
 
     @Schema(description = "配送選択へ進めるために選択した提案商品です。")
@@ -218,7 +236,26 @@ public final class OrderTypes {
     public record DeliveryOptionView(String code, String label, int etaMinutes, BigDecimal fee) {
     }
 
-    public record PaymentPrepareRequest(String sessionId, String message, BigDecimal total, boolean confirmRequested) {
+        public record PaymentPrepareRequest(String sessionId, PaymentInstructionInput instruction, BigDecimal total, boolean confirmRequested) {
+
+                public PaymentPrepareRequest {
+                        if (instruction == null) {
+                                instruction = new PaymentInstructionInput(null, null);
+                        }
+                }
+
+                public PaymentPrepareRequest(String sessionId, String message, BigDecimal total, boolean confirmRequested) {
+                        this(sessionId, new PaymentInstructionInput(message, null), total, confirmRequested);
+                }
+        }
+
+        public record PaymentInstructionInput(String rawMessage, PaymentMethodPreference requestedMethod) {
+        }
+
+        public enum PaymentMethodPreference {
+                APPLE_PAY,
+                CASH_ON_DELIVERY,
+                SAVED_CARD
     }
 
     public record PaymentPrepareResponse(

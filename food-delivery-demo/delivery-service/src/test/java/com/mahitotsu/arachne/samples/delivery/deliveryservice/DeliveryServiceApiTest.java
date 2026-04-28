@@ -152,14 +152,18 @@ class DeliveryServiceApiTest {
         assertThat(response.getBody())
                 .contains("/internal/delivery/quote")
                 .contains("x-ai-prompt-contract")
-            .contains("自然言語の配送希望");
+            .contains("preference")
+            .contains("priority");
     }
 
     @Test
     void returnsExpressOptionFirstForFastestRequests() {
         DeliveryQuoteResponse response = restTemplate.postForObject(
                 "/internal/delivery/quote",
-                new DeliveryQuoteRequest("session-1", "最速配送でお願い", List.of("Crispy Chicken Box")),
+            new DeliveryQuoteRequest(
+                "session-1",
+                new DeliveryPreferenceInput(null, DeliveryPreference.URGENT),
+                List.of("Crispy Chicken Box")),
                 DeliveryQuoteResponse.class);
 
         assertThat(response).isNotNull();
@@ -178,7 +182,10 @@ class DeliveryServiceApiTest {
 
         DeliveryQuoteResponse response = restTemplate.postForObject(
             "/internal/delivery/quote",
-            new DeliveryQuoteRequest("session-2", "できるだけ安く届けて", List.of("Teriyaki Chicken Box")),
+            new DeliveryQuoteRequest(
+                    "session-2",
+                    new DeliveryPreferenceInput(null, DeliveryPreference.CHEAP),
+                    List.of("Teriyaki Chicken Box")),
             DeliveryQuoteResponse.class);
 
         assertThat(response).isNotNull();

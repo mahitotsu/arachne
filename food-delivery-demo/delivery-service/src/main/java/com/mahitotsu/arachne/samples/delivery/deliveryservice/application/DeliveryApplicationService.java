@@ -25,7 +25,7 @@ public class DeliveryApplicationService {
     private static final String ETA_DISCOVERY_QUERY = "外部ETAを提供するサービスは？";
     private static final String DELIVERY_PROMPT = """
             あなたは単一キッチンのクラウドキッチンアプリの delivery-agent です。
-            ユーザープロンプトには customer_message と item_names が渡されます。
+            ユーザープロンプトには delivery_priority, delivery_notes, item_names が渡されます。
             delivery-routing を有効化し、必ず次の順でツールを使ってください:
             1. check_courier_availability
             2. get_traffic_weather
@@ -83,11 +83,11 @@ public class DeliveryApplicationService {
         TrafficWeatherStatus conditions = trafficWeatherRepository.current();
         List<EtaServiceTarget> etaServices = etaServiceDiscoveryGateway.discoverAvailableEtaServices(ETA_DISCOVERY_QUERY);
         List<ExternalEtaQuote> externalQuotes = etaServices.stream()
-                .map(service -> externalEtaGateway.quote(service, request.itemNames(), request.message()))
+            .map(service -> externalEtaGateway.quote(service, request.itemNames(), request.preference()))
                 .flatMap(Optional::stream)
                 .toList();
         List<DeliveryOption> candidateOptions = buildCandidateOptions(courierStatus, conditions, externalQuotes);
-        DeliveryRanking fallbackRanking = DeliveryRankingPolicy.rank(candidateOptions, request.message());
+        DeliveryRanking fallbackRanking = DeliveryRankingPolicy.rank(candidateOptions, request.preference());
         DeliveryAgentUserPrompt userPrompt = DeliveryAgentUserPrompt.from(request);
 
         AgentResult decisionResult = agentObservationSupport.observe("delivery-service", "delivery-agent", () -> agentFactory.builder()
@@ -112,6 +112,7 @@ public class DeliveryApplicationService {
             effectiveDecision.recommendedTier(),
             effectiveDecision.recommendationReason());
     }
+
 
         private DeliveryDecision validateDecision(
             DeliveryDecision decision,

@@ -98,7 +98,7 @@ public class MenuApplicationService {
             """)
             .tools(menuSubstitutionLookupTool)
             .build()
-            .run("unavailableItemId=" + request.unavailableItemId() + "\ncustomerMessage=" + request.message(),
+                .run("unavailableItemId=" + request.unavailableItemId() + "\nmessage=" + request.message(),
                     MenuSubstitutionDecision.class));
         MenuSubstitutionDecision decision = decisionResult.structuredOutput(MenuSubstitutionDecision.class);
         List<MenuItem> items = resolveSubstitutionItems(request.unavailableItemId(), request.message(), decision.selectedItemIds());

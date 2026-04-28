@@ -153,8 +153,7 @@ public class KitchenApplicationService {
         ObjectNode unavailableItemIds = properties.putObject("unavailableItemIds");
         unavailableItemIds.put("type", "array");
         unavailableItemIds.putObject("items").put("type", "string");
-        properties.putObject("customerMessage").put("type", "string");
-        root.putArray("required").add("unavailableItemIds").add("customerMessage");
+        root.putArray("required").add("unavailableItemIds");
         root.put("additionalProperties", false);
         return root;
     }
