@@ -48,8 +48,7 @@ public class MenuApplicationService {
 
     public MenuSuggestionResponse suggest(MenuSuggestionRequest request) {
         String accessToken = SecurityAccessors.requiredAccessToken();
-        List<MenuItem> items = repository.search(request.message());
-        AgentResult suggestionResult = agentObservationSupport.observe("menu-service", "menu-agent", () -> agentFactory.builder()
+        AgentResult decisionResult = agentObservationSupport.observe("menu-service", "menu-agent", () -> agentFactory.builder()
             .systemPrompt("""
             あなたは単一ブランドのクラウドキッチンアプリの menu-agent です。
 
@@ -58,18 +57,20 @@ public class MenuApplicationService {
 
             利用可能なスキルを必要に応じて有効化してください。
             その後は必ず catalog_lookup_tool を使って候補を確認し、人数・予算・好み・履歴文脈に合う提案セットを選んでください。
-            提案後は calculate_total_tool を使って合計を検算し、短い理由文を添えてください。
+            最後に calculate_total_tool を使って選んだ itemIds の合計を検算してください。
+            最終回答は structured_output を使い、selectedItemIds, skillTag, recommendationReason を返してください。
             欠品や混雑の最終判断は kitchen-service 側で行われるため、推薦理由はメニュー意図に集中してください。""")
             .tools(catalogLookupTool, calculateTotalTool)
             .build()
-            .run("query=" + request.message()));
-        String agentSummary = suggestionResult.text();
+            .run("query=" + request.message(), MenuSuggestionDecision.class));
+        MenuSuggestionDecision decision = decisionResult.structuredOutput(MenuSuggestionDecision.class);
+        List<MenuItem> items = resolveSuggestedItems(request.message(), decision.selectedItemIds());
         KitchenCheckResponse kitchenResponse = kitchenCheckGateway.check(
                 new KitchenCheckRequest(request.sessionId(), request.message(), items.stream().map(MenuItem::id).toList()),
                 accessToken);
         List<MenuItem> resolvedItems = resolveItems(items, kitchenResponse.items());
         BigDecimal total = repository.calculateTotal(resolvedItems);
-        String summary = renderSuggestionSummary(resolvedItems, agentSummary, kitchenResponse, total);
+        String summary = renderSuggestionSummary(resolvedItems, decision, kitchenResponse, total);
         return new MenuSuggestionResponse(
                 "menu-service",
                 "menu-agent",
@@ -81,52 +82,72 @@ public class MenuApplicationService {
     }
 
     public MenuSubstitutionResponse suggestSubstitutes(MenuSubstitutionRequest request) {
-        List<MenuItem> items = repository.findSubstitutes(request.unavailableItemId(), request.message());
-        AgentResult substitutionResult = agentObservationSupport.observe("menu-service", "menu-agent", () -> agentFactory.builder()
+        AgentResult decisionResult = agentObservationSupport.observe("menu-service", "menu-agent", () -> agentFactory.builder()
             .systemPrompt("""
             あなたは唯一のクラウドキッチンでアイテムが在庫切れのときに kitchen-agent をサポートする menu-agent です。
 
             menu_substitution_lookup を呼び出して、お客様の意図に近い代替品の候補を準備してください。
             同ブランドのメニュー内に留め、別のキッチンは言及しないでください。
-            答えは簡潔にし、kitchen-agent が検証する代替提案であることを言及してください。
+            最終回答は structured_output を使い、selectedItemIds と summary を返してください。
             """)
             .tools(menuSubstitutionLookupTool)
             .build()
-            .run("unavailableItemId=" + request.unavailableItemId() + "\ncustomerMessage=" + request.message()));
-        String summary = substitutionResult.text();
+            .run("unavailableItemId=" + request.unavailableItemId() + "\ncustomerMessage=" + request.message(),
+                    MenuSubstitutionDecision.class));
+        MenuSubstitutionDecision decision = decisionResult.structuredOutput(MenuSubstitutionDecision.class);
+        List<MenuItem> items = resolveSubstitutionItems(request.unavailableItemId(), request.message(), decision.selectedItemIds());
         return new MenuSubstitutionResponse(
                 "menu-service",
                 "menu-agent",
                 repository.substitutionHeadline(items),
-                summary,
+                decision.summary(),
                 items);
     }
 
     private String renderSuggestionSummary(
             List<MenuItem> items,
-            String agentSummary,
+            MenuSuggestionDecision decision,
             KitchenCheckResponse kitchenResponse,
             BigDecimal total) {
-        String skillPrefix = extractSkillPrefix(agentSummary);
         String itemSummary = items.stream()
                 .map(item -> item.name() + " x" + item.suggestedQuantity())
                 .reduce((left, right) -> left + ", " + right)
                 .orElse("本日の人気コンボ");
-        String prefix = skillPrefix.isBlank() ? "" : skillPrefix + " ";
-        return prefix + "menu-agent が " + itemSummary + " をおすすめします。"
+        String skillPrefix = decision.skillTag() == null || decision.skillTag().isBlank() ? "" : "[" + decision.skillTag() + "] ";
+        String reason = decision.recommendationReason() == null || decision.recommendationReason().isBlank()
+                ? ""
+                : " " + decision.recommendationReason();
+        return skillPrefix + "menu-agent が " + itemSummary + " をおすすめします。" + reason
                 + " キッチン確認後の提供目安は約" + kitchenResponse.readyInMinutes() + "分、合計は"
                 + formatYen(total) + "です。";
     }
 
-    private String extractSkillPrefix(String agentSummary) {
-        if (agentSummary == null) {
-            return "";
+    private List<MenuItem> resolveSuggestedItems(String message, List<String> selectedItemIds) {
+        List<MenuItem> fallbackItems = repository.search(message);
+        if (selectedItemIds == null || selectedItemIds.isEmpty()) {
+            return fallbackItems;
         }
-        int closingBracket = agentSummary.indexOf(']');
-        if (agentSummary.startsWith("[") && closingBracket > 0) {
-            return agentSummary.substring(0, closingBracket + 1);
+        Map<String, MenuItem> fallbackById = fallbackItems.stream()
+                .collect(LinkedHashMap::new, (map, item) -> map.put(item.id(), item), Map::putAll);
+        List<MenuItem> resolved = selectedItemIds.stream()
+                .map(fallbackById::get)
+                .filter(java.util.Objects::nonNull)
+                .toList();
+        return resolved.isEmpty() ? fallbackItems : resolved;
+    }
+
+    private List<MenuItem> resolveSubstitutionItems(String unavailableItemId, String message, List<String> selectedItemIds) {
+        List<MenuItem> fallbackItems = repository.findSubstitutes(unavailableItemId, message);
+        if (selectedItemIds == null || selectedItemIds.isEmpty()) {
+            return fallbackItems;
         }
-        return "";
+        Map<String, MenuItem> fallbackById = fallbackItems.stream()
+                .collect(LinkedHashMap::new, (map, item) -> map.put(item.id(), item), Map::putAll);
+        List<MenuItem> resolved = selectedItemIds.stream()
+                .map(fallbackById::get)
+                .filter(java.util.Objects::nonNull)
+                .toList();
+        return resolved.isEmpty() ? fallbackItems : resolved;
     }
 
     private List<MenuItem> resolveItems(List<MenuItem> originalItems, List<KitchenItemStatus> statuses) {

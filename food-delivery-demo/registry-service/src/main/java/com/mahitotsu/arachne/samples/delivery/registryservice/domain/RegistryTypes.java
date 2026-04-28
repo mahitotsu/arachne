@@ -27,6 +27,9 @@ public final class RegistryTypes {
     public record RegistryDiscoverRequest(String query, Boolean availableOnly) {
     }
 
+    public record RegistryDiscoveryDecision(List<String> selectedServiceNames, String summary) {
+    }
+
     public record RegistryDiscoverResponse(String service, String agent, String summary, List<RegistryServiceDescriptor> matches) {
     }
 

@@ -140,10 +140,12 @@ class MenuServiceApiTest {
 
         assertThat(response).isNotNull();
         assertThat(metricsIndex.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(metricsIndex.getBody()).contains("delivery.agent.invocation", "delivery.agent.tool.call");
+        assertThat(metricsIndex.getBody()).contains("delivery.agent.invocation", "delivery.agent.tool.call", "delivery.agent.usage.tokens");
         assertMetricWithTags("/actuator/metrics/delivery.agent.invocation?tag=service:menu-service&tag=agent:menu-agent&tag=outcome:success");
         assertMetricWithTags("/actuator/metrics/delivery.agent.tool.call?tag=service:menu-service&tag=agent:menu-agent&tag=tool:catalog_lookup_tool&tag=outcome:success");
         assertMetricWithTags("/actuator/metrics/delivery.agent.tool.call?tag=service:menu-service&tag=agent:menu-agent&tag=tool:calculate_total_tool&tag=outcome:success");
+        assertMetricWithTags("/actuator/metrics/delivery.agent.usage.tokens?tag=service:menu-service&tag=agent:menu-agent&tag=type:input");
+        assertMetricWithTags("/actuator/metrics/delivery.agent.usage.tokens?tag=service:menu-service&tag=agent:menu-agent&tag=type:output");
         assertMetricWithTags("/actuator/metrics/delivery.menu.downstream?tag=target:kitchen-service&tag=operation:check&tag=outcome:success");
         assertMetricWithTags("/actuator/metrics/delivery.menu.registry.lookup?tag=target:registry-service&tag=operation:resolve-endpoint&tag=outcome:success");
     }

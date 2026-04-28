@@ -21,6 +21,12 @@ public final class MenuTypes {
     public record MenuSubstitutionResponse(String service, String agent, String headline, String summary, List<MenuItem> items) {
     }
 
+    public record MenuSuggestionDecision(List<String> selectedItemIds, String skillTag, String recommendationReason) {
+    }
+
+    public record MenuSubstitutionDecision(List<String> selectedItemIds, String summary) {
+    }
+
     public record MenuItem(String id, String name, String description, BigDecimal price, int suggestedQuantity, String category,
             List<String> tags) {
     }

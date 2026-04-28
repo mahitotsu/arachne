@@ -37,6 +37,7 @@ public class DeliveryApplicationService {
             - 各外部 ETA API 呼び出し結果
             - 推奨オプションと理由
             「急いで」「最速」は最短 ETA を優先し、「安く」「節約」は最安料金を優先してください。
+            最終回答は structured_output を使い、summary, recommendedTier, recommendationReason を返してください。
             """;
 
     private final AgentFactory agentFactory;
@@ -82,31 +83,58 @@ public class DeliveryApplicationService {
                 .flatMap(Optional::stream)
                 .toList();
         List<DeliveryOption> candidateOptions = buildCandidateOptions(courierStatus, conditions, externalQuotes);
-        DeliveryRanking ranking = DeliveryRankingPolicy.rank(candidateOptions, request.message());
+        DeliveryRanking fallbackRanking = DeliveryRankingPolicy.rank(candidateOptions, request.message());
 
-        AgentResult deliveryAgentResult = agentObservationSupport.observe("delivery-service", "delivery-agent", () -> agentFactory.builder()
+        AgentResult decisionResult = agentObservationSupport.observe("delivery-service", "delivery-agent", () -> agentFactory.builder()
             .systemPrompt(DELIVERY_PROMPT)
             .tools(courierAvailabilityTool, trafficWeatherTool, discoverEtaServicesTool, callEtaServiceTool)
             .build()
-            .run("注文の配送状況を調査してください: " + request.message()
-                + "。アイテム: " + request.itemNames()
-                + "。推奨候補: " + ranking.recommendedTier()
-                + "。推奨理由: " + ranking.recommendationReason()));
-        String summary = deliveryAgentResult.text();
+            .run("注文の配送状況を調査してください: " + request.message() + "。アイテム: " + request.itemNames(), DeliveryDecision.class));
+        DeliveryDecision decision = decisionResult.structuredOutput(DeliveryDecision.class);
 
-        String headline = ranking.recommendedTier().isBlank()
+        DeliveryDecision effectiveDecision = validateDecision(decision, candidateOptions, fallbackRanking);
+
+        String headline = effectiveDecision.recommendedTier().isBlank()
                 ? "delivery-agent が利用可能な配送候補を確認できませんでした"
-                : "delivery-agent が " + labelFor(ranking.recommendedTier(), ranking.options()) + " を推奨しました";
+            : "delivery-agent が " + labelFor(effectiveDecision.recommendedTier(), fallbackRanking.options()) + " を推奨しました";
 
         return new DeliveryQuoteResponse(
                 "delivery-service",
                 "delivery-agent",
                 headline,
-                summary,
-                ranking.options(),
-                ranking.recommendedTier(),
-                ranking.recommendationReason());
+            effectiveDecision.summary(),
+                fallbackRanking.options(),
+            effectiveDecision.recommendedTier(),
+            effectiveDecision.recommendationReason());
     }
+
+        private DeliveryDecision validateDecision(
+            DeliveryDecision decision,
+            List<DeliveryOption> candidateOptions,
+            DeliveryRanking fallbackRanking) {
+        if (decision == null) {
+            return new DeliveryDecision(
+                fallbackRanking.recommendationReason(),
+                fallbackRanking.recommendedTier(),
+                fallbackRanking.recommendationReason());
+        }
+        boolean knownTier = candidateOptions.stream().anyMatch(option -> option.code().equals(decision.recommendedTier()));
+        if (!knownTier) {
+            return new DeliveryDecision(
+                decision.summary() == null || decision.summary().isBlank()
+                    ? fallbackRanking.recommendationReason()
+                    : decision.summary(),
+                fallbackRanking.recommendedTier(),
+                fallbackRanking.recommendationReason());
+        }
+        String summary = decision.summary() == null || decision.summary().isBlank()
+            ? fallbackRanking.recommendationReason()
+            : decision.summary();
+        String reason = decision.recommendationReason() == null || decision.recommendationReason().isBlank()
+            ? fallbackRanking.recommendationReason()
+            : decision.recommendationReason();
+        return new DeliveryDecision(summary, decision.recommendedTier(), reason);
+        }
 
     private List<DeliveryOption> buildCandidateOptions(
             CourierStatus courierStatus,

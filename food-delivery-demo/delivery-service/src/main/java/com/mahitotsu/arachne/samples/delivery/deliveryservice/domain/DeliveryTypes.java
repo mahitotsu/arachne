@@ -25,6 +25,9 @@ public final class DeliveryTypes {
             String recommendationReason) {
     }
 
+        public record DeliveryDecision(String summary, String recommendedTier, String recommendationReason) {
+        }
+
     public record DeliveryOption(String code, String label, int etaMinutes, BigDecimal fee) {
     }
 

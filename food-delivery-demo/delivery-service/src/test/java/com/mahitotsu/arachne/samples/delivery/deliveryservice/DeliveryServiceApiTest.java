@@ -185,9 +185,11 @@ class DeliveryServiceApiTest {
 
         assertThat(response).isNotNull();
         assertThat(metricsIndex.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(metricsIndex.getBody()).contains("delivery.agent.invocation", "delivery.agent.tool.call");
+        assertThat(metricsIndex.getBody()).contains("delivery.agent.invocation", "delivery.agent.tool.call", "delivery.agent.usage.tokens");
         assertMetricWithTags("/actuator/metrics/delivery.agent.invocation?tag=service:delivery-service&tag=agent:delivery-agent&tag=outcome:success");
         assertMetricWithTags("/actuator/metrics/delivery.agent.tool.call?tag=service:delivery-service&tag=agent:delivery-agent&tag=tool:discover_eta_services&tag=outcome:success");
+        assertMetricWithTags("/actuator/metrics/delivery.agent.usage.tokens?tag=service:delivery-service&tag=agent:delivery-agent&tag=type:input");
+        assertMetricWithTags("/actuator/metrics/delivery.agent.usage.tokens?tag=service:delivery-service&tag=agent:delivery-agent&tag=type:output");
         assertMetricWithTags("/actuator/metrics/delivery.delivery.registry.lookup?tag=target:registry-service&tag=operation:discover-eta-services&tag=outcome:success");
         assertMetricWithTags("/actuator/metrics/delivery.delivery.downstream?tag=target:hermes-adapter&tag=operation:quote&tag=outcome:success");
     }

@@ -21,6 +21,12 @@ public final class KitchenTypes {
             List<AgentCollaboration> collaborations) {
     }
 
+    public record KitchenDecision(String summary, List<ApprovedSubstitutionDecision> approvedSubstitutions) {
+    }
+
+    public record ApprovedSubstitutionDecision(String unavailableItemId, String selectedItemId) {
+    }
+
     public record KitchenItemStatus(String itemId, boolean available, int prepMinutes, String substituteItemId, String substituteName, BigDecimal substitutePrice) {
     }
 

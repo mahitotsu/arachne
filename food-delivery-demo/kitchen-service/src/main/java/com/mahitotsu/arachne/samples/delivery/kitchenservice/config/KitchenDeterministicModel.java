@@ -8,6 +8,7 @@ import com.mahitotsu.arachne.strands.model.Model;
 import com.mahitotsu.arachne.strands.model.ModelEvent;
 import com.mahitotsu.arachne.strands.model.ToolSelection;
 import com.mahitotsu.arachne.strands.model.ToolSpec;
+import com.mahitotsu.arachne.strands.tool.StructuredOutputTool;
 import com.mahitotsu.arachne.strands.types.ContentBlock;
 import com.mahitotsu.arachne.strands.types.Message;
 
@@ -61,18 +62,39 @@ final class KitchenDeterministicModel implements Model {
 
         String inventorySummary = String.valueOf(toolContent.getOrDefault("inventorySummary", "kitchen is ready"));
         String scheduleSummary = String.valueOf(scheduleContent.getOrDefault("scheduleSummary", ""));
+    String summary;
         if (substitutionContent != null) {
+        summary = "kitchen-agent がラインを確認しました: "
+            + inventorySummary
+            + " " + scheduleSummary
+            + ". menu-agent に相談して "
+            + substitutionContent.getOrDefault("substitutionSummary", "最適な代替品")
+            + " を承認しました。";
+        if (structuredOutputRequested(tools)) {
+        return List.of(
+            new ModelEvent.ToolUse(
+                "structured-kitchen",
+                StructuredOutputTool.DEFAULT_NAME,
+                Map.of(
+                    "summary", summary,
+                    "approvedSubstitutions", approvedSubstitutions(substitutionContent))),
+            new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
+        }
             return List.of(
-                    new ModelEvent.TextDelta("kitchen-agent がラインを確認しました: "
-                            + inventorySummary
-                            + " " + scheduleSummary
-                            + ". menu-agent に相談して "
-                            + substitutionContent.getOrDefault("substitutionSummary", "最適な代替品")
-                            + " を承認しました。"),
+            new ModelEvent.TextDelta(summary),
                     new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
         }
+    summary = "kitchen-agent がラインを確認しました: " + inventorySummary + " " + scheduleSummary;
+    if (structuredOutputRequested(tools)) {
         return List.of(
-                new ModelEvent.TextDelta("kitchen-agent がラインを確認しました: " + inventorySummary + " " + scheduleSummary),
+            new ModelEvent.ToolUse(
+                "structured-kitchen",
+                StructuredOutputTool.DEFAULT_NAME,
+                Map.of("summary", summary, "approvedSubstitutions", List.of())),
+            new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
+    }
+        return List.of(
+        new ModelEvent.TextDelta(summary),
                 new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
     }
 
@@ -117,5 +139,34 @@ final class KitchenDeterministicModel implements Model {
             values.put(line.substring(0, separator).trim(), line.substring(separator + 1).trim());
         }
         return values;
+    }
+
+    private boolean structuredOutputRequested(List<ToolSpec> tools) {
+        return tools.stream().anyMatch(tool -> StructuredOutputTool.DEFAULT_NAME.equals(tool.name()));
+    }
+
+    private List<Map<String, Object>> approvedSubstitutions(Map<String, Object> substitutionContent) {
+        Object rawCandidates = substitutionContent.get("candidates");
+        if (!(rawCandidates instanceof List<?> candidates)) {
+            return List.of();
+        }
+        List<Map<String, Object>> approved = new java.util.ArrayList<>();
+        for (Object candidate : candidates) {
+            if (!(candidate instanceof Map<?, ?> candidateMap)) {
+                continue;
+            }
+            Object unavailableItemId = candidateMap.get("unavailableItemId");
+            Object rawItems = candidateMap.get("items");
+            if (!(rawItems instanceof List<?> items) || items.isEmpty() || unavailableItemId == null) {
+                continue;
+            }
+            Object firstItem = items.getFirst();
+            if (firstItem instanceof Map<?, ?> itemMap && itemMap.get("itemId") != null) {
+                approved.add(Map.of(
+                        "unavailableItemId", String.valueOf(unavailableItemId),
+                        "selectedItemId", String.valueOf(itemMap.get("itemId"))));
+            }
+        }
+        return approved;
     }
 }

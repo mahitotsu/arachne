@@ -163,9 +163,11 @@ class SupportServiceApiTest {
 
         assertThat(response).isNotNull();
         assertThat(metricsIndex.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(metricsIndex.getBody()).contains("delivery.agent.invocation", "delivery.agent.tool.call");
+        assertThat(metricsIndex.getBody()).contains("delivery.agent.invocation", "delivery.agent.tool.call", "delivery.agent.usage.tokens");
         assertMetricWithTags("/actuator/metrics/delivery.agent.invocation?tag=service:support-service&tag=agent:support-agent&tag=outcome:success");
         assertMetricWithTags("/actuator/metrics/delivery.agent.tool.call?tag=service:support-service&tag=agent:support-agent&tag=tool:campaign_lookup&tag=outcome:success");
+        assertMetricWithTags("/actuator/metrics/delivery.agent.usage.tokens?tag=service:support-service&tag=agent:support-agent&tag=type:input");
+        assertMetricWithTags("/actuator/metrics/delivery.agent.usage.tokens?tag=service:support-service&tag=agent:support-agent&tag=type:output");
         assertMetricWithTags("/actuator/metrics/delivery.support.downstream?tag=target:order-service&tag=operation:recent-orders&tag=outcome:success");
         assertMetricWithTags("/actuator/metrics/delivery.support.registry.lookup?tag=target:registry-service&tag=operation:resolve-endpoint&tag=outcome:success");
         assertMetricWithTags("/actuator/metrics/delivery.support.registry.lookup?tag=target:registry-service&tag=operation:health-status&tag=outcome:success");

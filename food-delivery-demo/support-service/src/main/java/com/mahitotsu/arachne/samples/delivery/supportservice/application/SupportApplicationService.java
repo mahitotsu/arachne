@@ -16,10 +16,10 @@ import com.mahitotsu.arachne.samples.delivery.supportservice.domain.CampaignSumm
 import com.mahitotsu.arachne.samples.delivery.supportservice.domain.CustomerOrderHistoryEntry;
 import com.mahitotsu.arachne.samples.delivery.supportservice.domain.FaqEntry;
 import com.mahitotsu.arachne.samples.delivery.supportservice.domain.FeedbackInsight;
-import com.mahitotsu.arachne.samples.delivery.supportservice.domain.HandoffInstruction;
 import com.mahitotsu.arachne.samples.delivery.supportservice.domain.ServiceHealthSummary;
 import com.mahitotsu.arachne.samples.delivery.supportservice.domain.SupportFeedbackRecord;
 import com.mahitotsu.arachne.samples.delivery.supportservice.domain.SupportIntent;
+import com.mahitotsu.arachne.samples.delivery.supportservice.domain.SupportReplyDecision;
 import com.mahitotsu.arachne.samples.delivery.supportservice.infrastructure.CampaignRepository;
 import com.mahitotsu.arachne.samples.delivery.supportservice.infrastructure.FaqRepository;
 import com.mahitotsu.arachne.samples.delivery.supportservice.infrastructure.FeedbackRepository;
@@ -37,8 +37,8 @@ public class SupportApplicationService {
     private static final String SUPPORT_PROMPT = """
             あなたは support-agent です。
             問い合わせ内容に応じて faq_lookup、campaign_lookup、service_status_lookup、feedback_lookup、order_history_lookup を使い分けてください。
-            FAQ と現在有効なキャンペーン、稼働状況を優先して整理し、注文内容の変更や再注文が必要なら [HANDOFF: order] を含めて案内してください。
-            回答は日本語で簡潔にまとめてください。
+            FAQ と現在有効なキャンペーン、稼働状況を優先して整理し、注文内容の変更や再注文が必要なら handoffTarget=order を返してください。
+            最終回答は structured_output を使い、summary, handoffTarget, handoffMessage を返してください。
             """;
 
     private final AgentFactory agentFactory;
@@ -99,28 +99,27 @@ public class SupportApplicationService {
             orderHistorySnapshotStore.cache(customerId, recentOrders);
         }
         List<FeedbackInsight> relatedFeedback = intent.includesFeedback() ? feedbackRepository.lookup(safeMessage, 3) : List.of();
-        HandoffInstruction handoff = HandoffInstruction.fromMessage(safeMessage);
 
-        AgentResult supportAgentResult = agentObservationSupport.observe("support-service", "support-agent", () -> agentFactory.builder()
+        AgentResult decisionResult = agentObservationSupport.observe("support-service", "support-agent", () -> agentFactory.builder()
             .systemPrompt(SUPPORT_PROMPT)
             .tools(faqLookupTool, campaignLookupTool, serviceStatusLookupTool, feedbackLookupTool, orderHistoryLookupTool)
             .build()
-            .run("問い合わせ: " + safeMessage + "。customerId=" + customerId));
-        String summary = supportAgentResult.text();
+            .run("問い合わせ: " + safeMessage + "。customerId=" + customerId, SupportReplyDecision.class));
+        SupportReplyDecision decision = decisionResult.structuredOutput(SupportReplyDecision.class);
 
         return new SupportChatResponse(
                 request.sessionId(),
                 "support-service",
                 "support-agent",
                 headline(intent),
-                summary,
+                decision.summary(),
                 faqMatches,
                 campaigns,
                 statuses,
                 recentOrders,
                 relatedFeedback,
-                handoff.target(),
-                handoff.message());
+                decision.handoffTarget(),
+                decision.handoffMessage());
     }
 
     public SupportFeedbackResponse feedback(SupportFeedbackRequest request) {

@@ -23,6 +23,7 @@ import com.mahitotsu.arachne.strands.model.Model;
 import com.mahitotsu.arachne.strands.model.ModelEvent;
 import com.mahitotsu.arachne.strands.model.ToolSelection;
 import com.mahitotsu.arachne.strands.model.ToolSpec;
+import com.mahitotsu.arachne.strands.tool.StructuredOutputTool;
 import com.mahitotsu.arachne.strands.tool.Tool;
 import com.mahitotsu.arachne.strands.tool.ToolInvocationContext;
 import com.mahitotsu.arachne.strands.tool.ToolResult;
@@ -304,8 +305,9 @@ class DeliveryArachneConfiguration {
                         + "、混雑:" + etaResult.getOrDefault("congestion", "unknown"));
             }
             String userText = latestUserText(messages);
-            String outerRecommendedCode = extractMarkerValue(userText, "推奨候補: ");
-            String outerRecommendationReason = extractMarkerValue(userText, "推奨理由: ");
+                DeliveryRanking ranking = DeliveryRankingPolicy.rank(options, userText);
+                String outerRecommendedCode = ranking.recommendedTier();
+                String outerRecommendationReason = ranking.recommendationReason();
             String outerRecommendedLabel = options.stream()
                     .filter(o -> o.code().equals(outerRecommendedCode))
                     .map(DeliveryOption::label)
@@ -334,6 +336,17 @@ class DeliveryArachneConfiguration {
             lines.addAll(externalLines);
             lines.add(recommendationLine);
             String summary = String.join("\n", lines);
+                if (structuredOutputRequested(tools)) {
+                return List.of(
+                    new ModelEvent.ToolUse(
+                        "structured-delivery",
+                        StructuredOutputTool.DEFAULT_NAME,
+                        Map.of(
+                            "summary", summary,
+                            "recommendedTier", outerRecommendedCode,
+                            "recommendationReason", outerRecommendationReason)),
+                    new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
+                }
             return List.of(
                     new ModelEvent.TextDelta(summary),
                     new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
@@ -366,16 +379,6 @@ class DeliveryArachneConfiguration {
             return "";
         }
 
-        private String extractMarkerValue(String text, String marker) {
-            int start = text.indexOf(marker);
-            if (start < 0) {
-                return "";
-            }
-            start += marker.length();
-            int end = text.indexOf("。", start);
-            return end < 0 ? text.substring(start).trim() : text.substring(start, end).trim();
-        }
-
         private Map<String, Object> latestToolContent(List<Message> messages, String toolUseId) {
             for (int index = messages.size() - 1; index >= 0; index--) {
                 Message message = messages.get(index);
@@ -390,6 +393,10 @@ class DeliveryArachneConfiguration {
                 }
             }
             return null;
+        }
+
+        private boolean structuredOutputRequested(List<ToolSpec> tools) {
+            return tools.stream().anyMatch(tool -> StructuredOutputTool.DEFAULT_NAME.equals(tool.name()));
         }
     }
 }

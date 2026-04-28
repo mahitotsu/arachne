@@ -10,6 +10,7 @@ import com.mahitotsu.arachne.strands.model.Model;
 import com.mahitotsu.arachne.strands.model.ModelEvent;
 import com.mahitotsu.arachne.strands.model.ToolSelection;
 import com.mahitotsu.arachne.strands.model.ToolSpec;
+import com.mahitotsu.arachne.strands.tool.StructuredOutputTool;
 import com.mahitotsu.arachne.strands.types.ContentBlock;
 import com.mahitotsu.arachne.strands.types.Message;
 
@@ -60,12 +61,38 @@ final class MenuDeterministicModel implements Model {
                     new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
         }
 
-        if (!substitutionQuery && latestToolContent(messages, "menu-total") == null) {
-            Object itemIds = toolContent.getOrDefault("itemIds", List.of());
+                if (!substitutionQuery && latestToolContent(messages, "menu-total") == null) {
+                    Object itemIds = toolContent.getOrDefault("itemIds", List.of());
             return List.of(
                     new ModelEvent.ToolUse("menu-total", "calculate_total_tool", Map.of("itemIds", itemIds)),
                     new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
         }
+
+                if (structuredOutputRequested(tools)) {
+                    if (substitutionQuery) {
+                    return List.of(
+                        new ModelEvent.ToolUse(
+                            "structured-menu-substitution",
+                            StructuredOutputTool.DEFAULT_NAME,
+                            Map.of(
+                                "selectedItemIds", toolContent.getOrDefault("itemIds", List.of()),
+                                "summary", "menu-agent が kitchen-agent に検証させる代替品として "
+                                    + toolContent.getOrDefault("substitutionSummary", "最も近い代替品")
+                                    + " を提案しました。")),
+                        new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
+                    }
+                    return List.of(
+                        new ModelEvent.ToolUse(
+                            "structured-menu-suggestion",
+                            StructuredOutputTool.DEFAULT_NAME,
+                            Map.of(
+                                "selectedItemIds", toolContent.getOrDefault("itemIds", List.of()),
+                                "skillTag", isFamilyQuery ? "family-order-guide" : "",
+                                "recommendationReason", isFamilyQuery
+                                    ? "人数と予算に合う構成を優先しました。"
+                                    : "リクエストに最も近い候補を選びました。")),
+                        new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
+                }
 
         if (substitutionQuery) {
             return List.of(
@@ -145,5 +172,9 @@ final class MenuDeterministicModel implements Model {
             values.put(line.substring(0, separator).trim(), line.substring(separator + 1).trim());
         }
         return values;
+    }
+
+    private boolean structuredOutputRequested(List<ToolSpec> tools) {
+        return tools.stream().anyMatch(tool -> StructuredOutputTool.DEFAULT_NAME.equals(tool.name()));
     }
 }

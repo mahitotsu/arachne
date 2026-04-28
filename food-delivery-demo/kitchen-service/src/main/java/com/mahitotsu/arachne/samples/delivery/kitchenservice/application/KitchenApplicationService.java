@@ -6,7 +6,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
 
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
@@ -16,11 +15,12 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.mahitotsu.arachne.samples.delivery.kitchenservice.config.SecurityAccessors;
 import com.mahitotsu.arachne.samples.delivery.kitchenservice.infrastructure.KitchenRepository;
 import com.mahitotsu.arachne.samples.delivery.kitchenservice.infrastructure.MenuSubstitutionGateway;
+import com.mahitotsu.arachne.strands.agent.AgentResult;
+import com.mahitotsu.arachne.strands.model.ToolSpec;
 import com.mahitotsu.arachne.strands.spring.AgentFactory;
 import com.mahitotsu.arachne.strands.tool.Tool;
 import com.mahitotsu.arachne.strands.tool.ToolInvocationContext;
 import com.mahitotsu.arachne.strands.tool.ToolResult;
-import com.mahitotsu.arachne.strands.model.ToolSpec;
 
 @Service
 public class KitchenApplicationService {
@@ -47,9 +47,8 @@ public class KitchenApplicationService {
     public KitchenCheckResponse check(KitchenCheckRequest request) {
         String accessToken = SecurityAccessors.requiredAccessToken();
         List<KitchenItemStatus> statuses = repository.check(request.itemIds());
-        AtomicReference<Map<String, KitchenItemStatus>> approvedSubstitutions = new AtomicReference<>(Map.of());
-        AtomicReference<List<AgentCollaboration>> collaborations = new AtomicReference<>(List.of());
-        String summary = agentFactory.builder()
+        Map<String, MenuSubstitutionResponse> substitutionResponses = fetchSubstitutionResponses(request, accessToken, statuses);
+        AgentResult decisionResult = agentFactory.builder()
                 .systemPrompt("""
                 あなたはこのアプリ唯一のクラウドキッチンの kitchen-agent です。
 
@@ -61,14 +60,15 @@ public class KitchenApplicationService {
                 リクエストされたアイテムが在庫切れの場合は、menu_substitution_lookup を呼び出して代替候補提示 capability を持つ協業先に候補を提案させてください。
                 自分のキッチンラインで実際に対応できる代替品のみを承認してください。
                 grill-line の遅延が 15 分を超えるときは、assembly 系（例: サーモン丼）に切り替えると早く出せることを能動的に伝えてください。
-                最終的な判断を短い段落で説明してください。
+                最終回答は structured_output を使い、summary と approvedSubstitutions を返してください。
                 """)
                 .tools(kitchenLookupTool, prepSchedulerTool,
-                        buildMenuSubstitutionTool(request, accessToken, approvedSubstitutions, collaborations))
+                    buildMenuSubstitutionTool(request, substitutionResponses))
                 .build()
-                .run("items=" + String.join(",", request.itemIds()) + "\nmessage=" + request.message())
-                .text();
-        List<KitchenItemStatus> resolvedStatuses = applySubstitutions(statuses, approvedSubstitutions.get());
+                .run("items=" + String.join(",", request.itemIds()) + "\nmessage=" + request.message(), KitchenDecision.class);
+        KitchenDecision decision = decisionResult.structuredOutput(KitchenDecision.class);
+        Map<String, KitchenItemStatus> approvedSubstitutions = approveSubstitutions(decision.approvedSubstitutions(), substitutionResponses);
+        List<KitchenItemStatus> resolvedStatuses = applySubstitutions(statuses, approvedSubstitutions);
         PrepSchedule schedule = repository.schedule(resolvedStatuses.stream()
                 .map(status -> status.substituteItemId() != null ? status.substituteItemId() : status.itemId())
                 .toList());
@@ -76,17 +76,31 @@ public class KitchenApplicationService {
                 "kitchen-service",
                 "kitchen-agent",
                 repository.headline(resolvedStatuses),
-                summary,
+                decision.summary(),
                 schedule.readyInMinutes(),
                 resolvedStatuses,
-                collaborations.get());
+                collaborations(substitutionResponses));
+    }
+
+    private Map<String, MenuSubstitutionResponse> fetchSubstitutionResponses(
+            KitchenCheckRequest request,
+            String accessToken,
+            List<KitchenItemStatus> statuses) {
+        LinkedHashMap<String, MenuSubstitutionResponse> responses = new LinkedHashMap<>();
+        for (KitchenItemStatus status : statuses) {
+            if (status.available()) {
+                continue;
+            }
+            responses.put(status.itemId(), menuSubstitutionGateway.suggestSubstitutes(
+                    new MenuSubstitutionRequest(request.sessionId(), request.message(), status.itemId()),
+                    accessToken));
+        }
+        return Map.copyOf(responses);
     }
 
     private Tool buildMenuSubstitutionTool(
             KitchenCheckRequest request,
-            String accessToken,
-            AtomicReference<Map<String, KitchenItemStatus>> approvedSubstitutions,
-            AtomicReference<List<AgentCollaboration>> collaborations) {
+                Map<String, MenuSubstitutionResponse> substitutionResponses) {
         return new Tool() {
             @Override
             public ToolSpec spec() {
@@ -105,32 +119,26 @@ public class KitchenApplicationService {
             public ToolResult invoke(Object input, ToolInvocationContext context) {
                 Map<String, Object> inputValues = inputValues(input);
                 List<String> unavailableItemIds = stringList(inputValues.get("unavailableItemIds"));
-                String customerMessage = String.valueOf(inputValues.getOrDefault("customerMessage", request.message()));
-
-                LinkedHashMap<String, KitchenItemStatus> approved = new LinkedHashMap<>();
-                ArrayList<AgentCollaboration> collaboratorEntries = new ArrayList<>();
-                ArrayList<String> approvedNames = new ArrayList<>();
+                ArrayList<Map<String, Object>> candidates = new ArrayList<>();
 
                 for (String unavailableItemId : unavailableItemIds) {
-                    MenuSubstitutionResponse response = menuSubstitutionGateway.suggestSubstitutes(
-                            new MenuSubstitutionRequest(request.sessionId(), customerMessage, unavailableItemId), accessToken);
-                    collaboratorEntries.add(new AgentCollaboration(
-                            "menu-service/support",
-                            response.agent(),
-                            response.headline(),
-                            response.summary()));
-                    approveSubstitute(unavailableItemId, response.items()).ifPresent(status -> {
-                        approved.put(unavailableItemId, status);
-                        approvedNames.add(status.substituteName());
-                    });
+                    MenuSubstitutionResponse response = substitutionResponses.get(unavailableItemId);
+                    if (response == null) {
+                        continue;
+                    }
+                    candidates.add(Map.of(
+                            "unavailableItemId", unavailableItemId,
+                            "summary", response.summary(),
+                            "items", response.items().stream().map(item -> Map.of(
+                                    "itemId", item.id(),
+                                    "name", item.name(),
+                                    "category", item.category())).toList()));
                 }
-
-                approvedSubstitutions.set(Map.copyOf(approved));
-                collaborations.set(List.copyOf(collaboratorEntries));
                 return ToolResult.success(context.toolUseId(), Map.of(
-                        "substitutionSummary", approvedNames.isEmpty()
-                                ? "承認された代替品はありません"
-                                : String.join(", ", approvedNames)));
+                        "candidates", candidates,
+                        "substitutionSummary", candidates.isEmpty()
+                                ? "承認できる代替候補はありません"
+                                : "menu-agent から代替候補が届いています"));
             }
         };
     }
@@ -169,6 +177,36 @@ public class KitchenApplicationService {
             Map<String, KitchenItemStatus> approvedSubstitutions) {
         return statuses.stream()
                 .map(status -> approvedSubstitutions.getOrDefault(status.itemId(), status))
+                .toList();
+    }
+
+    private Map<String, KitchenItemStatus> approveSubstitutions(
+            List<ApprovedSubstitutionDecision> decisions,
+            Map<String, MenuSubstitutionResponse> substitutionResponses) {
+        if (decisions == null || decisions.isEmpty()) {
+            return Map.of();
+        }
+        LinkedHashMap<String, KitchenItemStatus> approved = new LinkedHashMap<>();
+        for (ApprovedSubstitutionDecision decision : decisions) {
+            if (decision == null || decision.unavailableItemId() == null || decision.selectedItemId() == null) {
+                continue;
+            }
+            MenuSubstitutionResponse response = substitutionResponses.get(decision.unavailableItemId());
+            if (response == null) {
+                continue;
+            }
+            response.items().stream()
+                    .filter(item -> item.id().equals(decision.selectedItemId()))
+                    .findFirst()
+                    .flatMap(item -> approveSubstitute(decision.unavailableItemId(), List.of(item)))
+                    .ifPresent(status -> approved.put(decision.unavailableItemId(), status));
+        }
+        return Map.copyOf(approved);
+    }
+
+    private List<AgentCollaboration> collaborations(Map<String, MenuSubstitutionResponse> substitutionResponses) {
+        return substitutionResponses.values().stream()
+                .map(response -> new AgentCollaboration("menu-service/support", response.agent(), response.headline(), response.summary()))
                 .toList();
     }
 

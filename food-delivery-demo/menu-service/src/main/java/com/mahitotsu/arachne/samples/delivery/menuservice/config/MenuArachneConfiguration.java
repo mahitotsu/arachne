@@ -42,7 +42,15 @@ class MenuArachneConfiguration {
                 List<MenuItem> matches = repository.search(query);
                 return ToolResult.success(context.toolUseId(), Map.of(
                         "matchSummary", repository.describeSearch(query),
-                        "itemIds", matches.stream().map(MenuItem::id).toList()));
+                        "itemIds", matches.stream().map(MenuItem::id).toList(),
+                        "items", matches.stream().map(item -> Map.of(
+                                "id", item.id(),
+                                "name", item.name(),
+                                "description", item.description(),
+                                "price", item.price(),
+                                "suggestedQuantity", item.suggestedQuantity(),
+                                "category", item.category(),
+                                "tags", item.tags())).toList()));
             }
         };
     }

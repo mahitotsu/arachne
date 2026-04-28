@@ -9,6 +9,7 @@ import com.mahitotsu.arachne.strands.model.Model;
 import com.mahitotsu.arachne.strands.model.ModelEvent;
 import com.mahitotsu.arachne.strands.model.ToolSelection;
 import com.mahitotsu.arachne.strands.model.ToolSpec;
+import com.mahitotsu.arachne.strands.tool.StructuredOutputTool;
 import com.mahitotsu.arachne.strands.types.ContentBlock;
 import com.mahitotsu.arachne.strands.types.Message;
 
@@ -35,9 +36,21 @@ final class CapabilityRegistryDeterministicModel implements Model {
                     new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
         }
         List<String> names = extractServiceNames(capabilityResult);
+        if (latestUserText(messages).contains("1件") || latestUserText(messages).contains("ひとつ")
+            || latestUserText(messages).contains("1つ")) {
+            names = names.stream().limit(1).toList();
+        }
         String summary = names.isEmpty()
                 ? "利用可能な候補は見つかりませんでした。"
                 : "候補: " + String.join("、", names);
+        if (structuredOutputRequested(tools)) {
+            return List.of(
+                new ModelEvent.ToolUse(
+                    "structured-registry-discovery",
+                    StructuredOutputTool.DEFAULT_NAME,
+                    Map.of("selectedServiceNames", names, "summary", summary)),
+                new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
+        }
         return List.of(
                 new ModelEvent.TextDelta(summary),
                 new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
@@ -89,5 +102,9 @@ final class CapabilityRegistryDeterministicModel implements Model {
             }
         }
         return names;
+    }
+
+    private boolean structuredOutputRequested(List<ToolSpec> tools) {
+        return tools.stream().anyMatch(tool -> StructuredOutputTool.DEFAULT_NAME.equals(tool.name()));
     }
 }

@@ -84,6 +84,45 @@ class RegistryServiceApiTest {
         assertThat(response.getBody().summary()).contains("hermes-adapter", "idaten-adapter");
     }
 
+        @Test
+        void discoverCanReturnSingleAgentSelectedMatchWhenQueryRequestsOneResult() {
+                register(new RegistryRegistration(
+                                "hermes-adapter",
+                                "http://hermes-adapter:8080",
+                                "外部ETAを提供する高速配送パートナー。混雑状況と料金も返す。",
+                                "hermes-adapter",
+                                "高速配送の ETA を返す。",
+                                List.of(new SkillPayload("partner-eta", "高速配送 ETA 見積もり")),
+                                List.of(),
+                                "POST",
+                                "/adapter/eta",
+                                "",
+                                AvailabilityStatus.AVAILABLE));
+                register(new RegistryRegistration(
+                                "idaten-adapter",
+                                "http://idaten-adapter:8080",
+                                "外部ETAを提供する低コスト配送パートナー。料金重視で ETA を返す。",
+                                "idaten-adapter",
+                                "低コスト配送の ETA を返す。",
+                                List.of(new SkillPayload("partner-eta", "低コスト配送 ETA 見積もり")),
+                                List.of(),
+                                "POST",
+                                "/adapter/eta",
+                                "",
+                                AvailabilityStatus.AVAILABLE));
+
+                ResponseEntity<RegistryDiscoverResponse> response = restTemplate.postForEntity(
+                                "/registry/discover",
+                                new RegistryDiscoverRequest("外部ETAを提供するサービスを1件だけ教えて", true),
+                                RegistryDiscoverResponse.class);
+
+                assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+                assertThat(response.getBody()).isNotNull();
+                assertThat(response.getBody().matches()).hasSize(1);
+                assertThat(response.getBody().matches().getFirst().serviceName()).isEqualTo("hermes-adapter");
+                assertThat(response.getBody().summary()).contains("hermes-adapter");
+        }
+
     @Test
     void discoversMenuServiceForSubstitutionQueriesAndListsIcarusInServices() {
         register(new RegistryRegistration(

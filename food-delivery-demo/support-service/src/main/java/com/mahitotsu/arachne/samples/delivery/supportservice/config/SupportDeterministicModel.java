@@ -11,6 +11,7 @@ import com.mahitotsu.arachne.strands.model.Model;
 import com.mahitotsu.arachne.strands.model.ModelEvent;
 import com.mahitotsu.arachne.strands.model.ToolSelection;
 import com.mahitotsu.arachne.strands.model.ToolSpec;
+import com.mahitotsu.arachne.strands.tool.StructuredOutputTool;
 import com.mahitotsu.arachne.strands.types.ContentBlock;
 import com.mahitotsu.arachne.strands.types.Message;
 
@@ -66,6 +67,18 @@ final class SupportDeterministicModel implements Model {
                 latestToolContent(messages, "status-lookup"),
                 latestToolContent(messages, "history-lookup"),
                 latestToolContent(messages, "feedback-lookup"));
+        HandoffInstruction handoff = HandoffInstruction.fromMessage(query);
+        if (structuredOutputRequested(tools)) {
+            return List.of(
+                new ModelEvent.ToolUse(
+                    "structured-support",
+                    StructuredOutputTool.DEFAULT_NAME,
+                    Map.of(
+                        "summary", summary,
+                        "handoffTarget", handoff.target(),
+                        "handoffMessage", handoff.message())),
+                new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
+        }
         return List.of(
                 new ModelEvent.TextDelta(summary),
                 new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
@@ -197,5 +210,9 @@ final class SupportDeterministicModel implements Model {
             }
         }
         return values;
+    }
+
+    private boolean structuredOutputRequested(List<ToolSpec> tools) {
+        return tools.stream().anyMatch(tool -> StructuredOutputTool.DEFAULT_NAME.equals(tool.name()));
     }
 }
