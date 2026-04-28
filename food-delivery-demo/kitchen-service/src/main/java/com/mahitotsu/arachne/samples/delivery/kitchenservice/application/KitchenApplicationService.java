@@ -55,11 +55,12 @@ public class KitchenApplicationService {
                 代替の支店も代替のキッチンも存在しません。
                 キッチンがアイテムを提供できない場合は、他のキッチンではなく欠品時の代替候補提示 capability を持つ協業先に同ブランドの代替品を尋ねてください。
 
-                まず kitchen_inventory_lookup を呼び出して在庫と調理時間を確認してください。
-                続けて prep_scheduler を呼び、ライン別のキュー遅延と提供見込み時間を確認してください。
-                リクエストされたアイテムが在庫切れの場合は、menu_substitution_lookup を呼び出して代替候補提示 capability を持つ協業先に候補を提案させてください。
-                自分のキッチンラインで実際に対応できる代替品のみを承認してください。
-                grill-line の遅延が 15 分を超えるときは、assembly 系（例: サーモン丼）に切り替えると早く出せることを能動的に伝えてください。
+                最初に必ず kitchen_inventory_lookup を呼び出して在庫と調理時間を確認してください。
+                次に prep-scheduler を有効化し、prep_scheduler を呼んでライン別のキュー遅延と提供見込み時間を確認してください。
+                menu_substitution_lookup を使ってよいのは、kitchen_inventory_lookup が unavailableItemIds を返した場合だけです。
+                欠品がある場合は substitution-approval を有効化し、menu_substitution_lookup で候補を集めてください。
+                自分のキッチンラインで今対応できる代替品のみを承認し、未確認の候補をそのまま確定しないでください。
+                grill-line の遅延が 15 分を超えるときは、assembly 系（例: サーモン丼）に切り替えると早く出せることを能動的に伝えてください。ただし自動で差し替えず、提案として扱ってください。
                 最終回答は structured_output を使い、summary と approvedSubstitutions を返してください。
                 """)
                 .tools(kitchenLookupTool, prepSchedulerTool,

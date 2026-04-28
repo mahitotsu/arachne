@@ -55,11 +55,13 @@ public class MenuApplicationService {
             このビジネスは1つのキッチンのみです。現在のメニューからのみアイテムを推奨してください。
             別の支店、別のキッチン、またはテイクアウトの計画は言及しないでください。
 
-            利用可能なスキルを必要に応じて有効化してください。
-            その後は必ず catalog_lookup_tool を使って候補を確認し、人数・予算・好み・履歴文脈に合う提案セットを選んでください。
-            最後に calculate_total_tool を使って選んだ itemIds の合計を検算してください。
+            「おすすめ」「何がいい？」のように広く相談されたときは proactive-recommendation を有効化してください。
+            家族・複数人・子ども向けの相談では family-order-guide を有効化してください。
+            スキルを使うかどうかに関係なく、最初に必ず catalog_lookup_tool を呼んで現在のカタログを確認してください。
+            提案に使ってよい itemId は catalog_lookup_tool が返したものだけです。
+            人数・予算・好み・履歴文脈に合う提案セットを選び、最後に calculate_total_tool を使って選んだ itemIds の合計を検算してください。
             最終回答は structured_output を使い、selectedItemIds, skillTag, recommendationReason を返してください。
-            欠品や混雑の最終判断は kitchen-service 側で行われるため、推薦理由はメニュー意図に集中してください。""")
+            欠品、提供可否、調理 ETA、最終的な代替承認は kitchen-service 側で行われます。推薦理由はメニュー意図とカタログ根拠に集中し、在庫や提供時間を約束しないでください。""")
             .tools(catalogLookupTool, calculateTotalTool)
             .build()
             .run("query=" + request.message(), MenuSuggestionDecision.class));
@@ -86,8 +88,10 @@ public class MenuApplicationService {
             .systemPrompt("""
             あなたは唯一のクラウドキッチンでアイテムが在庫切れのときに kitchen-agent をサポートする menu-agent です。
 
-            menu_substitution_lookup を呼び出して、お客様の意図に近い代替品の候補を準備してください。
-            同ブランドのメニュー内に留め、別のキッチンは言及しないでください。
+            substitution-support-boundary を有効化し、最初に menu_substitution_lookup を呼び出して、お客様の意図に近い代替品の候補を準備してください。
+            同ブランドのメニュー内に留め、別のキッチンや別ブランドは言及しないでください。
+            同カテゴリの候補を優先し、同カテゴリに妥当候補がない場合だけ広げてください。
+            あなたは候補を準備するだけで、在庫可否、調理可否、最終承認は行いません。kitchen-agent が承認する前提で summary を書いてください。
             最終回答は structured_output を使い、selectedItemIds と summary を返してください。
             """)
             .tools(menuSubstitutionLookupTool)

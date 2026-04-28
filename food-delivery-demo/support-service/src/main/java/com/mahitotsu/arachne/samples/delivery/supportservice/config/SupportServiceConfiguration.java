@@ -1,5 +1,7 @@
 package com.mahitotsu.arachne.samples.delivery.supportservice.config;
 
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -7,6 +9,7 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.io.ResourceLoader;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -34,23 +37,26 @@ class SupportServiceConfiguration {
     @Bean
     ApplicationRunner registerSupportService(
             RestClient.Builder restClientBuilder,
-                        SupportServiceProperties properties) {
+                        SupportServiceProperties properties,
+            ResourceLoader resourceLoader) {
         return args -> {
                         String registryBaseUrl = properties.getRegistry().getBaseUrl();
             if (registryBaseUrl.isBlank()) {
                 return;
             }
                         String serviceEndpoint = properties.getSupport().getEndpoint();
+            List<Map<String, String>> skills = loadSkillsFromClasspath(resourceLoader,
+                    "support-guide", "order-handoff-boundary");
             restClientBuilder.baseUrl(registryBaseUrl).build().post()
                     .uri("/registry/register")
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(Map.ofEntries(
                             Map.entry("serviceName", "support-service"),
                             Map.entry("endpoint", serviceEndpoint),
-                            Map.entry("capability", "FAQ回答、キャンペーン案内、問い合わせ受付、サービス稼働状況共有を扱う。"),
+                            Map.entry("capability", "FAQ回答、キャンペーン案内、サービス稼働状況共有、注文履歴参照、order-service へのハンドオフ判断を扱う。"),
                             Map.entry("agentName", "support-agent"),
-                            Map.entry("systemPrompt", "FAQ、キャンペーン、問い合わせ、稼働状況を整理し、必要なら注文履歴も参照して案内する。"),
-                            Map.entry("skills", List.of(Map.of("name", "support-guide", "content", "FAQ、問い合わせ、キャンペーン、稼働状況のサポート導線"))),
+                            Map.entry("systemPrompt", "support-guide を前提に必要なツールだけを使い、order-service の責務に入る相談だけを handoffTarget=order へ送る。返金確約や注文変更の実行は行わない。"),
+                            Map.entry("skills", skills),
                             Map.entry("tools", List.of(
                                     Map.of("name", "faq_lookup", "content", "FAQナレッジを検索して回答候補を返す"),
                                     Map.of("name", "campaign_lookup", "content", "現在有効なキャンペーンを返す"),
@@ -65,4 +71,25 @@ class SupportServiceConfiguration {
                     .toBodilessEntity();
         };
     }
+
+        private static List<Map<String, String>> loadSkillsFromClasspath(ResourceLoader loader, String... skillNames) {
+                List<Map<String, String>> result = new ArrayList<>();
+                for (String name : skillNames) {
+                        try {
+                                var resource = loader.getResource("classpath:skills/" + name + "/SKILL.md");
+                                String raw = new String(resource.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+                                String body = raw;
+                                if (raw.startsWith("---")) {
+                                        int end = raw.indexOf("---", 3);
+                                        if (end != -1) {
+                                                body = raw.substring(end + 3).strip();
+                                        }
+                                }
+                                result.add(Map.of("name", name, "content", body));
+                        } catch (Exception e) {
+                                result.add(Map.of("name", name, "content", "(skill content not available)"));
+                        }
+                }
+                return result;
+        }
 }

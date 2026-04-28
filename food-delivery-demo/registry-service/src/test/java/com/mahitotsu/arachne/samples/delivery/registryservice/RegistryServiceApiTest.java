@@ -160,6 +160,26 @@ class RegistryServiceApiTest {
                 .contains(org.assertj.core.groups.Tuple.tuple("icarus-adapter", AvailabilityStatus.NOT_AVAILABLE));
     }
 
+    @Test
+    void seededRegistryServicePublishesCapabilityMatchSkillContent() {
+        ResponseEntity<RegistryServiceDescriptor[]> servicesResponse = restTemplate.getForEntity(
+                "/registry/services",
+                RegistryServiceDescriptor[].class);
+
+        assertThat(servicesResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(servicesResponse.getBody()).isNotNull();
+        RegistryServiceDescriptor registryService = List.of(servicesResponse.getBody()).stream()
+                .filter(service -> service.serviceName().equals("registry-service"))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(registryService.agentName()).isEqualTo("capability-registry-agent");
+        assertThat(registryService.skills()).extracting(SkillPayload::name)
+                .contains("capability-match");
+        assertThat(registryService.skills()).extracting(SkillPayload::content)
+                .anySatisfy(content -> assertThat(content).contains("capability_match", "推測で追加してはいけません"));
+    }
+
         @Test
         void marksCustomAvailableHealthEndpointsAsAvailable() throws Exception {
                 try (HealthStubServer stubServer = new HealthStubServer("{\"status\":\"AVAILABLE\",\"service\":\"idaten-adapter\"}")) {

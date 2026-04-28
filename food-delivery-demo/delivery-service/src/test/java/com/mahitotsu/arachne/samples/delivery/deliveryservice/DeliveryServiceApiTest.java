@@ -194,6 +194,19 @@ class DeliveryServiceApiTest {
         assertMetricWithTags("/actuator/metrics/delivery.delivery.downstream?tag=target:hermes-adapter&tag=operation:quote&tag=outcome:success");
     }
 
+    @Test
+    void registersDeliveryRoutingSkillMetadataForRegistryViewer() throws Exception {
+        RecordedRequest registration = registryServer.takeRequest();
+
+        assertThat(registration).isNotNull();
+        assertThat(registration.getPath()).isEqualTo("/registry/register");
+        String body = registration.getBody().readUtf8();
+        assertThat(body).contains("delivery-routing");
+        assertThat(body).contains("discover_eta_services");
+        assertThat(body).contains("call_eta_service");
+        assertThat(body).contains("存在しない候補");
+    }
+
     private static Dispatcher jwkDispatcher() {
         return new Dispatcher() {
             @Override

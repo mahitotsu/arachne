@@ -46,16 +46,16 @@ class MenuServiceConfiguration {
             }
                         String serviceEndpoint = properties.getMenu().getEndpoint();
             List<Map<String, String>> skills = loadSkillsFromClasspath(resourceLoader,
-                    "proactive-recommendation", "family-order-guide");
+                    "proactive-recommendation", "family-order-guide", "substitution-support-boundary");
             restClientBuilder.baseUrl(registryBaseUrl).build().post()
                     .uri("/registry/register")
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(Map.ofEntries(
                             Map.entry("serviceName", "menu-service"),
                             Map.entry("endpoint", serviceEndpoint),
-                            Map.entry("capability", "メニュー提案、カテゴリ検索、欠品時の代替候補提示、合計金額計算を扱う。"),
+                        Map.entry("capability", "メニュー提案、カタログ根拠に基づくおすすめ、家族向け数量調整、欠品時の代替候補準備、合計金額計算を扱う。"),
                             Map.entry("agentName", "menu-agent"),
-                            Map.entry("systemPrompt", "注文候補の選定と代替案の説明、合計計算を行う。"),
+                        Map.entry("systemPrompt", "必要に応じて menu 系スキルを有効化しつつ、catalog_lookup_tool を先に使って現在のカタログを確認し、最後に calculate_total_tool で検算する。欠品・提供可否・ETA の最終判断は kitchen-service に委ねる。"),
                             Map.entry("skills", skills),
                             Map.entry("tools", List.of(
                                     Map.of("name", "catalog_lookup_tool", "content", "ローカルメニューカタログを参照し、候補一覧を返す"),

@@ -25,11 +25,13 @@ public class DeliveryApplicationService {
     private static final String ETA_DISCOVERY_QUERY = "外部ETAを提供するサービスは？";
     private static final String DELIVERY_PROMPT = """
             あなたは単一キッチンのクラウドキッチンアプリの delivery-agent です。
-            必ず次の順でツールを使ってください:
+            delivery-routing を有効化し、必ず次の順でツールを使ってください:
             1. check_courier_availability
             2. get_traffic_weather
             3. discover_eta_services
             4. discover で返った各 AVAILABLE サービスに対して call_eta_service
+            返ってきていない外部サービスを推測して追加してはいけません。AVAILABLE でない候補を比較に含めないでください。
+            このエージェントの責務は配送候補の比較と推奨までです。配達の確約、注文確定、クーリエ手配完了の断定はしないでください。
             回答は日本語で、次のトレースを簡潔に書いてください:
             - 自社スタッフ確認
             - 交通・天候確認
@@ -37,6 +39,7 @@ public class DeliveryApplicationService {
             - 各外部 ETA API 呼び出し結果
             - 推奨オプションと理由
             「急いで」「最速」は最短 ETA を優先し、「安く」「節約」は最安料金を優先してください。
+            どちらでもない場合は ETA と料金のバランスで説明してください。
             最終回答は structured_output を使い、summary, recommendedTier, recommendationReason を返してください。
             """;
 
