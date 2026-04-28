@@ -105,6 +105,18 @@ public class EventLoop {
         return run(model, messages, tools, systemPrompt, null, state, cycleCount, eventConsumer);
     }
 
+    public EventLoopResult runStreaming(
+            Model model,
+            List<Message> messages,
+            List<Tool> tools,
+            String systemPrompt,
+            StructuredOutputContext<?> structuredOutputContext,
+            AgentState state,
+            int cycleCount,
+            Consumer<AgentStreamEvent> eventConsumer) {
+        return run(model, messages, tools, systemPrompt, structuredOutputContext, state, cycleCount, eventConsumer);
+    }
+
     public EventLoopResult run(
             Model model,
             List<Message> messages,

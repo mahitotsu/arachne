@@ -17,8 +17,8 @@ For full usage details, see [user-guide.md](user-guide.md).
 - Spring Boot auto-configuration for `Model` and `AgentFactory`
 - Spring integration boundary keeps shared bean wiring in `ArachneAutoConfiguration` and runtime-local default resolution in `AgentFactory.builder(...)`
 - `AgentFactory.builder()` and `AgentFactory.builder("name")` for runtime-local agent creation
-- Bedrock-backed `Agent.run(String)` and `Agent.run(String, Class<T>)`, both returning `AgentResult`
-- callback-based `Agent.stream(String, Consumer<AgentStreamEvent>)`
+- Bedrock-backed `Agent.run(String)`, `Agent.run(String, Class<T>)`, and `Agent.run(String, Class<T>, String)`, all returning `AgentResult`
+- callback-based `Agent.stream(String, Consumer<AgentStreamEvent>)` plus structured-output overloads
 - configuration-driven defaults for model, system prompt, retry, conversation window, sessions, and built-ins
 
 ### Tools And Structured Output
@@ -30,7 +30,7 @@ For full usage details, see [user-guide.md](user-guide.md).
 - sequential or parallel tool execution
 - `ToolInvocationContext` for logical tool-call metadata
 - `ExecutionContextPropagation` for opt-in executor-boundary context propagation
-- structured output with generated JSON schema and runtime validation
+- structured output with generated JSON schema, optional builder-level defaults, custom force prompts, and runtime validation
 - Spring-managed `ArachneTemplateRenderer` for deterministic `T -> String` rendering after structured output completes
 - `AgentResult.metrics()` usage reporting, including Bedrock cache read/write token counters
 

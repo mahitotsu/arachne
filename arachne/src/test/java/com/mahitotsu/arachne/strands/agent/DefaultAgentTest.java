@@ -336,6 +336,43 @@ class DefaultAgentTest {
     }
 
     @Test
+    void runUsesCustomStructuredOutputPrompt() {
+        NoOpHookRegistry hooks = new NoOpHookRegistry();
+        EventLoop eventLoop = new EventLoop(hooks);
+        DefaultAgent agent = new DefaultAgent(structuredOutputModel(), List.of(), eventLoop, hooks);
+
+        AgentResult result = agent.run("東京の天気を返してください", WeatherSummary.class, "Return strict JSON now.");
+
+        assertThat(result.structuredOutput(WeatherSummary.class).answer()).isEqualTo("Tokyo");
+        assertThat(agent.getMessages().get(2)).isEqualTo(Message.user("Return strict JSON now."));
+    }
+
+    @Test
+    void runUsesConfiguredDefaultStructuredOutputTypeAndPrompt() {
+        NoOpHookRegistry hooks = new NoOpHookRegistry();
+        EventLoop eventLoop = new EventLoop(hooks);
+        DefaultAgent agent = new DefaultAgent(
+                structuredOutputModel(),
+                List.of(),
+                eventLoop,
+                hooks,
+                null,
+                com.mahitotsu.arachne.strands.tool.BeanValidationSupport.defaultValidator(),
+                new NoOpConversationManager(),
+                null,
+                null,
+                new AgentState(),
+                WeatherSummary.class,
+                "Return strict JSON now.");
+
+        AgentResult result = agent.run("東京の天気を返してください");
+
+        assertThat(result.hasStructuredOutput()).isTrue();
+        assertThat(result.structuredOutput(WeatherSummary.class).answer()).isEqualTo("Tokyo");
+        assertThat(agent.getMessages().get(2)).isEqualTo(Message.user("Return strict JSON now."));
+    }
+
+    @Test
     void runRejectsInvalidStructuredOutput() {
         NoOpHookRegistry hooks = new NoOpHookRegistry();
         EventLoop eventLoop = new EventLoop(hooks);
@@ -481,6 +518,34 @@ class DefaultAgentTest {
         assertThat(result.metrics().usage()).isEqualTo(new ModelEvent.Usage(2, 1, 0, 0));
         assertThat(events).containsExactly("text:fallback", "complete:fallback");
         assertThat(calls).containsExactly("fallback-system");
+    }
+
+    @Test
+    void streamCanReturnStructuredOutputWithCustomPrompt() {
+        NoOpHookRegistry hooks = new NoOpHookRegistry();
+        EventLoop eventLoop = new EventLoop(hooks);
+        DefaultAgent agent = new DefaultAgent(structuredOutputModel(), List.of(), eventLoop, hooks);
+        List<String> events = new java.util.ArrayList<>();
+
+        AgentResult result = agent.stream("東京の天気を返してください", WeatherSummary.class, "Return strict JSON now.", event -> {
+            switch (event) {
+                case AgentStreamEvent.TextDelta textDelta -> events.add("text:" + textDelta.delta());
+                case AgentStreamEvent.ToolUseRequested toolUseRequested -> events.add("toolUse:" + toolUseRequested.toolName());
+                case AgentStreamEvent.ToolResultObserved toolResultObserved ->
+                        events.add("toolResult:" + toolResultObserved.result().status().name().toLowerCase());
+                case AgentStreamEvent.Retry retry -> events.add("retry:" + retry.guidance());
+                case AgentStreamEvent.Complete complete -> events.add("complete:" + complete.result().hasStructuredOutput());
+            }
+        });
+
+        assertThat(result.hasStructuredOutput()).isTrue();
+        assertThat(result.structuredOutput(WeatherSummary.class).answer()).isEqualTo("Tokyo");
+        assertThat(agent.getMessages().get(2)).isEqualTo(Message.user("Return strict JSON now."));
+        assertThat(events).containsExactly(
+                "text:Plain text draft",
+                "toolUse:structured_output",
+                "toolResult:success",
+                "complete:true");
     }
 
     @Test

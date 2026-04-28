@@ -12,15 +12,32 @@ import jakarta.validation.Validator;
 public class StructuredOutputTool<T> implements Tool {
 
     public static final String DEFAULT_NAME = "structured_output";
+    private static final String DEFAULT_FORCE_PROMPT =
+            "Respond by calling the structured_output tool with the final answer as JSON. Do not reply with plain text.";
 
     private final Class<T> outputType;
     private final ObjectMapper objectMapper;
     private final Validator validator;
     private final ToolSpec spec;
+    private final String forcePrompt;
     private T value;
 
     public StructuredOutputTool(Class<T> outputType) {
-        this(outputType, new JsonSchemaGenerator(), new ObjectMapper(), BeanValidationSupport.defaultValidator());
+        this(
+                outputType,
+                new JsonSchemaGenerator(),
+                new ObjectMapper(),
+                BeanValidationSupport.defaultValidator(),
+                DEFAULT_FORCE_PROMPT);
+    }
+
+    public StructuredOutputTool(Class<T> outputType, String forcePrompt) {
+        this(
+                outputType,
+                new JsonSchemaGenerator(),
+                new ObjectMapper(),
+                BeanValidationSupport.defaultValidator(),
+                forcePrompt);
     }
 
     public StructuredOutputTool(
@@ -28,9 +45,19 @@ public class StructuredOutputTool<T> implements Tool {
             JsonSchemaGenerator schemaGenerator,
             ObjectMapper objectMapper,
             Validator validator) {
+        this(outputType, schemaGenerator, objectMapper, validator, DEFAULT_FORCE_PROMPT);
+    }
+
+    public StructuredOutputTool(
+            Class<T> outputType,
+            JsonSchemaGenerator schemaGenerator,
+            ObjectMapper objectMapper,
+            Validator validator,
+            String forcePrompt) {
         this.outputType = outputType;
         this.objectMapper = objectMapper;
         this.validator = validator;
+        this.forcePrompt = forcePrompt == null || forcePrompt.isBlank() ? DEFAULT_FORCE_PROMPT : forcePrompt;
         this.spec = new ToolSpec(
                 DEFAULT_NAME,
                 "Return the final response as a structured JSON object matching the required schema.",
@@ -65,7 +92,7 @@ public class StructuredOutputTool<T> implements Tool {
     }
 
     public String forcePrompt() {
-        return "Respond by calling the structured_output tool with the final answer as JSON. Do not reply with plain text.";
+        return forcePrompt;
     }
 
     public String toolName() {

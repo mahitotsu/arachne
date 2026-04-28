@@ -25,9 +25,28 @@ public interface Agent {
     <T> AgentResult run(String prompt, Class<T> outputType);
 
     /**
+     * Send a prompt and require the final answer as structured output using a custom retry prompt.
+     */
+    <T> AgentResult run(String prompt, Class<T> outputType, String structuredOutputPrompt);
+
+    /**
      * Send a prompt and subscribe to incremental runtime events.
      */
     AgentResult stream(String prompt, Consumer<AgentStreamEvent> eventConsumer);
+
+    /**
+     * Send a prompt, subscribe to incremental runtime events, and require structured output.
+     */
+    <T> AgentResult stream(String prompt, Class<T> outputType, Consumer<AgentStreamEvent> eventConsumer);
+
+    /**
+     * Send a prompt, subscribe to incremental runtime events, and require structured output using a custom retry prompt.
+     */
+    <T> AgentResult stream(
+            String prompt,
+            Class<T> outputType,
+            String structuredOutputPrompt,
+            Consumer<AgentStreamEvent> eventConsumer);
 
     /**
      * Resume a previously interrupted invocation.

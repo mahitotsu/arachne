@@ -52,6 +52,8 @@ public class DefaultAgent implements Agent {
     private final SessionManager sessionManager;
     private final String sessionId;
     private final AgentState state;
+    private final Class<?> defaultStructuredOutputType;
+    private final String structuredOutputPrompt;
     private List<AgentInterrupt> pendingInterrupts = List.of();
 
     /** Mutable conversation history. Growing across multiple run() calls = multi-turn conversation. */
@@ -92,21 +94,23 @@ public class DefaultAgent implements Agent {
                 new NoOpConversationManager(),
                 null,
                 null,
-                new AgentState());
+                new AgentState(),
+                null,
+                null);
     }
 
-            public DefaultAgent(
-                Model model,
-                List<Tool> tools,
-                EventLoop eventLoop,
-                HookRegistry hooks,
-                String systemPrompt,
-                Validator validator,
-                ConversationManager conversationManager,
-                SessionManager sessionManager,
-                String sessionId,
-                AgentState state) {
-            this(
+    public DefaultAgent(
+            Model model,
+            List<Tool> tools,
+            EventLoop eventLoop,
+            HookRegistry hooks,
+            String systemPrompt,
+            Validator validator,
+            ConversationManager conversationManager,
+            SessionManager sessionManager,
+            String sessionId,
+            AgentState state) {
+        this(
                 model,
                 tools,
                 eventLoop,
@@ -117,8 +121,10 @@ public class DefaultAgent implements Agent {
                 conversationManager,
                 sessionManager,
                 sessionId,
-                state);
-            }
+                state,
+                null,
+                null);
+    }
 
     public DefaultAgent(
             Model model,
@@ -127,11 +133,70 @@ public class DefaultAgent implements Agent {
             HookRegistry hooks,
             String systemPrompt,
             Validator validator,
-                ObjectMapper objectMapper,
+            ObjectMapper objectMapper,
             ConversationManager conversationManager,
             SessionManager sessionManager,
             String sessionId,
             AgentState state) {
+        this(
+                model,
+                tools,
+                eventLoop,
+                hooks,
+                systemPrompt,
+                validator,
+                objectMapper,
+                conversationManager,
+                sessionManager,
+                sessionId,
+                state,
+                null,
+                null);
+    }
+
+    public DefaultAgent(
+            Model model,
+            List<Tool> tools,
+            EventLoop eventLoop,
+            HookRegistry hooks,
+            String systemPrompt,
+            Validator validator,
+            ConversationManager conversationManager,
+            SessionManager sessionManager,
+            String sessionId,
+            AgentState state,
+            Class<?> defaultStructuredOutputType,
+            String structuredOutputPrompt) {
+        this(
+                model,
+                tools,
+                eventLoop,
+                hooks,
+                systemPrompt,
+                validator,
+                new ObjectMapper(),
+                conversationManager,
+                sessionManager,
+                sessionId,
+                state,
+                defaultStructuredOutputType,
+                structuredOutputPrompt);
+    }
+
+    public DefaultAgent(
+            Model model,
+            List<Tool> tools,
+            EventLoop eventLoop,
+            HookRegistry hooks,
+            String systemPrompt,
+            Validator validator,
+            ObjectMapper objectMapper,
+            ConversationManager conversationManager,
+            SessionManager sessionManager,
+            String sessionId,
+            AgentState state,
+            Class<?> defaultStructuredOutputType,
+            String structuredOutputPrompt) {
         this.model = model;
         this.tools = List.copyOf(tools);
         this.eventLoop = eventLoop;
@@ -143,11 +208,16 @@ public class DefaultAgent implements Agent {
         this.sessionManager = sessionManager;
         this.sessionId = sessionId;
         this.state = state == null ? new AgentState() : state;
+        this.defaultStructuredOutputType = defaultStructuredOutputType;
+        this.structuredOutputPrompt = structuredOutputPrompt;
         restoreSession();
     }
 
     @Override
     public AgentResult run(String prompt) {
+        if (defaultStructuredOutputType != null) {
+            return runWithDefaultStructuredOutput(prompt);
+        }
         ensureNoPendingInterrupts();
 
         // ── hook callsite: BeforeInvocation ─────────────────────────────────
@@ -162,7 +232,13 @@ public class DefaultAgent implements Agent {
 
     @Override
     public <T> AgentResult run(String prompt, Class<T> outputType) {
+        return run(prompt, outputType, structuredOutputPrompt);
+    }
+
+    @Override
+    public <T> AgentResult run(String prompt, Class<T> outputType, String structuredOutputPrompt) {
         ensureNoPendingInterrupts();
+        Objects.requireNonNull(outputType, "outputType must not be null");
 
         BeforeInvocationEvent beforeInvocationEvent = hooks.onBeforeInvocation(
             new BeforeInvocationEvent(prompt, messages, state));
@@ -173,7 +249,8 @@ public class DefaultAgent implements Agent {
             outputType,
             new com.mahitotsu.arachne.strands.schema.JsonSchemaGenerator(objectMapper),
             objectMapper,
-            validator);
+            validator,
+            structuredOutputPrompt);
         StructuredOutputContext<T> structuredOutputContext = new StructuredOutputContext<>(structuredOutputTool);
         List<Tool> invocationTools = new ArrayList<>(tools);
         invocationTools.add(structuredOutputTool);
@@ -205,6 +282,9 @@ public class DefaultAgent implements Agent {
 
     @Override
     public AgentResult stream(String prompt, Consumer<AgentStreamEvent> eventConsumer) {
+        if (defaultStructuredOutputType != null) {
+            return streamWithDefaultStructuredOutput(prompt, eventConsumer);
+        }
         Objects.requireNonNull(eventConsumer, "eventConsumer must not be null");
         ensureNoPendingInterrupts();
 
@@ -215,6 +295,64 @@ public class DefaultAgent implements Agent {
 
         EventLoopResult loopResult = eventLoop.runStreaming(model, messages, tools, systemPrompt, state, 0, eventConsumer);
         AgentResult result = completeInvocation(loopResult, true);
+        eventConsumer.accept(new AgentStreamEvent.Complete(result));
+        return result;
+    }
+
+    @Override
+    public <T> AgentResult stream(String prompt, Class<T> outputType, Consumer<AgentStreamEvent> eventConsumer) {
+        return stream(prompt, outputType, structuredOutputPrompt, eventConsumer);
+    }
+
+    @Override
+    public <T> AgentResult stream(
+            String prompt,
+            Class<T> outputType,
+            String structuredOutputPrompt,
+            Consumer<AgentStreamEvent> eventConsumer) {
+        Objects.requireNonNull(outputType, "outputType must not be null");
+        Objects.requireNonNull(eventConsumer, "eventConsumer must not be null");
+        ensureNoPendingInterrupts();
+
+        BeforeInvocationEvent beforeInvocationEvent = hooks.onBeforeInvocation(
+            new BeforeInvocationEvent(prompt, messages, state));
+
+        addMessage(Message.user(beforeInvocationEvent.prompt()));
+
+        StructuredOutputTool<T> structuredOutputTool = new StructuredOutputTool<>(
+            outputType,
+            new com.mahitotsu.arachne.strands.schema.JsonSchemaGenerator(objectMapper),
+            objectMapper,
+            validator,
+            structuredOutputPrompt);
+        StructuredOutputContext<T> structuredOutputContext = new StructuredOutputContext<>(structuredOutputTool);
+        List<Tool> invocationTools = new ArrayList<>(tools);
+        invocationTools.add(structuredOutputTool);
+
+        EventLoopResult loopResult = eventLoop.runStreaming(
+            model,
+            messages,
+            List.copyOf(invocationTools),
+            systemPrompt,
+            structuredOutputContext,
+            state,
+            0,
+            eventConsumer);
+
+        completeLoopResult(loopResult);
+
+        if (loopResult.interrupted()) {
+            throw new IllegalStateException(
+                    "Structured output invocation was interrupted. Use Agent#run(String) and AgentResult.resume(...) instead.");
+        }
+
+        AfterInvocationEvent afterInvocationEvent = dispatchAfterInvocation(loopResult);
+        AgentResult result = createAgentResult(
+                loopResult,
+                afterInvocationEvent.text(),
+                List.copyOf(afterInvocationEvent.messages()),
+                afterInvocationEvent.stopReason(),
+                structuredOutputContext.requireValue());
         eventConsumer.accept(new AgentStreamEvent.Complete(result));
         return result;
     }
@@ -254,6 +392,18 @@ public class DefaultAgent implements Agent {
         return state;
     }
 
+    @SuppressWarnings("unchecked")
+    private AgentResult runWithDefaultStructuredOutput(String prompt) {
+        return run(prompt, (Class<Object>) defaultStructuredOutputType, structuredOutputPrompt);
+    }
+
+    @SuppressWarnings("unchecked")
+    private AgentResult streamWithDefaultStructuredOutput(
+            String prompt,
+            Consumer<AgentStreamEvent> eventConsumer) {
+        return stream(prompt, (Class<Object>) defaultStructuredOutputType, structuredOutputPrompt, eventConsumer);
+    }
+
     private void restoreSession() {
         if (sessionManager == null || sessionId == null || sessionId.isBlank()) {
             return;
@@ -275,7 +425,7 @@ public class DefaultAgent implements Agent {
         }
         sessionManager.save(
                 sessionId,
-            new AgentSession(List.copyOf(messages), state.get(), conversationManager.getState(), pendingInterrupts));
+                new AgentSession(List.copyOf(messages), state.get(), conversationManager.getState(), pendingInterrupts));
     }
 
     private void addMessage(Message message) {
@@ -356,9 +506,9 @@ public class DefaultAgent implements Agent {
             List<Message> resultMessages,
             String stopReason) {
         return createAgentResult(loopResult, text, resultMessages, stopReason, null);
-        }
+    }
 
-        private AgentResult createAgentResult(
+    private AgentResult createAgentResult(
             EventLoopResult loopResult,
             String text,
             List<Message> resultMessages,
@@ -370,8 +520,8 @@ public class DefaultAgent implements Agent {
                 stopReason,
                 new AgentResult.Metrics(loopResult.usage()),
                 pendingInterrupts,
-            this::resumeInternal,
-            structuredOutput);
+                this::resumeInternal,
+                structuredOutput);
     }
 
     private void ensureNoPendingInterrupts() {

@@ -591,6 +591,22 @@ class AgentFactoryTest {
     }
 
     @Test
+    void buildCanConfigureDefaultStructuredOutputTypeAndPrompt() {
+        ArachneProperties properties = new ArachneProperties();
+        Agent agent = new AgentFactory(properties, structuredOutputModel())
+                .builder()
+                .structuredOutputType(WeatherSummary.class)
+                .structuredOutputPrompt("Return strict JSON now.")
+                .build();
+
+        com.mahitotsu.arachne.strands.agent.AgentResult result = agent.run("東京の天気を返してください");
+
+        assertThat(result.hasStructuredOutput()).isTrue();
+        assertThat(result.structuredOutput(WeatherSummary.class).answer()).isEqualTo("Tokyo");
+        assertThat(agent.getMessages().get(2)).isEqualTo(com.mahitotsu.arachne.strands.types.Message.user("Return strict JSON now."));
+    }
+
+    @Test
     void buildNamedAgentUsesNamedModelOverrides() {
         ArachneProperties properties = new ArachneProperties();
         properties.getModel().setId("jp.amazon.nova-2-lite-v1:0");
@@ -648,8 +664,8 @@ class AgentFactoryTest {
         assertThat(restored.getState().get("topic")).isEqualTo("travel");
     }
 
-        @Test
-        void buildNamedAgentCanDisableDiscoveredToolsWhileMergingBuiltInSelections() {
+    @Test
+    void buildNamedAgentCanDisableDiscoveredToolsWhileMergingBuiltInSelections() {
         ArachneProperties properties = new ArachneProperties();
         properties.getAgent().getBuiltIns().setToolNames(List.of("current_time"));
 
@@ -659,28 +675,28 @@ class AgentFactoryTest {
         properties.getAgents().put("reader", namedAgent);
 
         List<DiscoveredTool> discoveredTools = new com.mahitotsu.arachne.strands.tool.annotation.AnnotationToolScanner()
-            .scanDiscoveredTools(List.of(new PlannerToolBean()));
+                .scanDiscoveredTools(List.of(new PlannerToolBean()));
 
         Agent agent = new AgentFactory(
-            properties,
-            echoModel(),
-            new BuiltInToolRegistry(List.of(
-                builtInTool(new CurrentTimeTool(), false, "utility"),
-                builtInTool(namedTool("resource_reader"), false, "resource"))),
-            discoveredTools,
-            List.of(),
-            List.of(),
-            com.mahitotsu.arachne.strands.tool.BeanValidationSupport.defaultValidator(),
-            null,
-            null,
-            new com.fasterxml.jackson.databind.ObjectMapper(),
-            null)
-            .builder("reader")
-            .build();
+                properties,
+                echoModel(),
+                new BuiltInToolRegistry(List.of(
+                        builtInTool(new CurrentTimeTool(), false, "utility"),
+                        builtInTool(namedTool("resource_reader"), false, "resource"))),
+                discoveredTools,
+                List.of(),
+                List.of(),
+                com.mahitotsu.arachne.strands.tool.BeanValidationSupport.defaultValidator(),
+                null,
+                null,
+                new com.fasterxml.jackson.databind.ObjectMapper(),
+                null)
+                .builder("reader")
+                .build();
 
         assertThat(agent.getTools()).extracting(tool -> tool.spec().name())
-            .containsExactly("current_time", "resource_reader");
-        }
+                .containsExactly("current_time", "resource_reader");
+    }
 
     @Test
     void buildNamedAgentKeepsInjectedDefaultModelWithoutModelOverride() {
@@ -901,6 +917,51 @@ class AgentFactoryTest {
         };
     }
 
+    private static Model structuredOutputModel() {
+        return new Model() {
+            private int calls;
+
+            @Override
+            public Iterable<ModelEvent> converse(
+                    List<com.mahitotsu.arachne.strands.types.Message> messages,
+                    List<com.mahitotsu.arachne.strands.model.ToolSpec> tools) {
+                throw new AssertionError("Structured output should use the extended overloads");
+            }
+
+            @Override
+            public Iterable<ModelEvent> converse(
+                    List<com.mahitotsu.arachne.strands.types.Message> messages,
+                    List<com.mahitotsu.arachne.strands.model.ToolSpec> tools,
+                    String systemPrompt) {
+                calls++;
+                return List.of(
+                        new ModelEvent.TextDelta("Plain text draft"),
+                        new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(10, 5)));
+            }
+
+            @Override
+            public Iterable<ModelEvent> converse(
+                    List<com.mahitotsu.arachne.strands.types.Message> messages,
+                    List<com.mahitotsu.arachne.strands.model.ToolSpec> tools,
+                    String systemPrompt,
+                    com.mahitotsu.arachne.strands.model.ToolSelection toolSelection) {
+                if (toolSelection == null) {
+                    return converse(messages, tools, systemPrompt);
+                }
+                if (calls == 1) {
+                    calls++;
+                    return List.of(
+                            new ModelEvent.ToolUse(
+                                    "structured-1",
+                                    toolSelection.toolName(),
+                                    java.util.Map.of("answer", "Tokyo", "confidence", 0.9)),
+                            new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(12, 4)));
+                }
+                return List.of(new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(13, 2)));
+            }
+        };
+    }
+
     private static Tool namedTool(String name) {
         return new Tool() {
             @Override
@@ -917,6 +978,9 @@ class AgentFactoryTest {
 
     private static BuiltInToolDefinition builtInTool(Tool tool, boolean includedByDefault, String... groups) {
         return new BuiltInToolDefinition(tool, includedByDefault, java.util.Set.of(groups));
+    }
+
+    record WeatherSummary(String answer, double confidence) {
     }
 
     private static final class RecordingSystemPromptModel implements Model {

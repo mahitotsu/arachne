@@ -26,7 +26,7 @@ Available now:
 - `ToolInvocationContext` for logical tool-call metadata inside tool implementations
 - `ExecutionContextPropagation` for opt-in executor-boundary context propagation during tool execution
 - automatic tool discovery from Spring beans
-- structured output through `Agent.run(String, Class<T>)`, with typed payload access via `AgentResult.structuredOutput(Class<T>)`
+- structured output through `Agent.run(String, Class<T>)`, custom force prompts, builder-level defaults, and typed payload access via `AgentResult.structuredOutput(Class<T>)`
 - Bedrock model ID and region configuration
 - Bedrock system-prompt caching and tool caching configuration
 - system prompt configuration
@@ -922,6 +922,46 @@ record TripPlan(String city, String forecast, String advice) {}
 TripPlan plan = agent.run(
     "Plan a short Tokyo outing. Return city, forecast, and one advice sentence.",
     TripPlan.class);
+```
+
+If a smaller model needs a stronger nudge, you can override the forced retry prompt for that invocation.
+
+```java
+AgentResult result = agent.run(
+  "Plan a short Tokyo outing. Return city, forecast, and one advice sentence.",
+  TripPlan.class,
+  "Call the structured_output tool and return only valid JSON.");
+
+TripPlan plan = result.structuredOutput(TripPlan.class);
+```
+
+If you want every call from one runtime to target the same typed shape, configure that once on the builder.
+
+```java
+Agent typedAgent = agentFactory.builder()
+  .structuredOutputType(TripPlan.class)
+  .structuredOutputPrompt("Call the structured_output tool and return only valid JSON.")
+  .build();
+
+TripPlan plan = typedAgent.run(
+  "Plan a short Tokyo outing. Return city, forecast, and one advice sentence.")
+  .structuredOutput(TripPlan.class);
+```
+
+The same contract is available on the callback streaming path when you still want incremental events before the typed result is attached.
+
+```java
+AgentResult streamed = agent.stream(
+  "Plan a short Tokyo outing. Return city, forecast, and one advice sentence.",
+  TripPlan.class,
+  "Call the structured_output tool and return only valid JSON.",
+  event -> {
+    if (event instanceof AgentStreamEvent.TextDelta delta) {
+      System.out.print(delta.delta());
+    }
+  });
+
+TripPlan plan = streamed.structuredOutput(TripPlan.class);
 ```
 
 Under the hood, Arachne exposes a final structured-output tool whose schema is generated from the requested Java type. If the model does not call that tool on its own, the event loop forces a final retry that requires the structured output tool.

@@ -319,6 +319,8 @@ public class AgentFactory {
         private List<HookProvider> hookProviders = List.of();
         private List<Plugin> plugins = List.of();
         private List<Skill> skills = List.of();
+        private Class<?> structuredOutputType;
+        private String structuredOutputPrompt;
 
         private Builder(
                 AgentFactoryDefaultsResolver.BuilderDefaults defaults,
@@ -475,6 +477,16 @@ public class AgentFactory {
             return this;
         }
 
+        public Builder structuredOutputType(Class<?> structuredOutputType) {
+            this.structuredOutputType = structuredOutputType;
+            return this;
+        }
+
+        public Builder structuredOutputPrompt(String structuredOutputPrompt) {
+            this.structuredOutputPrompt = structuredOutputPrompt;
+            return this;
+        }
+
         public Builder state(AgentState state) {
             this.state = state == null ? new AgentState() : state;
             return this;
@@ -514,7 +526,9 @@ public class AgentFactory {
                     runtime.conversationManager(),
                     runtime.sessionManager(),
                     sessionId,
-                    state);
+                    state,
+                    structuredOutputType,
+                    structuredOutputPrompt);
         }
 
         private EventLoop createEventLoop(HookRegistry hooks) {
