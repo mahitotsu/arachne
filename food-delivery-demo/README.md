@@ -67,6 +67,28 @@ make ui-dev
 make test
 ```
 
+## OpenAPI 公開
+
+各 Spring サービスは code-first の OpenAPI を個別に公開します。
+
+- OpenAPI JSON: 各 service の `/v3/api-docs`
+- Swagger UI: 各 service の `/swagger-ui.html`
+- JWT 保護された service でも OpenAPI 閲覧用パスは匿名アクセス可能
+- agent へ渡すユーザープロンプト契約は、該当 operation の `x-ai-prompt-contract` extension で確認可能
+
+主要な参照先:
+
+- order-service: `http://localhost:8080/v3/api-docs`
+- menu-service: `http://localhost:8081/v3/api-docs`
+- kitchen-service: `http://localhost:8082/v3/api-docs`
+- delivery-service: `http://localhost:8083/v3/api-docs`
+- payment-service: `http://localhost:8084/v3/api-docs`
+- customer-service: `http://localhost:8085/v3/api-docs`
+- support-service: `http://localhost:8086/v3/api-docs`
+- registry-service: `http://localhost:8087/v3/api-docs`
+- hermes-adapter: `http://localhost:8088/v3/api-docs`
+- idaten-adapter: `http://localhost:8089/v3/api-docs`
+
 Observation / Micrometer の確認:
 
 ```bash

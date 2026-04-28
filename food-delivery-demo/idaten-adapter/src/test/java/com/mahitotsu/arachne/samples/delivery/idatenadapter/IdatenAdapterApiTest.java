@@ -22,6 +22,17 @@ class IdatenAdapterApiTest {
     private TestRestTemplate restTemplate;
 
     @Test
+    void exposesOpenApiContract() {
+        ResponseEntity<String> response = restTemplate.getForEntity("/v3/api-docs", String.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody())
+                .contains("/adapter/eta")
+                .contains("/adapter/health")
+                .contains("Quote Idaten ETA");
+    }
+
+    @Test
     void returnsEtaQuoteForAvailableLowCostPartner() {
         ResponseEntity<AdapterEtaResponse> response = restTemplate.postForEntity(
                 "/adapter/eta",

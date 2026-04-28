@@ -2,12 +2,15 @@ package com.mahitotsu.arachne.samples.delivery.supportservice.api;
 
 import java.util.List;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 import com.mahitotsu.arachne.samples.delivery.supportservice.domain.CampaignSummary;
 import com.mahitotsu.arachne.samples.delivery.supportservice.domain.CustomerOrderHistoryEntry;
 import com.mahitotsu.arachne.samples.delivery.supportservice.domain.FaqEntry;
 import com.mahitotsu.arachne.samples.delivery.supportservice.domain.FeedbackInsight;
 import com.mahitotsu.arachne.samples.delivery.supportservice.domain.ServiceHealthSummary;
 
+@Schema(description = "Support chat response with deterministic context and handoff hints.")
 public record SupportChatResponse(
         String sessionId,
         String service,

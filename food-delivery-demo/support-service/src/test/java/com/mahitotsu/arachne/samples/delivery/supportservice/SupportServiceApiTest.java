@@ -120,6 +120,22 @@ class SupportServiceApiTest {
     }
 
     @Test
+    void exposesOpenApiContractAndPromptExtensionsWithoutAuthentication() {
+        TestRestTemplate anonymous = new TestRestTemplate();
+
+        ResponseEntity<String> response = anonymous.getForEntity(
+                "http://localhost:" + port + "/v3/api-docs",
+                String.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody())
+                .contains("/api/support/chat")
+                .contains("x-ai-prompt-contract")
+                .contains("Natural-language support inquiry")
+                .contains("List active campaigns");
+    }
+
+    @Test
     void chatReturnsCampaignsStatusesAndRecentOrdersForAuthenticatedCustomer() throws InterruptedException {
         SupportChatResponse response = restTemplate.postForObject(
                 "/api/support/chat",

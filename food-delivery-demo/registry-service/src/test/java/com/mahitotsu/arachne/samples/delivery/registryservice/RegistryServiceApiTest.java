@@ -30,6 +30,19 @@ class RegistryServiceApiTest {
     @Autowired
     private TestRestTemplate restTemplate;
 
+        @Test
+        void exposesOpenApiContractAndPromptExtensions() {
+                ResponseEntity<String> response = restTemplate.getForEntity(
+                                "/v3/api-docs",
+                                String.class);
+
+                assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+                assertThat(response.getBody())
+                                .contains("/registry/discover")
+                                .contains("x-ai-prompt-contract")
+                                .contains("Natural-language query describing the desired capability");
+        }
+
     @Test
     void discoversAvailableExternalEtaProvidersAndExcludesIcarus() {
         register(new RegistryRegistration(

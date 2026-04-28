@@ -14,6 +14,9 @@ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 
+import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.info.Info;
+
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
 import com.nimbusds.jose.jwk.source.JWKSource;
@@ -29,11 +32,27 @@ class CustomerSecurityConfiguration {
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/actuator/health", "/actuator/info", "/oauth2/jwks", "/api/auth/sign-in").permitAll()
+                    .requestMatchers(
+                        "/actuator/health",
+                        "/actuator/info",
+                        "/oauth2/jwks",
+                        "/api/auth/sign-in",
+                        "/v3/api-docs/**",
+                        "/swagger-ui.html",
+                        "/swagger-ui/**")
+                    .permitAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.decoder(jwtDecoder)))
                 .build();
     }
+
+            @Bean
+            OpenAPI customerServiceOpenApi() {
+            return new OpenAPI().info(new Info()
+                .title("Food Delivery Customer Service API")
+                .version("v1")
+                .description("Authentication, profile, and JWKS endpoints for the food-delivery-demo support services."));
+            }
 
     @Bean
     PasswordEncoder passwordEncoder() {

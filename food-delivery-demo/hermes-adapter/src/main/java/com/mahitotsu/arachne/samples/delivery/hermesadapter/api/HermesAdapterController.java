@@ -13,8 +13,12 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.mahitotsu.arachne.samples.delivery.hermesadapter.application.HermesAdapterService;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 @RestController
 @RequestMapping(path = "/adapter", produces = MediaType.APPLICATION_JSON_VALUE)
+@Tag(name = "Hermes Adapter", description = "External high-speed partner adapter endpoints.")
 public class HermesAdapterController {
 
     private final HermesAdapterService adapterService;
@@ -24,6 +28,7 @@ public class HermesAdapterController {
     }
 
     @PostMapping("/eta")
+    @Operation(summary = "Quote Hermes ETA", description = "Returns Hermes partner ETA, congestion, fee, and availability for the supplied order context.")
     ResponseEntity<AdapterEtaResponse> eta(@RequestBody AdapterEtaRequest request) {
         AdapterEtaResponse response = adapterService.quote(request);
         return response.status().equals("AVAILABLE")
@@ -32,6 +37,7 @@ public class HermesAdapterController {
     }
 
     @GetMapping("/health")
+    @Operation(summary = "Read Hermes adapter health", description = "Returns the current Hermes availability state exposed to delivery-service and registry-service.")
     ResponseEntity<AdapterHealthResponse> health() {
         boolean available = adapterService.available();
         AdapterHealthResponse response = new AdapterHealthResponse(available ? "AVAILABLE" : "NOT_AVAILABLE", "hermes-adapter");

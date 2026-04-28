@@ -141,6 +141,21 @@ class DeliveryServiceApiTest {
     }
 
     @Test
+    void exposesOpenApiContractAndPromptExtensionsWithoutAuthentication() {
+        TestRestTemplate anonymous = new TestRestTemplate();
+
+        ResponseEntity<String> response = anonymous.getForEntity(
+                "http://localhost:" + port + "/v3/api-docs",
+                String.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody())
+                .contains("/internal/delivery/quote")
+                .contains("x-ai-prompt-contract")
+                .contains("Natural-language delivery preference");
+    }
+
+    @Test
     void returnsExpressOptionFirstForFastestRequests() {
         DeliveryQuoteResponse response = restTemplate.postForObject(
                 "/internal/delivery/quote",

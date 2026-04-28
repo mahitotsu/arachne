@@ -29,6 +29,17 @@ class HermesAdapterApiTest {
     private HermesAdapterService adapterService;
 
     @Test
+    void exposesOpenApiContract() {
+        ResponseEntity<String> response = restTemplate.getForEntity("/v3/api-docs", String.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody())
+                .contains("/adapter/eta")
+                .contains("/adapter/health")
+                .contains("Quote Hermes ETA");
+    }
+
+    @Test
     void returnsServiceUnavailableWhenEtaProviderIsUnavailable() {
         when(adapterService.quote(new AdapterEtaRequest(List.of("combo-crispy"), "急ぎで届けてほしい")))
                 .thenReturn(new AdapterEtaResponse(

@@ -3,25 +3,38 @@ package com.mahitotsu.arachne.samples.delivery.menuservice.domain;
 import java.math.BigDecimal;
 import java.util.List;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 public final class MenuTypes {
 
     private MenuTypes() {
     }
 
-        public record MenuSuggestionRequest(String sessionId, String query, String refinement, String recentOrderSummary) {
+    @Schema(description = "Menu suggestion request sent to menu-service.")
+        public record MenuSuggestionRequest(
+                @Schema(description = "Correlation identifier for the calling workflow.") String sessionId,
+                @Schema(description = "Primary customer order intent for this turn.", example = "2人で子ども向けのセットを見せて") String query,
+                @Schema(description = "Optional additional constraints for a follow-up suggestion.") String refinement,
+                @Schema(description = "Optional recent-order summary used to support repeat-order suggestions.") String recentOrderSummary) {
 
                 public MenuSuggestionRequest(String sessionId, String query) {
                         this(sessionId, query, null, null);
                 }
     }
 
-    public record MenuSubstitutionRequest(String sessionId, String message, String unavailableItemId) {
+    @Schema(description = "Fallback candidate request for an unavailable menu item.")
+    public record MenuSubstitutionRequest(
+            @Schema(description = "Correlation identifier for the calling workflow.") String sessionId,
+            @Schema(description = "Original customer intent to preserve when searching substitutes.") String message,
+            @Schema(description = "Unavailable item id that triggered the substitution flow.") String unavailableItemId) {
     }
 
+    @Schema(description = "Menu suggestion response with agent summary and catalog-backed items.")
     public record MenuSuggestionResponse(String service, String agent, String headline, String summary, List<MenuItem> items,
             int etaMinutes, KitchenTrace kitchenTrace) {
     }
 
+    @Schema(description = "Menu substitution response containing fallback candidates.")
     public record MenuSubstitutionResponse(String service, String agent, String headline, String summary, List<MenuItem> items) {
     }
 

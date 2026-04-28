@@ -158,6 +158,23 @@ class OrderServiceApiTest {
     }
 
         @Test
+        void openApiDocsExposeOrderWorkflowAndPromptContractWithoutAuthentication() {
+                TestRestTemplate anonymous = new TestRestTemplate();
+
+                ResponseEntity<String> response = anonymous.getForEntity(
+                                "http://localhost:" + port + "/v3/api-docs",
+                                String.class);
+
+                assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+                assertThat(response.getBody())
+                                .contains("/api/order/suggest")
+                                .contains("/api/order/confirm-items")
+                                .contains("x-ai-prompt-contract")
+                                .contains("message")
+                                .contains("workflowStep");
+        }
+
+        @Test
         void actuatorMetricsExposesOrderWorkflowObservationAfterSuggest() {
                 menuServer.enqueue(jsonResponse(menuSuggestBody()));
 

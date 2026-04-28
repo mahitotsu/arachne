@@ -12,8 +12,12 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.mahitotsu.arachne.samples.delivery.idatenadapter.application.IdatenAdapterService;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 @RestController
 @RequestMapping(path = "/adapter", produces = MediaType.APPLICATION_JSON_VALUE)
+@Tag(name = "Idaten Adapter", description = "External low-cost delivery partner adapter endpoints.")
 public class IdatenAdapterController {
 
     private final IdatenAdapterService adapterService;
@@ -23,11 +27,13 @@ public class IdatenAdapterController {
     }
 
     @PostMapping("/eta")
+    @Operation(summary = "Quote Idaten ETA", description = "Returns Idaten partner ETA, congestion, fee, and availability for the supplied order context.")
     AdapterEtaResponse eta(@RequestBody AdapterEtaRequest request) {
         return adapterService.quote(request);
     }
 
     @GetMapping("/health")
+    @Operation(summary = "Read Idaten adapter health", description = "Returns the current Idaten availability state exposed to delivery-service and registry-service.")
     ResponseEntity<AdapterHealthResponse> health() {
         return ResponseEntity.ok(new AdapterHealthResponse("AVAILABLE", "idaten-adapter"));
     }

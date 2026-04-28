@@ -3,14 +3,21 @@ package com.mahitotsu.arachne.samples.delivery.kitchenservice.domain;
 import java.math.BigDecimal;
 import java.util.List;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 public final class KitchenTypes {
 
     private KitchenTypes() {
     }
 
-    public record KitchenCheckRequest(String sessionId, String message, List<String> itemIds) {
+    @Schema(description = "Kitchen availability check request.")
+    public record KitchenCheckRequest(
+            @Schema(description = "Correlation identifier for the parent order workflow.") String sessionId,
+            @Schema(description = "Original customer intent that should be preserved when evaluating substitutes.") String message,
+            @Schema(description = "Selected menu item ids to validate.") List<String> itemIds) {
     }
 
+    @Schema(description = "Kitchen availability response with validated items and collaborator traces.")
     public record KitchenCheckResponse(
             String service,
             String agent,

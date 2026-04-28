@@ -14,6 +14,9 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.client.RestClient;
 
+import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.info.Info;
+
 @Configuration
 @EnableConfigurationProperties(OrderRegistryProperties.class)
 class OrderServiceConfiguration {
@@ -28,12 +31,20 @@ class OrderServiceConfiguration {
                 .requestCache(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/actuator/health", "/error").permitAll()
+                    .requestMatchers("/actuator/health", "/error", "/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**").permitAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth -> oauth.jwt(jwt -> {
                 }))
                 .build();
     }
+
+            @Bean
+            OpenAPI orderServiceOpenApi() {
+            return new OpenAPI().info(new Info()
+                .title("Food Delivery Order Service API")
+                .version("v1")
+                .description("Code-first OpenAPI for the order workflow service, aligned with food-delivery-demo/docs/apis.md."));
+            }
 
     @Bean
     ApplicationRunner registerOrderService(

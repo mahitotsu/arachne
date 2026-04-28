@@ -12,8 +12,12 @@ import org.springframework.web.bind.annotation.RestController;
 import com.mahitotsu.arachne.samples.delivery.customerservice.domain.InvalidCredentialsException;
 import com.mahitotsu.arachne.samples.delivery.customerservice.infrastructure.CustomerAccountRepository;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 @RestController
 @RequestMapping(path = "/api/customers", produces = MediaType.APPLICATION_JSON_VALUE)
+@Tag(name = "Customer Profile", description = "Authenticated customer profile endpoints.")
 public class CustomerProfileController {
 
     private final CustomerAccountRepository repository;
@@ -23,6 +27,7 @@ public class CustomerProfileController {
     }
 
     @GetMapping("/me")
+    @Operation(summary = "Read the current customer profile", description = "Returns the authenticated customer's profile derived from the bearer token subject.")
     CustomerProfileResponse me(Authentication authentication) {
         if (!(authentication.getPrincipal() instanceof Jwt jwt)) {
             throw new InvalidCredentialsException();

@@ -2,6 +2,21 @@
 
 ## 公開 API
 
+各サービスは code-first の OpenAPI を個別に公開する。
+
+- OpenAPI JSON: 各 service の `/v3/api-docs`
+- Swagger UI: 各 service の `/swagger-ui.html`
+- JWT 保護された service でも OpenAPI 閲覧用パスは匿名アクセス可能にしている
+
+`customer-service`
+
+- `POST /api/auth/sign-in`
+  デモ用ログイン ID とパスワードを受け取り、Bearer token とプロフィール要約を返す。
+- `GET /api/customers/me`
+  認証済み customer のプロフィールを返す。
+- `GET /oauth2/jwks`
+  downstream service が JWT 検証に使う公開 JWK Set を返す。
+
 ## ユーザープロンプト契約の原則
 
 このデモでは、AI エージェントを HTTP API の内側に自然に埋め込んでいる。
@@ -48,6 +63,11 @@
   現在有効なキャンペーン一覧を返す。
 - `GET /api/support/status`
   registry-service の集約ヘルスをもとにしたサービス稼働状況を返す。
+
+`menu-service`
+
+- `GET /api/menu/catalog`
+  現在のメニューカタログを deterministic な一覧として返す。
 
 `registry-service`
 

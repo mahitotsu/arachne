@@ -92,6 +92,21 @@ class PaymentServiceApiTest {
     }
 
     @Test
+    void exposesOpenApiContractAndPromptExtensionsWithoutAuthentication() {
+        TestRestTemplate anonymous = new TestRestTemplate();
+
+        ResponseEntity<String> response = anonymous.getForEntity(
+                "http://localhost:" + port + "/v3/api-docs",
+                String.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody())
+                .contains("/internal/payment/prepare")
+                .contains("x-ai-prompt-contract")
+                .contains("Natural-language payment or checkout instruction");
+    }
+
+    @Test
     void chargesWhenTheRequestIsConfirmed() {
         PaymentPrepareResponse response = restTemplate.postForObject(
                 "/internal/payment/prepare",

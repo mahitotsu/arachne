@@ -33,6 +33,18 @@ class CustomerServiceApiTest {
     @Autowired
     private TestRestTemplate restTemplate;
 
+        @Test
+        void exposesOpenApiContractWithoutAuthentication() {
+                ResponseEntity<String> response = restTemplate.getForEntity("/v3/api-docs", String.class);
+
+                assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+                assertThat(response.getBody())
+                                .contains("/api/auth/sign-in")
+                                .contains("/api/customers/me")
+                                .contains("/oauth2/jwks")
+                                .contains("Sign in with demo credentials");
+        }
+
     @Test
     void signsInWithDemoCredentialsAndExposesAProfileEndpoint() throws Exception {
         ResponseEntity<AccessTokenResponse> signIn = restTemplate.postForEntity(

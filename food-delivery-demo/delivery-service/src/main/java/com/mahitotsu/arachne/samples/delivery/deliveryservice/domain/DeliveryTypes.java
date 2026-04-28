@@ -7,14 +7,21 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 public final class DeliveryTypes {
 
     private DeliveryTypes() {
     }
 
-    public record DeliveryQuoteRequest(String sessionId, String message, List<String> itemNames) {
+        @Schema(description = "Delivery quote request.")
+        public record DeliveryQuoteRequest(
+            @Schema(description = "Correlation identifier for the parent workflow.") String sessionId,
+            @Schema(description = "Natural-language delivery preference such as speed or price.", example = "最速配送でお願い") String message,
+            @Schema(description = "Item names included in the order draft for quoting.") List<String> itemNames) {
     }
 
+        @Schema(description = "Delivery quote response with ranked options and recommendation metadata.")
     public record DeliveryQuoteResponse(
             String service,
             String agent,
