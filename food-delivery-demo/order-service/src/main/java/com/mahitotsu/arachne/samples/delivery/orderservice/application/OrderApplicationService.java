@@ -1,7 +1,5 @@
 package com.mahitotsu.arachne.samples.delivery.orderservice.application;
 
-import static com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.*;
-
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
@@ -11,6 +9,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -18,12 +17,44 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.mahitotsu.arachne.samples.delivery.orderservice.config.AuthenticatedCustomerResolver;
 import com.mahitotsu.arachne.samples.delivery.orderservice.config.SecurityAccessors;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.ConfirmDeliveryRequest;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.ConfirmDeliveryResponse;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.ConfirmItemsRequest;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.ConfirmItemsResponse;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.ConfirmPaymentRequest;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.ConfirmPaymentResponse;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.DeliveryOptionChoice;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.DeliveryQuoteRequest;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.DeliveryQuoteResponse;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.MenuSuggestionRequest;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.MenuSuggestionResponse;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.OrderDraft;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.OrderLineItem;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.OrderSession;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.OrderSessionView;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.PaymentPrepareRequest;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.PaymentPrepareResponse;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.PaymentSummary;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.PendingDeliverySelection;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.PendingProposal;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.ProposalItem;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.SelectedProposalItem;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.ServiceTrace;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.StoredOrderSummary;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.SuggestOrderRequest;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.SuggestOrderResponse;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.SupportFeedbackRequestPayload;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.SupportFeedbackResponse;
 import com.mahitotsu.arachne.samples.delivery.orderservice.infrastructure.DeliveryGateway;
 import com.mahitotsu.arachne.samples.delivery.orderservice.infrastructure.MenuGateway;
 import com.mahitotsu.arachne.samples.delivery.orderservice.infrastructure.OrderRepository;
 import com.mahitotsu.arachne.samples.delivery.orderservice.infrastructure.OrderSessionStore;
 import com.mahitotsu.arachne.samples.delivery.orderservice.infrastructure.PaymentGateway;
 import com.mahitotsu.arachne.samples.delivery.orderservice.infrastructure.SupportGateway;
+
+import io.micrometer.common.KeyValue;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationRegistry;
 
 @Service
 public class OrderApplicationService {
@@ -35,15 +66,17 @@ public class OrderApplicationService {
     private final PaymentGateway paymentGateway;
     private final SupportGateway supportGateway;
     private final AuthenticatedCustomerResolver authenticatedCustomerResolver;
+    private final ObservationRegistry observationRegistry;
 
-        public OrderApplicationService(
+    public OrderApplicationService(
             OrderSessionStore sessionStore,
             OrderRepository orderRepository,
             MenuGateway menuGateway,
             DeliveryGateway deliveryGateway,
             PaymentGateway paymentGateway,
             SupportGateway supportGateway,
-            AuthenticatedCustomerResolver authenticatedCustomerResolver) {
+            AuthenticatedCustomerResolver authenticatedCustomerResolver,
+            ObservationRegistry observationRegistry) {
         this.sessionStore = sessionStore;
         this.orderRepository = orderRepository;
         this.menuGateway = menuGateway;
@@ -51,242 +84,255 @@ public class OrderApplicationService {
         this.paymentGateway = paymentGateway;
         this.supportGateway = supportGateway;
         this.authenticatedCustomerResolver = authenticatedCustomerResolver;
+        this.observationRegistry = observationRegistry;
     }
 
-        public SuggestOrderResponse suggest(SuggestOrderRequest request) {
-        String sessionId = sessionId(request.sessionId());
-        OrderSession existing = sessionStore.load(sessionId).orElse(emptySession(sessionId));
-        String accessToken = SecurityAccessors.requiredAccessToken();
-        String suggestionMessage = buildSuggestionMessage(request, existing);
+    public SuggestOrderResponse suggest(SuggestOrderRequest request) {
+        return observeWorkflow("suggest", () -> {
+            String sessionId = sessionId(request.sessionId());
+            OrderSession existing = sessionStore.load(sessionId).orElse(emptySession(sessionId));
+            String accessToken = SecurityAccessors.requiredAccessToken();
+            String suggestionMessage = buildSuggestionMessage(request, existing);
 
-        MenuSuggestionResponse menuResponse = menuGateway.suggest(
-                new MenuSuggestionRequest(sessionId, suggestionMessage),
-                accessToken);
-        List<ProposalItem> proposals = menuResponse.items().stream()
-                .map(item -> new ProposalItem(
-                        item.id(),
-                        item.name(),
-                        item.suggestedQuantity(),
-                        item.price(),
-                        proposalReason(menuResponse)))
-                .toList();
+            MenuSuggestionResponse menuResponse = menuGateway.suggest(
+                    new MenuSuggestionRequest(sessionId, suggestionMessage),
+                    accessToken);
+            List<ProposalItem> proposals = menuResponse.items().stream()
+                    .map(item -> new ProposalItem(
+                            item.id(),
+                            item.name(),
+                            item.suggestedQuantity(),
+                            item.price(),
+                            proposalReason(menuResponse)))
+                    .toList();
 
-        BigDecimal zero = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
-        OrderDraft draft = new OrderDraft(
-                "PROPOSAL_READY",
-                List.of(),
-                zero,
-                zero,
-                menuResponse.etaMinutes() + " min kitchen prep",
-                "PENDING",
-                "",
-                "");
-        OrderSession updated = new OrderSession(
-                sessionId,
-                "item-selection",
-                draft,
-                new PendingProposal(
-                        request.message(),
-                        request.locale(),
-                        menuResponse.summary(),
-                        proposals,
-                        menuResponse.etaMinutes(),
-                        menuResponse.kitchenTrace()),
-                null,
-                null);
-        sessionStore.save(updated);
+            BigDecimal zero = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+            OrderDraft draft = new OrderDraft(
+                    "PROPOSAL_READY",
+                    List.of(),
+                    zero,
+                    zero,
+                    menuResponse.etaMinutes() + " min kitchen prep",
+                    "PENDING",
+                    "",
+                    "");
+            OrderSession updated = new OrderSession(
+                    sessionId,
+                    "item-selection",
+                    draft,
+                    new PendingProposal(
+                            request.message(),
+                            request.locale(),
+                            menuResponse.summary(),
+                            proposals,
+                            menuResponse.etaMinutes(),
+                            menuResponse.kitchenTrace()),
+                    null,
+                    null);
+            sessionStore.save(updated);
 
-        return new SuggestOrderResponse(
-                sessionId,
-                updated.workflowStep(),
-                menuResponse.headline(),
-                menuResponse.summary(),
-                menuResponse.etaMinutes(),
-                proposals,
-                draft,
-                buildSuggestTrace(menuResponse));
+            return new SuggestOrderResponse(
+                    sessionId,
+                    updated.workflowStep(),
+                    menuResponse.headline(),
+                    menuResponse.summary(),
+                    menuResponse.etaMinutes(),
+                    proposals,
+                    draft,
+                    buildSuggestTrace(menuResponse));
+        });
     }
 
-        public ConfirmItemsResponse confirmItems(ConfirmItemsRequest request) {
-        OrderSession session = requiredSession(request.sessionId(), "item-selection");
-        PendingProposal pendingProposal = requirePendingProposal(session.pendingProposal());
-        String accessToken = SecurityAccessors.requiredAccessToken();
+    public ConfirmItemsResponse confirmItems(ConfirmItemsRequest request) {
+        return observeWorkflow("confirm-items", () -> {
+            OrderSession session = requiredSession(request.sessionId(), "item-selection");
+            PendingProposal pendingProposal = requirePendingProposal(session.pendingProposal());
+            String accessToken = SecurityAccessors.requiredAccessToken();
 
-        List<ProposalItem> selectedItems = selectProposalItems(pendingProposal.items(), request.items());
-        List<OrderLineItem> lineItems = selectedItems.stream()
-                .map(item -> new OrderLineItem(item.name(), item.quantity(), item.unitPrice(), item.reason()))
-                .toList();
-        DeliveryQuoteResponse deliveryResponse = deliveryGateway.quote(
-                new DeliveryQuoteRequest(
-                        session.sessionId(),
-                        pendingProposal.customerMessage(),
-                        lineItems.stream().map(OrderLineItem::name).toList()),
-                accessToken);
-        List<DeliveryOptionChoice> deliveryOptions = toDeliveryChoices(deliveryResponse);
-        BigDecimal subtotal = subtotal(lineItems);
-        OrderDraft draft = new OrderDraft(
-                "ITEMS_CONFIRMED",
-                lineItems,
-                subtotal,
-                subtotal,
-                session.draft().etaLabel(),
-                "PENDING",
-                "",
-                session.draft().orderId());
-        OrderSession updated = new OrderSession(
-                session.sessionId(),
-                "delivery-selection",
-                draft,
-                null,
-                new PendingDeliverySelection(deliveryResponse.summary(), deliveryOptions),
-                null);
-        sessionStore.save(updated);
+            List<ProposalItem> selectedItems = selectProposalItems(pendingProposal.items(), request.items());
+            List<OrderLineItem> lineItems = selectedItems.stream()
+                    .map(item -> new OrderLineItem(item.name(), item.quantity(), item.unitPrice(), item.reason()))
+                    .toList();
+            DeliveryQuoteResponse deliveryResponse = deliveryGateway.quote(
+                    new DeliveryQuoteRequest(
+                            session.sessionId(),
+                            pendingProposal.customerMessage(),
+                            lineItems.stream().map(OrderLineItem::name).toList()),
+                    accessToken);
+            List<DeliveryOptionChoice> deliveryOptions = toDeliveryChoices(deliveryResponse);
+            BigDecimal subtotal = subtotal(lineItems);
+            OrderDraft draft = new OrderDraft(
+                    "ITEMS_CONFIRMED",
+                    lineItems,
+                    subtotal,
+                    subtotal,
+                    session.draft().etaLabel(),
+                    "PENDING",
+                    "",
+                    session.draft().orderId());
+            OrderSession updated = new OrderSession(
+                    session.sessionId(),
+                    "delivery-selection",
+                    draft,
+                    null,
+                    new PendingDeliverySelection(deliveryResponse.summary(), deliveryOptions),
+                    null);
+            sessionStore.save(updated);
 
-        List<ServiceTrace> trace = List.of(
-                new ServiceTrace(
-                        deliveryResponse.service(),
-                        deliveryResponse.agent(),
-                        deliveryResponse.headline(),
-                        deliveryResponse.summary()),
-                new ServiceTrace(
-                        "order-service",
-                        "order-workflow",
-                        "order-service が配送候補を返しました",
-                        "アイテム確定後に配送候補 capability を持つ協業先へ進みました。"));
-        return new ConfirmItemsResponse(
-                session.sessionId(),
-                updated.workflowStep(),
-                "配送候補を返しました",
-                lineItems,
-                deliveryOptions,
-                draft,
-                trace);
+            List<ServiceTrace> trace = List.of(
+                    new ServiceTrace(
+                            deliveryResponse.service(),
+                            deliveryResponse.agent(),
+                            deliveryResponse.headline(),
+                            deliveryResponse.summary()),
+                    new ServiceTrace(
+                            "order-service",
+                            "order-workflow",
+                            "order-service が配送候補を返しました",
+                            "アイテム確定後に配送候補 capability を持つ協業先へ進みました。"));
+            return new ConfirmItemsResponse(
+                    session.sessionId(),
+                    updated.workflowStep(),
+                    "配送候補を返しました",
+                    lineItems,
+                    deliveryOptions,
+                    draft,
+                    trace);
+        });
     }
 
-        public ConfirmDeliveryResponse confirmDelivery(ConfirmDeliveryRequest request) {
-        OrderSession session = requiredSession(request.sessionId(), "delivery-selection");
-        PendingDeliverySelection pendingDeliverySelection = requirePendingDeliverySelection(session.pendingDeliverySelection());
-        DeliveryOptionChoice selectedDelivery = selectDelivery(pendingDeliverySelection.options(), request.deliveryCode());
-        String accessToken = SecurityAccessors.requiredAccessToken();
+    public ConfirmDeliveryResponse confirmDelivery(ConfirmDeliveryRequest request) {
+        return observeWorkflow("confirm-delivery", () -> {
+            OrderSession session = requiredSession(request.sessionId(), "delivery-selection");
+            PendingDeliverySelection pendingDeliverySelection = requirePendingDeliverySelection(session.pendingDeliverySelection());
+            DeliveryOptionChoice selectedDelivery = selectDelivery(pendingDeliverySelection.options(), request.deliveryCode());
+            String accessToken = SecurityAccessors.requiredAccessToken();
 
-        BigDecimal subtotal = session.draft().subtotal();
-        BigDecimal total = subtotal.add(selectedDelivery.fee()).setScale(2, RoundingMode.HALF_UP);
-        PaymentPrepareResponse paymentResponse = paymentGateway.prepare(
-                new PaymentPrepareRequest(session.sessionId(), "", total, false),
-                accessToken);
-        OrderDraft draft = new OrderDraft(
-                "PAYMENT_READY",
-                session.draft().items(),
-                subtotal,
-                total,
-                selectedDelivery.label() + " / " + selectedDelivery.etaMinutes() + " min",
-                paymentResponse.paymentStatus(),
-                paymentResponse.selectedMethod(),
-                session.draft().orderId());
-        OrderSession updated = new OrderSession(
-                session.sessionId(),
-                "payment",
-                draft,
-                null,
-                null,
-                selectedDelivery);
-        sessionStore.save(updated);
+            BigDecimal subtotal = session.draft().subtotal();
+            BigDecimal total = subtotal.add(selectedDelivery.fee()).setScale(2, RoundingMode.HALF_UP);
+            PaymentPrepareResponse paymentResponse = paymentGateway.prepare(
+                    new PaymentPrepareRequest(session.sessionId(), "", total, false),
+                    accessToken);
+            OrderDraft draft = new OrderDraft(
+                    "PAYMENT_READY",
+                    session.draft().items(),
+                    subtotal,
+                    total,
+                    selectedDelivery.label() + " / " + selectedDelivery.etaMinutes() + " min",
+                    paymentResponse.paymentStatus(),
+                    paymentResponse.selectedMethod(),
+                    session.draft().orderId());
+            OrderSession updated = new OrderSession(
+                    session.sessionId(),
+                    "payment",
+                    draft,
+                    null,
+                    null,
+                    selectedDelivery);
+            sessionStore.save(updated);
 
-        List<ServiceTrace> trace = List.of(
-                new ServiceTrace(
-                        paymentResponse.service(),
-                        paymentResponse.agent(),
-                        paymentResponse.headline(),
-                        paymentResponse.summary()),
-                new ServiceTrace(
-                        "order-service",
-                        "order-workflow",
-                        "order-service が支払い準備へ進みました",
-                        selectedDelivery.label() + " を選択して合計を確定しました。"));
-        return new ConfirmDeliveryResponse(
-                session.sessionId(),
-                updated.workflowStep(),
-                "支払い準備が整いました",
-                new PaymentSummary(draft.items(), selectedDelivery.fee(), draft.total(), paymentResponse.selectedMethod()),
-                draft,
-                trace);
+            List<ServiceTrace> trace = List.of(
+                    new ServiceTrace(
+                            paymentResponse.service(),
+                            paymentResponse.agent(),
+                            paymentResponse.headline(),
+                            paymentResponse.summary()),
+                    new ServiceTrace(
+                            "order-service",
+                            "order-workflow",
+                            "order-service が支払い準備へ進みました",
+                            selectedDelivery.label() + " を選択して合計を確定しました。"));
+            return new ConfirmDeliveryResponse(
+                    session.sessionId(),
+                    updated.workflowStep(),
+                    "支払い準備が整いました",
+                    new PaymentSummary(draft.items(), selectedDelivery.fee(), draft.total(), paymentResponse.selectedMethod()),
+                    draft,
+                    trace);
+        });
     }
 
-        public ConfirmPaymentResponse confirmPayment(ConfirmPaymentRequest request) {
-        OrderSession session = requiredSession(request.sessionId(), "payment");
-        DeliveryOptionChoice selectedDelivery = requireSelectedDelivery(session.selectedDelivery());
-        String accessToken = SecurityAccessors.requiredAccessToken();
-        PaymentPrepareResponse paymentResponse = paymentGateway.prepare(
-                new PaymentPrepareRequest(session.sessionId(), "", session.draft().total(), true),
-                accessToken);
+    public ConfirmPaymentResponse confirmPayment(ConfirmPaymentRequest request) {
+        return observeWorkflow("confirm-payment", () -> {
+            OrderSession session = requiredSession(request.sessionId(), "payment");
+            DeliveryOptionChoice selectedDelivery = requireSelectedDelivery(session.selectedDelivery());
+            String accessToken = SecurityAccessors.requiredAccessToken();
+            PaymentPrepareResponse paymentResponse = paymentGateway.prepare(
+                    new PaymentPrepareRequest(session.sessionId(), "", session.draft().total(), true),
+                    accessToken);
 
-        String orderId = session.draft().orderId();
-        String status = session.draft().status();
-        SupportFeedbackResponse supportFeedback = null;
-        if (paymentResponse.charged()) {
-            orderId = orderRepository.saveConfirmedOrder(
-                    authenticatedCustomerResolver.currentCustomerId(),
+            String orderId = session.draft().orderId();
+            String status = session.draft().status();
+            SupportFeedbackResponse supportFeedback = null;
+            if (paymentResponse.charged()) {
+                orderId = orderRepository.saveConfirmedOrder(
+                        authenticatedCustomerResolver.currentCustomerId(),
+                        session.draft().items(),
+                        session.draft().subtotal(),
+                        session.draft().total(),
+                        selectedDelivery.etaMinutes() + " min via " + selectedDelivery.label(),
+                        paymentResponse.paymentStatus());
+                status = "CONFIRMED";
+                supportFeedback = supportGateway.recordFeedback(
+                        new SupportFeedbackRequestPayload(
+                                orderId,
+                                null,
+                                confirmedOrderFeedbackMessage(orderId, session.draft(), selectedDelivery)),
+                        accessToken)
+                        .orElse(null);
+            }
+
+            OrderDraft draft = new OrderDraft(
+                    status,
                     session.draft().items(),
                     session.draft().subtotal(),
                     session.draft().total(),
-                    selectedDelivery.etaMinutes() + " min via " + selectedDelivery.label(),
-                    paymentResponse.paymentStatus());
-            status = "CONFIRMED";
-            supportFeedback = supportGateway.recordFeedback(
-                    new SupportFeedbackRequestPayload(
-                            orderId,
-                            null,
-                            confirmedOrderFeedbackMessage(orderId, session.draft(), selectedDelivery)),
-                    accessToken)
-                    .orElse(null);
-        }
+                    session.draft().etaLabel(),
+                    paymentResponse.paymentStatus(),
+                    paymentResponse.selectedMethod(),
+                    orderId);
+            OrderSession updated = new OrderSession(
+                    session.sessionId(),
+                    paymentResponse.charged() ? "completed" : "payment",
+                    draft,
+                    null,
+                    null,
+                    selectedDelivery);
+            sessionStore.save(updated);
 
-        OrderDraft draft = new OrderDraft(
-                status,
-                session.draft().items(),
-                session.draft().subtotal(),
-                session.draft().total(),
-                session.draft().etaLabel(),
-                paymentResponse.paymentStatus(),
-                paymentResponse.selectedMethod(),
-                orderId);
-        OrderSession updated = new OrderSession(
-                session.sessionId(),
-                paymentResponse.charged() ? "completed" : "payment",
-                draft,
-                null,
-                null,
-                selectedDelivery);
-        sessionStore.save(updated);
-
-        List<ServiceTrace> trace = buildConfirmPaymentTrace(paymentResponse, supportFeedback);
-        String summary = paymentResponse.charged()
-                ? "注文を確定しました。合計は " + formatYen(draft.total()) + " です。"
-                : "支払い準備 capability はまだ明示的な確定を待っています。";
-        return new ConfirmPaymentResponse(
-                session.sessionId(),
-                updated.workflowStep(),
-                summary,
-                draft,
-                trace);
+            List<ServiceTrace> trace = buildConfirmPaymentTrace(paymentResponse, supportFeedback);
+            String summary = paymentResponse.charged()
+                    ? "注文を確定しました。合計は " + formatYen(draft.total()) + " です。"
+                    : "支払い準備 capability はまだ明示的な確定を待っています。";
+            return new ConfirmPaymentResponse(
+                    session.sessionId(),
+                    updated.workflowStep(),
+                    summary,
+                    draft,
+                    trace);
+        });
     }
 
-        public OrderSessionView session(String sessionId) {
-        OrderSession session = sessionStore.load(sessionId).orElse(emptySession(sessionId));
-        List<ProposalItem> pendingProposal = session.pendingProposal() == null ? List.of() : session.pendingProposal().items();
-        List<DeliveryOptionChoice> pendingDeliveryOptions = session.pendingDeliverySelection() == null
-                ? List.of()
-                : session.pendingDeliverySelection().options();
-        return new OrderSessionView(
-                session.sessionId(),
-                session.workflowStep(),
-                session.draft(),
-                pendingProposal,
-                pendingDeliveryOptions);
+    public OrderSessionView session(String sessionId) {
+        return observeWorkflow("session", () -> {
+            OrderSession session = sessionStore.load(sessionId).orElse(emptySession(sessionId));
+            List<ProposalItem> pendingProposal = session.pendingProposal() == null ? List.of() : session.pendingProposal().items();
+            List<DeliveryOptionChoice> pendingDeliveryOptions = session.pendingDeliverySelection() == null
+                    ? List.of()
+                    : session.pendingDeliverySelection().options();
+            return new OrderSessionView(
+                    session.sessionId(),
+                    session.workflowStep(),
+                    session.draft(),
+                    pendingProposal,
+                    pendingDeliveryOptions);
+        });
     }
 
-        public List<StoredOrderSummary> recentOrderHistory() {
-        return orderRepository.findRecentOrdersForUser(authenticatedCustomerResolver.currentCustomerId(), 5);
+    public List<StoredOrderSummary> recentOrderHistory() {
+        return observeWorkflow(
+                "recent-order-history",
+                () -> orderRepository.findRecentOrdersForUser(authenticatedCustomerResolver.currentCustomerId(), 5));
     }
 
     private List<ServiceTrace> buildConfirmPaymentTrace(
@@ -491,4 +537,20 @@ public class OrderApplicationService {
     private String formatYen(BigDecimal amount) {
         return "¥" + amount.stripTrailingZeros().toPlainString();
     }
+
+        private <T> T observeWorkflow(String operation, Supplier<T> action) {
+                Observation observation = Observation.start("delivery.order.workflow", observationRegistry);
+                observation.lowCardinalityKeyValue(KeyValue.of("operation", operation));
+                try (Observation.Scope scope = observation.openScope()) {
+                        T result = action.get();
+                        observation.lowCardinalityKeyValue(KeyValue.of("outcome", "success"));
+                        return result;
+                } catch (RuntimeException ex) {
+                        observation.lowCardinalityKeyValue(KeyValue.of("outcome", "error"));
+                        observation.error(ex);
+                        throw ex;
+                } finally {
+                        observation.stop();
+                }
+        }
 }

@@ -13,6 +13,8 @@ import org.springframework.stereotype.Service;
 import com.mahitotsu.arachne.samples.delivery.menuservice.config.SecurityAccessors;
 import com.mahitotsu.arachne.samples.delivery.menuservice.infrastructure.KitchenCheckGateway;
 import com.mahitotsu.arachne.samples.delivery.menuservice.infrastructure.MenuRepository;
+import com.mahitotsu.arachne.samples.delivery.menuservice.observation.AgentObservationSupport;
+import com.mahitotsu.arachne.strands.agent.AgentResult;
 import com.mahitotsu.arachne.strands.spring.AgentFactory;
 import com.mahitotsu.arachne.strands.tool.Tool;
 
@@ -25,6 +27,7 @@ public class MenuApplicationService {
     private final Tool calculateTotalTool;
     private final Tool menuSubstitutionLookupTool;
     private final KitchenCheckGateway kitchenCheckGateway;
+    private final AgentObservationSupport agentObservationSupport;
 
     MenuApplicationService(
             AgentFactory agentFactory,
@@ -32,33 +35,35 @@ public class MenuApplicationService {
             @Qualifier("catalogLookupTool") Tool catalogLookupTool,
             @Qualifier("calculateTotalTool") Tool calculateTotalTool,
             @Qualifier("menuSubstitutionLookupTool") Tool menuSubstitutionLookupTool,
-            KitchenCheckGateway kitchenCheckGateway) {
+            KitchenCheckGateway kitchenCheckGateway,
+            AgentObservationSupport agentObservationSupport) {
         this.agentFactory = agentFactory;
         this.repository = repository;
         this.catalogLookupTool = catalogLookupTool;
         this.calculateTotalTool = calculateTotalTool;
         this.menuSubstitutionLookupTool = menuSubstitutionLookupTool;
         this.kitchenCheckGateway = kitchenCheckGateway;
+        this.agentObservationSupport = agentObservationSupport;
     }
 
     public MenuSuggestionResponse suggest(MenuSuggestionRequest request) {
         String accessToken = SecurityAccessors.requiredAccessToken();
         List<MenuItem> items = repository.search(request.message());
-        String agentSummary = agentFactory.builder()
-                .systemPrompt("""
-                あなたは単一ブランドのクラウドキッチンアプリの menu-agent です。
+        AgentResult suggestionResult = agentObservationSupport.observe("menu-service", "menu-agent", () -> agentFactory.builder()
+            .systemPrompt("""
+            あなたは単一ブランドのクラウドキッチンアプリの menu-agent です。
 
-                このビジネスは1つのキッチンのみです。現在のメニューからのみアイテムを推奨してください。
-                別の支店、別のキッチン、またはテイクアウトの計画は言及しないでください。
+            このビジネスは1つのキッチンのみです。現在のメニューからのみアイテムを推奨してください。
+            別の支店、別のキッチン、またはテイクアウトの計画は言及しないでください。
 
-                利用可能なスキルを必要に応じて有効化してください。
-                その後は必ず catalog_lookup_tool を使って候補を確認し、人数・予算・好み・履歴文脈に合う提案セットを選んでください。
-                提案後は calculate_total_tool を使って合計を検算し、短い理由文を添えてください。
-                欠品や混雑の最終判断は kitchen-service 側で行われるため、推薦理由はメニュー意図に集中してください。""")
-                .tools(catalogLookupTool, calculateTotalTool)
-                .build()
-                .run("query=" + request.message())
-                .text();
+            利用可能なスキルを必要に応じて有効化してください。
+            その後は必ず catalog_lookup_tool を使って候補を確認し、人数・予算・好み・履歴文脈に合う提案セットを選んでください。
+            提案後は calculate_total_tool を使って合計を検算し、短い理由文を添えてください。
+            欠品や混雑の最終判断は kitchen-service 側で行われるため、推薦理由はメニュー意図に集中してください。""")
+            .tools(catalogLookupTool, calculateTotalTool)
+            .build()
+            .run("query=" + request.message()));
+        String agentSummary = suggestionResult.text();
         KitchenCheckResponse kitchenResponse = kitchenCheckGateway.check(
                 new KitchenCheckRequest(request.sessionId(), request.message(), items.stream().map(MenuItem::id).toList()),
                 accessToken);
@@ -77,18 +82,18 @@ public class MenuApplicationService {
 
     public MenuSubstitutionResponse suggestSubstitutes(MenuSubstitutionRequest request) {
         List<MenuItem> items = repository.findSubstitutes(request.unavailableItemId(), request.message());
-        String summary = agentFactory.builder()
-                .systemPrompt("""
-                あなたは唯一のクラウドキッチンでアイテムが在庫切れのときに kitchen-agent をサポートする menu-agent です。
+        AgentResult substitutionResult = agentObservationSupport.observe("menu-service", "menu-agent", () -> agentFactory.builder()
+            .systemPrompt("""
+            あなたは唯一のクラウドキッチンでアイテムが在庫切れのときに kitchen-agent をサポートする menu-agent です。
 
-                menu_substitution_lookup を呼び出して、お客様の意図に近い代替品の候補を準備してください。
-                同ブランドのメニュー内に留め、別のキッチンは言及しないでください。
-                答えは簡潔にし、kitchen-agent が検証する代替提案であることを言及してください。
-                """)
-                .tools(menuSubstitutionLookupTool)
-                .build()
-                .run("unavailableItemId=" + request.unavailableItemId() + "\ncustomerMessage=" + request.message())
-                .text();
+            menu_substitution_lookup を呼び出して、お客様の意図に近い代替品の候補を準備してください。
+            同ブランドのメニュー内に留め、別のキッチンは言及しないでください。
+            答えは簡潔にし、kitchen-agent が検証する代替提案であることを言及してください。
+            """)
+            .tools(menuSubstitutionLookupTool)
+            .build()
+            .run("unavailableItemId=" + request.unavailableItemId() + "\ncustomerMessage=" + request.message()));
+        String summary = substitutionResult.text();
         return new MenuSubstitutionResponse(
                 "menu-service",
                 "menu-agent",

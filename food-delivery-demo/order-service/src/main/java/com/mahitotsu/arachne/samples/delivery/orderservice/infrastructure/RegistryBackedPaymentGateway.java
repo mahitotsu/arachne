@@ -18,15 +18,18 @@ public class RegistryBackedPaymentGateway implements PaymentGateway {
 
     private final RestClient restClient;
     private final ServiceEndpointResolver endpointResolver;
+    private final DownstreamObservationSupport observationSupport;
     private final String paymentServiceName;
     private final String fallbackBaseUrl;
 
     RegistryBackedPaymentGateway(
             RestClient.Builder restClientBuilder,
             ServiceEndpointResolver endpointResolver,
+            DownstreamObservationSupport observationSupport,
             OrderRegistryProperties properties) {
         this.restClient = restClientBuilder.build();
         this.endpointResolver = endpointResolver;
+        this.observationSupport = observationSupport;
         this.paymentServiceName = properties.getDownstream().getPayment().getServiceName();
         String configuredBaseUrl = properties.getDownstream().getPayment().getBaseUrl();
         this.fallbackBaseUrl = configuredBaseUrl.isBlank()
@@ -36,12 +39,13 @@ public class RegistryBackedPaymentGateway implements PaymentGateway {
 
     @Override
     public PaymentPrepareResponse prepare(PaymentPrepareRequest request, String accessToken) {
-        return Objects.requireNonNull(restClient.post()
+        return observationSupport.observe("delivery.order.downstream", paymentServiceName, "prepare", () ->
+            Objects.requireNonNull(restClient.post()
                 .uri(endpointResolver.resolveUrl(paymentServiceName, fallbackBaseUrl, "/internal/payment/prepare"))
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(request)
                 .retrieve()
-                .body(PaymentPrepareResponse.class));
+                .body(PaymentPrepareResponse.class)));
     }
 }

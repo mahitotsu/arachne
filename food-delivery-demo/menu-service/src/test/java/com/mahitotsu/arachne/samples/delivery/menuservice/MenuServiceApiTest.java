@@ -130,6 +130,25 @@ class MenuServiceApiTest {
     }
 
     @Test
+    void actuatorMetricsExposeAgentInvocationAndToolCallsAfterSuggest() {
+        MenuSuggestionResponse response = restTemplate.postForObject(
+                "/internal/menu/suggest",
+                new MenuSuggestionRequest("session-metrics", "おすすめを見せて"),
+                MenuSuggestionResponse.class);
+
+        ResponseEntity<String> metricsIndex = restTemplate.getForEntity("/actuator/metrics", String.class);
+
+        assertThat(response).isNotNull();
+        assertThat(metricsIndex.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(metricsIndex.getBody()).contains("delivery.agent.invocation", "delivery.agent.tool.call");
+        assertMetricWithTags("/actuator/metrics/delivery.agent.invocation?tag=service:menu-service&tag=agent:menu-agent&tag=outcome:success");
+        assertMetricWithTags("/actuator/metrics/delivery.agent.tool.call?tag=service:menu-service&tag=agent:menu-agent&tag=tool:catalog_lookup_tool&tag=outcome:success");
+        assertMetricWithTags("/actuator/metrics/delivery.agent.tool.call?tag=service:menu-service&tag=agent:menu-agent&tag=tool:calculate_total_tool&tag=outcome:success");
+        assertMetricWithTags("/actuator/metrics/delivery.menu.downstream?tag=target:kitchen-service&tag=operation:check&tag=outcome:success");
+        assertMetricWithTags("/actuator/metrics/delivery.menu.registry.lookup?tag=target:registry-service&tag=operation:resolve-endpoint&tag=outcome:success");
+    }
+
+    @Test
     void catalogExposesCategoryAndTagsForAllSixteenItems() {
         ResponseEntity<MenuItem[]> response = restTemplate.getForEntity("/api/menu/catalog", MenuItem[].class);
 
@@ -372,5 +391,13 @@ class MenuServiceApiTest {
                 claimsSet);
         signedJwt.sign(new RSASSASigner(signingKey.toPrivateKey()));
         return signedJwt.serialize();
+    }
+
+    private void assertMetricWithTags(String path) {
+        ResponseEntity<String> metricResponse = restTemplate.getForEntity(path, String.class);
+
+        assertThat(metricResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(metricResponse.getBody()).contains("availableTags");
+        assertThat(metricResponse.getBody()).contains("measurements");
     }
 }

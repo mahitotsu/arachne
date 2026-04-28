@@ -6,7 +6,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import static com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,12 +23,37 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 
 import com.mahitotsu.arachne.samples.delivery.orderservice.application.OrderApplicationService;
 import com.mahitotsu.arachne.samples.delivery.orderservice.config.AuthenticatedCustomerResolver;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.ConfirmItemsRequest;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.ConfirmItemsResponse;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.ConfirmPaymentRequest;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.ConfirmPaymentResponse;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.DeliveryOptionChoice;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.DeliveryOptionView;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.DeliveryQuoteResponse;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.KitchenTraceView;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.MenuItemView;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.MenuSuggestionRequest;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.MenuSuggestionResponse;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.OrderDraft;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.OrderLineItem;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.OrderSession;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.PaymentPrepareResponse;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.PendingProposal;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.ProposalItem;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.SelectedProposalItem;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.ServiceTrace;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.StoredOrder;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.SuggestOrderRequest;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.SupportFeedbackRequestPayload;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.SupportFeedbackResponse;
 import com.mahitotsu.arachne.samples.delivery.orderservice.infrastructure.DeliveryGateway;
 import com.mahitotsu.arachne.samples.delivery.orderservice.infrastructure.MenuGateway;
 import com.mahitotsu.arachne.samples.delivery.orderservice.infrastructure.OrderRepository;
 import com.mahitotsu.arachne.samples.delivery.orderservice.infrastructure.OrderSessionStore;
 import com.mahitotsu.arachne.samples.delivery.orderservice.infrastructure.PaymentGateway;
 import com.mahitotsu.arachne.samples.delivery.orderservice.infrastructure.SupportGateway;
+
+import io.micrometer.observation.ObservationRegistry;
 
 class OrderApplicationServiceTest {
 
@@ -80,7 +104,8 @@ class OrderApplicationServiceTest {
                 deliveryGateway,
                 paymentGateway,
                 supportGateway,
-                customerResolver);
+                customerResolver,
+                ObservationRegistry.NOOP);
 
         service.suggest(new SuggestOrderRequest("session-1", "いつものやつで", "ja-JP", null));
 
@@ -131,7 +156,8 @@ class OrderApplicationServiceTest {
                 deliveryGateway,
                 paymentGateway,
                 supportGateway,
-                customerResolver);
+                customerResolver,
+                ObservationRegistry.NOOP);
 
         ConfirmItemsResponse response = service.confirmItems(
                 new ConfirmItemsRequest("session-1", List.of(new SelectedProposalItem("drink-latte"))));
@@ -195,7 +221,8 @@ class OrderApplicationServiceTest {
                 deliveryGateway,
                 paymentGateway,
                 supportGateway,
-                customerResolver);
+                customerResolver,
+                ObservationRegistry.NOOP);
 
         ConfirmPaymentResponse response = service.confirmPayment(new ConfirmPaymentRequest("session-1"));
 
@@ -254,7 +281,8 @@ class OrderApplicationServiceTest {
                 deliveryGateway,
                 paymentGateway,
                 supportGateway,
-                customerResolver);
+                customerResolver,
+                ObservationRegistry.NOOP);
 
         ConfirmPaymentResponse response = service.confirmPayment(new ConfirmPaymentRequest("session-1"));
 

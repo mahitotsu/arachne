@@ -26,6 +26,8 @@ import com.mahitotsu.arachne.samples.delivery.supportservice.infrastructure.Feed
 import com.mahitotsu.arachne.samples.delivery.supportservice.infrastructure.OrderHistoryGateway;
 import com.mahitotsu.arachne.samples.delivery.supportservice.infrastructure.OrderHistorySnapshotStore;
 import com.mahitotsu.arachne.samples.delivery.supportservice.infrastructure.SupportStatusGateway;
+import com.mahitotsu.arachne.samples.delivery.supportservice.observation.AgentObservationSupport;
+import com.mahitotsu.arachne.strands.agent.AgentResult;
 import com.mahitotsu.arachne.strands.spring.AgentFactory;
 import com.mahitotsu.arachne.strands.tool.Tool;
 
@@ -51,6 +53,7 @@ public class SupportApplicationService {
     private final Tool serviceStatusLookupTool;
     private final Tool feedbackLookupTool;
     private final Tool orderHistoryLookupTool;
+    private final AgentObservationSupport agentObservationSupport;
 
     SupportApplicationService(
             AgentFactory agentFactory,
@@ -64,7 +67,8 @@ public class SupportApplicationService {
             Tool campaignLookupTool,
             Tool serviceStatusLookupTool,
             Tool feedbackLookupTool,
-            Tool orderHistoryLookupTool) {
+            Tool orderHistoryLookupTool,
+            AgentObservationSupport agentObservationSupport) {
         this.agentFactory = agentFactory;
         this.faqRepository = faqRepository;
         this.campaignRepository = campaignRepository;
@@ -77,6 +81,7 @@ public class SupportApplicationService {
         this.serviceStatusLookupTool = serviceStatusLookupTool;
         this.feedbackLookupTool = feedbackLookupTool;
         this.orderHistoryLookupTool = orderHistoryLookupTool;
+        this.agentObservationSupport = agentObservationSupport;
     }
 
     public SupportChatResponse chat(SupportChatRequest request) {
@@ -96,12 +101,12 @@ public class SupportApplicationService {
         List<FeedbackInsight> relatedFeedback = intent.includesFeedback() ? feedbackRepository.lookup(safeMessage, 3) : List.of();
         HandoffInstruction handoff = HandoffInstruction.fromMessage(safeMessage);
 
-        String summary = agentFactory.builder()
-                .systemPrompt(SUPPORT_PROMPT)
-                .tools(faqLookupTool, campaignLookupTool, serviceStatusLookupTool, feedbackLookupTool, orderHistoryLookupTool)
-                .build()
-                .run("問い合わせ: " + safeMessage + "。customerId=" + customerId)
-                .text();
+        AgentResult supportAgentResult = agentObservationSupport.observe("support-service", "support-agent", () -> agentFactory.builder()
+            .systemPrompt(SUPPORT_PROMPT)
+            .tools(faqLookupTool, campaignLookupTool, serviceStatusLookupTool, feedbackLookupTool, orderHistoryLookupTool)
+            .build()
+            .run("問い合わせ: " + safeMessage + "。customerId=" + customerId));
+        String summary = supportAgentResult.text();
 
         return new SupportChatResponse(
                 request.sessionId(),

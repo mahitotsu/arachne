@@ -67,6 +67,45 @@ make ui-dev
 make test
 ```
 
+Observation / Micrometer の確認:
+
+```bash
+curl -X POST http://localhost:8085/api/auth/sign-in \
+	-H 'Content-Type: application/json' \
+	-d '{"username":"demo","password":"demo-pass"}'
+
+curl http://localhost:8080/actuator/metrics/delivery.order.workflow \
+	-H 'Authorization: Bearer <access-token>'
+
+curl 'http://localhost:8080/actuator/metrics/delivery.order.downstream?tag=target:menu-service&tag=operation:suggest&tag=outcome:success' \
+	-H 'Authorization: Bearer <access-token>'
+
+curl 'http://localhost:8080/actuator/metrics/delivery.order.registry.lookup' \
+	-H 'Authorization: Bearer <access-token>'
+
+curl 'http://localhost:8081/actuator/metrics/delivery.agent.invocation?tag=service:menu-service&tag=agent:menu-agent&tag=outcome:success' \
+	-H 'Authorization: Bearer <access-token>'
+
+curl 'http://localhost:8083/actuator/metrics/delivery.agent.tool.call?tag=service:delivery-service&tag=agent:delivery-agent&tag=tool:discover_eta_services&tag=outcome:success' \
+	-H 'Authorization: Bearer <access-token>'
+
+curl 'http://localhost:8086/actuator/metrics/delivery.agent.tool.call?tag=service:support-service&tag=agent:support-agent&tag=tool:campaign_lookup&tag=outcome:success' \
+	-H 'Authorization: Bearer <access-token>'
+```
+
+現時点に見える主要 metric 名:
+
+- `delivery.order.workflow`: 注文 workflow entrypoint (`suggest`, `confirm-items`, `confirm-delivery`, `confirm-payment`, `session`, `recent-order-history`) の count / latency
+- `delivery.order.downstream`: `menu-service` / `delivery-service` / `payment-service` / `support-service` への主要 downstream HTTP 呼び出しの count / latency
+- `delivery.order.registry.lookup`: `registry-service` への endpoint 解決呼び出しの count / latency
+- `delivery.agent.invocation`: `menu-service` / `delivery-service` / `support-service` の service-local agent 実行 count / latency
+- `delivery.agent.model.call`: `ArachneLifecycleApplicationEvent` の model call event をもとにした model 応答 count
+- `delivery.agent.tool.call`: `ArachneLifecycleApplicationEvent` の tool call event をもとにした tool 実行 count
+- `delivery.agent.usage.tokens`: Bedrock 利用時の token usage (`type=input|output`)
+- `delivery.agent.usage.cache`: Bedrock 利用時の prompt cache usage (`type=read|write`)
+
+`delivery.order.*` は `target`, `operation`, `outcome` tag に限定している。`delivery.agent.invocation` は `service`, `agent`, `outcome`、`delivery.agent.tool.call` はさらに `tool`、usage metrics は `type` を持つ。`delivery.order.registry.lookup` は runtime の起動順や resolver cache の状態で直近 series が変わるので、まず base metric を見て `availableTags` を確認し、必要ならその時点の tag で絞る。各 service の `/actuator/metrics` は認証必須なので、上記のように sign-in で取った bearer token を付けて確認する。
+
 ## エンドポイント
 
 - UI: `http://localhost:3000`
@@ -76,12 +115,16 @@ make test
 - レジストリサービス: `http://localhost:8087`
 - 公開注文セッション API: `http://localhost:8080/api/order/session/{sessionId}`
 - 注文履歴 API: `http://localhost:8080/api/orders/history`
+- order-service metrics: `http://localhost:8080/actuator/metrics`
 - メニューサービス: `http://localhost:8081`
+- menu-service metrics: `http://localhost:8081/actuator/metrics`
 - キッチンサービス: `http://localhost:8082`
 - 配送サービス: `http://localhost:8083`
+- delivery-service metrics: `http://localhost:8083/actuator/metrics`
 - 支払いサービス: `http://localhost:8084`
 - Hermes アダプター: `http://localhost:8088`
 - Idaten アダプター: `http://localhost:8089`
+- support-service metrics: `http://localhost:8086/actuator/metrics`
 
 デモサインインアカウント:
 

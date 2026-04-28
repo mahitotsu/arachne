@@ -15,18 +15,25 @@ import com.mahitotsu.arachne.samples.delivery.supportservice.config.SupportServi
 public class RegistryServiceEndpointResolver implements ServiceEndpointResolver {
 
     private final RestClient registryRestClient;
+    private final DownstreamObservationSupport observationSupport;
     private final ConcurrentMap<String, String> cachedBaseUrls = new ConcurrentHashMap<>();
 
     RegistryServiceEndpointResolver(
             RestClient.Builder restClientBuilder,
+            DownstreamObservationSupport observationSupport,
             SupportServiceProperties properties) {
         String registryBaseUrl = properties.getRegistry().getBaseUrl();
         this.registryRestClient = registryBaseUrl.isBlank() ? null : restClientBuilder.baseUrl(registryBaseUrl).build();
+        this.observationSupport = observationSupport;
     }
 
     @Override
     public String resolveUrl(String serviceName, String fallbackBaseUrl, String requestPath) {
         return joinUrl(resolveBaseUrl(serviceName, fallbackBaseUrl), requestPath);
+    }
+
+    public void clearCache() {
+        cachedBaseUrls.clear();
     }
 
     private String resolveBaseUrl(String serviceName, String fallbackBaseUrl) {
@@ -49,10 +56,14 @@ public class RegistryServiceEndpointResolver implements ServiceEndpointResolver 
             return "";
         }
         try {
-            RegistryServiceDescriptorPayload[] response = registryRestClient.get()
-                    .uri("/registry/services")
-                    .retrieve()
-                    .body(RegistryServiceDescriptorPayload[].class);
+            RegistryServiceDescriptorPayload[] response = observationSupport.observe(
+                    "delivery.support.registry.lookup",
+                    "registry-service",
+                    "resolve-endpoint",
+                    () -> registryRestClient.get()
+                            .uri("/registry/services")
+                            .retrieve()
+                            .body(RegistryServiceDescriptorPayload[].class));
             if (response == null) {
                 return "";
             }

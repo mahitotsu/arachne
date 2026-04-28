@@ -174,6 +174,24 @@ class DeliveryServiceApiTest {
         assertThat(hermesEtaRequests.get()).isZero();
     }
 
+    @Test
+    void actuatorMetricsExposeAgentInvocationAndToolCallsAfterQuote() {
+        DeliveryQuoteResponse response = restTemplate.postForObject(
+                "/internal/delivery/quote",
+                new DeliveryQuoteRequest("session-metrics", "最速配送でお願い", List.of("Crispy Chicken Box")),
+                DeliveryQuoteResponse.class);
+
+        ResponseEntity<String> metricsIndex = restTemplate.getForEntity("/actuator/metrics", String.class);
+
+        assertThat(response).isNotNull();
+        assertThat(metricsIndex.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(metricsIndex.getBody()).contains("delivery.agent.invocation", "delivery.agent.tool.call");
+        assertMetricWithTags("/actuator/metrics/delivery.agent.invocation?tag=service:delivery-service&tag=agent:delivery-agent&tag=outcome:success");
+        assertMetricWithTags("/actuator/metrics/delivery.agent.tool.call?tag=service:delivery-service&tag=agent:delivery-agent&tag=tool:discover_eta_services&tag=outcome:success");
+        assertMetricWithTags("/actuator/metrics/delivery.delivery.registry.lookup?tag=target:registry-service&tag=operation:discover-eta-services&tag=outcome:success");
+        assertMetricWithTags("/actuator/metrics/delivery.delivery.downstream?tag=target:hermes-adapter&tag=operation:quote&tag=outcome:success");
+    }
+
     private static Dispatcher jwkDispatcher() {
         return new Dispatcher() {
             @Override
@@ -258,6 +276,14 @@ class DeliveryServiceApiTest {
                   "matches": [%s]
                 }
                 """.formatted(String.join(",", descriptors));
+    }
+
+    private void assertMetricWithTags(String path) {
+        ResponseEntity<String> metricResponse = restTemplate.getForEntity(path, String.class);
+
+        assertThat(metricResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(metricResponse.getBody()).contains("availableTags");
+        assertThat(metricResponse.getBody()).contains("measurements");
     }
 
     private static String serviceDescriptor(String serviceName, String url) {

@@ -16,12 +16,15 @@ import com.mahitotsu.arachne.samples.delivery.deliveryservice.config.DeliverySer
 public class RegistryBackedEtaServiceDiscoveryGateway implements EtaServiceDiscoveryGateway {
 
     private final RestClient restClient;
+    private final DownstreamObservationSupport observationSupport;
 
     RegistryBackedEtaServiceDiscoveryGateway(
             RestClient.Builder restClientBuilder,
+            DownstreamObservationSupport observationSupport,
             DeliveryServiceProperties properties) {
         String registryBaseUrl = properties.getRegistry().getBaseUrl();
         this.restClient = registryBaseUrl.isBlank() ? null : restClientBuilder.baseUrl(registryBaseUrl).build();
+        this.observationSupport = observationSupport;
     }
 
     @Override
@@ -29,12 +32,16 @@ public class RegistryBackedEtaServiceDiscoveryGateway implements EtaServiceDisco
         if (restClient == null) {
             return List.of();
         }
-        RegistryDiscoverResponsePayload response = restClient.post()
+        RegistryDiscoverResponsePayload response = observationSupport.observe(
+            "delivery.delivery.registry.lookup",
+            "registry-service",
+            "discover-eta-services",
+            () -> restClient.post()
                 .uri("/registry/discover")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(new RegistryDiscoverRequestPayload(query, true))
                 .retrieve()
-                .body(RegistryDiscoverResponsePayload.class);
+                .body(RegistryDiscoverResponsePayload.class));
         if (response == null || response.matches() == null) {
             return List.of();
         }

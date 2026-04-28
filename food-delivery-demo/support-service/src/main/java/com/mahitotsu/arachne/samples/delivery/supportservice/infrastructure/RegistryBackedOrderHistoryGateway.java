@@ -14,15 +14,18 @@ public class RegistryBackedOrderHistoryGateway implements OrderHistoryGateway {
 
     private final RestClient restClient;
     private final ServiceEndpointResolver endpointResolver;
+    private final DownstreamObservationSupport observationSupport;
     private final String orderServiceName;
     private final String fallbackOrderServiceBaseUrl;
 
     RegistryBackedOrderHistoryGateway(
             RestClient.Builder restClientBuilder,
             ServiceEndpointResolver endpointResolver,
+            DownstreamObservationSupport observationSupport,
             SupportServiceProperties properties) {
         this.restClient = restClientBuilder.build();
         this.endpointResolver = endpointResolver;
+        this.observationSupport = observationSupport;
         this.orderServiceName = properties.getDownstream().getOrder().getServiceName();
         this.fallbackOrderServiceBaseUrl = properties.getDownstream().getOrder().getBaseUrl();
     }
@@ -34,11 +37,15 @@ public class RegistryBackedOrderHistoryGateway implements OrderHistoryGateway {
             return List.of();
         }
         try {
-            CustomerOrderHistoryEntry[] response = restClient.get()
-                    .uri(orderHistoryUrl)
-                    .headers(headers -> headers.setBearerAuth(accessToken))
-                    .retrieve()
-                    .body(CustomerOrderHistoryEntry[].class);
+            CustomerOrderHistoryEntry[] response = observationSupport.observe(
+                    "delivery.support.downstream",
+                    orderServiceName,
+                    "recent-orders",
+                    () -> restClient.get()
+                            .uri(orderHistoryUrl)
+                            .headers(headers -> headers.setBearerAuth(accessToken))
+                            .retrieve()
+                            .body(CustomerOrderHistoryEntry[].class));
             return response == null ? List.of() : List.of(response);
         } catch (Exception ignored) {
             return List.of();

@@ -18,15 +18,18 @@ public class RegistryBackedMenuGateway implements MenuGateway {
 
     private final RestClient restClient;
     private final ServiceEndpointResolver endpointResolver;
+    private final DownstreamObservationSupport observationSupport;
     private final String menuServiceName;
     private final String fallbackBaseUrl;
 
     RegistryBackedMenuGateway(
             RestClient.Builder restClientBuilder,
             ServiceEndpointResolver endpointResolver,
+            DownstreamObservationSupport observationSupport,
             OrderRegistryProperties properties) {
         this.restClient = restClientBuilder.build();
         this.endpointResolver = endpointResolver;
+        this.observationSupport = observationSupport;
         this.menuServiceName = properties.getDownstream().getMenu().getServiceName();
         String configuredBaseUrl = properties.getDownstream().getMenu().getBaseUrl();
         this.fallbackBaseUrl = configuredBaseUrl.isBlank()
@@ -36,12 +39,13 @@ public class RegistryBackedMenuGateway implements MenuGateway {
 
     @Override
     public MenuSuggestionResponse suggest(MenuSuggestionRequest request, String accessToken) {
-        return Objects.requireNonNull(restClient.post()
+        return observationSupport.observe("delivery.order.downstream", menuServiceName, "suggest", () ->
+            Objects.requireNonNull(restClient.post()
                 .uri(endpointResolver.resolveUrl(menuServiceName, fallbackBaseUrl, "/internal/menu/suggest"))
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(request)
                 .retrieve()
-                .body(MenuSuggestionResponse.class));
+                .body(MenuSuggestionResponse.class)));
     }
 }

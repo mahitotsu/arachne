@@ -16,15 +16,18 @@ public class RegistryBackedKitchenCheckGateway implements KitchenCheckGateway {
 
     private final RestClient restClient;
     private final ServiceEndpointResolver endpointResolver;
+    private final DownstreamObservationSupport observationSupport;
     private final String kitchenServiceName;
     private final String fallbackBaseUrl;
 
     RegistryBackedKitchenCheckGateway(
             RestClient.Builder restClientBuilder,
             ServiceEndpointResolver endpointResolver,
+            DownstreamObservationSupport observationSupport,
             MenuServiceProperties properties) {
         this.restClient = restClientBuilder.build();
         this.endpointResolver = endpointResolver;
+        this.observationSupport = observationSupport;
         this.kitchenServiceName = properties.getDownstream().getKitchen().getServiceName();
         String configuredBaseUrl = properties.getDownstream().getKitchen().getBaseUrl();
         this.fallbackBaseUrl = configuredBaseUrl.isBlank()
@@ -34,12 +37,12 @@ public class RegistryBackedKitchenCheckGateway implements KitchenCheckGateway {
 
     @Override
     public KitchenCheckResponse check(KitchenCheckRequest request, String accessToken) {
-        return restClient.post()
-                .uri(endpointResolver.resolveUrl(kitchenServiceName, fallbackBaseUrl, "/internal/kitchen/check"))
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(request)
-                .retrieve()
-                .body(KitchenCheckResponse.class);
+        return observationSupport.observe("delivery.menu.downstream", kitchenServiceName, "check", () -> restClient.post()
+            .uri(endpointResolver.resolveUrl(kitchenServiceName, fallbackBaseUrl, "/internal/kitchen/check"))
+            .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+            .contentType(MediaType.APPLICATION_JSON)
+            .body(request)
+            .retrieve()
+            .body(KitchenCheckResponse.class));
     }
 }

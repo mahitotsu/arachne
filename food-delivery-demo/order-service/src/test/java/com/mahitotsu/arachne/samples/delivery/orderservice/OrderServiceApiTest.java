@@ -157,6 +157,30 @@ class OrderServiceApiTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
     }
 
+        @Test
+        void actuatorMetricsExposesOrderWorkflowObservationAfterSuggest() {
+                menuServer.enqueue(jsonResponse(menuSuggestBody()));
+
+                restTemplate.postForObject(
+                                "/api/order/suggest",
+                                new SuggestOrderRequest("", "おすすめを見せて", "ja-JP", null),
+                                SuggestOrderResponse.class);
+
+                ResponseEntity<String> metricsIndex = restTemplate.getForEntity("/actuator/metrics", String.class);
+                ResponseEntity<String> workflowMetric = restTemplate.getForEntity(
+                                "/actuator/metrics/delivery.order.workflow",
+                                String.class);
+
+                assertThat(metricsIndex.getStatusCode()).isEqualTo(HttpStatus.OK);
+                assertThat(metricsIndex.getBody()).contains("delivery.order.workflow");
+                assertThat(workflowMetric.getStatusCode()).isEqualTo(HttpStatus.OK);
+                assertThat(workflowMetric.getBody()).contains("\"name\":\"delivery.order.workflow\"");
+                assertThat(workflowMetric.getBody()).contains("\"tag\":\"operation\"");
+                assertThat(workflowMetric.getBody()).contains("\"suggest\"");
+                assertThat(workflowMetric.getBody()).contains("\"tag\":\"outcome\"");
+                assertThat(workflowMetric.getBody()).contains("\"success\"");
+        }
+
     @Test
         void suggestReturnsStructuredProposalAndWorkflowStep() throws InterruptedException {
         menuServer.enqueue(jsonResponse(menuSuggestBody()));
@@ -411,6 +435,86 @@ class OrderServiceApiTest {
     }
 
     @Test
+    void actuatorMetricsExposesDownstreamObservationsAfterConfirmedOrderFlow() {
+        menuServer.enqueue(jsonResponse(menuSuggestBody()));
+        SuggestOrderResponse suggestion = restTemplate.postForObject(
+                "/api/order/suggest",
+                new SuggestOrderRequest("", "照り焼きセットで", "ja-JP", null),
+                SuggestOrderResponse.class);
+
+        deliveryServer.enqueue(jsonResponse("""
+                {
+                  "service": "delivery-service",
+                  "agent": "delivery-agent",
+                  "headline": "delivery-agent prepared two options",
+                  "summary": "delivery-agent recommends express.",
+                  "options": [
+                    {"code": "express", "label": "In-house Express", "etaMinutes": 18, "fee": 300.0},
+                    {"code": "idaten", "label": "Idaten Economy", "etaMinutes": 34, "fee": 180.0}
+                  ],
+                  "recommendedTier": "express",
+                  "recommendationReason": "「急いで」の文脈なので最短ETAを優先しました。"
+                }
+                """));
+        restTemplate.postForObject(
+                "/api/order/confirm-items",
+                new ConfirmItemsRequest(suggestion.sessionId(), null),
+                ConfirmItemsResponse.class);
+
+        paymentServer.enqueue(jsonResponse("""
+                {
+                  "service": "payment-service",
+                  "agent": "payment-service",
+                  "headline": "payment-service prepared a deterministic total",
+                  "summary": "payment-service is waiting for explicit confirmation.",
+                  "selectedMethod": "Saved Visa ending in 2048",
+                  "total": 2500.0,
+                  "paymentStatus": "READY",
+                  "charged": false,
+                  "authorizationId": ""
+                }
+                """));
+        restTemplate.postForObject(
+                "/api/order/confirm-delivery",
+                new ConfirmDeliveryRequest(suggestion.sessionId(), "express"),
+                ConfirmDeliveryResponse.class);
+
+        paymentServer.enqueue(jsonResponse("""
+                {
+                  "service": "payment-service",
+                  "agent": "payment-service",
+                  "headline": "payment-service charged the selected card",
+                  "summary": "payment-service completed the charge.",
+                  "selectedMethod": "Saved Visa ending in 2048",
+                  "total": 2500.0,
+                  "paymentStatus": "CHARGED",
+                  "charged": true,
+                  "authorizationId": "pay-metrics-01"
+                }
+                """));
+        supportServer.enqueue(jsonResponse("""
+                {
+                  "service": "support-service",
+                  "agent": "support-agent",
+                  "headline": "support-agent が問い合わせを受け付けました",
+                  "summary": "GENERAL 問い合わせとして記録しました。",
+                  "classification": "GENERAL",
+                  "escalationRequired": false
+                }
+                """));
+        restTemplate.postForObject(
+                "/api/order/confirm-payment",
+                new ConfirmPaymentRequest(suggestion.sessionId()),
+                ConfirmPaymentResponse.class);
+
+        assertMetricWithTags("/actuator/metrics/delivery.order.downstream?tag=target:legacy-menu-service&tag=operation:suggest&tag=outcome:success");
+        assertMetricWithTags("/actuator/metrics/delivery.order.downstream?tag=target:legacy-delivery-service&tag=operation:quote&tag=outcome:success");
+        assertMetricWithTags("/actuator/metrics/delivery.order.downstream?tag=target:legacy-payment-service&tag=operation:prepare&tag=outcome:success");
+        assertMetricWithTags("/actuator/metrics/delivery.order.downstream?tag=target:legacy-support-service&tag=operation:record-feedback&tag=outcome:success");
+        assertMetricWithTags("/actuator/metrics/delivery.order.registry.lookup?tag=target:registry-service&tag=operation:resolve-endpoint&tag=outcome:success");
+    }
+
+    @Test
     void orderHistoryReturnsConfirmedOrders() {
         menuServer.enqueue(jsonResponse(menuSuggestBody()));
         SuggestOrderResponse suggestion = restTemplate.postForObject(
@@ -493,6 +597,13 @@ class OrderServiceApiTest {
                 .extracting(StoredOrderSummary::orderId)
                 .contains(confirmed.draft().orderId());
     }
+
+        private void assertMetricWithTags(String path) {
+                ResponseEntity<String> metric = restTemplate.getForEntity(path, String.class);
+
+                assertThat(metric.getStatusCode()).isEqualTo(HttpStatus.OK);
+                assertThat(metric.getBody()).contains("\"measurements\"");
+        }
 
     private static String menuSuggestBody() {
         return """

@@ -17,21 +17,30 @@ public class HttpExternalEtaGateway implements ExternalEtaGateway {
 
     private final RestClient.Builder restClientBuilder;
     private final ObjectMapper objectMapper;
+    private final DownstreamObservationSupport observationSupport;
 
-    HttpExternalEtaGateway(RestClient.Builder restClientBuilder, ObjectMapper objectMapper) {
+    HttpExternalEtaGateway(
+            RestClient.Builder restClientBuilder,
+            ObjectMapper objectMapper,
+            DownstreamObservationSupport observationSupport) {
         this.restClientBuilder = restClientBuilder;
         this.objectMapper = objectMapper;
+        this.observationSupport = observationSupport;
     }
 
     @Override
     public Optional<ExternalEtaQuote> quote(EtaServiceTarget service, List<String> itemNames, String context) {
         try {
-            AdapterEtaResponsePayload response = restClientBuilder.build().post()
-                    .uri(service.url())
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(new AdapterEtaRequestPayload(itemNames, context))
-                    .retrieve()
-                    .body(AdapterEtaResponsePayload.class);
+            AdapterEtaResponsePayload response = observationSupport.observe(
+                    "delivery.delivery.downstream",
+                    service.serviceName(),
+                    "quote",
+                    () -> restClientBuilder.build().post()
+                            .uri(service.url())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .body(new AdapterEtaRequestPayload(itemNames, context))
+                            .retrieve()
+                            .body(AdapterEtaResponsePayload.class));
             return toQuote(service, response);
         } catch (RestClientResponseException ex) {
             return toQuote(service, parse(ex.getResponseBodyAsString()));

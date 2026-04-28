@@ -59,3 +59,13 @@
 - エージェント間コラボレーションはサービスメッシュを反映できる: `kitchen-agent` は代替ヘルプのために `menu-agent` に一時的に相談できる
 - 設定は理解しやすいまま: 1つのクラウドキッチン、1つのブランドメニュー、代替ブランチルーティングなし、明確なオーナーシップを持つ2つの配送レーン
 - ユーザーは回答が変わった理由を確認できる: 在庫、ETA、メニュー代替、支払い準備状況はすべて特定のサービスとエージェントにトレース可能
+
+## Observation / Micrometer
+
+- `order-service` は workflow entrypoint を `delivery.order.workflow` として観測し、`operation` / `outcome` tag でステップ別の count / latency を出す
+- `order-service` からの主要 downstream 呼び出しは `delivery.order.downstream` として観測し、`target=menu-service|delivery-service|payment-service|support-service` と `operation` tag で service-to-service 呼び出しを追える
+- registry 解決は `delivery.order.registry.lookup` として分離し、service discovery の待ち時間と失敗を注文 workflow 本体とは別に見られるようにする
+- `menu-service` / `delivery-service` / `support-service` は Arachne agent 実行を `delivery.agent.invocation` として観測し、`service` / `agent` / `outcome` tag で service-local agent の count / latency を出す
+- 同 3 サービスでは `ArachneLifecycleApplicationEvent` を listener で購読し、`delivery.agent.model.call` と `delivery.agent.tool.call` へ変換して model/tool の activity を Actuator から確認できる
+- Bedrock 利用時は `AgentResult.metrics().usage()` を `delivery.agent.usage.tokens` / `delivery.agent.usage.cache` へ積み、deterministic mode でも invocation latency と event bridge 指標は残す
+- いずれも observation-only な追加に留め、既存の workflow 制御や Arachne / Spring 間の責務境界は変えない

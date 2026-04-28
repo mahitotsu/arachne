@@ -1,7 +1,5 @@
 package com.mahitotsu.arachne.samples.delivery.orderservice.infrastructure;
 
-import static com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.*;
-
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -15,17 +13,21 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 
 import com.mahitotsu.arachne.samples.delivery.orderservice.config.OrderRegistryProperties;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.RegistryServiceDescriptorPayload;
 
 @Component
 public class RegistryServiceEndpointResolver implements ServiceEndpointResolver {
 
     private final RestClient registryRestClient;
+    private final DownstreamObservationSupport observationSupport;
     private final ConcurrentMap<String, RegistryEndpointMetadata> cachedEndpoints = new ConcurrentHashMap<>();
 
     RegistryServiceEndpointResolver(
             RestClient.Builder restClientBuilder,
+            DownstreamObservationSupport observationSupport,
             OrderRegistryProperties properties) {
         String registryBaseUrl = properties.getRegistry().getBaseUrl();
+        this.observationSupport = observationSupport;
         this.registryRestClient = registryBaseUrl.isBlank() ? null : restClientBuilder.baseUrl(registryBaseUrl).build();
     }
 
@@ -63,10 +65,14 @@ public class RegistryServiceEndpointResolver implements ServiceEndpointResolver 
             return null;
         }
         try {
-            RegistryServiceDescriptorPayload[] response = registryRestClient.get()
-                    .uri("/registry/services")
-                    .retrieve()
-                    .body(RegistryServiceDescriptorPayload[].class);
+            RegistryServiceDescriptorPayload[] response = observationSupport.observe(
+                    "delivery.order.registry.lookup",
+                    "registry-service",
+                    "resolve-endpoint",
+                    () -> registryRestClient.get()
+                            .uri("/registry/services")
+                            .retrieve()
+                            .body(RegistryServiceDescriptorPayload[].class));
             if (response == null) {
                 return null;
             }

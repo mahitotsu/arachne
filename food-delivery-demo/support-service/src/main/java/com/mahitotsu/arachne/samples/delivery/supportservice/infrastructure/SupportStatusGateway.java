@@ -13,12 +13,15 @@ import com.mahitotsu.arachne.samples.delivery.supportservice.domain.ServiceHealt
 public class SupportStatusGateway {
 
     private final RestClient restClient;
+    private final DownstreamObservationSupport observationSupport;
 
     SupportStatusGateway(
             RestClient.Builder restClientBuilder,
+            DownstreamObservationSupport observationSupport,
             SupportServiceProperties properties) {
         String registryBaseUrl = properties.getRegistry().getBaseUrl();
         this.restClient = registryBaseUrl.isBlank() ? null : restClientBuilder.baseUrl(registryBaseUrl).build();
+        this.observationSupport = observationSupport;
     }
 
     public List<ServiceHealthSummary> currentStatuses() {
@@ -26,10 +29,14 @@ public class SupportStatusGateway {
             return fallback();
         }
         try {
-            RegistryHealthResponsePayload response = restClient.get()
-                    .uri("/registry/health")
-                    .retrieve()
-                    .body(RegistryHealthResponsePayload.class);
+            RegistryHealthResponsePayload response = observationSupport.observe(
+                    "delivery.support.registry.lookup",
+                    "registry-service",
+                    "health-status",
+                    () -> restClient.get()
+                            .uri("/registry/health")
+                            .retrieve()
+                            .body(RegistryHealthResponsePayload.class));
             if (response == null || response.services() == null) {
                 return fallback();
             }

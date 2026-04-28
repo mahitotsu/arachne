@@ -13,7 +13,9 @@ import com.mahitotsu.arachne.samples.delivery.deliveryservice.infrastructure.Cou
 import com.mahitotsu.arachne.samples.delivery.deliveryservice.infrastructure.EtaServiceDiscoveryGateway;
 import com.mahitotsu.arachne.samples.delivery.deliveryservice.infrastructure.ExternalEtaGateway;
 import com.mahitotsu.arachne.samples.delivery.deliveryservice.infrastructure.TrafficWeatherRepository;
+import com.mahitotsu.arachne.samples.delivery.deliveryservice.observation.AgentObservationSupport;
 
+import com.mahitotsu.arachne.strands.agent.AgentResult;
 import com.mahitotsu.arachne.strands.spring.AgentFactory;
 import com.mahitotsu.arachne.strands.tool.Tool;
 
@@ -46,6 +48,7 @@ public class DeliveryApplicationService {
     private final Tool trafficWeatherTool;
     private final Tool discoverEtaServicesTool;
     private final Tool callEtaServiceTool;
+    private final AgentObservationSupport agentObservationSupport;
 
     DeliveryApplicationService(
             AgentFactory agentFactory,
@@ -56,7 +59,8 @@ public class DeliveryApplicationService {
             Tool courierAvailabilityTool,
             Tool trafficWeatherTool,
             Tool discoverEtaServicesTool,
-            Tool callEtaServiceTool) {
+            Tool callEtaServiceTool,
+            AgentObservationSupport agentObservationSupport) {
         this.agentFactory = agentFactory;
         this.courierRepository = courierRepository;
         this.trafficWeatherRepository = trafficWeatherRepository;
@@ -66,6 +70,7 @@ public class DeliveryApplicationService {
         this.trafficWeatherTool = trafficWeatherTool;
         this.discoverEtaServicesTool = discoverEtaServicesTool;
         this.callEtaServiceTool = callEtaServiceTool;
+        this.agentObservationSupport = agentObservationSupport;
     }
 
     public DeliveryQuoteResponse quote(DeliveryQuoteRequest request) {
@@ -79,15 +84,15 @@ public class DeliveryApplicationService {
         List<DeliveryOption> candidateOptions = buildCandidateOptions(courierStatus, conditions, externalQuotes);
         DeliveryRanking ranking = DeliveryRankingPolicy.rank(candidateOptions, request.message());
 
-        String summary = agentFactory.builder()
-                .systemPrompt(DELIVERY_PROMPT)
-                .tools(courierAvailabilityTool, trafficWeatherTool, discoverEtaServicesTool, callEtaServiceTool)
-                .build()
-                .run("注文の配送状況を調査してください: " + request.message()
-                        + "。アイテム: " + request.itemNames()
-                        + "。推奨候補: " + ranking.recommendedTier()
-                        + "。推奨理由: " + ranking.recommendationReason())
-                .text();
+        AgentResult deliveryAgentResult = agentObservationSupport.observe("delivery-service", "delivery-agent", () -> agentFactory.builder()
+            .systemPrompt(DELIVERY_PROMPT)
+            .tools(courierAvailabilityTool, trafficWeatherTool, discoverEtaServicesTool, callEtaServiceTool)
+            .build()
+            .run("注文の配送状況を調査してください: " + request.message()
+                + "。アイテム: " + request.itemNames()
+                + "。推奨候補: " + ranking.recommendedTier()
+                + "。推奨理由: " + ranking.recommendationReason()));
+        String summary = deliveryAgentResult.text();
 
         String headline = ranking.recommendedTier().isBlank()
                 ? "delivery-agent が利用可能な配送候補を確認できませんでした"

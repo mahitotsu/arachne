@@ -18,15 +18,18 @@ public class RegistryBackedSupportGateway implements SupportGateway {
 
     private final RestClient restClient;
     private final ServiceEndpointResolver endpointResolver;
+    private final DownstreamObservationSupport observationSupport;
     private final String supportServiceName;
     private final String fallbackBaseUrl;
 
     RegistryBackedSupportGateway(
             RestClient.Builder restClientBuilder,
             ServiceEndpointResolver endpointResolver,
+            DownstreamObservationSupport observationSupport,
             OrderRegistryProperties properties) {
         this.restClient = restClientBuilder.build();
         this.endpointResolver = endpointResolver;
+        this.observationSupport = observationSupport;
         this.supportServiceName = properties.getDownstream().getSupport().getServiceName();
         String configuredBaseUrl = properties.getDownstream().getSupport().getBaseUrl();
         this.fallbackBaseUrl = configuredBaseUrl.isBlank()
@@ -37,13 +40,14 @@ public class RegistryBackedSupportGateway implements SupportGateway {
     @Override
     public Optional<SupportFeedbackResponse> recordFeedback(SupportFeedbackRequestPayload request, String accessToken) {
         try {
-            return Optional.ofNullable(restClient.post()
-                    .uri(endpointResolver.resolveUrl(supportServiceName, fallbackBaseUrl, "/api/support/feedback"))
-                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(request)
-                    .retrieve()
-                    .body(SupportFeedbackResponse.class));
+            return observationSupport.observe("delivery.order.downstream", supportServiceName, "record-feedback", () ->
+                    Optional.ofNullable(restClient.post()
+                            .uri(endpointResolver.resolveUrl(supportServiceName, fallbackBaseUrl, "/api/support/feedback"))
+                            .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .body(request)
+                            .retrieve()
+                            .body(SupportFeedbackResponse.class)));
         } catch (Exception ignored) {
             return Optional.empty();
         }

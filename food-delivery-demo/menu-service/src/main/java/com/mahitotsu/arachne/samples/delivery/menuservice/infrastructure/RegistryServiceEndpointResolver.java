@@ -17,13 +17,16 @@ import com.mahitotsu.arachne.samples.delivery.menuservice.config.MenuServiceProp
 public class RegistryServiceEndpointResolver implements ServiceEndpointResolver {
 
     private final RestClient registryRestClient;
+    private final DownstreamObservationSupport observationSupport;
     private final ConcurrentMap<String, String> cachedBaseUrls = new ConcurrentHashMap<>();
 
     RegistryServiceEndpointResolver(
             RestClient.Builder restClientBuilder,
+            DownstreamObservationSupport observationSupport,
             MenuServiceProperties properties) {
         String registryBaseUrl = properties.getRegistry().getBaseUrl();
         this.registryRestClient = registryBaseUrl.isBlank() ? null : restClientBuilder.baseUrl(registryBaseUrl).build();
+        this.observationSupport = observationSupport;
     }
 
     @Override
@@ -55,10 +58,14 @@ public class RegistryServiceEndpointResolver implements ServiceEndpointResolver 
             return "";
         }
         try {
-            RegistryServiceDescriptorPayload[] response = registryRestClient.get()
-                    .uri("/registry/services")
-                    .retrieve()
-                    .body(RegistryServiceDescriptorPayload[].class);
+            RegistryServiceDescriptorPayload[] response = observationSupport.observe(
+                    "delivery.menu.registry.lookup",
+                    "registry-service",
+                    "resolve-endpoint",
+                    () -> registryRestClient.get()
+                            .uri("/registry/services")
+                            .retrieve()
+                            .body(RegistryServiceDescriptorPayload[].class));
             if (response == null) {
                 return "";
             }

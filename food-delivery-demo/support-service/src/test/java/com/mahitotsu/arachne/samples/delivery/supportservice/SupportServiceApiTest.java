@@ -25,6 +25,7 @@ import com.mahitotsu.arachne.samples.delivery.supportservice.api.SupportChatRequ
 import com.mahitotsu.arachne.samples.delivery.supportservice.api.SupportChatResponse;
 import com.mahitotsu.arachne.samples.delivery.supportservice.api.SupportFeedbackRequest;
 import com.mahitotsu.arachne.samples.delivery.supportservice.api.SupportFeedbackResponse;
+import com.mahitotsu.arachne.samples.delivery.supportservice.infrastructure.RegistryServiceEndpointResolver;
 import com.mahitotsu.arachne.samples.delivery.supportservice.domain.CampaignSummary;
 import com.mahitotsu.arachne.samples.delivery.supportservice.domain.CustomerOrderHistoryEntry;
 import com.mahitotsu.arachne.samples.delivery.supportservice.domain.ServiceHealthSummary;
@@ -60,6 +61,9 @@ class SupportServiceApiTest {
     @Autowired
     private TestRestTemplate restTemplate;
 
+    @Autowired
+    private RegistryServiceEndpointResolver endpointResolver;
+
     @LocalServerPort
     private int port;
 
@@ -94,6 +98,7 @@ class SupportServiceApiTest {
 
     @BeforeEach
     void prepareAuthenticatedClient() throws InterruptedException {
+        endpointResolver.clearCache();
         drainRequests(registryServer);
         drainRequests(orderServer);
         restTemplate.getRestTemplate().setInterceptors(List.of((request, body, execution) -> {
@@ -145,6 +150,25 @@ class SupportServiceApiTest {
         assertThat(response.classification()).isEqualTo("DELAY");
         assertThat(response.escalationRequired()).isTrue();
         assertThat(response.summary()).contains("エスカレーション");
+    }
+
+    @Test
+    void actuatorMetricsExposeAgentInvocationAndToolCallsAfterChat() {
+        SupportChatResponse response = restTemplate.postForObject(
+                "/api/support/chat",
+                new SupportChatRequest("session-metrics", "使えるキャンペーンを教えて"),
+                SupportChatResponse.class);
+
+        ResponseEntity<String> metricsIndex = restTemplate.getForEntity("/actuator/metrics", String.class);
+
+        assertThat(response).isNotNull();
+        assertThat(metricsIndex.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(metricsIndex.getBody()).contains("delivery.agent.invocation", "delivery.agent.tool.call");
+        assertMetricWithTags("/actuator/metrics/delivery.agent.invocation?tag=service:support-service&tag=agent:support-agent&tag=outcome:success");
+        assertMetricWithTags("/actuator/metrics/delivery.agent.tool.call?tag=service:support-service&tag=agent:support-agent&tag=tool:campaign_lookup&tag=outcome:success");
+        assertMetricWithTags("/actuator/metrics/delivery.support.downstream?tag=target:order-service&tag=operation:recent-orders&tag=outcome:success");
+        assertMetricWithTags("/actuator/metrics/delivery.support.registry.lookup?tag=target:registry-service&tag=operation:resolve-endpoint&tag=outcome:success");
+        assertMetricWithTags("/actuator/metrics/delivery.support.registry.lookup?tag=target:registry-service&tag=operation:health-status&tag=outcome:success");
     }
 
     private static Dispatcher jwkDispatcher() {
@@ -269,6 +293,14 @@ class SupportServiceApiTest {
                 claims);
         jwt.sign(new RSASSASigner(signingKey.toPrivateKey()));
         return jwt.serialize();
+    }
+
+    private void assertMetricWithTags(String path) {
+        ResponseEntity<String> metricResponse = restTemplate.getForEntity(path, String.class);
+
+        assertThat(metricResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(metricResponse.getBody()).contains("availableTags");
+        assertThat(metricResponse.getBody()).contains("measurements");
     }
 
 }
