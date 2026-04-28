@@ -131,7 +131,7 @@ class SupportServiceApiTest {
         assertThat(response.getBody())
                 .contains("/api/support/chat")
                 .contains("x-ai-prompt-contract")
-                .contains("Natural-language support inquiry")
+            .contains("自然言語の問い合わせ")
                 .contains("List active campaigns");
     }
 

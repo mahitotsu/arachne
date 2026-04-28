@@ -43,7 +43,7 @@ class OrderServiceConfiguration {
             return new OpenAPI().info(new Info()
                 .title("Food Delivery Order Service API")
                 .version("v1")
-                .description("Code-first OpenAPI for the order workflow service, aligned with food-delivery-demo/docs/apis.md."));
+                .description("food-delivery-demo/docs/apis.md に対応した注文ワークフロー service の code-first OpenAPI です。"));
             }
 
     @Bean

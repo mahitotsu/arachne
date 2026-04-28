@@ -43,7 +43,7 @@ class MenuServiceConfiguration {
             return new OpenAPI().info(new Info()
                 .title("Food Delivery Menu Service API")
                 .version("v1")
-                .description("Menu suggestion and catalog endpoints aligned with food-delivery-demo/docs/apis.md."));
+                .description("food-delivery-demo/docs/apis.md に対応した menu 提案と catalog のエンドポイントです。"));
             }
 
     @Bean

@@ -43,7 +43,7 @@ class SupportServiceConfiguration {
         return new OpenAPI().info(new Info()
                 .title("Food Delivery Support Service API")
                 .version("v1")
-                .description("Support chat, feedback, campaigns, and service-status endpoints aligned with food-delivery-demo/docs/apis.md."));
+                                .description("food-delivery-demo/docs/apis.md に対応した support chat、feedback、campaign、service-status のエンドポイントです。"));
     }
 
     @Bean

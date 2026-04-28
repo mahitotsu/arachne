@@ -127,7 +127,7 @@ class MenuServiceApiTest {
                 .contains("/internal/menu/suggest")
                 .contains("/api/menu/catalog")
                 .contains("x-ai-prompt-contract")
-                .contains("Primary customer order intent");
+            .contains("主たる customer の注文意図");
     }
 
     @Test

@@ -17,7 +17,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 @RestController
 @RequestMapping(path = "/internal/payment", produces = MediaType.APPLICATION_JSON_VALUE)
-@Tag(name = "Payment Service", description = "Payment-service endpoint for deterministic payment preparation and optional charge execution.")
+@Tag(name = "Payment Service", description = "決定論的な支払い準備と任意の課金実行を行う payment-service のエンドポイントです。")
 public class PaymentController {
 
     private final PaymentApplicationService applicationService;
@@ -29,10 +29,10 @@ public class PaymentController {
     @PostMapping("/prepare")
     @Operation(
             summary = "Prepare payment",
-            description = "Accepts the checkout intent and total, then returns the prepared payment state and optional charge result.",
+            description = "チェックアウト意図と合計金額を受け取り、準備済みの支払い状態と必要に応じて課金結果を返します。",
             extensions = @Extension(name = "x-ai-prompt-contract", properties = {
                     @ExtensionProperty(name = "agent", value = "payment-service"),
-                    @ExtensionProperty(name = "contract", value = "{\"requiredInputs\":[{\"field\":\"message\",\"meaning\":\"Customer payment intent or checkout instruction.\"},{\"field\":\"total\",\"meaning\":\"Deterministic total that payment-service must prepare or charge.\"}],\"optionalInputs\":[{\"field\":\"confirmRequested\",\"meaning\":\"Whether the request should only prepare payment or actually execute the charge.\"},{\"field\":\"sessionId\",\"meaning\":\"Correlation id for the parent workflow.\"}]}", parseValue = true)
+                    @ExtensionProperty(name = "contract", value = "{\"requiredInputs\":[{\"field\":\"message\",\"meaning\":\"customer の支払い意図またはチェックアウト指示。\"},{\"field\":\"total\",\"meaning\":\"payment-service が準備または課金する決定論的な合計金額。\"}],\"optionalInputs\":[{\"field\":\"confirmRequested\",\"meaning\":\"支払い準備のみ行うか、実際に課金まで行うか。\"},{\"field\":\"sessionId\",\"meaning\":\"親ワークフローの相関 ID。\"}]}", parseValue = true)
             }))
     PaymentPrepareResponse prepare(@RequestBody PaymentPrepareRequest request) {
         return applicationService.prepare(request);

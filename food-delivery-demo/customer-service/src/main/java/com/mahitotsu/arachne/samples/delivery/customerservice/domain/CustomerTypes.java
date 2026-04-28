@@ -9,13 +9,13 @@ public final class CustomerTypes {
     private CustomerTypes() {
     }
 
-    @Schema(description = "Sign-in request for the demo customer account service.")
+    @Schema(description = "デモ用 customer-service のサインイン要求です。")
     public record SignInRequest(
-            @Schema(description = "Demo login id.", example = "demo") String loginId,
-            @Schema(description = "Password for the supplied login id.", example = "demo-pass") String password) {
+            @Schema(description = "デモ用ログイン ID。", example = "demo") String loginId,
+            @Schema(description = "指定したログイン ID のパスワード。", example = "demo-pass") String password) {
     }
 
-    @Schema(description = "Bearer token response returned after successful sign-in.")
+    @Schema(description = "サインイン成功時に返す Bearer トークン応答です。")
     public record AccessTokenResponse(
             String tokenType,
             String accessToken,
@@ -26,7 +26,7 @@ public final class CustomerTypes {
             List<String> scopes) {
     }
 
-        @Schema(description = "Authenticated customer profile response.")
+        @Schema(description = "認証済み customer のプロフィール応答です。")
     public record CustomerProfileResponse(
             String customerId,
             String loginId,

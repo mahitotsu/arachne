@@ -10,7 +10,7 @@ import com.mahitotsu.arachne.samples.delivery.supportservice.domain.FaqEntry;
 import com.mahitotsu.arachne.samples.delivery.supportservice.domain.FeedbackInsight;
 import com.mahitotsu.arachne.samples.delivery.supportservice.domain.ServiceHealthSummary;
 
-@Schema(description = "Support chat response with deterministic context and handoff hints.")
+@Schema(description = "決定論的なコンテキストと引き継ぎヒントを含む support chat 応答です。")
 public record SupportChatResponse(
         String sessionId,
         String service,

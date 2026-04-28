@@ -9,7 +9,7 @@ public final class RegistryTypes {
     private RegistryTypes() {
     }
 
-    @Schema(description = "Service registration payload published to registry-service.")
+    @Schema(description = "registry-service に送る service 登録 payload です。")
     public record RegistryRegistration(
             String serviceName,
             String endpoint,
@@ -27,20 +27,20 @@ public final class RegistryTypes {
     public record SkillPayload(String name, String content) {
     }
 
-        @Schema(description = "Natural-language registry discovery request.")
+        @Schema(description = "自然言語の registry discovery 要求です。")
         public record RegistryDiscoverRequest(
-            @Schema(description = "Natural-language query describing the desired capability.", example = "外部ETAを提供するサービスは？") String query,
-            @Schema(description = "Whether to filter results to currently available services only.") Boolean availableOnly) {
+            @Schema(description = "欲しい capability を説明する自然言語 query。", example = "外部ETAを提供するサービスは？") String query,
+            @Schema(description = "現在利用可能な service のみに絞り込むかどうか。") Boolean availableOnly) {
     }
 
     public record RegistryDiscoveryDecision(List<String> selectedServiceNames, String summary) {
     }
 
-    @Schema(description = "Registry discovery response with an agent summary and matching service descriptors.")
+    @Schema(description = "agent 要約と一致した service descriptor を含む registry discovery 応答です。")
     public record RegistryDiscoverResponse(String service, String agent, String summary, List<RegistryServiceDescriptor> matches) {
     }
 
-    @Schema(description = "Registered service descriptor returned by registry-service.")
+    @Schema(description = "registry-service が返す登録済み service descriptor です。")
     public record RegistryServiceDescriptor(
             String serviceName,
             String endpoint,
@@ -54,7 +54,7 @@ public final class RegistryTypes {
             AvailabilityStatus status) {
     }
 
-    @Schema(description = "Aggregated health response across registered services.")
+    @Schema(description = "登録済み service 全体の集約 health 応答です。")
     public record RegistryHealthResponse(List<RegistryHealthEntry> services) {
     }
 

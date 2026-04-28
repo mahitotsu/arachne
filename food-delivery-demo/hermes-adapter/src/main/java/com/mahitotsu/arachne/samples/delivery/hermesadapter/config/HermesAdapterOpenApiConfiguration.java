@@ -14,6 +14,6 @@ class HermesAdapterOpenApiConfiguration {
         return new OpenAPI().info(new Info()
                 .title("Food Delivery Hermes Adapter API")
                 .version("v1")
-                .description("External fast-delivery adapter endpoints aligned with food-delivery-demo/docs/apis.md."));
+                .description("food-delivery-demo/docs/apis.md に対応した外部高速配送アダプターのエンドポイントです。"));
     }
 }

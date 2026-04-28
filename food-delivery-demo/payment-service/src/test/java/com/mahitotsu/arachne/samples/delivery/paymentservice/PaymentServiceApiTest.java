@@ -103,7 +103,7 @@ class PaymentServiceApiTest {
         assertThat(response.getBody())
                 .contains("/internal/payment/prepare")
                 .contains("x-ai-prompt-contract")
-                .contains("Natural-language payment or checkout instruction");
+            .contains("自然言語の支払い指示またはチェックアウト指示");
     }
 
     @Test

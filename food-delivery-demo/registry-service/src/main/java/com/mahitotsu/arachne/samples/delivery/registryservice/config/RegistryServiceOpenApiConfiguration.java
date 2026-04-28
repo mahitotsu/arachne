@@ -14,6 +14,6 @@ class RegistryServiceOpenApiConfiguration {
         return new OpenAPI().info(new Info()
                 .title("Food Delivery Registry Service API")
                 .version("v1")
-                .description("Capability registration and discovery endpoints aligned with food-delivery-demo/docs/apis.md."));
+                .description("food-delivery-demo/docs/apis.md に対応した capability 登録と discovery のエンドポイントです。"));
     }
 }

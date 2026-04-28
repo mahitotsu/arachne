@@ -10,31 +10,31 @@ public final class MenuTypes {
     private MenuTypes() {
     }
 
-    @Schema(description = "Menu suggestion request sent to menu-service.")
+        @Schema(description = "menu-service へ送る menu 提案要求です。")
         public record MenuSuggestionRequest(
-                @Schema(description = "Correlation identifier for the calling workflow.") String sessionId,
-                @Schema(description = "Primary customer order intent for this turn.", example = "2人で子ども向けのセットを見せて") String query,
-                @Schema(description = "Optional additional constraints for a follow-up suggestion.") String refinement,
-                @Schema(description = "Optional recent-order summary used to support repeat-order suggestions.") String recentOrderSummary) {
+                                @Schema(description = "呼び出し元ワークフローの相関 ID。") String sessionId,
+                                @Schema(description = "このターンにおける主たる customer の注文意図。", example = "2人で子ども向けのセットを見せて") String query,
+                                @Schema(description = "追加入力による再提案のための任意制約。") String refinement,
+                                @Schema(description = "再注文提案を補助するための任意の最近の注文要約。") String recentOrderSummary) {
 
                 public MenuSuggestionRequest(String sessionId, String query) {
                         this(sessionId, query, null, null);
                 }
     }
 
-    @Schema(description = "Fallback candidate request for an unavailable menu item.")
+    @Schema(description = "欠品 menu item に対する代替候補要求です。")
     public record MenuSubstitutionRequest(
-            @Schema(description = "Correlation identifier for the calling workflow.") String sessionId,
-            @Schema(description = "Original customer intent to preserve when searching substitutes.") String message,
-            @Schema(description = "Unavailable item id that triggered the substitution flow.") String unavailableItemId) {
+            @Schema(description = "呼び出し元ワークフローの相関 ID。") String sessionId,
+            @Schema(description = "代替候補探索時に維持すべき元の customer 意図。") String message,
+            @Schema(description = "代替フローの起点となった欠品 item id。") String unavailableItemId) {
     }
 
-    @Schema(description = "Menu suggestion response with agent summary and catalog-backed items.")
+    @Schema(description = "agent 要約と catalog ベースの商品を含む menu 提案応答です。")
     public record MenuSuggestionResponse(String service, String agent, String headline, String summary, List<MenuItem> items,
             int etaMinutes, KitchenTrace kitchenTrace) {
     }
 
-    @Schema(description = "Menu substitution response containing fallback candidates.")
+    @Schema(description = "代替候補を含む menu 代替応答です。")
     public record MenuSubstitutionResponse(String service, String agent, String headline, String summary, List<MenuItem> items) {
     }
 

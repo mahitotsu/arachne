@@ -17,7 +17,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 @RestController
 @RequestMapping(path = "/internal/kitchen", produces = MediaType.APPLICATION_JSON_VALUE)
-@Tag(name = "Kitchen Service", description = "Kitchen-service endpoint for availability checks and substitute validation.")
+@Tag(name = "Kitchen Service", description = "在庫確認と代替可否判定を行う kitchen-service のエンドポイントです。")
 public class KitchenController {
 
     private final KitchenApplicationService applicationService;
@@ -29,10 +29,10 @@ public class KitchenController {
     @PostMapping("/check")
     @Operation(
             summary = "Check kitchen availability",
-            description = "Accepts selected item ids plus the original customer intent and returns availability, prep timing, and substitute collaboration traces.",
+            description = "選択済み item id と元の customer 意図を受け取り、在庫可否、調理時間、代替協調 trace を返します。",
             extensions = @Extension(name = "x-ai-prompt-contract", properties = {
                     @ExtensionProperty(name = "agent", value = "kitchen-agent"),
-                    @ExtensionProperty(name = "contract", value = "{\"requiredInputs\":[{\"field\":\"itemIds\",\"meaning\":\"Selected menu item ids to validate for availability and prep timing.\"},{\"field\":\"message\",\"meaning\":\"Original customer intent used to evaluate substitutes and priorities.\"}],\"optionalInputs\":[{\"field\":\"sessionId\",\"meaning\":\"Correlation id for the parent workflow.\"}]}", parseValue = true)
+                    @ExtensionProperty(name = "contract", value = "{\"requiredInputs\":[{\"field\":\"itemIds\",\"meaning\":\"在庫可否と調理時間を検証する対象の menu item id。\"},{\"field\":\"message\",\"meaning\":\"代替候補や優先度判定に使う元の customer 意図。\"}],\"optionalInputs\":[{\"field\":\"sessionId\",\"meaning\":\"親ワークフローの相関 ID。\"}]}", parseValue = true)
             }))
     KitchenCheckResponse check(@RequestBody KitchenCheckRequest request) {
         return applicationService.check(request);

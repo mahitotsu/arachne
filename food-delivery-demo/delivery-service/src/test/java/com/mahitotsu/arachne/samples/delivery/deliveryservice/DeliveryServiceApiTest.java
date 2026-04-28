@@ -152,7 +152,7 @@ class DeliveryServiceApiTest {
         assertThat(response.getBody())
                 .contains("/internal/delivery/quote")
                 .contains("x-ai-prompt-contract")
-                .contains("Natural-language delivery preference");
+            .contains("自然言語の配送希望");
     }
 
     @Test

@@ -32,6 +32,6 @@ class PaymentServiceConfiguration {
             return new OpenAPI().info(new Info()
                 .title("Food Delivery Payment Service API")
                 .version("v1")
-                .description("Payment preparation endpoints aligned with food-delivery-demo/docs/apis.md."));
+                .description("food-delivery-demo/docs/apis.md に対応した支払い準備エンドポイントです。"));
             }
 }

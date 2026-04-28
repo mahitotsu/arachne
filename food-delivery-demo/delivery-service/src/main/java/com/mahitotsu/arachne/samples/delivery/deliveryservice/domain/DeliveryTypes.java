@@ -14,14 +14,14 @@ public final class DeliveryTypes {
     private DeliveryTypes() {
     }
 
-        @Schema(description = "Delivery quote request.")
+        @Schema(description = "配送見積もり要求です。")
         public record DeliveryQuoteRequest(
-            @Schema(description = "Correlation identifier for the parent workflow.") String sessionId,
-            @Schema(description = "Natural-language delivery preference such as speed or price.", example = "最速配送でお願い") String message,
-            @Schema(description = "Item names included in the order draft for quoting.") List<String> itemNames) {
+            @Schema(description = "親ワークフローの相関 ID。") String sessionId,
+            @Schema(description = "速さや価格などの自然言語の配送希望。", example = "最速配送でお願い") String message,
+            @Schema(description = "見積もり対象の注文下書きに含まれる商品名。") List<String> itemNames) {
     }
 
-        @Schema(description = "Delivery quote response with ranked options and recommendation metadata.")
+        @Schema(description = "順位付き候補と推奨メタデータを含む配送見積もり応答です。")
     public record DeliveryQuoteResponse(
             String service,
             String agent,

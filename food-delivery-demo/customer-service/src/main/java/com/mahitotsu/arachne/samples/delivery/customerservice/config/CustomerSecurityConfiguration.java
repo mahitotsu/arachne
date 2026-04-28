@@ -51,7 +51,7 @@ class CustomerSecurityConfiguration {
             return new OpenAPI().info(new Info()
                 .title("Food Delivery Customer Service API")
                 .version("v1")
-                .description("Authentication, profile, and JWKS endpoints for the food-delivery-demo support services."));
+                .description("food-delivery-demo の認証、プロフィール、JWKS 公開エンドポイントです。"));
             }
 
     @Bean

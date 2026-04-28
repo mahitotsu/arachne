@@ -14,6 +14,6 @@ class IdatenAdapterOpenApiConfiguration {
         return new OpenAPI().info(new Info()
                 .title("Food Delivery Idaten Adapter API")
                 .version("v1")
-                .description("External low-cost delivery adapter endpoints aligned with food-delivery-demo/docs/apis.md."));
+                .description("food-delivery-demo/docs/apis.md に対応した外部低コスト配送アダプターのエンドポイントです。"));
     }
 }

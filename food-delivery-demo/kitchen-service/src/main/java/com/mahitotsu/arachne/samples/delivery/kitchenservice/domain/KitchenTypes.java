@@ -10,14 +10,14 @@ public final class KitchenTypes {
     private KitchenTypes() {
     }
 
-    @Schema(description = "Kitchen availability check request.")
+    @Schema(description = "kitchen 在庫確認要求です。")
     public record KitchenCheckRequest(
-            @Schema(description = "Correlation identifier for the parent order workflow.") String sessionId,
-            @Schema(description = "Original customer intent that should be preserved when evaluating substitutes.") String message,
-            @Schema(description = "Selected menu item ids to validate.") List<String> itemIds) {
+            @Schema(description = "親注文ワークフローの相関 ID。") String sessionId,
+            @Schema(description = "代替判定時にも保持すべき元の customer 意図。") String message,
+            @Schema(description = "検証対象として選択された menu item id。") List<String> itemIds) {
     }
 
-    @Schema(description = "Kitchen availability response with validated items and collaborator traces.")
+    @Schema(description = "検証済み商品と協調 trace を含む kitchen 在庫確認応答です。")
     public record KitchenCheckResponse(
             String service,
             String agent,

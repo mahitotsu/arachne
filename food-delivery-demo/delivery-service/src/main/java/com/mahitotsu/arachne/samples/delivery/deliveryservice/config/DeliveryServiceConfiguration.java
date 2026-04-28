@@ -32,6 +32,6 @@ class DeliveryServiceConfiguration {
             return new OpenAPI().info(new Info()
                 .title("Food Delivery Delivery Service API")
                 .version("v1")
-                .description("Delivery quote endpoints aligned with food-delivery-demo/docs/apis.md."));
+                .description("food-delivery-demo/docs/apis.md に対応した配送見積もりエンドポイントです。"));
             }
 }

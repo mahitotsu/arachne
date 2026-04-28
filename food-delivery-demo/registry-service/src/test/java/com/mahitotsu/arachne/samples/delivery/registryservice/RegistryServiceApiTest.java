@@ -40,7 +40,7 @@ class RegistryServiceApiTest {
                 assertThat(response.getBody())
                                 .contains("/registry/discover")
                                 .contains("x-ai-prompt-contract")
-                                .contains("Natural-language query describing the desired capability");
+                                .contains("欲しい capability を説明する自然言語 query");
         }
 
     @Test

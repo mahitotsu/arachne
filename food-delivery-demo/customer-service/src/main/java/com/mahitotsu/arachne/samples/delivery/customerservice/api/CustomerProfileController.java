@@ -17,7 +17,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 @RestController
 @RequestMapping(path = "/api/customers", produces = MediaType.APPLICATION_JSON_VALUE)
-@Tag(name = "Customer Profile", description = "Authenticated customer profile endpoints.")
+@Tag(name = "Customer Profile", description = "認証済み customer のプロフィール取得エンドポイントです。")
 public class CustomerProfileController {
 
     private final CustomerAccountRepository repository;
@@ -27,7 +27,7 @@ public class CustomerProfileController {
     }
 
     @GetMapping("/me")
-    @Operation(summary = "Read the current customer profile", description = "Returns the authenticated customer's profile derived from the bearer token subject.")
+    @Operation(summary = "Read the current customer profile", description = "Bearer token の subject から導出した認証済み customer のプロフィールを返します。")
     CustomerProfileResponse me(Authentication authentication) {
         if (!(authentication.getPrincipal() instanceof Jwt jwt)) {
             throw new InvalidCredentialsException();

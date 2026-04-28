@@ -16,7 +16,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 @RestController
 @RequestMapping(path = "/api/orders", produces = MediaType.APPLICATION_JSON_VALUE)
-@Tag(name = "Order History", description = "Read-only order history endpoints exposed by order-service.")
+@Tag(name = "Order History", description = "order-service が公開する読み取り専用の注文履歴エンドポイントです。")
 public class OrderHistoryController {
 
     private final OrderApplicationService applicationService;
@@ -27,7 +27,7 @@ public class OrderHistoryController {
 
     @Operation(
             summary = "List recent order history",
-            description = "Returns the most recent confirmed orders for the authenticated customer.")
+            description = "認証済み customer の直近の確定済み注文を返します。")
     @GetMapping("/history")
     List<StoredOrderSummary> orderHistory() {
         return applicationService.recentOrderHistory();

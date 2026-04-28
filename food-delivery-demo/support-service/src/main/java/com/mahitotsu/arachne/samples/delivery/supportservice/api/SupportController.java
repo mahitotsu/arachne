@@ -19,7 +19,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 @RestController
 @RequestMapping(path = "/api/support", produces = MediaType.APPLICATION_JSON_VALUE)
-@Tag(name = "Support Service", description = "Support-service endpoints for chat, feedback intake, campaigns, and service status.")
+@Tag(name = "Support Service", description = "chat、feedback、campaign、稼働状況を扱う support-service のエンドポイントです。")
 public class SupportController {
 
     private final SupportApplicationService applicationService;
@@ -31,10 +31,10 @@ public class SupportController {
     @PostMapping(path = "/chat", consumes = MediaType.APPLICATION_JSON_VALUE)
     @Operation(
             summary = "Start a support chat turn",
-            description = "Accepts an authenticated support inquiry and returns FAQ, campaign, status, and recent-order context.",
+            description = "認証済みの support 問い合わせを受け取り、FAQ、campaign、稼働状況、最近の注文コンテキストを返します。",
             extensions = @Extension(name = "x-ai-prompt-contract", properties = {
                     @ExtensionProperty(name = "agent", value = "support-agent"),
-                    @ExtensionProperty(name = "contract", value = "{\"requiredInputs\":[{\"field\":\"message\",\"meaning\":\"Natural-language support inquiry for this turn.\"}],\"optionalInputs\":[{\"field\":\"sessionId\",\"meaning\":\"Conversation session identifier used to continue a support chat.\"}],\"implicitContext\":[{\"field\":\"customerId\",\"source\":\"JWT authentication\",\"meaning\":\"Authenticated customer context injected into the agent prompt.\"}]}", parseValue = true)
+                    @ExtensionProperty(name = "contract", value = "{\"requiredInputs\":[{\"field\":\"message\",\"meaning\":\"このターンの自然言語の support 問い合わせ。\"}],\"optionalInputs\":[{\"field\":\"sessionId\",\"meaning\":\"support chat を継続するための会話セッション ID。\"}],\"implicitContext\":[{\"field\":\"customerId\",\"source\":\"JWT authentication\",\"meaning\":\"agent prompt に注入される認証済み customer コンテキスト。\"}]}", parseValue = true)
             }))
     public SupportChatResponse chat(@RequestBody SupportChatRequest request) {
         return applicationService.chat(request);
@@ -43,23 +43,23 @@ public class SupportController {
     @PostMapping(path = "/feedback", consumes = MediaType.APPLICATION_JSON_VALUE)
     @Operation(
             summary = "Record support feedback",
-            description = "Accepts a post-order support message and returns classification plus escalation guidance.",
+            description = "注文後の support メッセージを受け取り、分類結果と escalation 方針を返します。",
             extensions = @Extension(name = "x-ai-prompt-contract", properties = {
                     @ExtensionProperty(name = "agent", value = "support-agent"),
-                    @ExtensionProperty(name = "contract", value = "{\"requiredInputs\":[{\"field\":\"message\",\"meaning\":\"Free-text feedback or support message to classify.\"}],\"optionalInputs\":[{\"field\":\"orderId\",\"meaning\":\"Related order identifier when the feedback concerns a specific order.\"},{\"field\":\"rating\",\"meaning\":\"Optional numeric rating supplied by the customer.\"}]}", parseValue = true)
+                    @ExtensionProperty(name = "contract", value = "{\"requiredInputs\":[{\"field\":\"message\",\"meaning\":\"分類対象となる自由記述の feedback または support メッセージ。\"}],\"optionalInputs\":[{\"field\":\"orderId\",\"meaning\":\"feedback が特定注文に関する場合の関連 orderId。\"},{\"field\":\"rating\",\"meaning\":\"customer が任意で付与する数値 rating。\"}]}", parseValue = true)
             }))
     public SupportFeedbackResponse feedback(@RequestBody SupportFeedbackRequest request) {
         return applicationService.feedback(request);
     }
 
     @GetMapping("/campaigns")
-    @Operation(summary = "List active campaigns", description = "Returns the active campaigns that can be surfaced by support-service.")
+    @Operation(summary = "List active campaigns", description = "support-service が提示可能な現在有効な campaign を返します。")
     public List<CampaignSummary> campaigns() {
         return applicationService.campaigns();
     }
 
     @GetMapping("/status")
-    @Operation(summary = "Read current service status", description = "Returns the current aggregated service-status view retrieved through registry-service.")
+    @Operation(summary = "Read current service status", description = "registry-service を通じて取得した現在の集約 service-status view を返します。")
     public SupportStatusResponse status() {
         return applicationService.status();
     }

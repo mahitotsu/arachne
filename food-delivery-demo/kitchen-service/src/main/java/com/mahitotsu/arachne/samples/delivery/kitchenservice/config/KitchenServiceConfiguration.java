@@ -43,7 +43,7 @@ class KitchenServiceConfiguration {
         return new OpenAPI().info(new Info()
                 .title("Food Delivery Kitchen Service API")
                 .version("v1")
-                .description("Kitchen availability and substitute-validation endpoints aligned with food-delivery-demo/docs/apis.md."));
+                                .description("food-delivery-demo/docs/apis.md に対応した kitchen 在庫確認と代替判定のエンドポイントです。"));
     }
 
     @Bean

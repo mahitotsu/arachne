@@ -16,7 +16,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 @RestController
 @RequestMapping(path = "/api/menu", produces = MediaType.APPLICATION_JSON_VALUE)
-@Tag(name = "Menu Catalog", description = "Read-only menu catalog endpoints exposed by menu-service.")
+@Tag(name = "Menu Catalog", description = "menu-service が公開する読み取り専用のメニュー catalog エンドポイントです。")
 public class MenuCatalogController {
 
     private final MenuRepository repository;
@@ -26,7 +26,7 @@ public class MenuCatalogController {
     }
 
     @GetMapping("/catalog")
-    @Operation(summary = "List current menu catalog", description = "Returns the current menu catalog as deterministic menu items.")
+    @Operation(summary = "List current menu catalog", description = "現在のメニュー catalog を決定論的な menu item 一覧として返します。")
     List<MenuItem> catalog() {
         return repository.findAll();
     }

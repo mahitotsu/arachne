@@ -133,7 +133,7 @@ class KitchenServiceApiTest {
         assertThat(response.getBody())
                 .contains("/internal/kitchen/check")
                 .contains("x-ai-prompt-contract")
-                .contains("Selected menu item ids to validate");
+            .contains("選択された menu item id");
     }
 
     @Test

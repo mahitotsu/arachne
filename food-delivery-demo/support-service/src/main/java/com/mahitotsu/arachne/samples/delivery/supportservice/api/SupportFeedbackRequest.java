@@ -2,9 +2,9 @@ package com.mahitotsu.arachne.samples.delivery.supportservice.api;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-@Schema(description = "Support feedback intake request.")
+@Schema(description = "support feedback 受付要求です。")
 public record SupportFeedbackRequest(
-	@Schema(description = "Related order identifier when feedback targets a specific order.") String orderId,
-	@Schema(description = "Optional customer rating associated with the feedback.") Integer rating,
-	@Schema(description = "Natural-language feedback or issue description.", example = "配送が遅かったです") String message) {
+	@Schema(description = "feedback が特定注文に紐づく場合の関連 orderId。") String orderId,
+	@Schema(description = "feedback に付随する任意の customer rating。") Integer rating,
+	@Schema(description = "自然言語の feedback または問題説明。", example = "配送が遅かったです") String message) {
 }

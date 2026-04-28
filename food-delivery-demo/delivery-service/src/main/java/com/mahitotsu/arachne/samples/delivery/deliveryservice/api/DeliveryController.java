@@ -17,7 +17,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 @RestController
 @RequestMapping(path = "/internal/delivery", produces = MediaType.APPLICATION_JSON_VALUE)
-@Tag(name = "Delivery Service", description = "Delivery-service endpoint for quote generation and lane ranking.")
+@Tag(name = "Delivery Service", description = "配送見積もりとレーン順位付けを行う delivery-service のエンドポイントです。")
 public class DeliveryController {
 
     private final DeliveryApplicationService applicationService;
@@ -29,10 +29,10 @@ public class DeliveryController {
     @PostMapping("/quote")
     @Operation(
             summary = "Quote delivery options",
-            description = "Accepts customer delivery intent plus item names and returns ranked in-house and external delivery options.",
+            description = "顧客の配送意図と商品名を受け取り、自社配送と外部配送を順位付きで返します。",
             extensions = @Extension(name = "x-ai-prompt-contract", properties = {
                     @ExtensionProperty(name = "agent", value = "delivery-agent"),
-                    @ExtensionProperty(name = "contract", value = "{\"requiredInputs\":[{\"field\":\"message\",\"meaning\":\"Natural-language delivery preference such as speed or price.\"},{\"field\":\"itemNames\",\"meaning\":\"Names of the items included in the delivery quote.\"}],\"optionalInputs\":[{\"field\":\"sessionId\",\"meaning\":\"Correlation id for the parent workflow.\"}]}", parseValue = true)
+                    @ExtensionProperty(name = "contract", value = "{\"requiredInputs\":[{\"field\":\"message\",\"meaning\":\"速さや価格などに関する自然言語の配送希望。\"},{\"field\":\"itemNames\",\"meaning\":\"配送見積もり対象に含まれる商品名。\"}],\"optionalInputs\":[{\"field\":\"sessionId\",\"meaning\":\"親ワークフローの相関 ID。\"}]}", parseValue = true)
             }))
     DeliveryQuoteResponse quote(@RequestBody DeliveryQuoteRequest request) {
         return applicationService.quote(request);

@@ -15,7 +15,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 @RestController
 @RequestMapping(path = "/api/auth", produces = MediaType.APPLICATION_JSON_VALUE)
-@Tag(name = "Customer Authentication", description = "Customer-service authentication endpoints used by the demo clients.")
+@Tag(name = "Customer Authentication", description = "デモクライアントが利用する customer-service の認証エンドポイントです。")
 public class CustomerAuthController {
 
     private final CustomerAuthenticationService authenticationService;
@@ -25,7 +25,7 @@ public class CustomerAuthController {
     }
 
     @PostMapping("/sign-in")
-    @Operation(summary = "Sign in with demo credentials", description = "Returns a bearer token and profile summary for the supplied login credentials.")
+    @Operation(summary = "Sign in with demo credentials", description = "指定したログイン資格情報に対して Bearer トークンとプロフィール要約を返します。")
     AccessTokenResponse signIn(@RequestBody SignInRequest request) {
         return authenticationService.signIn(request);
     }
