@@ -6,7 +6,7 @@ Accepted (retrospective)
 
 ## Context
 
-Phase 2 introduced three public APIs in Arachne: annotation-driven tools through `@StrandsTool` and `@ToolParam`, qualifier-based scoping for discovered tools, and structured output through `Agent.run(String, Class<T>)`. This lets users describe the runtime input/output contract directly with Spring bean methods and Java types instead of hand-writing JSON schema or tool specs.
+Phase 2 introduced three public APIs in Arachne: annotation-driven tools through `@StrandsTool` and `@ToolParam`, qualifier-based scoping for discovered tools, and structured output through `Agent.run(String, Class<T>)`. This lets users describe the runtime input/output contract directly with Spring bean methods and Java types instead of hand-writing JSON schema or tool specs, while keeping invocation metadata on `AgentResult`.
 
 In the current implementation, `AnnotationToolScanner` discovers `@StrandsTool` methods from the Spring context and uses `JsonSchemaGenerator` plus `MethodTool` to build tool specs and invocation binding. `AgentFactory.Builder` also includes discovered tools by default while allowing each agent to control its visible tool surface through `toolQualifiers(...)` and `useDiscoveredTools(false)`.
 
@@ -24,7 +24,7 @@ The standard policy is:
 - `@ToolParam` remains the lightweight public annotation for schema-facing metadata such as parameter name, description, and requiredness
 - discovered tools are visible through `AgentFactory.Builder` by default, but each agent can narrow its tool surface through `toolQualifiers(...)` and `useDiscoveredTools(false)`
 - Spring `@Qualifier` is bridged into Arachne's qualifier set and participates in the same scope-control mechanism as `@StrandsTool(qualifiers = ...)`
-- structured output is requested through the public API `Agent.run(String, Class<T>)`, with the standard implementation using a final structured-output tool to recover the typed result
+- structured output is requested through the public API `Agent.run(String, Class<T>)`, with the standard implementation using a final structured-output tool to recover the typed result and attach it to `AgentResult`
 - if the model does not call the structured-output tool on its own, the event loop may force its use via a final retry, and that behavior is part of the contract
 - Bean Validation is part of the public behavior introduced in Phase 2, but projecting constraints into generated JSON schema is not part of that contract
 

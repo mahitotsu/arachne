@@ -26,7 +26,7 @@ Available now:
 - `ToolInvocationContext` for logical tool-call metadata inside tool implementations
 - `ExecutionContextPropagation` for opt-in executor-boundary context propagation during tool execution
 - automatic tool discovery from Spring beans
-- structured output with typed return values through `Agent.run(String, Class<T>)`
+- structured output through `Agent.run(String, Class<T>)`, with typed payload access via `AgentResult.structuredOutput(Class<T>)`
 - Bedrock model ID and region configuration
 - Bedrock system-prompt caching and tool caching configuration
 - system prompt configuration

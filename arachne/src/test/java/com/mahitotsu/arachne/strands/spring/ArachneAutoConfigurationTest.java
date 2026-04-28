@@ -29,6 +29,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 
 import com.mahitotsu.arachne.strands.agent.Agent;
+import com.mahitotsu.arachne.strands.agent.AgentResult;
 import com.mahitotsu.arachne.strands.hooks.HookProvider;
 import com.mahitotsu.arachne.strands.model.Model;
 import com.mahitotsu.arachne.strands.model.ModelEvent;
@@ -322,9 +323,11 @@ class ArachneAutoConfigurationTest {
                 .run(context -> {
                     Agent agent = context.getBean(AgentFactory.class).builder().build();
 
-                    SnakeCaseSummary result = agent.run("hello", SnakeCaseSummary.class);
+                    AgentResult result = agent.run("hello", SnakeCaseSummary.class);
+                    SnakeCaseSummary structuredOutput = result.structuredOutput(SnakeCaseSummary.class);
 
-                    assertThat(result.answerText()).isEqualTo("Tokyo");
+                    assertThat(result.hasStructuredOutput()).isTrue();
+                    assertThat(structuredOutput.answerText()).isEqualTo("Tokyo");
                 });
     }
 

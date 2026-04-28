@@ -22,7 +22,7 @@ public interface Agent {
     /**
      * Send a prompt and require the final answer as structured output.
      */
-    <T> T run(String prompt, Class<T> outputType);
+    <T> AgentResult run(String prompt, Class<T> outputType);
 
     /**
      * Send a prompt and subscribe to incremental runtime events.

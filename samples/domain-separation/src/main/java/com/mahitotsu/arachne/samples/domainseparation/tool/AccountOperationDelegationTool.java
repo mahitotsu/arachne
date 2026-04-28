@@ -10,6 +10,7 @@ import com.mahitotsu.arachne.samples.domainseparation.domain.AccountOperationExe
 import com.mahitotsu.arachne.samples.domainseparation.domain.AccountOperationPreparation;
 import com.mahitotsu.arachne.samples.domainseparation.domain.AccountOperationType;
 import com.mahitotsu.arachne.strands.agent.Agent;
+import com.mahitotsu.arachne.strands.agent.AgentResult;
 import com.mahitotsu.arachne.strands.spring.AgentFactory;
 import com.mahitotsu.arachne.strands.tool.annotation.StrandsTool;
 import com.mahitotsu.arachne.strands.tool.annotation.ToolParam;
@@ -45,13 +46,14 @@ public class AccountOperationDelegationTool {
         Agent executorAgent = agentFactory().builder("operations-executor").build();
         String prompt = executorPrompt("prepare", operationType, accountId, requestedBy, reason);
         logExecutorPrompt("prepare", prompt);
-        AccountOperationPreparation result = executorAgent.run(prompt, AccountOperationPreparation.class);
+        AgentResult result = executorAgent.run(prompt, AccountOperationPreparation.class);
+        AccountOperationPreparation preparation = result.structuredOutput(AccountOperationPreparation.class);
         log.info(
                 "demo.trace> executor prepare response phase={} preparedStatus={} authorizedOperatorId={}",
-                result.phase(),
-                result.preparedStatus(),
-                result.authorizedOperatorId());
-        return result;
+            preparation.phase(),
+            preparation.preparedStatus(),
+            preparation.authorizedOperatorId());
+        return preparation;
     }
 
     @StrandsTool(
@@ -71,13 +73,14 @@ public class AccountOperationDelegationTool {
         Agent executorAgent = agentFactory().builder("operations-executor").build();
         String prompt = executorPrompt("execute", operationType, accountId, requestedBy, reason);
         logExecutorPrompt("execute", prompt);
-        AccountOperationExecution result = executorAgent.run(prompt, AccountOperationExecution.class);
+        AgentResult result = executorAgent.run(prompt, AccountOperationExecution.class);
+        AccountOperationExecution execution = result.structuredOutput(AccountOperationExecution.class);
         log.info(
                 "demo.trace> executor execute response phase={} outcome={} authorizedOperatorId={}",
-                result.phase(),
-                result.outcome(),
-                result.authorizedOperatorId());
-        return result;
+            execution.phase(),
+            execution.outcome(),
+            execution.authorizedOperatorId());
+        return execution;
     }
 
     private AgentFactory agentFactory() {

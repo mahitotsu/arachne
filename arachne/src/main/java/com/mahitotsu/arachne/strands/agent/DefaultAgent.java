@@ -161,7 +161,7 @@ public class DefaultAgent implements Agent {
     }
 
     @Override
-    public <T> T run(String prompt, Class<T> outputType) {
+    public <T> AgentResult run(String prompt, Class<T> outputType) {
         ensureNoPendingInterrupts();
 
         BeforeInvocationEvent beforeInvocationEvent = hooks.onBeforeInvocation(
@@ -188,14 +188,19 @@ public class DefaultAgent implements Agent {
                 0);
 
         completeLoopResult(loopResult);
-        dispatchAfterInvocation(loopResult);
 
         if (loopResult.interrupted()) {
             throw new IllegalStateException(
                     "Structured output invocation was interrupted. Use Agent#run(String) and AgentResult.resume(...) instead.");
         }
 
-        return structuredOutputContext.requireValue();
+        AfterInvocationEvent afterInvocationEvent = dispatchAfterInvocation(loopResult);
+        return createAgentResult(
+            loopResult,
+            afterInvocationEvent.text(),
+            List.copyOf(afterInvocationEvent.messages()),
+            afterInvocationEvent.stopReason(),
+            structuredOutputContext.requireValue());
     }
 
     @Override
@@ -350,13 +355,23 @@ public class DefaultAgent implements Agent {
             String text,
             List<Message> resultMessages,
             String stopReason) {
+        return createAgentResult(loopResult, text, resultMessages, stopReason, null);
+        }
+
+        private AgentResult createAgentResult(
+            EventLoopResult loopResult,
+            String text,
+            List<Message> resultMessages,
+            String stopReason,
+            Object structuredOutput) {
         return new AgentResult(
                 text,
                 resultMessages,
                 stopReason,
                 new AgentResult.Metrics(loopResult.usage()),
                 pendingInterrupts,
-            this::resumeInternal);
+            this::resumeInternal,
+            structuredOutput);
     }
 
     private void ensureNoPendingInterrupts() {

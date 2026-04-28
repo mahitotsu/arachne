@@ -8,7 +8,7 @@ It exists to make these patterns concrete in one runnable example:
 - a `@Service` method annotated with `@StrandsTool` is auto-discovered as a tool
 - the discovered tool is scoped to the coordinator agent through qualifiers
 - the tool method builds a specialist `Agent` runtime on demand instead of doing model work directly
-- the top-level agent returns typed structured output through `agent.run("...", TripPlan.class)`
+- the top-level agent returns an `AgentResult` whose typed structured output is available through `result.structuredOutput(TripPlan.class)`
 - Jakarta Bean Validation is enforced on both tool input and structured output
 
 ## Prerequisites

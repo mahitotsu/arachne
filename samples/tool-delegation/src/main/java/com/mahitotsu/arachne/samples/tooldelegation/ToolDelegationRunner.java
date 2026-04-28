@@ -5,6 +5,7 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
 
 import com.mahitotsu.arachne.strands.agent.Agent;
+import com.mahitotsu.arachne.strands.agent.AgentResult;
 import com.mahitotsu.arachne.strands.spring.AgentFactory;
 
 @Component
@@ -24,7 +25,8 @@ public class ToolDelegationRunner implements ApplicationRunner {
         System.out.println("Arachne tool delegation sample");
         System.out.println("request> " + request);
 
-        TripPlan summary = tripPlannerAgent.run(request, TripPlan.class);
+        AgentResult result = tripPlannerAgent.run(request, TripPlan.class);
+        TripPlan summary = result.structuredOutput(TripPlan.class);
 
         System.out.println("summary.city> " + summary.city());
         System.out.println("summary.forecast> " + summary.forecast());

@@ -325,10 +325,13 @@ class DefaultAgentTest {
         EventLoop eventLoop = new EventLoop(hooks);
         DefaultAgent agent = new DefaultAgent(structuredOutputModel(), List.of(), eventLoop, hooks);
 
-        WeatherSummary result = agent.run("東京の天気を返してください", WeatherSummary.class);
+        AgentResult result = agent.run("東京の天気を返してください", WeatherSummary.class);
+        WeatherSummary structuredOutput = result.structuredOutput(WeatherSummary.class);
 
-        assertThat(result.answer()).isEqualTo("Tokyo");
-        assertThat(result.confidence()).isEqualTo(0.9);
+        assertThat(result.hasStructuredOutput()).isTrue();
+        assertThat(structuredOutput.answer()).isEqualTo("Tokyo");
+        assertThat(structuredOutput.confidence()).isEqualTo(0.9);
+        assertThat(result.metrics().usage()).isEqualTo(new ModelEvent.Usage(22, 9, 0, 0));
         assertThat(agent.getMessages()).hasSize(5);
     }
 
