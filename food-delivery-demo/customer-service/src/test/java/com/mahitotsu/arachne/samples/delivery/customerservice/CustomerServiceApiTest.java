@@ -1,8 +1,6 @@
 package com.mahitotsu.arachne.samples.delivery.customerservice;
 
-import static com.mahitotsu.arachne.samples.delivery.customerservice.domain.CustomerTypes.*;
 import static org.assertj.core.api.Assertions.assertThat;
-
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -14,6 +12,9 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
+import com.mahitotsu.arachne.samples.delivery.customerservice.domain.CustomerTypes.AccessTokenResponse;
+import com.mahitotsu.arachne.samples.delivery.customerservice.domain.CustomerTypes.CustomerProfileResponse;
+import com.mahitotsu.arachne.samples.delivery.customerservice.domain.CustomerTypes.SignInRequest;
 import com.nimbusds.jose.crypto.RSASSAVerifier;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
@@ -22,7 +23,7 @@ import com.nimbusds.jwt.SignedJWT;
 @SpringBootTest(
         webEnvironment = WebEnvironment.RANDOM_PORT,
         properties = {
-                "spring.datasource.url=jdbc:h2:mem:customers;MODE=PostgreSQL;DB_CLOSE_DELAY=-1",
+                "spring.datasource.url=jdbc:h2:mem:customers;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
                 "spring.datasource.driver-class-name=org.h2.Driver",
                 "spring.datasource.username=sa",
                 "spring.datasource.password="

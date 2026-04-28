@@ -5,10 +5,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.*;
-import static com.mahitotsu.arachne.samples.delivery.testsupport.MockWebServerTestSupport.drainRequests;
-import static com.mahitotsu.arachne.samples.delivery.testsupport.MockWebServerTestSupport.recordedPaths;
-import static com.mahitotsu.arachne.samples.delivery.testsupport.MockWebServerTestSupport.trimTrailingSlash;
 import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -26,6 +22,23 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.ConfirmDeliveryRequest;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.ConfirmDeliveryResponse;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.ConfirmItemsRequest;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.ConfirmItemsResponse;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.ConfirmPaymentRequest;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.ConfirmPaymentResponse;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.DeliveryOptionChoice;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.OrderLineItem;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.ProposalItem;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.ServiceTrace;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.StoredOrderSummary;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.SuggestOrderRequest;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.SuggestOrderResponse;
+import com.mahitotsu.arachne.samples.delivery.orderservice.infrastructure.RegistryServiceEndpointResolver;
+import static com.mahitotsu.arachne.samples.delivery.testsupport.MockWebServerTestSupport.drainRequests;
+import static com.mahitotsu.arachne.samples.delivery.testsupport.MockWebServerTestSupport.recordedPaths;
+import static com.mahitotsu.arachne.samples.delivery.testsupport.MockWebServerTestSupport.trimTrailingSlash;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.JWSAlgorithm;
@@ -36,7 +49,6 @@ import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.gen.RSAKeyGenerator;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
-import com.mahitotsu.arachne.samples.delivery.orderservice.infrastructure.RegistryServiceEndpointResolver;
 
 import okhttp3.mockwebserver.Dispatcher;
 import okhttp3.mockwebserver.MockResponse;
@@ -47,7 +59,7 @@ import okhttp3.mockwebserver.RecordedRequest;
         webEnvironment = WebEnvironment.RANDOM_PORT,
         properties = {
                 "delivery.order.session-store=in-memory",
-                "spring.datasource.url=jdbc:h2:mem:orders;MODE=PostgreSQL;DB_CLOSE_DELAY=-1",
+                "spring.datasource.url=jdbc:h2:mem:orders;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
                 "spring.datasource.driver-class-name=org.h2.Driver",
                 "spring.datasource.username=sa",
                 "spring.datasource.password="
@@ -396,6 +408,90 @@ class OrderServiceApiTest {
         assertThat(response.summary()).contains("¥2500");
         assertThat(response.trace()).extracting(ServiceTrace::service)
                 .contains("payment-service", "support-service", "order-service");
+    }
+
+    @Test
+    void orderHistoryReturnsConfirmedOrders() {
+        menuServer.enqueue(jsonResponse(menuSuggestBody()));
+        SuggestOrderResponse suggestion = restTemplate.postForObject(
+                "/api/order/suggest",
+                new SuggestOrderRequest("", "照り焼きセットで", "ja-JP", null),
+                SuggestOrderResponse.class);
+
+        deliveryServer.enqueue(jsonResponse("""
+                {
+                  "service": "delivery-service",
+                  "agent": "delivery-agent",
+                  "headline": "delivery-agent prepared two options",
+                  "summary": "delivery-agent recommends express.",
+                  "options": [
+                    {"code": "express", "label": "In-house Express", "etaMinutes": 18, "fee": 300.0},
+                    {"code": "idaten", "label": "Idaten Economy", "etaMinutes": 34, "fee": 180.0}
+                  ],
+                  "recommendedTier": "express",
+                  "recommendationReason": "「急いで」の文脈なので最短ETAを優先しました。"
+                }
+                """));
+        restTemplate.postForObject(
+                "/api/order/confirm-items",
+                new ConfirmItemsRequest(suggestion.sessionId(), null),
+                ConfirmItemsResponse.class);
+
+        paymentServer.enqueue(jsonResponse("""
+                {
+                  "service": "payment-service",
+                  "agent": "payment-service",
+                  "headline": "payment-service prepared a deterministic total",
+                  "summary": "payment-service is waiting for explicit confirmation.",
+                  "selectedMethod": "Saved Visa ending in 2048",
+                  "total": 2500.0,
+                  "paymentStatus": "READY",
+                  "charged": false,
+                  "authorizationId": ""
+                }
+                """));
+        restTemplate.postForObject(
+                "/api/order/confirm-delivery",
+                new ConfirmDeliveryRequest(suggestion.sessionId(), "express"),
+                ConfirmDeliveryResponse.class);
+
+        paymentServer.enqueue(jsonResponse("""
+                {
+                  "service": "payment-service",
+                  "agent": "payment-service",
+                  "headline": "payment-service charged the selected card",
+                  "summary": "payment-service completed the charge.",
+                  "selectedMethod": "Saved Visa ending in 2048",
+                  "total": 2500.0,
+                  "paymentStatus": "CHARGED",
+                  "charged": true,
+                  "authorizationId": "pay-test-02"
+                }
+                """));
+        supportServer.enqueue(jsonResponse("""
+                {
+                  "service": "support-service",
+                  "agent": "support-agent",
+                  "headline": "support-agent が問い合わせを受け付けました",
+                  "summary": "GENERAL 問い合わせとして記録しました。",
+                  "classification": "GENERAL",
+                  "escalationRequired": false
+                }
+                """));
+        ConfirmPaymentResponse confirmed = restTemplate.postForObject(
+                "/api/order/confirm-payment",
+                new ConfirmPaymentRequest(suggestion.sessionId()),
+                ConfirmPaymentResponse.class);
+
+        ResponseEntity<StoredOrderSummary[]> historyResponse = restTemplate.getForEntity(
+                "/api/orders/history",
+                StoredOrderSummary[].class);
+
+        assertThat(historyResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(historyResponse.getBody()).isNotNull();
+        assertThat(List.of(historyResponse.getBody()))
+                .extracting(StoredOrderSummary::orderId)
+                .contains(confirmed.draft().orderId());
     }
 
     private static String menuSuggestBody() {

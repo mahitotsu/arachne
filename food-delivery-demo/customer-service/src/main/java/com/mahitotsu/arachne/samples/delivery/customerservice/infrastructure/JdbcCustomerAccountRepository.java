@@ -1,93 +1,83 @@
 package com.mahitotsu.arachne.samples.delivery.customerservice.infrastructure;
 
-import static com.mahitotsu.arachne.samples.delivery.customerservice.domain.CustomerTypes.*;
-
 import java.util.List;
 import java.util.Optional;
 
-import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
+
+import com.mahitotsu.arachne.samples.delivery.customerservice.domain.CustomerTypes.CustomerAccount;
+import com.mahitotsu.arachne.samples.delivery.customerservice.domain.CustomerTypes.CustomerProfileResponse;
 
 @Component
 public class JdbcCustomerAccountRepository implements CustomerAccountRepository {
 
-    private final JdbcClient jdbcClient;
+    private final CustomerAccountJdbcRepository jdbcRepository;
 
-    JdbcCustomerAccountRepository(JdbcClient jdbcClient) {
-        this.jdbcClient = jdbcClient;
+    JdbcCustomerAccountRepository(CustomerAccountJdbcRepository jdbcRepository) {
+        this.jdbcRepository = jdbcRepository;
     }
 
     @Override
     public Optional<CustomerAccount> findByLoginId(String loginId) {
-        return jdbcClient.sql("""
-                select customer_id, login_id, password_hash, display_name, default_locale, scopes
-                from customer_accounts
-                where login_id = :loginId
-                """)
-                .param("loginId", loginId)
-                .query(this::mapAccount)
-                .optional();
+        return jdbcRepository.findByLoginId(loginId)
+                .map(this::toCustomerAccount);
     }
 
     @Override
     public Optional<CustomerProfileResponse> findProfile(String customerId) {
-        return jdbcClient.sql("""
-                select customer_id, login_id, display_name, default_locale, scopes
-                from customer_accounts
-                where customer_id = :customerId
-                """)
-                .param("customerId", customerId)
-                .query((rs, rowNum) -> new CustomerProfileResponse(
-                        rs.getString("customer_id"),
-                        rs.getString("login_id"),
-                        rs.getString("display_name"),
-                        rs.getString("default_locale"),
-                        parseScopes(rs.getString("scopes"))))
-                .optional();
+        return jdbcRepository.findById(customerId)
+                .map(this::toProfileResponse);
     }
 
     @Override
     public void seedDemoAccounts(PasswordEncoder passwordEncoder) {
-        insertAccount("cust-demo-001", "demo", "Aoi Sato", "ja-JP", "orders.read orders.write profile.read",
+        saveIfMissing("cust-demo-001", "demo", "Aoi Sato", "ja-JP", "orders.read orders.write profile.read",
                 passwordEncoder.encode("demo-pass"));
-        insertAccount("cust-demo-002", "family", "ファミリーアカウント", "ja-JP", "orders.read orders.write profile.read",
+        saveIfMissing("cust-demo-002", "family", "ファミリーアカウント", "ja-JP", "orders.read orders.write profile.read",
                 passwordEncoder.encode("family-pass"));
-        insertAccount("cust-solo-001", "solo", "Hina Nakamura", "ja-JP", "orders.read orders.write profile.read",
+        saveIfMissing("cust-solo-001", "solo", "Hina Nakamura", "ja-JP", "orders.read orders.write profile.read",
                 passwordEncoder.encode("solo-pass"));
-        insertAccount("cust-corp-001", "corporate", "法人アカウント", "ja-JP", "orders.read orders.write profile.read",
+        saveIfMissing("cust-corp-001", "corporate", "法人アカウント", "ja-JP", "orders.read orders.write profile.read",
                 passwordEncoder.encode("corp-pass"));
     }
 
-    private void insertAccount(
+    private void saveIfMissing(
             String customerId,
             String loginId,
             String displayName,
             String defaultLocale,
             String scopes,
             String passwordHash) {
-        jdbcClient.sql("""
-                insert into customer_accounts (customer_id, login_id, password_hash, display_name, default_locale, scopes)
-                values (:customerId, :loginId, :passwordHash, :displayName, :defaultLocale, :scopes)
-                on conflict do nothing
-                """)
-                .param("customerId", customerId)
-                .param("loginId", loginId)
-                .param("passwordHash", passwordHash)
-                .param("displayName", displayName)
-                .param("defaultLocale", defaultLocale)
-                .param("scopes", scopes)
-                .update();
+        if (jdbcRepository.existsById(customerId)) {
+            return;
+        }
+        jdbcRepository.save(new CustomerAccountAggregate(
+                customerId,
+                loginId,
+                passwordHash,
+                displayName,
+                defaultLocale,
+                scopes));
     }
 
-    private CustomerAccount mapAccount(java.sql.ResultSet rs, int rowNum) throws java.sql.SQLException {
+    private CustomerAccount toCustomerAccount(CustomerAccountAggregate aggregate) {
         return new CustomerAccount(
-                rs.getString("customer_id"),
-                rs.getString("login_id"),
-                rs.getString("password_hash"),
-                rs.getString("display_name"),
-                rs.getString("default_locale"),
-                rs.getString("scopes"));
+                aggregate.customerId(),
+                aggregate.loginId(),
+                aggregate.passwordHash(),
+                aggregate.displayName(),
+                aggregate.defaultLocale(),
+                aggregate.scopes());
+    }
+
+    private CustomerProfileResponse toProfileResponse(CustomerAccountAggregate aggregate) {
+        return new CustomerProfileResponse(
+                aggregate.customerId(),
+                aggregate.loginId(),
+                aggregate.displayName(),
+                aggregate.defaultLocale(),
+                parseScopes(aggregate.scopes()));
     }
 
     private static List<String> parseScopes(String scopes) {

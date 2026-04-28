@@ -3,24 +3,18 @@ package com.mahitotsu.arachne.samples.delivery.orderservice.infrastructure;
 import static com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.*;
 
 import java.math.BigDecimal;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Timestamp;
-import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 
-import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;
 
 @Component
 public class OrderRepository {
 
-    private final JdbcClient jdbcClient;
+    private final DeliveryOrderJdbcRepository jdbcRepository;
 
-    OrderRepository(JdbcClient jdbcClient) {
-        this.jdbcClient = jdbcClient;
+    OrderRepository(DeliveryOrderJdbcRepository jdbcRepository) {
+        this.jdbcRepository = jdbcRepository;
     }
 
     public String saveConfirmedOrder(
@@ -30,64 +24,55 @@ public class OrderRepository {
             BigDecimal total,
             String etaLabel,
             String paymentStatus) {
-        String orderId = "ord-" + UUID.randomUUID().toString().substring(0, 8);
-        String itemSummary = items.stream()
-                .map(item -> item.quantity() + "x " + item.name())
-                .reduce((left, right) -> left + ", " + right)
-                .orElse("draft pending");
-        jdbcClient.sql("""
-                insert into delivery_orders (order_id, customer_id, item_summary, subtotal, total, eta_label, payment_status, created_at)
-                values (?, ?, ?, ?, ?, ?, ?, ?)
-                """)
-                .params(orderId, customerId, itemSummary, subtotal, total, etaLabel, paymentStatus, Timestamp.from(Instant.now()))
-                .update();
-        return orderId;
+        DeliveryOrderAggregate saved = jdbcRepository.save(DeliveryOrderAggregate.createConfirmed(
+                customerId,
+                summarizeItems(items),
+                subtotal,
+                total,
+                etaLabel,
+                paymentStatus));
+        return saved.orderId();
     }
 
     public Optional<StoredOrder> findLatestOrderForUser(String customerId) {
-        return jdbcClient.sql("""
-                select order_id, item_summary, subtotal, total, eta_label, payment_status
-                from delivery_orders
-                where customer_id = ?
-                order by created_at desc
-                limit 1
-                """)
-                .param(customerId)
-                .query(this::mapStoredOrder)
-                .optional();
+        return jdbcRepository.findTopByCustomerIdOrderByCreatedAtDesc(customerId)
+                .map(this::toStoredOrder);
     }
 
     public List<StoredOrderSummary> findRecentOrdersForUser(String customerId, int limit) {
-        return jdbcClient.sql("""
-                select order_id, item_summary, total, eta_label, payment_status, created_at
-                from delivery_orders
-                where customer_id = ?
-                order by created_at desc
-                limit ?
-                """)
-                .params(customerId, limit)
-                .query(this::mapStoredOrderSummary)
-                .list();
+        if (limit <= 0) {
+            return List.of();
+        }
+        return jdbcRepository.findByCustomerIdOrderByCreatedAtDesc(customerId).stream()
+                .limit(limit)
+                .map(this::toStoredOrderSummary)
+                .toList();
     }
 
-    private StoredOrder mapStoredOrder(ResultSet resultSet, int row) throws SQLException {
+    private String summarizeItems(List<OrderLineItem> items) {
+        return items.stream()
+                .map(item -> item.quantity() + "x " + item.name())
+                .reduce((left, right) -> left + ", " + right)
+                .orElse("draft pending");
+    }
+
+    private StoredOrder toStoredOrder(DeliveryOrderAggregate aggregate) {
         return new StoredOrder(
-                resultSet.getString("order_id"),
-                resultSet.getString("item_summary"),
-                resultSet.getBigDecimal("subtotal"),
-                resultSet.getBigDecimal("total"),
-                resultSet.getString("eta_label"),
-                resultSet.getString("payment_status"));
+                aggregate.orderId(),
+                aggregate.itemSummary(),
+                aggregate.subtotal(),
+                aggregate.total(),
+                aggregate.etaLabel(),
+                aggregate.paymentStatus());
     }
 
-    private StoredOrderSummary mapStoredOrderSummary(ResultSet resultSet, int row) throws SQLException {
-        Timestamp createdAt = resultSet.getTimestamp("created_at");
+    private StoredOrderSummary toStoredOrderSummary(DeliveryOrderAggregate aggregate) {
         return new StoredOrderSummary(
-                resultSet.getString("order_id"),
-                resultSet.getString("item_summary"),
-                resultSet.getBigDecimal("total"),
-                resultSet.getString("eta_label"),
-                resultSet.getString("payment_status"),
-                createdAt == null ? "" : createdAt.toInstant().toString());
+                aggregate.orderId(),
+                aggregate.itemSummary(),
+                aggregate.total(),
+                aggregate.etaLabel(),
+                aggregate.paymentStatus(),
+                aggregate.createdAt() == null ? "" : aggregate.createdAt().toInstant().toString());
     }
 }
