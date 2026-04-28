@@ -6,6 +6,7 @@ import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 
 import { fetchAuthSession } from '../../lib/browser-session';
+import AppNav from '../components/app-nav';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -439,36 +440,26 @@ function OrderPageInner() {
   const keptProposals = proposals.filter(p => !removedItemIds.has(p.itemId));
 
   return (
-    <main className="shell">
-      {/* Top navigation */}
-      <header className="topbar">
-        <div className="order-topbar-left">
-          <div className="h-nav-links">
-            <Link href="/home" className="h-nav-link">ホーム</Link>
-            <Link href="/support" className="h-nav-link">サポート</Link>
-            <Link href="/agents" className="h-nav-link">エージェント</Link>
+    <main className="wf-shell">
+      <AppNav right={
+        <div className="wf-nav-right">
+          <div className="wf-session-pill">
+            <span className="wf-session-dot" />
+            <span>{sessionId ? `session · ${sessionId.slice(-8)}` : 'new session'}</span>
           </div>
-          <div className="brand">
-            <span className="brand-icon">🕷️</span>
-            <span className="brand-name">Arachne Kitchen</span>
-            <span className="brand-tagline">single-kitchen cloud delivery</span>
-          </div>
+          <button
+            type="button"
+            className="wf-new-order-btn"
+            onClick={startNewOrder}
+            disabled={loading}
+          >
+            ＋ 新しい注文
+          </button>
         </div>
-        <div className="session-pill">
-          <span className="session-dot" />
-          <span>{sessionId ? `session · ${sessionId.slice(-8)}` : 'new session'}</span>
-        </div>
-        <button
-          type="button"
-          className="new-order-btn"
-          onClick={startNewOrder}
-          disabled={loading}
-        >
-          ＋ 新しい注文
-        </button>
-      </header>
+      } />
 
       {/* Step progress indicator */}
+      <div className="wf-top-bar">
       <nav className="wf-steps">
         {STEPS.map((label, i) => {
           const canGoBack = i < progressIndex && committedStep < 4 && !loading;
@@ -487,6 +478,7 @@ function OrderPageInner() {
           );
         })}
       </nav>
+      </div>
 
       {/* Step content */}
       <section className="wf-content">
