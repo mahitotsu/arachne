@@ -11,8 +11,24 @@ spring:
       mode: always
 
 delivery:
+  registry:
+    base-url: ${DELIVERY_REGISTRY_BASE_URL:}
   order:
+    endpoint: ${DELIVERY_ORDER_ENDPOINT:http://order-service:8080}
     session-store: ${DELIVERY_ORDER_SESSION_STORE:redis}
+  downstream:
+    menu:
+      service-name: ${MENU_SERVICE_NAME:menu-service}
+      base-url: ${MENU_SERVICE_BASE_URL:}
+    delivery:
+      service-name: ${DELIVERY_SERVICE_NAME:delivery-service}
+      base-url: ${DELIVERY_SERVICE_BASE_URL:}
+    payment:
+      service-name: ${PAYMENT_SERVICE_NAME:payment-service}
+      base-url: ${PAYMENT_SERVICE_BASE_URL:}
+    support:
+      service-name: ${SUPPORT_SERVICE_NAME:support-service}
+      base-url: ${SUPPORT_SERVICE_BASE_URL:}
 
 management:
   endpoints:

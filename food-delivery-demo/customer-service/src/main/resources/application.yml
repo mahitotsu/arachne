@@ -6,6 +6,10 @@ spring:
       mode: always
 
 delivery:
+  registry:
+    base-url: ${DELIVERY_REGISTRY_BASE_URL:}
+  customer:
+    endpoint: ${DELIVERY_CUSTOMER_ENDPOINT:http://customer-service:8080}
   auth:
     issuer: ${DELIVERY_AUTH_ISSUER:http://customer-service:8080}
 

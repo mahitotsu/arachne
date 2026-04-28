@@ -4,11 +4,12 @@ import static com.mahitotsu.arachne.samples.delivery.kitchenservice.domain.Kitch
 
 import java.util.Objects;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+
+import com.mahitotsu.arachne.samples.delivery.kitchenservice.config.KitchenServiceProperties;
 
 @Component
 public class RegistryBackedMenuSubstitutionGateway implements MenuSubstitutionGateway {
@@ -23,14 +24,14 @@ public class RegistryBackedMenuSubstitutionGateway implements MenuSubstitutionGa
     RegistryBackedMenuSubstitutionGateway(
             RestClient.Builder restClientBuilder,
             ServiceEndpointResolver endpointResolver,
-            @Value("${MENU_SERVICE_NAME:" + DEFAULT_MENU_SERVICE_NAME + "}") String menuServiceName,
-            @Value("${MENU_SERVICE_BASE_URL:}") String fallbackBaseUrl) {
+            KitchenServiceProperties properties) {
         this.restClient = restClientBuilder.build();
         this.endpointResolver = endpointResolver;
-        this.menuServiceName = menuServiceName;
-        this.fallbackBaseUrl = fallbackBaseUrl.isBlank()
+        this.menuServiceName = properties.getDownstream().getMenu().getServiceName();
+        String configuredBaseUrl = properties.getDownstream().getMenu().getBaseUrl();
+        this.fallbackBaseUrl = configuredBaseUrl.isBlank()
                 ? "http://" + menuServiceName + ":8080"
-                : fallbackBaseUrl;
+            : configuredBaseUrl;
     }
 
     @Override

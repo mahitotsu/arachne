@@ -1,14 +1,15 @@
 package com.mahitotsu.arachne.samples.delivery.orderservice.infrastructure;
 
-import static com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.*;
-
 import java.util.Objects;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+
+import com.mahitotsu.arachne.samples.delivery.orderservice.config.OrderRegistryProperties;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.PaymentPrepareRequest;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.PaymentPrepareResponse;
 
 @Component
 public class RegistryBackedPaymentGateway implements PaymentGateway {
@@ -23,14 +24,14 @@ public class RegistryBackedPaymentGateway implements PaymentGateway {
     RegistryBackedPaymentGateway(
             RestClient.Builder restClientBuilder,
             ServiceEndpointResolver endpointResolver,
-            @Value("${PAYMENT_SERVICE_NAME:" + DEFAULT_PAYMENT_SERVICE_NAME + "}") String paymentServiceName,
-            @Value("${PAYMENT_SERVICE_BASE_URL:}") String fallbackBaseUrl) {
+            OrderRegistryProperties properties) {
         this.restClient = restClientBuilder.build();
         this.endpointResolver = endpointResolver;
-        this.paymentServiceName = paymentServiceName;
-        this.fallbackBaseUrl = fallbackBaseUrl.isBlank()
+        this.paymentServiceName = properties.getDownstream().getPayment().getServiceName();
+        String configuredBaseUrl = properties.getDownstream().getPayment().getBaseUrl();
+        this.fallbackBaseUrl = configuredBaseUrl.isBlank()
                 ? "http://" + paymentServiceName + ":8080"
-                : fallbackBaseUrl;
+            : configuredBaseUrl;
     }
 
     @Override

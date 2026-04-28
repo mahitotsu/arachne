@@ -2,11 +2,12 @@ package com.mahitotsu.arachne.samples.delivery.menuservice.infrastructure;
 
 import static com.mahitotsu.arachne.samples.delivery.menuservice.domain.MenuTypes.*;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+
+import com.mahitotsu.arachne.samples.delivery.menuservice.config.MenuServiceProperties;
 
 @Component
 public class RegistryBackedKitchenCheckGateway implements KitchenCheckGateway {
@@ -21,14 +22,14 @@ public class RegistryBackedKitchenCheckGateway implements KitchenCheckGateway {
     RegistryBackedKitchenCheckGateway(
             RestClient.Builder restClientBuilder,
             ServiceEndpointResolver endpointResolver,
-            @Value("${KITCHEN_SERVICE_NAME:" + DEFAULT_KITCHEN_SERVICE_NAME + "}") String kitchenServiceName,
-            @Value("${KITCHEN_SERVICE_BASE_URL:}") String fallbackBaseUrl) {
+            MenuServiceProperties properties) {
         this.restClient = restClientBuilder.build();
         this.endpointResolver = endpointResolver;
-        this.kitchenServiceName = kitchenServiceName;
-        this.fallbackBaseUrl = fallbackBaseUrl.isBlank()
+        this.kitchenServiceName = properties.getDownstream().getKitchen().getServiceName();
+        String configuredBaseUrl = properties.getDownstream().getKitchen().getBaseUrl();
+        this.fallbackBaseUrl = configuredBaseUrl.isBlank()
                 ? "http://" + kitchenServiceName + ":8080"
-                : fallbackBaseUrl;
+            : configuredBaseUrl;
     }
 
     @Override

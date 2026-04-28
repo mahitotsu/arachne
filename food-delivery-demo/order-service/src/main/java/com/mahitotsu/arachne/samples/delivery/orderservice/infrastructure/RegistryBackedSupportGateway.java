@@ -1,14 +1,15 @@
 package com.mahitotsu.arachne.samples.delivery.orderservice.infrastructure;
 
-import static com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.*;
-
 import java.util.Optional;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+
+import com.mahitotsu.arachne.samples.delivery.orderservice.config.OrderRegistryProperties;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.SupportFeedbackRequestPayload;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.SupportFeedbackResponse;
 
 @Component
 public class RegistryBackedSupportGateway implements SupportGateway {
@@ -23,14 +24,14 @@ public class RegistryBackedSupportGateway implements SupportGateway {
     RegistryBackedSupportGateway(
             RestClient.Builder restClientBuilder,
             ServiceEndpointResolver endpointResolver,
-            @Value("${SUPPORT_SERVICE_NAME:" + DEFAULT_SUPPORT_SERVICE_NAME + "}") String supportServiceName,
-            @Value("${SUPPORT_SERVICE_BASE_URL:}") String fallbackBaseUrl) {
+            OrderRegistryProperties properties) {
         this.restClient = restClientBuilder.build();
         this.endpointResolver = endpointResolver;
-        this.supportServiceName = supportServiceName;
-        this.fallbackBaseUrl = fallbackBaseUrl.isBlank()
+        this.supportServiceName = properties.getDownstream().getSupport().getServiceName();
+        String configuredBaseUrl = properties.getDownstream().getSupport().getBaseUrl();
+        this.fallbackBaseUrl = configuredBaseUrl.isBlank()
                 ? "http://" + supportServiceName + ":8080"
-                : fallbackBaseUrl;
+            : configuredBaseUrl;
     }
 
     @Override

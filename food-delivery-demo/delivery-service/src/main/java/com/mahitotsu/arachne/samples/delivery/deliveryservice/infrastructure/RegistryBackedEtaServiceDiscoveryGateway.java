@@ -5,11 +5,12 @@ import static com.mahitotsu.arachne.samples.delivery.deliveryservice.domain.Deli
 import java.util.List;
 import java.util.Objects;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
+
+import com.mahitotsu.arachne.samples.delivery.deliveryservice.config.DeliveryServiceProperties;
 
 @Component
 public class RegistryBackedEtaServiceDiscoveryGateway implements EtaServiceDiscoveryGateway {
@@ -18,7 +19,8 @@ public class RegistryBackedEtaServiceDiscoveryGateway implements EtaServiceDisco
 
     RegistryBackedEtaServiceDiscoveryGateway(
             RestClient.Builder restClientBuilder,
-            @Value("${DELIVERY_REGISTRY_BASE_URL:}") String registryBaseUrl) {
+            DeliveryServiceProperties properties) {
+        String registryBaseUrl = properties.getRegistry().getBaseUrl();
         this.restClient = registryBaseUrl.isBlank() ? null : restClientBuilder.baseUrl(registryBaseUrl).build();
     }
 

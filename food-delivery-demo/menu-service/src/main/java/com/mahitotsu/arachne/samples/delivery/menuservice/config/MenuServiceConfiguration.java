@@ -3,8 +3,8 @@ package com.mahitotsu.arachne.samples.delivery.menuservice.config;
 import java.util.List;
 import java.util.Map;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.MediaType;
@@ -15,6 +15,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.client.RestClient;
 
 @Configuration
+@EnableConfigurationProperties(MenuServiceProperties.class)
 class MenuServiceConfiguration {
 
     @Bean
@@ -33,12 +34,13 @@ class MenuServiceConfiguration {
     @Bean
     ApplicationRunner registerMenuService(
             RestClient.Builder restClientBuilder,
-            @Value("${DELIVERY_REGISTRY_BASE_URL:}") String registryBaseUrl,
-            @Value("${DELIVERY_MENU_ENDPOINT:http://menu-service:8080}") String serviceEndpoint) {
+                        MenuServiceProperties properties) {
         return args -> {
+                        String registryBaseUrl = properties.getRegistry().getBaseUrl();
             if (registryBaseUrl.isBlank()) {
                 return;
             }
+                        String serviceEndpoint = properties.getMenu().getEndpoint();
             restClientBuilder.baseUrl(registryBaseUrl).build().post()
                     .uri("/registry/register")
                     .contentType(MediaType.APPLICATION_JSON)

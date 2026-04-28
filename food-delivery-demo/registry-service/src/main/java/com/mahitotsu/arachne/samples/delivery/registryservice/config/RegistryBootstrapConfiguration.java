@@ -4,25 +4,27 @@ import static com.mahitotsu.arachne.samples.delivery.registryservice.domain.Regi
 
 import java.util.List;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import com.mahitotsu.arachne.samples.delivery.registryservice.infrastructure.RegistryRepository;
 
 @Configuration
+@EnableConfigurationProperties(RegistryServiceProperties.class)
 class RegistryBootstrapConfiguration {
 
     @Bean
     ApplicationRunner seedDefaults(
             RegistryRepository repository,
-            @Value("${delivery.registry.seed-defaults:true}") boolean seedDefaults,
-            @Value("${delivery.registry.endpoint:http://registry-service:8080}") String registryEndpoint) {
+            RegistryServiceProperties properties) {
         return args -> {
+            boolean seedDefaults = properties.isSeedDefaults();
             if (!seedDefaults) {
                 return;
             }
+            String registryEndpoint = properties.getEndpoint();
             repository.register(new RegistryRegistration(
                     "registry-service",
                     registryEndpoint,

@@ -3,25 +3,27 @@ package com.mahitotsu.arachne.samples.delivery.idatenadapter.config;
 import java.util.List;
 import java.util.Map;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
 
 @Configuration
+@EnableConfigurationProperties(IdatenAdapterProperties.class)
 class IdatenAdapterConfiguration {
 
     @Bean
     ApplicationRunner registerIdatenAdapter(
             RestClient.Builder restClientBuilder,
-            @Value("${DELIVERY_REGISTRY_BASE_URL:}") String registryBaseUrl,
-            @Value("${DELIVERY_IDATEN_ENDPOINT:http://idaten-adapter:8080}") String adapterEndpoint) {
+            IdatenAdapterProperties properties) {
         return args -> {
+            String registryBaseUrl = properties.getRegistry().getBaseUrl();
             if (registryBaseUrl.isBlank()) {
                 return;
             }
+            String adapterEndpoint = properties.getIdaten().getEndpoint();
             restClientBuilder.baseUrl(registryBaseUrl).build().post()
                     .uri("/registry/register")
                     .contentType(MediaType.APPLICATION_JSON)

@@ -3,10 +3,10 @@ package com.mahitotsu.arachne.samples.delivery.supportservice.infrastructure;
 import java.util.List;
 import java.util.Objects;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
+import com.mahitotsu.arachne.samples.delivery.supportservice.config.SupportServiceProperties;
 import com.mahitotsu.arachne.samples.delivery.supportservice.domain.ServiceHealthSummary;
 
 @Component
@@ -16,7 +16,8 @@ public class SupportStatusGateway {
 
     SupportStatusGateway(
             RestClient.Builder restClientBuilder,
-            @Value("${DELIVERY_REGISTRY_BASE_URL:}") String registryBaseUrl) {
+            SupportServiceProperties properties) {
+        String registryBaseUrl = properties.getRegistry().getBaseUrl();
         this.restClient = registryBaseUrl.isBlank() ? null : restClientBuilder.baseUrl(registryBaseUrl).build();
     }
 

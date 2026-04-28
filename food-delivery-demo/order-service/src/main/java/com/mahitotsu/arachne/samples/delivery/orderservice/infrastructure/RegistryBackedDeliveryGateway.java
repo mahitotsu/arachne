@@ -1,14 +1,15 @@
 package com.mahitotsu.arachne.samples.delivery.orderservice.infrastructure;
 
-import static com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.*;
-
 import java.util.Objects;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+
+import com.mahitotsu.arachne.samples.delivery.orderservice.config.OrderRegistryProperties;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.DeliveryQuoteRequest;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.DeliveryQuoteResponse;
 
 @Component
 public class RegistryBackedDeliveryGateway implements DeliveryGateway {
@@ -23,14 +24,14 @@ public class RegistryBackedDeliveryGateway implements DeliveryGateway {
     RegistryBackedDeliveryGateway(
             RestClient.Builder restClientBuilder,
             ServiceEndpointResolver endpointResolver,
-            @Value("${DELIVERY_SERVICE_NAME:" + DEFAULT_DELIVERY_SERVICE_NAME + "}") String deliveryServiceName,
-            @Value("${DELIVERY_SERVICE_BASE_URL:}") String fallbackBaseUrl) {
+            OrderRegistryProperties properties) {
         this.restClient = restClientBuilder.build();
         this.endpointResolver = endpointResolver;
-        this.deliveryServiceName = deliveryServiceName;
-        this.fallbackBaseUrl = fallbackBaseUrl.isBlank()
+        this.deliveryServiceName = properties.getDownstream().getDelivery().getServiceName();
+        String configuredBaseUrl = properties.getDownstream().getDelivery().getBaseUrl();
+        this.fallbackBaseUrl = configuredBaseUrl.isBlank()
                 ? "http://" + deliveryServiceName + ":8080"
-                : fallbackBaseUrl;
+            : configuredBaseUrl;
     }
 
     @Override

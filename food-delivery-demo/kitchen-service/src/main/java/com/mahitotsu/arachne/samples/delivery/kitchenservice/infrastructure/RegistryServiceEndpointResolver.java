@@ -10,10 +10,11 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
+
+import com.mahitotsu.arachne.samples.delivery.kitchenservice.config.KitchenServiceProperties;
 
 @Component
 public class RegistryServiceEndpointResolver implements ServiceEndpointResolver {
@@ -23,7 +24,8 @@ public class RegistryServiceEndpointResolver implements ServiceEndpointResolver 
 
     RegistryServiceEndpointResolver(
             RestClient.Builder restClientBuilder,
-            @Value("${DELIVERY_REGISTRY_BASE_URL:}") String registryBaseUrl) {
+            KitchenServiceProperties properties) {
+        String registryBaseUrl = properties.getRegistry().getBaseUrl();
         this.registryRestClient = registryBaseUrl.isBlank() ? null : restClientBuilder.baseUrl(registryBaseUrl).build();
     }
 

@@ -3,8 +3,8 @@ package com.mahitotsu.arachne.samples.delivery.orderservice.config;
 import java.util.List;
 import java.util.Map;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.MediaType;
@@ -15,6 +15,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.client.RestClient;
 
 @Configuration
+@EnableConfigurationProperties(OrderRegistryProperties.class)
 class OrderServiceConfiguration {
 
     @Bean
@@ -37,12 +38,13 @@ class OrderServiceConfiguration {
     @Bean
     ApplicationRunner registerOrderService(
             RestClient.Builder restClientBuilder,
-            @Value("${DELIVERY_REGISTRY_BASE_URL:}") String registryBaseUrl,
-            @Value("${DELIVERY_ORDER_ENDPOINT:http://order-service:8080}") String serviceEndpoint) {
+            OrderRegistryProperties properties) {
         return args -> {
+            String registryBaseUrl = properties.getRegistry().getBaseUrl();
             if (registryBaseUrl.isBlank()) {
                 return;
             }
+            String serviceEndpoint = properties.getOrder().getEndpoint();
             restClientBuilder.baseUrl(registryBaseUrl).build().post()
                     .uri("/registry/register")
                     .contentType(MediaType.APPLICATION_JSON)

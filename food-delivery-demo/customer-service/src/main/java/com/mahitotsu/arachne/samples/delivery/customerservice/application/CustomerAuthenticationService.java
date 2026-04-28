@@ -6,7 +6,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
@@ -16,6 +15,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import com.mahitotsu.arachne.samples.delivery.customerservice.domain.InvalidCredentialsException;
+import com.mahitotsu.arachne.samples.delivery.customerservice.config.CustomerServiceProperties;
 import com.mahitotsu.arachne.samples.delivery.customerservice.infrastructure.CustomerAccountRepository;
 import com.mahitotsu.arachne.samples.delivery.customerservice.infrastructure.SigningKeyManager;
 
@@ -35,12 +35,12 @@ public class CustomerAuthenticationService {
             PasswordEncoder passwordEncoder,
             JwtEncoder jwtEncoder,
             SigningKeyManager signingKeyManager,
-            @Value("${delivery.auth.issuer}") String issuer) {
+            CustomerServiceProperties properties) {
         this.repository = repository;
         this.passwordEncoder = passwordEncoder;
         this.jwtEncoder = jwtEncoder;
         this.signingKeyManager = signingKeyManager;
-        this.issuer = issuer;
+        this.issuer = properties.getAuth().getIssuer();
     }
 
     public AccessTokenResponse signIn(SignInRequest request) {

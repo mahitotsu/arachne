@@ -2,11 +2,11 @@ package com.mahitotsu.arachne.samples.delivery.supportservice.infrastructure;
 
 import java.util.List;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 
+import com.mahitotsu.arachne.samples.delivery.supportservice.config.SupportServiceProperties;
 import com.mahitotsu.arachne.samples.delivery.supportservice.domain.CustomerOrderHistoryEntry;
 
 @Component
@@ -20,12 +20,11 @@ public class RegistryBackedOrderHistoryGateway implements OrderHistoryGateway {
     RegistryBackedOrderHistoryGateway(
             RestClient.Builder restClientBuilder,
             ServiceEndpointResolver endpointResolver,
-            @Value("${ORDER_SERVICE_NAME:order-service}") String orderServiceName,
-            @Value("${ORDER_SERVICE_BASE_URL:}") String orderServiceBaseUrl) {
+            SupportServiceProperties properties) {
         this.restClient = restClientBuilder.build();
         this.endpointResolver = endpointResolver;
-        this.orderServiceName = orderServiceName;
-        this.fallbackOrderServiceBaseUrl = orderServiceBaseUrl;
+        this.orderServiceName = properties.getDownstream().getOrder().getServiceName();
+        this.fallbackOrderServiceBaseUrl = properties.getDownstream().getOrder().getBaseUrl();
     }
 
     @Override

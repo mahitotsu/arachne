@@ -3,8 +3,8 @@ package com.mahitotsu.arachne.samples.delivery.supportservice.config;
 import java.util.List;
 import java.util.Map;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.MediaType;
@@ -15,6 +15,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.client.RestClient;
 
 @Configuration
+@EnableConfigurationProperties(SupportServiceProperties.class)
 class SupportServiceConfiguration {
 
     @Bean
@@ -33,12 +34,13 @@ class SupportServiceConfiguration {
     @Bean
     ApplicationRunner registerSupportService(
             RestClient.Builder restClientBuilder,
-            @Value("${DELIVERY_REGISTRY_BASE_URL:}") String registryBaseUrl,
-            @Value("${DELIVERY_SUPPORT_ENDPOINT:http://support-service:8080}") String serviceEndpoint) {
+                        SupportServiceProperties properties) {
         return args -> {
+                        String registryBaseUrl = properties.getRegistry().getBaseUrl();
             if (registryBaseUrl.isBlank()) {
                 return;
             }
+                        String serviceEndpoint = properties.getSupport().getEndpoint();
             restClientBuilder.baseUrl(registryBaseUrl).build().post()
                     .uri("/registry/register")
                     .contentType(MediaType.APPLICATION_JSON)

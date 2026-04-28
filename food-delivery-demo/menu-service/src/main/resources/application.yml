@@ -7,6 +7,16 @@ spring:
         jwt:
           jwk-set-uri: ${DELIVERY_JWK_SET_URI:http://customer-service:8080/oauth2/jwks}
 
+delivery:
+  registry:
+    base-url: ${DELIVERY_REGISTRY_BASE_URL:}
+  menu:
+    endpoint: ${DELIVERY_MENU_ENDPOINT:http://menu-service:8080}
+  downstream:
+    kitchen:
+      service-name: ${KITCHEN_SERVICE_NAME:kitchen-service}
+      base-url: ${KITCHEN_SERVICE_BASE_URL:}
+
 management:
   endpoints:
     web:

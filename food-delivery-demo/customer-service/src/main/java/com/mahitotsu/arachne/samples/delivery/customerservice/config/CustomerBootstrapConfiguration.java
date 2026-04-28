@@ -3,8 +3,8 @@ package com.mahitotsu.arachne.samples.delivery.customerservice.config;
 import java.util.List;
 import java.util.Map;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.MediaType;
@@ -14,6 +14,7 @@ import org.springframework.web.client.RestClient;
 import com.mahitotsu.arachne.samples.delivery.customerservice.infrastructure.CustomerAccountRepository;
 
 @Configuration
+@EnableConfigurationProperties(CustomerServiceProperties.class)
 class CustomerBootstrapConfiguration {
 
     @Bean
@@ -24,12 +25,13 @@ class CustomerBootstrapConfiguration {
     @Bean
     ApplicationRunner registerCustomerService(
             RestClient.Builder restClientBuilder,
-            @Value("${DELIVERY_REGISTRY_BASE_URL:}") String registryBaseUrl,
-            @Value("${DELIVERY_CUSTOMER_ENDPOINT:http://customer-service:8080}") String serviceEndpoint) {
+            CustomerServiceProperties properties) {
         return args -> {
+            String registryBaseUrl = properties.getRegistry().getBaseUrl();
             if (registryBaseUrl.isBlank()) {
                 return;
             }
+            String serviceEndpoint = properties.getCustomer().getEndpoint();
             restClientBuilder.baseUrl(registryBaseUrl).build().post()
                     .uri("/registry/register")
                     .contentType(MediaType.APPLICATION_JSON)

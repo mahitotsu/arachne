@@ -3,25 +3,27 @@ package com.mahitotsu.arachne.samples.delivery.deliveryservice.config;
 import java.util.List;
 import java.util.Map;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
 
 @Configuration
+@EnableConfigurationProperties(DeliveryServiceProperties.class)
 class DeliveryRegistryConfiguration {
 
     @Bean
     ApplicationRunner registerDeliveryService(
             RestClient.Builder restClientBuilder,
-            @Value("${DELIVERY_REGISTRY_BASE_URL:}") String registryBaseUrl,
-            @Value("${DELIVERY_DELIVERY_ENDPOINT:http://delivery-service:8080}") String serviceEndpoint) {
+            DeliveryServiceProperties properties) {
         return args -> {
+            String registryBaseUrl = properties.getRegistry().getBaseUrl();
             if (registryBaseUrl.isBlank()) {
                 return;
             }
+            String serviceEndpoint = properties.getDelivery().getEndpoint();
             restClientBuilder.baseUrl(registryBaseUrl).build().post()
                     .uri("/registry/register")
                     .contentType(MediaType.APPLICATION_JSON)
