@@ -12,7 +12,7 @@ export default function AppNav({ center, right }: AppNavProps) {
   return (
     <nav className="h-nav">
       <Link href="/home" className="h-nav-brand">
-        <span>�</span>
+        <span>👻</span>
         <span className="h-nav-name">Arachne Kitchen</span>
       </Link>
       {center

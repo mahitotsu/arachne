@@ -113,6 +113,8 @@ export default function AgentsPage() {
         lead="このシステムで稼働中の Arachne AI エージェントです。各エージェントのシステムプロンプト・利用ツール・スキルを確認できます。"
       />
 
+      <div className="ag-content">
+
       {/* Content */}
       {loading ? (
         <div className="ag-loading">読み込み中…</div>
@@ -145,9 +147,12 @@ export default function AgentsPage() {
                   {agent.tools.length > 3 && (
                     <span className="ag-tool-chip ag-tool-chip--more">+{agent.tools.length - 3}</span>
                   )}
-                  {agent.skills.length > 0 && agent.skills.slice(0, 2).map(s => (
-                    <span key={s.name} className="ag-skill-chip">{s.name}</span>
-                  ))}
+                  {agent.skills.length > 0
+                    ? agent.skills.slice(0, 2).map(s => (
+                        <span key={s.name} className="ag-skill-chip">{s.name}</span>
+                      ))
+                    : <span className="ag-skill-chip ag-skill-chip--none">スキルなし</span>
+                  }
                 </div>
                 <span className="ag-card-detail-hint">詳細を見る →</span>
               </button>
@@ -227,9 +232,11 @@ export default function AgentsPage() {
               )}
 
               {/* Skills */}
-              {selected.skills.length > 0 && (
-                <div className="ag-modal-section">
-                  <span className="ag-modal-section-title">スキル ({selected.skills.length})</span>
+              <div className="ag-modal-section">
+                <span className="ag-modal-section-title">スキル ({selected.skills.length})</span>
+                {selected.skills.length === 0 ? (
+                  <p className="ag-modal-no-skills">スキル定義がありません</p>
+                ) : (
                   <div className="ag-skill-list">
                     {selected.skills.map(sk => (
                       <div key={sk.name} className="ag-skill-item">
@@ -254,12 +261,14 @@ export default function AgentsPage() {
                       </div>
                     ))}
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
         </div>
       )}
+
+      </div>{/* ag-content */}
 
       <AppFooter />
     </div>

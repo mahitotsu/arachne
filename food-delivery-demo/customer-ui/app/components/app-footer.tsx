@@ -4,7 +4,7 @@ export default function AppFooter() {
   return (
     <footer className="pg-footer">
       <div className="pg-footer-brand">
-        <span aria-hidden="true">�</span>
+        <span aria-hidden="true">👻</span>
         <span className="pg-footer-name">Arachne Kitchen</span>
       </div>
       <nav className="pg-footer-links" aria-label="フッターナビゲーション">

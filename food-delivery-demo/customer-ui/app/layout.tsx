@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import { ReactNode } from 'react';
 
 export const metadata: Metadata = {
-  title: '� Arachne Kitchen Delivery',
+  title: '👻 Arachne Kitchen Delivery',
   description: 'Chat-first delivery app for a single-kitchen cloud restaurant, powered by Arachne multi-agent workflows and Spring microservices.'
 };
 
