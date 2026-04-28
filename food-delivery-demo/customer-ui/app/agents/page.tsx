@@ -38,6 +38,37 @@ type HealthResponse = {
   services: HealthEntry[];
 };
 
+type OpenApiInputField = { field: string; meaning: string };
+type OpenApiPromptContract = {
+  agent?: string;
+  contract?: {
+    requiredInputs?: OpenApiInputField[];
+    optionalInputs?: OpenApiInputField[];
+    serviceBehavior?: string;
+  };
+};
+type OpenApiOperation = {
+  summary?: string;
+  description?: string;
+  'x-ai-prompt-contract'?: OpenApiPromptContract;
+};
+type OpenApiSpec = {
+  info?: { title?: string; description?: string };
+  paths?: Record<string, Record<string, OpenApiOperation>>;
+};
+
+const HTTP_METHODS = ['get', 'post', 'put', 'patch', 'delete'] as const;
+function getApiOperations(spec: OpenApiSpec): Array<{ method: string; path: string; op: OpenApiOperation }> {
+  const result: Array<{ method: string; path: string; op: OpenApiOperation }> = [];
+  for (const [path, pathItem] of Object.entries(spec.paths ?? {})) {
+    for (const method of HTTP_METHODS) {
+      const op = pathItem[method];
+      if (op) result.push({ method, path, op });
+    }
+  }
+  return result;
+}
+
 const AGENT_ICONS: Record<string, string> = {
   'delivery-agent':          '🚚',
   'menu-agent':              '🍱',
@@ -64,6 +95,9 @@ export default function AgentsPage() {
   const [error, setError] = useState('');
   const [selected, setSelected] = useState<AgentServiceDescriptor | null>(null);
   const [expandedSkills, setExpandedSkills] = useState<Set<string>>(new Set());
+  const [modalTab, setModalTab] = useState<'overview' | 'tools' | 'api'>('overview');
+  const [openApiCache, setOpenApiCache] = useState<Record<string, OpenApiSpec>>({});
+  const [loadingApi, setLoadingApi] = useState(false);
 
   useEffect(() => {
     void fetchAuthSession().then(auth => {
@@ -101,6 +135,16 @@ export default function AgentsPage() {
     return healthMap[serviceName] ?? 'NOT_AVAILABLE';
   }
 
+  function loadApiSpec(svcName: string) {
+    if (openApiCache[svcName] || loadingApi) return;
+    setLoadingApi(true);
+    void fetch(`/api/openapi/${encodeURIComponent(svcName)}`)
+      .then(r => (r.ok ? (r.json() as Promise<OpenApiSpec>) : null))
+      .then(spec => { if (spec) setOpenApiCache(prev => ({ ...prev, [svcName]: spec })); })
+      .catch(() => {})
+      .finally(() => setLoadingApi(false));
+  }
+
   return (
     <div className="ag-shell">
       {/* Nav */}
@@ -129,7 +173,7 @@ export default function AgentsPage() {
                 key={agent.serviceName}
                 type="button"
                 className="ag-card"
-                onClick={() => { setSelected(agent); setExpandedSkills(new Set()); }}
+                onClick={() => { setSelected(agent); setExpandedSkills(new Set()); setModalTab('overview'); }}
               >
                 <div className="ag-card-icon" aria-hidden="true">{agentIcon(agent.agentName)}</div>
                 <div className="ag-card-header">
@@ -153,6 +197,7 @@ export default function AgentsPage() {
                       ))
                     : <span className="ag-skill-chip ag-skill-chip--none">スキルなし</span>
                   }
+                  <span className="ag-api-chip">API仕様</span>
                 </div>
                 <span className="ag-card-detail-hint">詳細を見る →</span>
               </button>
@@ -192,77 +237,152 @@ export default function AgentsPage() {
               </button>
             </div>
 
+            {/* Modal tabs */}
+            <div className="ag-modal-tabs">
+              <button type="button" className={`ag-modal-tab${modalTab === 'overview' ? ' ag-modal-tab--active' : ''}`} onClick={() => setModalTab('overview')}>概要</button>
+              <button type="button" className={`ag-modal-tab${modalTab === 'tools' ? ' ag-modal-tab--active' : ''}`} onClick={() => setModalTab('tools')}>ツール・スキル</button>
+              <button type="button" className={`ag-modal-tab${modalTab === 'api' ? ' ag-modal-tab--active' : ''}`} onClick={() => { setModalTab('api'); loadApiSpec(selected.serviceName); }}>API 仕様</button>
+            </div>
+
             <div className="ag-modal-body">
-              {/* Endpoint */}
-              <div className="ag-modal-section">
-                <span className="ag-modal-section-title">エンドポイント</span>
-                <span className="ag-modal-endpoint">
-                  <span className="ag-modal-method">{selected.requestMethod}</span>
-                  <span>{selected.requestPath}</span>
-                </span>
-              </div>
 
-              {/* Capability */}
-              <div className="ag-modal-section">
-                <span className="ag-modal-section-title">ケイパビリティ</span>
-                <p className="ag-modal-text">{selected.capability}</p>
-              </div>
-
-              {/* System prompt */}
-              {selected.systemPrompt && (
-                <div className="ag-modal-section">
-                  <span className="ag-modal-section-title">システムプロンプト</span>
-                  <pre className="ag-modal-pre">{selected.systemPrompt}</pre>
-                </div>
-              )}
-
-              {/* Tools */}
-              {selected.tools.length > 0 && (
-                <div className="ag-modal-section">
-                  <span className="ag-modal-section-title">利用ツール ({selected.tools.length})</span>
-                  <div className="ag-tool-list">
-                    {selected.tools.map(tool => (
-                      <div key={tool.name} className="ag-tool-row">
-                        <code className="ag-tool-name">{tool.name}</code>
-                        <span className="ag-tool-desc">{tool.content}</span>
-                      </div>
-                    ))}
+              {/* Tab: 概要 */}
+              {modalTab === 'overview' && (
+                <>
+                  <div className="ag-modal-section">
+                    <span className="ag-modal-section-title">エンドポイント</span>
+                    <span className="ag-modal-endpoint">
+                      <span className="ag-modal-method">{selected.requestMethod}</span>
+                      <span>{selected.requestPath}</span>
+                    </span>
                   </div>
-                </div>
+                  <div className="ag-modal-section">
+                    <span className="ag-modal-section-title">ケイパビリティ</span>
+                    <p className="ag-modal-text">{selected.capability}</p>
+                  </div>
+                  {selected.systemPrompt && (
+                    <div className="ag-modal-section">
+                      <span className="ag-modal-section-title">システムプロンプト</span>
+                      <pre className="ag-modal-pre">{selected.systemPrompt}</pre>
+                    </div>
+                  )}
+                </>
               )}
 
-              {/* Skills */}
-              <div className="ag-modal-section">
-                <span className="ag-modal-section-title">スキル ({selected.skills.length})</span>
-                {selected.skills.length === 0 ? (
-                  <p className="ag-modal-no-skills">スキル定義がありません</p>
-                ) : (
-                  <div className="ag-skill-list">
-                    {selected.skills.map(sk => (
-                      <div key={sk.name} className="ag-skill-item">
-                        <div
-                          className="ag-skill-header"
-                          onClick={() => setExpandedSkills(prev => {
-                            const next = new Set(prev);
-                            if (next.has(sk.name)) next.delete(sk.name); else next.add(sk.name);
-                            return next;
-                          })}
-                        >
-                          <span className="ag-skill-name">{sk.name}</span>
-                          <span className="ag-skill-toggle">{expandedSkills.has(sk.name) ? '▲' : '▼'}</span>
-                        </div>
-                        {expandedSkills.has(sk.name) && (
-                          <div className="ag-skill-body">
-                            <div className="ag-skill-body-md">
-                              <ReactMarkdown>{parseSkillContent(sk.content)}</ReactMarkdown>
-                            </div>
+              {/* Tab: ツール・スキル */}
+              {modalTab === 'tools' && (
+                <>
+                  {selected.tools.length > 0 && (
+                    <div className="ag-modal-section">
+                      <span className="ag-modal-section-title">利用ツール ({selected.tools.length})</span>
+                      <div className="ag-tool-list">
+                        {selected.tools.map(tool => (
+                          <div key={tool.name} className="ag-tool-row">
+                            <code className="ag-tool-name">{tool.name}</code>
+                            <span className="ag-tool-desc">{tool.content}</span>
                           </div>
-                        )}
+                        ))}
                       </div>
-                    ))}
+                    </div>
+                  )}
+                  <div className="ag-modal-section">
+                    <span className="ag-modal-section-title">スキル ({selected.skills.length})</span>
+                    {selected.skills.length === 0 ? (
+                      <p className="ag-modal-no-skills">スキル定義がありません</p>
+                    ) : (
+                      <div className="ag-skill-list">
+                        {selected.skills.map(sk => (
+                          <div key={sk.name} className="ag-skill-item">
+                            <div
+                              className="ag-skill-header"
+                              onClick={() => setExpandedSkills(prev => {
+                                const next = new Set(prev);
+                                if (next.has(sk.name)) next.delete(sk.name); else next.add(sk.name);
+                                return next;
+                              })}
+                            >
+                              <span className="ag-skill-name">{sk.name}</span>
+                              <span className="ag-skill-toggle">{expandedSkills.has(sk.name) ? '▲' : '▼'}</span>
+                            </div>
+                            {expandedSkills.has(sk.name) && (
+                              <div className="ag-skill-body">
+                                <div className="ag-skill-body-md">
+                                  <ReactMarkdown>{parseSkillContent(sk.content)}</ReactMarkdown>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                </>
+              )}
+
+              {/* Tab: API 仕様 */}
+              {modalTab === 'api' && (
+                loadingApi
+                  ? <p className="ag-api-loading">読み込み中…</p>
+                  : !openApiCache[selected.serviceName]
+                    ? <p className="ag-api-loading">API仕様を取得できませんでした</p>
+                    : (
+                      <div className="ag-api-list">
+                        {getApiOperations(openApiCache[selected.serviceName]).map(({ method, path, op }) => {
+                          const contract = op['x-ai-prompt-contract'];
+                          return (
+                            <div key={`${method}:${path}`} className="ag-api-op">
+                              <div className="ag-api-op-header">
+                                <span className={`ag-api-op-badge ag-api-op-badge--${method}`}>{method.toUpperCase()}</span>
+                                <div className="ag-api-op-meta">
+                                  <span className="ag-api-op-path">{path}</span>
+                                  {op.summary && <span className="ag-api-op-summary">{op.summary}</span>}
+                                </div>
+                              </div>
+                              {(op.description || contract?.contract) && (
+                                <div className="ag-api-op-body">
+                                  {op.description && <p className="ag-api-op-desc">{op.description}</p>}
+                                  {contract?.contract && (
+                                    <div className="ag-contract-block">
+                                      {contract.agent && (
+                                        <p className="ag-contract-agent">担当エージェント: <strong>{contract.agent}</strong></p>
+                                      )}
+                                      {(contract.contract.requiredInputs?.length ?? 0) > 0 && (
+                                        <>
+                                          <p className="ag-contract-section-label">必須入力</p>
+                                          <ul className="ag-contract-fields">
+                                            {contract.contract.requiredInputs!.map(f => (
+                                              <li key={f.field}><code className="ag-contract-field-name">{f.field}</code>{f.meaning}</li>
+                                            ))}
+                                          </ul>
+                                        </>
+                                      )}
+                                      {(contract.contract.optionalInputs?.length ?? 0) > 0 && (
+                                        <>
+                                          <p className="ag-contract-section-label">任意入力</p>
+                                          <ul className="ag-contract-fields">
+                                            {contract.contract.optionalInputs!.map(f => (
+                                              <li key={f.field}><code className="ag-contract-field-name">{f.field}</code>{f.meaning}</li>
+                                            ))}
+                                          </ul>
+                                        </>
+                                      )}
+                                      {contract.contract.serviceBehavior && (
+                                        <>
+                                          <p className="ag-contract-section-label">サービス動作</p>
+                                          <p className="ag-contract-behavior">{contract.contract.serviceBehavior}</p>
+                                        </>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )
+              )}
+
             </div>
           </div>
         </div>

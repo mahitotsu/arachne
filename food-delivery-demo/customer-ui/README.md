@@ -8,7 +8,7 @@
 - `support-service` から取得するキャンペーンバナー（ホームダッシュボード上部）
 - ホームの主要 CTA 直下に置かれたサポートセンター導線（`/support`）
 - サポートページで表示するサービス稼働状況インジケーター
-- エージェント仕様ビューワー（`/agents`）: `registry-service` から AI エージェントのシステムプロンプト・利用ツール・スキルを取得してカード一覧＋モーダル表示
+- エージェント仕様ビューワー（`/agents`）: `registry-service` から AI エージェントのシステムプロンプト・利用ツール・スキルを取得してカード一覧＋モーダル表示。モーダルは「概要」「ツール・スキル」「API仕様」の3タブに整理されており、「API仕様」タブは当該サービスの OpenAPI (`/v3/api-docs`) を遅延ロードし、各エンドポイントのメソッドバッジ・summary・`x-ai-prompt-contract`（必須入力 / 任意入力 / サービス動作）を表示します
 
 ## ページ一覧
 
@@ -40,6 +40,7 @@
 | `/api/menu/*` | `MENU_SERVICE_ORIGIN/api/menu/*` |
 | `/api/support/*` | `SUPPORT_SERVICE_ORIGIN/api/support/*` |
 | `/api/registry/*` | `REGISTRY_SERVICE_ORIGIN/registry/*` |
+| `/api/openapi/[serviceName]` | `registry-service` でエンドポイントを解決したうえで `{endpoint}/v3/api-docs` に転送 |
 
 `/api/auth/session` は customer-ui 自身が持つ認証確認・ログアウト用エンドポイントです。サインイン時に customer-ui が upstream のアクセストークンを受け取り、サーバー側セッションへ保存します。
 

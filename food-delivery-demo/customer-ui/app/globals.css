@@ -511,7 +511,7 @@ p,h1,h2,h3,h4,h5,h6 { margin: 0; }
 .ag-modal-sub      { font-size: 0.77rem; color: var(--ink-subtle); font-weight: 500; margin-top: 1px; }
 .ag-modal-close { padding: 5px 10px; border: 1px solid var(--border); border-radius: var(--r-sm); background: transparent; color: var(--ink-muted); font-size: 0.88rem; cursor: pointer; flex-shrink: 0; transition: background 0.15s; }
 .ag-modal-close:hover { background: var(--surface-2); }
-.ag-modal-body { padding: 20px 22px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; max-height: calc(80vh - 90px); }
+.ag-modal-body { padding: 20px 22px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; max-height: calc(80vh - 130px); }
 .ag-modal-section       { display: flex; flex-direction: column; gap: 6px; }
 .ag-modal-section-title { font-size: 0.72rem; font-weight: 700; color: var(--ink-subtle); text-transform: uppercase; letter-spacing: 0.06em; }
 .ag-modal-text { font-size: 0.87rem; color: var(--ink-muted); line-height: 1.6; }
@@ -541,6 +541,41 @@ p,h1,h2,h3,h4,h5,h6 { margin: 0; }
 .ag-skill-body-md ol,.ag-skill-body-md ul { margin: 0.4em 0; padding-left: 1.5em; }
 .ag-skill-body-md li { margin-bottom: 0.3em; }
 .ag-skill-body-md strong { font-weight: 700; color: var(--ink); }
+
+/* Modal tabs */
+.ag-modal-tabs { display: flex; border-bottom: 1px solid var(--border); padding: 0 22px; flex-shrink: 0; background: var(--surface-0); }
+.ag-modal-tab { padding: 10px 16px; font-size: 0.82rem; font-weight: 600; color: var(--ink-subtle); border: none; background: transparent; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color 0.15s, border-color 0.15s; }
+.ag-modal-tab:hover { color: var(--ink); }
+.ag-modal-tab--active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* API chip on card */
+.ag-api-chip { font-size: 0.7rem; font-weight: 600; padding: 2px 8px; border-radius: var(--r-pill); background: var(--p-amber); color: var(--p-amber-t); border: 1px solid rgba(180,83,9,0.18); }
+
+/* API spec tab */
+.ag-api-loading { font-size: 0.84rem; color: var(--ink-subtle); font-style: italic; padding: 8px 0; margin: 0; }
+.ag-api-list { display: flex; flex-direction: column; gap: 12px; }
+.ag-api-op { border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; }
+.ag-api-op-header { display: flex; align-items: flex-start; gap: 10px; padding: 10px 14px; background: var(--surface-2); }
+.ag-api-op-badge { font-size: 0.67rem; font-weight: 800; padding: 3px 8px; border-radius: var(--r-pill); font-family: ui-monospace,monospace; letter-spacing: 0.05em; flex-shrink: 0; margin-top: 2px; }
+.ag-api-op-badge--post   { background: var(--p-green);  color: var(--p-green-t);  }
+.ag-api-op-badge--get    { background: var(--p-blue);   color: var(--p-blue-t);   }
+.ag-api-op-badge--put    { background: var(--p-teal);   color: var(--p-teal-t);   }
+.ag-api-op-badge--delete { background: var(--p-rose);   color: var(--p-rose-t);   }
+.ag-api-op-badge--patch  { background: var(--p-purple); color: var(--p-purple-t); }
+.ag-api-op-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ag-api-op-path { font-family: ui-monospace,monospace; font-size: 0.78rem; font-weight: 600; color: var(--ink); word-break: break-all; }
+.ag-api-op-summary { font-size: 0.79rem; color: var(--ink-muted); }
+.ag-api-op-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--border); }
+.ag-api-op-desc { font-size: 0.82rem; color: var(--ink-muted); line-height: 1.55; margin: 0; }
+
+/* Prompt contract block */
+.ag-contract-block { background: var(--p-amber); border: 1px solid rgba(180,83,9,0.2); border-radius: var(--r-sm); padding: 12px 14px; display: flex; flex-direction: column; gap: 5px; }
+.ag-contract-agent { font-size: 0.8rem; color: var(--p-amber-t); margin: 0; }
+.ag-contract-section-label { font-size: 0.69rem; font-weight: 700; color: var(--p-amber-t); text-transform: uppercase; letter-spacing: 0.06em; margin: 3px 0 0; }
+.ag-contract-fields { margin: 2px 0 0; padding-left: 0; list-style: none; display: flex; flex-direction: column; gap: 3px; }
+.ag-contract-fields li { font-size: 0.8rem; color: var(--ink-muted); display: flex; gap: 6px; align-items: baseline; line-height: 1.45; }
+.ag-contract-field-name { font-family: ui-monospace,monospace; font-size: 0.73rem; font-weight: 700; color: var(--p-amber-t); background: rgba(180,83,9,0.1); padding: 1px 6px; border-radius: var(--r-sm); flex-shrink: 0; }
+.ag-contract-behavior { font-size: 0.8rem; color: var(--ink-muted); line-height: 1.5; margin: 2px 0 0; }
 
 /* ── Responsive ─────────────────────────────────────────────── */
 @media (max-width: 860px) {
