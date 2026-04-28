@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import ReactMarkdown from 'react-markdown';
 
 import { fetchAuthSession } from '../../lib/browser-session';
 import AppNav from '../components/app-nav';
@@ -49,6 +50,12 @@ function agentIcon(agentName: string): string {
   return AGENT_ICONS[agentName] ?? '🤖';
 }
 
+function parseSkillContent(content: string): string {
+  if (!content.startsWith('---')) return content;
+  const end = content.indexOf('---', 3);
+  return end === -1 ? content : content.slice(end + 3).trim();
+}
+
 export default function AgentsPage() {
   const router = useRouter();
   const [agents, setAgents] = useState<AgentServiceDescriptor[]>([]);
@@ -56,6 +63,7 @@ export default function AgentsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selected, setSelected] = useState<AgentServiceDescriptor | null>(null);
+  const [expandedSkills, setExpandedSkills] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     void fetchAuthSession().then(auth => {
@@ -119,7 +127,7 @@ export default function AgentsPage() {
                 key={agent.serviceName}
                 type="button"
                 className="ag-card"
-                onClick={() => setSelected(agent)}
+                onClick={() => { setSelected(agent); setExpandedSkills(new Set()); }}
               >
                 <div className="ag-card-icon" aria-hidden="true">{agentIcon(agent.agentName)}</div>
                 <div className="ag-card-header">
@@ -137,6 +145,9 @@ export default function AgentsPage() {
                   {agent.tools.length > 3 && (
                     <span className="ag-tool-chip ag-tool-chip--more">+{agent.tools.length - 3}</span>
                   )}
+                  {agent.skills.length > 0 && agent.skills.slice(0, 2).map(s => (
+                    <span key={s.name} className="ag-skill-chip">{s.name}</span>
+                  ))}
                 </div>
                 <span className="ag-card-detail-hint">詳細を見る →</span>
               </button>
@@ -177,6 +188,15 @@ export default function AgentsPage() {
             </div>
 
             <div className="ag-modal-body">
+              {/* Endpoint */}
+              <div className="ag-modal-section">
+                <span className="ag-modal-section-title">エンドポイント</span>
+                <span className="ag-modal-endpoint">
+                  <span className="ag-modal-method">{selected.requestMethod}</span>
+                  <span>{selected.requestPath}</span>
+                </span>
+              </div>
+
               {/* Capability */}
               <div className="ag-modal-section">
                 <span className="ag-modal-section-title">ケイパビリティ</span>
@@ -212,10 +232,26 @@ export default function AgentsPage() {
                   <span className="ag-modal-section-title">スキル ({selected.skills.length})</span>
                   <div className="ag-skill-list">
                     {selected.skills.map(sk => (
-                      <details key={sk.name} className="ag-skill-detail">
-                        <summary className="ag-skill-summary">{sk.name}</summary>
-                        <pre className="ag-skill-content">{sk.content}</pre>
-                      </details>
+                      <div key={sk.name} className="ag-skill-item">
+                        <div
+                          className="ag-skill-header"
+                          onClick={() => setExpandedSkills(prev => {
+                            const next = new Set(prev);
+                            if (next.has(sk.name)) next.delete(sk.name); else next.add(sk.name);
+                            return next;
+                          })}
+                        >
+                          <span className="ag-skill-name">{sk.name}</span>
+                          <span className="ag-skill-toggle">{expandedSkills.has(sk.name) ? '▲' : '▼'}</span>
+                        </div>
+                        {expandedSkills.has(sk.name) && (
+                          <div className="ag-skill-body">
+                            <div className="ag-skill-body-md">
+                              <ReactMarkdown>{parseSkillContent(sk.content)}</ReactMarkdown>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     ))}
                   </div>
                 </div>

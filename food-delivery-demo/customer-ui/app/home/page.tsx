@@ -54,8 +54,6 @@ type CampaignSummary = {
   validUntil: string;
 };
 
-type ServiceState = 'loading' | 'ok' | 'error' | 'idle';
-
 export default function HomePage() {
   const router = useRouter();
   const [profile, setProfile] = useState<CustomerProfile | null>(null);
@@ -65,11 +63,6 @@ export default function HomePage() {
   const [orderHistory, setOrderHistory] = useState<OrderHistoryItem[]>([]);
   const [campaigns, setCampaigns] = useState<CampaignSummary[]>([]);
   const [bannerDismissed, setBannerDismissed] = useState(false);
-  const [svcState, setSvcState] = useState<Record<string, ServiceState>>({
-    'customer-service': 'loading',
-    'menu-service': 'loading',
-    'order-service': 'loading',
-  });
 
   useEffect(() => {
     async function load() {
@@ -93,9 +86,7 @@ export default function HomePage() {
 
       if (profileResult.status === 'fulfilled') {
         setProfile(profileResult.value);
-        setSvcState(s => ({ ...s, 'customer-service': 'ok' }));
       } else {
-        setSvcState(s => ({ ...s, 'customer-service': 'error' }));
         if ((profileResult.reason as { status?: number })?.status === 401) {
           router.replace('/');
           return;
@@ -104,9 +95,6 @@ export default function HomePage() {
 
       if (menuResult.status === 'fulfilled') {
         setMenuItems(menuResult.value);
-        setSvcState(s => ({ ...s, 'menu-service': 'ok' }));
-      } else {
-        setSvcState(s => ({ ...s, 'menu-service': 'error' }));
       }
 
       try {
@@ -117,12 +105,9 @@ export default function HomePage() {
             setRecentDraft(data.draft as RecentDraft);
             setRecentWorkflowStep(data.workflowStep as string);
           }
-          setSvcState(s => ({ ...s, 'order-service': 'ok' }));
-        } else {
-          setSvcState(s => ({ ...s, 'order-service': r.status === 404 ? 'idle' : 'error' }));
         }
       } catch {
-        setSvcState(s => ({ ...s, 'order-service': 'idle' }));
+        // order session is non-critical
       }
 
       // Fetch order history regardless of active session
@@ -156,12 +141,6 @@ export default function HomePage() {
   const wraps = menuItems.filter(m => m.id.startsWith('wrap-'));
   const bowls = menuItems.filter(m => m.id.startsWith('bowl-'));
   const desserts = menuItems.filter(m => m.id.startsWith('dessert-'));
-
-  const sources = [
-    { key: 'customer-service', label: 'customer-service', icon: '🔐', desc: 'profile & auth' },
-    { key: 'menu-service', label: 'menu-service', icon: '🍱', desc: 'menu catalog' },
-    { key: 'order-service', label: 'order-service', icon: '📦', desc: 'recent session' },
-  ];
 
   return (
     <div className="h-shell">
@@ -227,25 +206,6 @@ export default function HomePage() {
         </div>
 
         <div className="h-hero-right">
-          {/* Service sources */}
-          <div className="h-sources-card">
-            <p className="h-sources-title">ダッシュボード データソース</p>
-            {sources.map(({ key, label, icon, desc }) => (
-              <div key={key} className="h-source-row">
-                <span className="h-source-icon">{icon}</span>
-                <div className="h-source-info">
-                  <span className="h-source-name">{label}</span>
-                  <span className="h-source-desc">{desc}</span>
-                </div>
-                <span className={`h-source-badge h-source-badge--${svcState[key]}`}>
-                  {svcState[key] === 'loading' ? '接続中' :
-                   svcState[key] === 'ok' ? 'OK' :
-                   svcState[key] === 'idle' ? 'no session' : 'error'}
-                </span>
-              </div>
-            ))}
-          </div>
-
           {/* Recent session */}
           {recentDraft ? (
             <div className="h-recent-card">

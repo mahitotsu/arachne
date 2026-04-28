@@ -60,7 +60,7 @@ export default function SignInPage() {
     <div className="si-shell">
       <div className="si-brand">
         <div className="si-brand-inner">
-          <div className="si-logo">🕷️</div>
+          <div className="si-logo">�</div>
           <h1 className="si-title">Arachne<br />Kitchen</h1>
           <p className="si-subtitle">single-kitchen · cloud delivery</p>
           <div className="si-arch">
