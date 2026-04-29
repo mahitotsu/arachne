@@ -25,6 +25,9 @@ import com.mahitotsu.arachne.samples.delivery.supportservice.api.SupportChatRequ
 import com.mahitotsu.arachne.samples.delivery.supportservice.api.SupportChatResponse;
 import com.mahitotsu.arachne.samples.delivery.supportservice.api.SupportFeedbackRequest;
 import com.mahitotsu.arachne.samples.delivery.supportservice.api.SupportFeedbackResponse;
+import com.mahitotsu.arachne.samples.delivery.supportservice.api.SupportStatusResponse;
+import com.mahitotsu.arachne.samples.delivery.supportservice.domain.SupportExecutionHistoryTypes.SupportExecutionHistoryEvent;
+import com.mahitotsu.arachne.samples.delivery.supportservice.domain.SupportExecutionHistoryTypes.SupportExecutionHistoryResponse;
 import com.mahitotsu.arachne.samples.delivery.supportservice.infrastructure.RegistryServiceEndpointResolver;
 import com.mahitotsu.arachne.samples.delivery.supportservice.domain.CampaignSummary;
 import com.mahitotsu.arachne.samples.delivery.supportservice.domain.CustomerOrderHistoryEntry;
@@ -188,6 +191,33 @@ class SupportServiceApiTest {
         assertMetricWithTags("/actuator/metrics/delivery.support.registry.lookup?tag=target:registry-service&tag=operation:resolve-endpoint&tag=outcome:success");
         assertMetricWithTags("/actuator/metrics/delivery.support.registry.lookup?tag=target:registry-service&tag=operation:health-status&tag=outcome:success");
     }
+
+        @Test
+        void executionHistoryCapturesSupportAgentAndFeedbackEvents() {
+        SupportChatResponse chatResponse = restTemplate.postForObject(
+            "/api/support/chat",
+            new SupportChatRequest("session-history", "使えるキャンペーンを教えて"),
+            SupportChatResponse.class);
+        SupportFeedbackResponse feedbackResponse = restTemplate.postForObject(
+            "/api/support/feedback",
+            new SupportFeedbackRequest("session-history", "ord-1001", 2, "配送が遅くてポテトも冷めていました"),
+            SupportFeedbackResponse.class);
+
+        ResponseEntity<SupportExecutionHistoryResponse> historyResponse = restTemplate.getForEntity(
+            "/api/support/execution-history/session-history",
+            SupportExecutionHistoryResponse.class);
+
+        assertThat(chatResponse).isNotNull();
+        assertThat(feedbackResponse).isNotNull();
+        assertThat(historyResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(historyResponse.getBody()).isNotNull();
+        assertThat(historyResponse.getBody().events())
+            .extracting(SupportExecutionHistoryEvent::category)
+            .contains("agent", "model", "tool", "service");
+        assertThat(historyResponse.getBody().events())
+            .extracting(SupportExecutionHistoryEvent::operation, SupportExecutionHistoryEvent::outcome)
+            .contains(org.assertj.core.groups.Tuple.tuple("feedback", "success"));
+        }
 
     private static Dispatcher jwkDispatcher() {
         return new Dispatcher() {

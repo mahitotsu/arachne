@@ -1,9 +1,12 @@
 package com.mahitotsu.arachne.samples.delivery.menuservice.observation;
 
+import java.util.List;
 import java.util.function.Supplier;
 
 import org.springframework.stereotype.Component;
 
+import com.mahitotsu.arachne.samples.delivery.menuservice.domain.MenuExecutionHistoryTypes.AgentUsageBreakdown;
+import com.mahitotsu.arachne.strands.agent.AgentState;
 import com.mahitotsu.arachne.strands.agent.AgentResult;
 
 import io.micrometer.common.KeyValue;
@@ -21,13 +24,39 @@ public class AgentObservationSupport {
 
     private final ObservationRegistry observationRegistry;
     private final MeterRegistry meterRegistry;
+    private final MenuExecutionHistoryStore historyStore;
 
-    public AgentObservationSupport(ObservationRegistry observationRegistry, MeterRegistry meterRegistry) {
+    public AgentObservationSupport(
+            ObservationRegistry observationRegistry,
+            MeterRegistry meterRegistry,
+            MenuExecutionHistoryStore historyStore) {
         this.observationRegistry = observationRegistry;
         this.meterRegistry = meterRegistry;
+        this.historyStore = historyStore;
     }
 
     public AgentResult observe(String serviceName, String agentName, Supplier<AgentResult> action) {
+        return observe(serviceName, agentName, null, "", new AgentState(), action);
+    }
+
+    public AgentResult observe(
+            String serviceName,
+            String agentName,
+            String sessionId,
+            String prompt,
+            AgentState state,
+            Supplier<AgentResult> action) {
+        long startedAt = System.nanoTime();
+        historyStore.append(
+                sessionId,
+                "agent",
+                serviceName,
+                agentName,
+                "invoke",
+                "started",
+                0L,
+                agentName + " invocation started",
+                summarize(prompt));
         Observation observation = Observation.start(INVOCATION_METRIC, observationRegistry)
                 .lowCardinalityKeyValue(KeyValue.of("service", serviceName))
                 .lowCardinalityKeyValue(KeyValue.of("agent", agentName));
@@ -35,10 +64,34 @@ public class AgentObservationSupport {
             AgentResult result = action.get();
             observation.lowCardinalityKeyValue(KeyValue.of("outcome", "success"));
             recordUsage(serviceName, agentName, result);
+            historyStore.append(
+                    sessionId,
+                    "agent",
+                    serviceName,
+                    agentName,
+                    "invoke",
+                    "success",
+                    elapsedMillis(startedAt),
+                    agentName + " invocation completed",
+                    summarize(result.text()),
+                    usage(result),
+                    skillNames(state));
             return result;
         } catch (RuntimeException ex) {
             observation.lowCardinalityKeyValue(KeyValue.of("outcome", "error"));
             observation.error(ex);
+            historyStore.append(
+                    sessionId,
+                    "agent",
+                    serviceName,
+                    agentName,
+                    "invoke",
+                    "error",
+                    elapsedMillis(startedAt),
+                    agentName + " invocation failed",
+                    summarize(ex.getMessage()),
+                    null,
+                    skillNames(state));
             throw ex;
         } finally {
             observation.stop();
@@ -66,5 +119,39 @@ public class AgentObservationSupport {
                 .tag("type", type)
                 .register(meterRegistry)
                 .increment(amount);
+    }
+
+    private long elapsedMillis(long startedAt) {
+        return (System.nanoTime() - startedAt) / 1_000_000;
+    }
+
+    private AgentUsageBreakdown usage(AgentResult result) {
+        if (result == null || result.metrics() == null || result.metrics().usage() == null) {
+            return null;
+        }
+        var usage = result.metrics().usage();
+        return new AgentUsageBreakdown(
+                usage.inputTokens(),
+                usage.outputTokens(),
+                usage.cacheReadInputTokens(),
+                usage.cacheWriteInputTokens());
+    }
+
+    private List<String> skillNames(AgentState state) {
+        Object raw = state == null ? null : state.get("arachne.skills.loaded");
+        if (!(raw instanceof List<?> skills)) {
+            return List.of();
+        }
+        return skills.stream()
+                .map(item -> item instanceof com.mahitotsu.arachne.strands.skills.Skill skill ? skill.name() : String.valueOf(item))
+                .toList();
+    }
+
+    private String summarize(String text) {
+        if (text == null) {
+            return "";
+        }
+        String normalized = text.replaceAll("\\s+", " ").trim();
+        return normalized.length() <= 240 ? normalized : normalized.substring(0, 237) + "...";
     }
 }

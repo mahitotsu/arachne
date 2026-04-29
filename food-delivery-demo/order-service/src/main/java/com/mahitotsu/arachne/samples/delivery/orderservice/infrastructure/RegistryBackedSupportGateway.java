@@ -40,7 +40,13 @@ public class RegistryBackedSupportGateway implements SupportGateway {
     @Override
     public Optional<SupportFeedbackResponse> recordFeedback(SupportFeedbackRequestPayload request, String accessToken) {
         try {
-            return observationSupport.observe("delivery.order.downstream", supportServiceName, "record-feedback", () ->
+            return observationSupport.observe(
+                "delivery.order.downstream",
+                request.sessionId(),
+                supportServiceName,
+                "record-feedback",
+                "orderId=" + request.orderId(),
+                () ->
                     Optional.ofNullable(restClient.post()
                             .uri(endpointResolver.resolveUrl(supportServiceName, fallbackBaseUrl, "/api/support/feedback"))
                             .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)

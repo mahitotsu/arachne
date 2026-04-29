@@ -13,8 +13,10 @@ import org.springframework.stereotype.Service;
 import com.mahitotsu.arachne.samples.delivery.menuservice.config.SecurityAccessors;
 import com.mahitotsu.arachne.samples.delivery.menuservice.infrastructure.KitchenCheckGateway;
 import com.mahitotsu.arachne.samples.delivery.menuservice.infrastructure.MenuRepository;
+import com.mahitotsu.arachne.samples.delivery.menuservice.observation.ArachneLifecycleHistoryListener;
 import com.mahitotsu.arachne.samples.delivery.menuservice.observation.AgentObservationSupport;
 import com.mahitotsu.arachne.strands.agent.AgentResult;
+import com.mahitotsu.arachne.strands.agent.AgentState;
 import com.mahitotsu.arachne.strands.spring.AgentFactory;
 import com.mahitotsu.arachne.strands.tool.Tool;
 
@@ -49,7 +51,10 @@ public class MenuApplicationService {
     public MenuSuggestionResponse suggest(MenuSuggestionRequest request) {
         String accessToken = SecurityAccessors.requiredAccessToken();
         MenuAgentUserPrompt userPrompt = MenuAgentUserPrompt.from(request);
-        AgentResult decisionResult = agentObservationSupport.observe("menu-service", "menu-agent", () -> agentFactory.builder()
+        AgentState agentState = agentState(request.sessionId());
+        AgentResult decisionResult = agentObservationSupport.observe("menu-service", "menu-agent", request.sessionId(), userPrompt.render(), agentState, () -> agentFactory.builder()
+            .sessionId(request.sessionId())
+            .state(agentState)
             .systemPrompt("""
             あなたは単一ブランドのクラウドキッチンアプリの menu-agent です。
 
@@ -86,7 +91,16 @@ public class MenuApplicationService {
     }
 
     public MenuSubstitutionResponse suggestSubstitutes(MenuSubstitutionRequest request) {
-        AgentResult decisionResult = agentObservationSupport.observe("menu-service", "menu-agent", () -> agentFactory.builder()
+        AgentState agentState = agentState(request.sessionId());
+        AgentResult decisionResult = agentObservationSupport.observe(
+                "menu-service",
+                "menu-agent",
+                request.sessionId(),
+                "unavailableItemId=" + request.unavailableItemId() + " message=" + request.message(),
+                agentState,
+                () -> agentFactory.builder()
+            .sessionId(request.sessionId())
+            .state(agentState)
             .systemPrompt("""
             あなたは唯一のクラウドキッチンでアイテムが在庫切れのときに kitchen-agent をサポートする menu-agent です。
 
@@ -194,5 +208,13 @@ public class MenuApplicationService {
 
     private String formatYen(BigDecimal total) {
         return "¥" + total.stripTrailingZeros().toPlainString();
+    }
+
+    private AgentState agentState(String sessionId) {
+        AgentState state = new AgentState();
+        if (sessionId != null && !sessionId.isBlank()) {
+            state.put(ArachneLifecycleHistoryListener.SESSION_STATE_KEY, sessionId);
+        }
+        return state;
     }
 }

@@ -26,8 +26,11 @@ import com.mahitotsu.arachne.samples.delivery.supportservice.infrastructure.Feed
 import com.mahitotsu.arachne.samples.delivery.supportservice.infrastructure.OrderHistoryGateway;
 import com.mahitotsu.arachne.samples.delivery.supportservice.infrastructure.OrderHistorySnapshotStore;
 import com.mahitotsu.arachne.samples.delivery.supportservice.infrastructure.SupportStatusGateway;
+import com.mahitotsu.arachne.samples.delivery.supportservice.observation.ArachneLifecycleHistoryListener;
 import com.mahitotsu.arachne.samples.delivery.supportservice.observation.AgentObservationSupport;
+import com.mahitotsu.arachne.samples.delivery.supportservice.observation.SupportExecutionHistoryStore;
 import com.mahitotsu.arachne.strands.agent.AgentResult;
+import com.mahitotsu.arachne.strands.agent.AgentState;
 import com.mahitotsu.arachne.strands.spring.AgentFactory;
 import com.mahitotsu.arachne.strands.tool.Tool;
 
@@ -59,6 +62,7 @@ public class SupportApplicationService {
     private final Tool feedbackLookupTool;
     private final Tool orderHistoryLookupTool;
     private final AgentObservationSupport agentObservationSupport;
+    private final SupportExecutionHistoryStore historyStore;
 
     SupportApplicationService(
             AgentFactory agentFactory,
@@ -73,7 +77,8 @@ public class SupportApplicationService {
             Tool serviceStatusLookupTool,
             Tool feedbackLookupTool,
             Tool orderHistoryLookupTool,
-            AgentObservationSupport agentObservationSupport) {
+            AgentObservationSupport agentObservationSupport,
+            SupportExecutionHistoryStore historyStore) {
         this.agentFactory = agentFactory;
         this.faqRepository = faqRepository;
         this.campaignRepository = campaignRepository;
@@ -87,6 +92,7 @@ public class SupportApplicationService {
         this.feedbackLookupTool = feedbackLookupTool;
         this.orderHistoryLookupTool = orderHistoryLookupTool;
         this.agentObservationSupport = agentObservationSupport;
+        this.historyStore = historyStore;
     }
 
     public SupportChatResponse chat(SupportChatRequest request) {
@@ -105,8 +111,11 @@ public class SupportApplicationService {
             orderHistorySnapshotStore.cache(customerId, recentOrders);
         }
         List<FeedbackInsight> relatedFeedback = intent.includesFeedback() ? feedbackRepository.lookup(safeMessage, 3) : List.of();
+        AgentState agentState = agentState(request.sessionId());
 
-        AgentResult decisionResult = agentObservationSupport.observe("support-service", "support-agent", () -> agentFactory.builder()
+        AgentResult decisionResult = agentObservationSupport.observe("support-service", "support-agent", request.sessionId(), userPrompt.render(), agentState, () -> agentFactory.builder()
+            .sessionId(request.sessionId())
+            .state(agentState)
             .systemPrompt(SUPPORT_PROMPT)
             .tools(faqLookupTool, campaignLookupTool, serviceStatusLookupTool, feedbackLookupTool, orderHistoryLookupTool)
             .build()
@@ -129,6 +138,7 @@ public class SupportApplicationService {
     }
 
     public SupportFeedbackResponse feedback(SupportFeedbackRequest request) {
+        long startedAt = System.nanoTime();
         SupportFeedbackRecord feedback = feedbackRepository.record(SecurityAccessors.currentCustomerId(), request);
         String headline = feedback.escalationRequired()
                 ? "support-agent が問い合わせを要確認として記録しました"
@@ -136,13 +146,24 @@ public class SupportApplicationService {
         String summary = feedback.escalationRequired()
                 ? feedback.classification() + " 問い合わせとして記録し、担当確認が必要なためエスカレーション対象にしました。"
                 : feedback.classification() + " 問い合わせとして記録しました。";
-        return new SupportFeedbackResponse(
+        SupportFeedbackResponse response = new SupportFeedbackResponse(
                 "support-service",
                 "support-agent",
                 headline,
                 summary,
                 feedback.classification(),
                 feedback.escalationRequired());
+        historyStore.append(
+            request.sessionId(),
+            "service",
+            "support-service",
+            "support-service",
+            "feedback",
+            "success",
+            (System.nanoTime() - startedAt) / 1_000_000,
+            headline,
+            summary);
+        return response;
     }
 
     public List<CampaignSummary> campaigns() {
@@ -182,5 +203,13 @@ public class SupportApplicationService {
             return "support-agent がお問い合わせを受け付けました";
         }
         return "support-agent が " + String.join("・", topics) + " を案内しました";
+    }
+
+    private AgentState agentState(String sessionId) {
+        AgentState state = new AgentState();
+        if (sessionId != null && !sessionId.isBlank()) {
+            state.put(ArachneLifecycleHistoryListener.SESSION_STATE_KEY, sessionId);
+        }
+        return state;
     }
 }

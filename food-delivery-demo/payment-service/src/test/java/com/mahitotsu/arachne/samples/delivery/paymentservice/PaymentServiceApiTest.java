@@ -21,6 +21,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
+import com.mahitotsu.arachne.samples.delivery.paymentservice.domain.PaymentExecutionHistoryTypes.PaymentExecutionHistoryEvent;
+import com.mahitotsu.arachne.samples.delivery.paymentservice.domain.PaymentExecutionHistoryTypes.PaymentExecutionHistoryResponse;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.JWSAlgorithm;
@@ -123,6 +125,25 @@ class PaymentServiceApiTest {
         assertThat(response.charged()).isTrue();
         assertThat(response.authorizationId()).isNotBlank();
     }
+
+        @Test
+        void executionHistoryReturnsPaymentPreparationEvents() {
+        PaymentPrepareResponse response = restTemplate.postForObject(
+            "/internal/payment/prepare",
+            new PaymentPrepareRequest("session-history", "この内容でApple Payで確定", new BigDecimal("3280.00"), true),
+            PaymentPrepareResponse.class);
+
+        ResponseEntity<PaymentExecutionHistoryResponse> historyResponse = restTemplate.getForEntity(
+            "/internal/payment/execution-history/session-history",
+            PaymentExecutionHistoryResponse.class);
+
+        assertThat(response).isNotNull();
+        assertThat(historyResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(historyResponse.getBody()).isNotNull();
+        assertThat(historyResponse.getBody().events())
+            .extracting(PaymentExecutionHistoryEvent::operation, PaymentExecutionHistoryEvent::outcome)
+            .contains(org.assertj.core.groups.Tuple.tuple("confirm-payment", "success"));
+        }
 
     private static Dispatcher jwkDispatcher() {
         return new Dispatcher() {

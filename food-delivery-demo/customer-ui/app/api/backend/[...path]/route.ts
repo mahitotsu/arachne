@@ -15,6 +15,43 @@ type RouteContext = {
 
 type SnapshotProposalItem = NonNullable<OrderSnapshot['pendingProposals']>[number];
 
+function getSuggestRawMessage(body: Record<string, unknown>): string {
+  if (typeof body.message === 'string') {
+    return body.message;
+  }
+  if (body.intent && typeof body.intent === 'object') {
+    const intent = body.intent as Record<string, unknown>;
+    if (typeof intent.rawMessage === 'string') {
+      return intent.rawMessage;
+    }
+  }
+  return '';
+}
+
+function normalizeSuggestRequest(
+  incoming: Record<string, unknown>,
+  sessionId: string | null | undefined,
+): Record<string, unknown> {
+  const { message, intent, ...rest } = incoming;
+  const existingIntent = intent && typeof intent === 'object'
+    ? { ...(intent as Record<string, unknown>) }
+    : {};
+  const rawMessage = typeof existingIntent.rawMessage === 'string'
+    ? existingIntent.rawMessage
+    : typeof message === 'string'
+      ? message
+      : '';
+
+  return {
+    ...rest,
+    sessionId,
+    intent: {
+      ...existingIntent,
+      rawMessage,
+    },
+  };
+}
+
 function toSnapshotProposalItems(items: unknown): SnapshotProposalItem[] {
   if (!Array.isArray(items)) {
     return [];
@@ -68,10 +105,7 @@ async function handle(request: NextRequest, context: RouteContext) {
     const incoming = await request.json() as Record<string, unknown>;
     switch (joinedPath) {
       case 'order/suggest':
-        requestBody = {
-          ...incoming,
-          sessionId: lookup.session.orderSessionId,
-        };
+        requestBody = normalizeSuggestRequest(incoming, lookup.session.orderSessionId);
         break;
       case 'order/confirm-items':
       case 'order/confirm-delivery':
@@ -105,7 +139,7 @@ async function handle(request: NextRequest, context: RouteContext) {
         updateDemoSession(lookup.sessionId, session => {
           session.orderSessionId = typeof payload.sessionId === 'string' ? payload.sessionId : session.orderSessionId;
           session.orderSnapshot = {
-            message: String(body.message ?? ''),
+            message: getSuggestRawMessage(body),
             suggestSummary: String(payload.summary ?? ''),
             suggestEta: Number(payload.etaMinutes ?? 0),
             pendingProposals: toSnapshotProposalItems(payload.proposals),

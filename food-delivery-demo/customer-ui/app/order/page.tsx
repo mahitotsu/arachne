@@ -7,6 +7,7 @@ import ReactMarkdown from 'react-markdown';
 
 import { fetchAuthSession } from '../../lib/browser-session';
 import AppNav from '../components/app-nav';
+import ExecutionHistoryPanel from '../components/execution-history-panel';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -756,6 +757,11 @@ function OrderPageInner() {
               </Link>
             </div>
           </div>
+        )}
+
+        {/* ── Execution history (visible from step 1 onwards) ── */}
+        {step >= 1 && sessionId && (
+          <ExecutionHistoryPanel refreshKey={step} />
         )}
       </section>
     </main>

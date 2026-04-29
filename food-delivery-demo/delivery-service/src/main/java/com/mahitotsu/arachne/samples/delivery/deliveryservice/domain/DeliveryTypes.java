@@ -7,6 +7,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
 import io.swagger.v3.oas.annotations.media.Schema;
 
 public final class DeliveryTypes {
@@ -66,6 +68,7 @@ public final class DeliveryTypes {
     public record RegistryDiscoverResponsePayload(String service, String agent, String summary, List<RegistryServiceMatchPayload> matches) {
     }
 
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public record RegistryServiceMatchPayload(
             String serviceName,
             String endpoint,

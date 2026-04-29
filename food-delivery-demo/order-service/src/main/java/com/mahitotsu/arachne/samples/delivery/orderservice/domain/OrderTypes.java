@@ -220,7 +220,26 @@ public final class OrderTypes {
     public record KitchenTraceView(String summary, List<String> notes) {
     }
 
-    public record DeliveryQuoteRequest(String sessionId, String message, List<String> itemNames) {
+        public record DeliveryQuoteRequest(String sessionId, DeliveryPreferenceInput preference, List<String> itemNames) {
+
+                public DeliveryQuoteRequest {
+                        if (preference == null) {
+                                preference = new DeliveryPreferenceInput(null, null);
+                        }
+                }
+
+                public DeliveryQuoteRequest(String sessionId, String message, List<String> itemNames) {
+                        this(sessionId, new DeliveryPreferenceInput(message, null), itemNames);
+                }
+        }
+
+        public record DeliveryPreferenceInput(String rawMessage, DeliveryPreference priority) {
+        }
+
+        public enum DeliveryPreference {
+                URGENT,
+                CHEAP,
+                BALANCED
     }
 
     public record DeliveryQuoteResponse(
@@ -270,7 +289,11 @@ public final class OrderTypes {
             String authorizationId) {
     }
 
-    public record SupportFeedbackRequestPayload(String orderId, Integer rating, String message) {
+        public record SupportFeedbackRequestPayload(String sessionId, String orderId, Integer rating, String message) {
+
+                public SupportFeedbackRequestPayload(String orderId, Integer rating, String message) {
+                        this(null, orderId, rating, message);
+                }
     }
 
     public record SupportFeedbackResponse(

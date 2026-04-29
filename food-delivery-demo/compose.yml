@@ -7,12 +7,16 @@ services:
         BACKEND_ORIGIN: http://order-service:8080
         CUSTOMER_SERVICE_ORIGIN: http://customer-service:8080
         MENU_SERVICE_ORIGIN: http://menu-service:8080
+        DELIVERY_SERVICE_ORIGIN: http://delivery-service:8080
+        PAYMENT_SERVICE_ORIGIN: http://payment-service:8080
         SUPPORT_SERVICE_ORIGIN: http://support-service:8080
         REGISTRY_SERVICE_ORIGIN: http://registry-service:8080
     environment:
       BACKEND_ORIGIN: http://order-service:8080
       CUSTOMER_SERVICE_ORIGIN: http://customer-service:8080
       MENU_SERVICE_ORIGIN: http://menu-service:8080
+      DELIVERY_SERVICE_ORIGIN: http://delivery-service:8080
+      PAYMENT_SERVICE_ORIGIN: http://payment-service:8080
       SUPPORT_SERVICE_ORIGIN: http://support-service:8080
       REGISTRY_SERVICE_ORIGIN: http://registry-service:8080
       PORT: 3000

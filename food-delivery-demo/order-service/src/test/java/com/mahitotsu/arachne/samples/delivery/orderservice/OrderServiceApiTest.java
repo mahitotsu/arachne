@@ -23,6 +23,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderExecutionHistoryTypes.OrderExecutionHistoryEntry;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderExecutionHistoryTypes.OrderExecutionHistoryResponse;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.ConfirmDeliveryRequest;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.ConfirmDeliveryResponse;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.ConfirmItemsRequest;
@@ -202,6 +204,31 @@ class OrderServiceApiTest {
         }
 
     @Test
+    void executionHistoryEndpointReturnsWorkflowAndDownstreamEntriesAfterSuggest() {
+        menuServer.enqueue(jsonResponse(menuSuggestBody()));
+
+        SuggestOrderResponse response = restTemplate.postForObject(
+                "/api/order/suggest",
+                new SuggestOrderRequest("", "おすすめを見せて", "ja-JP", null),
+                SuggestOrderResponse.class);
+
+        ResponseEntity<OrderExecutionHistoryResponse> historyResponse = restTemplate.getForEntity(
+                "/api/order/execution-history/" + response.sessionId(),
+                OrderExecutionHistoryResponse.class);
+
+        assertThat(historyResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(historyResponse.getBody()).isNotNull();
+        assertThat(historyResponse.getBody().events())
+                .extracting(OrderExecutionHistoryEntry::category, OrderExecutionHistoryEntry::operation, OrderExecutionHistoryEntry::outcome)
+                .contains(
+                        org.assertj.core.groups.Tuple.tuple("downstream", "suggest", "success"),
+                        org.assertj.core.groups.Tuple.tuple("workflow", "suggest", "success"));
+        assertThat(historyResponse.getBody().events())
+                .extracting(OrderExecutionHistoryEntry::component)
+                .contains("legacy-menu-service", "order-workflow");
+    }
+
+    @Test
         void suggestReturnsStructuredProposalAndWorkflowStep() throws InterruptedException {
         menuServer.enqueue(jsonResponse(menuSuggestBody()));
 
@@ -257,7 +284,13 @@ class OrderServiceApiTest {
         assertThat(response.draft().status()).isEqualTo("ITEMS_CONFIRMED");
         assertThat(response.items()).extracting(OrderLineItem::name)
                 .containsExactly("Teriyaki Chicken Box", "Lemon Soda");
-        assertThat(deliveryServer.takeRequest(1, TimeUnit.SECONDS).getPath()).isEqualTo(DELIVERY_META_PATH);
+        RecordedRequest deliveryRequest = deliveryServer.takeRequest(1, TimeUnit.SECONDS);
+        assertThat(deliveryRequest).isNotNull();
+        assertThat(deliveryRequest.getPath()).isEqualTo(DELIVERY_META_PATH);
+        assertThat(deliveryRequest.getBody().readUtf8())
+                .contains("\"preference\":{")
+                .contains("\"rawMessage\":\"照り焼きセットで\"")
+                .doesNotContain("\"message\":");
         assertThat(response.deliveryOptions()).hasSize(2);
         assertThat(response.deliveryOptions().get(0).recommended()).isTrue();
         assertThat(response.deliveryOptions().get(0).code()).isEqualTo("express");

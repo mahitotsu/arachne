@@ -23,7 +23,7 @@ export default function AppNav({ center, right }: AppNavProps) {
             <Link href="/agents" className="h-nav-link">エージェント</Link>
           </div>
       }
-      {right && <div className="h-nav-right">{right}</div>}
+      <div className="h-nav-right">{right ?? null}</div>
     </nav>
   );
 }

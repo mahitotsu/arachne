@@ -1,13 +1,11 @@
 package com.mahitotsu.arachne.samples.delivery.deliveryservice;
 
-import static com.mahitotsu.arachne.samples.delivery.deliveryservice.domain.DeliveryTypes.*;
-import static org.assertj.core.api.Assertions.assertThat;
-
 import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,13 +13,20 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
-import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
+import com.mahitotsu.arachne.samples.delivery.deliveryservice.domain.DeliveryExecutionHistoryTypes.DeliveryExecutionHistoryEvent;
+import com.mahitotsu.arachne.samples.delivery.deliveryservice.domain.DeliveryExecutionHistoryTypes.DeliveryExecutionHistoryResponse;
+import com.mahitotsu.arachne.samples.delivery.deliveryservice.domain.DeliveryTypes.DeliveryOption;
+import com.mahitotsu.arachne.samples.delivery.deliveryservice.domain.DeliveryTypes.DeliveryPreference;
+import com.mahitotsu.arachne.samples.delivery.deliveryservice.domain.DeliveryTypes.DeliveryPreferenceInput;
+import com.mahitotsu.arachne.samples.delivery.deliveryservice.domain.DeliveryTypes.DeliveryQuoteRequest;
+import com.mahitotsu.arachne.samples.delivery.deliveryservice.domain.DeliveryTypes.DeliveryQuoteResponse;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.JWSAlgorithm;
@@ -216,6 +221,29 @@ class DeliveryServiceApiTest {
         assertMetricWithTags("/actuator/metrics/delivery.delivery.downstream?tag=target:hermes-adapter&tag=operation:quote&tag=outcome:success");
     }
 
+        @Test
+        void executionHistoryCapturesAgentModelToolAndSkills() {
+        DeliveryQuoteResponse response = restTemplate.postForObject(
+            "/internal/delivery/quote",
+            new DeliveryQuoteRequest("session-history", "最速配送でお願い", List.of("Crispy Chicken Box")),
+            DeliveryQuoteResponse.class);
+
+        ResponseEntity<DeliveryExecutionHistoryResponse> historyResponse = restTemplate.getForEntity(
+            "/internal/delivery/execution-history/session-history",
+            DeliveryExecutionHistoryResponse.class);
+
+        assertThat(response).isNotNull();
+        assertThat(historyResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(historyResponse.getBody()).isNotNull();
+        assertThat(historyResponse.getBody().events())
+            .extracting(DeliveryExecutionHistoryEvent::category)
+            .contains("agent", "model", "tool");
+        assertThat(historyResponse.getBody().events())
+            .filteredOn(event -> "agent".equals(event.category()) && "success".equals(event.outcome()))
+            .singleElement()
+                .satisfies(event -> assertThat(event.component()).isEqualTo("delivery-agent"));
+        }
+
     @Test
     void registersDeliveryRoutingSkillMetadataForRegistryViewer() throws Exception {
         RecordedRequest registration = registryServer.takeRequest();
@@ -331,6 +359,12 @@ class DeliveryServiceApiTest {
                   "capability": "外部ETAを提供するサービス",
                   "agentName": "%s",
                   "systemPrompt": "prompt",
+                                    "tools": [
+                                        {
+                                            "name": "quote_eta",
+                                            "description": "ETA を返します"
+                                        }
+                                    ],
                   "skills": [],
                   "requestMethod": "POST",
                   "requestPath": "",

@@ -12,6 +12,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Supplier;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -49,6 +50,7 @@ import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.Sup
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.SupportFeedbackResponse;
 import com.mahitotsu.arachne.samples.delivery.orderservice.infrastructure.DeliveryGateway;
 import com.mahitotsu.arachne.samples.delivery.orderservice.infrastructure.MenuGateway;
+import com.mahitotsu.arachne.samples.delivery.orderservice.infrastructure.OrderExecutionHistoryStore;
 import com.mahitotsu.arachne.samples.delivery.orderservice.infrastructure.OrderRepository;
 import com.mahitotsu.arachne.samples.delivery.orderservice.infrastructure.OrderSessionStore;
 import com.mahitotsu.arachne.samples.delivery.orderservice.infrastructure.PaymentGateway;
@@ -69,7 +71,9 @@ public class OrderApplicationService {
     private final SupportGateway supportGateway;
     private final AuthenticatedCustomerResolver authenticatedCustomerResolver;
     private final ObservationRegistry observationRegistry;
+        private final OrderExecutionHistoryStore executionHistoryStore;
 
+        @Autowired
     public OrderApplicationService(
             OrderSessionStore sessionStore,
             OrderRepository orderRepository,
@@ -78,7 +82,8 @@ public class OrderApplicationService {
             PaymentGateway paymentGateway,
             SupportGateway supportGateway,
             AuthenticatedCustomerResolver authenticatedCustomerResolver,
-            ObservationRegistry observationRegistry) {
+                        ObservationRegistry observationRegistry,
+                        OrderExecutionHistoryStore executionHistoryStore) {
         this.sessionStore = sessionStore;
         this.orderRepository = orderRepository;
         this.menuGateway = menuGateway;
@@ -87,11 +92,33 @@ public class OrderApplicationService {
         this.supportGateway = supportGateway;
         this.authenticatedCustomerResolver = authenticatedCustomerResolver;
         this.observationRegistry = observationRegistry;
+                this.executionHistoryStore = executionHistoryStore;
     }
 
+        public OrderApplicationService(
+                        OrderSessionStore sessionStore,
+                        OrderRepository orderRepository,
+                        MenuGateway menuGateway,
+                        DeliveryGateway deliveryGateway,
+                        PaymentGateway paymentGateway,
+                        SupportGateway supportGateway,
+                        AuthenticatedCustomerResolver authenticatedCustomerResolver,
+                        ObservationRegistry observationRegistry) {
+                this(
+                                sessionStore,
+                                orderRepository,
+                                menuGateway,
+                                deliveryGateway,
+                                paymentGateway,
+                                supportGateway,
+                                authenticatedCustomerResolver,
+                                observationRegistry,
+                                new OrderExecutionHistoryStore());
+        }
+
     public SuggestOrderResponse suggest(SuggestOrderRequest request) {
-        return observeWorkflow("suggest", () -> {
-            String sessionId = sessionId(request.sessionId());
+                String sessionId = sessionId(request.sessionId());
+                return observeWorkflow(sessionId, "suggest", () -> {
             OrderSession existing = sessionStore.load(sessionId).orElse(emptySession(sessionId));
             String accessToken = SecurityAccessors.requiredAccessToken();
             String menuQuery = MenuSuggestionPromptRequestFactory.resolveQuery(request, existing);
@@ -153,7 +180,7 @@ public class OrderApplicationService {
     }
 
     public ConfirmItemsResponse confirmItems(ConfirmItemsRequest request) {
-        return observeWorkflow("confirm-items", () -> {
+                return observeWorkflow(request.sessionId(), "confirm-items", () -> {
             OrderSession session = requiredSession(request.sessionId(), "item-selection");
             PendingProposal pendingProposal = requirePendingProposal(session.pendingProposal());
             String accessToken = SecurityAccessors.requiredAccessToken();
@@ -211,7 +238,7 @@ public class OrderApplicationService {
     }
 
     public ConfirmDeliveryResponse confirmDelivery(ConfirmDeliveryRequest request) {
-        return observeWorkflow("confirm-delivery", () -> {
+                return observeWorkflow(request.sessionId(), "confirm-delivery", () -> {
             OrderSession session = requiredSession(request.sessionId(), "delivery-selection");
             PendingDeliverySelection pendingDeliverySelection = requirePendingDeliverySelection(session.pendingDeliverySelection());
             DeliveryOptionChoice selectedDelivery = selectDelivery(pendingDeliverySelection.options(), request.deliveryCode());
@@ -262,7 +289,7 @@ public class OrderApplicationService {
     }
 
     public ConfirmPaymentResponse confirmPayment(ConfirmPaymentRequest request) {
-        return observeWorkflow("confirm-payment", () -> {
+                return observeWorkflow(request.sessionId(), "confirm-payment", () -> {
             OrderSession session = requiredSession(request.sessionId(), "payment");
             DeliveryOptionChoice selectedDelivery = requireSelectedDelivery(session.selectedDelivery());
             String accessToken = SecurityAccessors.requiredAccessToken();
@@ -284,6 +311,7 @@ public class OrderApplicationService {
                 status = "CONFIRMED";
                 supportFeedback = supportGateway.recordFeedback(
                         new SupportFeedbackRequestPayload(
+                                session.sessionId(),
                                 orderId,
                                 null,
                                 confirmedOrderFeedbackMessage(orderId, session.draft(), selectedDelivery)),
@@ -323,7 +351,7 @@ public class OrderApplicationService {
     }
 
     public OrderSessionView session(String sessionId) {
-        return observeWorkflow("session", () -> {
+                return observeWorkflow(sessionId, "session", () -> {
             OrderSession session = sessionStore.load(sessionId).orElse(emptySession(sessionId));
             List<ProposalItem> pendingProposal = session.pendingProposal() == null ? List.of() : session.pendingProposal().items();
             List<DeliveryOptionChoice> pendingDeliveryOptions = session.pendingDeliverySelection() == null
@@ -340,6 +368,7 @@ public class OrderApplicationService {
 
     public List<StoredOrderSummary> recentOrderHistory() {
         return observeWorkflow(
+                                null,
                 "recent-order-history",
                 () -> orderRepository.findRecentOrdersForUser(authenticatedCustomerResolver.currentCustomerId(), 5));
     }
@@ -532,19 +561,62 @@ public class OrderApplicationService {
         return "¥" + amount.stripTrailingZeros().toPlainString();
     }
 
-        private <T> T observeWorkflow(String operation, Supplier<T> action) {
+        private <T> T observeWorkflow(String sessionId, String operation, Supplier<T> action) {
+                long startedAt = System.nanoTime();
                 Observation observation = Observation.start("delivery.order.workflow", observationRegistry);
                 observation.lowCardinalityKeyValue(KeyValue.of("operation", operation));
                 try (Observation.Scope scope = observation.openScope()) {
                         T result = action.get();
                         observation.lowCardinalityKeyValue(KeyValue.of("outcome", "success"));
+                        executionHistoryStore.append(
+                                sessionId,
+                                "workflow",
+                                "order-service",
+                                "order-workflow",
+                                operation,
+                                "success",
+                                (System.nanoTime() - startedAt) / 1_000_000,
+                                "order workflow " + operation,
+                                workflowSuccessDetail(operation, result));
                         return result;
                 } catch (RuntimeException ex) {
                         observation.lowCardinalityKeyValue(KeyValue.of("outcome", "error"));
                         observation.error(ex);
+                        executionHistoryStore.append(
+                                sessionId,
+                                "workflow",
+                                "order-service",
+                                "order-workflow",
+                                operation,
+                                "error",
+                                (System.nanoTime() - startedAt) / 1_000_000,
+                                "order workflow " + operation,
+                                "error: " + ex.getMessage());
                         throw ex;
                 } finally {
                         observation.stop();
                 }
+        }
+
+        private String workflowSuccessDetail(String operation, Object result) {
+                if (result instanceof SuggestOrderResponse response) {
+                        return response.headline() + " / step=" + response.workflowStep() + " / proposals=" + response.proposals().size();
+                }
+                if (result instanceof ConfirmItemsResponse response) {
+                        return response.headline() + " / step=" + response.workflowStep() + " / deliveryOptions=" + response.deliveryOptions().size();
+                }
+                if (result instanceof ConfirmDeliveryResponse response) {
+                        return response.headline() + " / step=" + response.workflowStep() + " / payment=" + response.payment().paymentMethod();
+                }
+                if (result instanceof ConfirmPaymentResponse response) {
+                        return response.summary() + " / step=" + response.workflowStep();
+                }
+                if (result instanceof OrderSessionView response) {
+                        return "restored step=" + response.workflowStep() + " / draftStatus=" + response.draft().status();
+                }
+                if (result instanceof List<?> list) {
+                        return operation + " returned " + list.size() + " records";
+                }
+                return String.valueOf(result);
         }
 }

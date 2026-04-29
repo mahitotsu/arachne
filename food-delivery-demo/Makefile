@@ -20,7 +20,7 @@ help:
 	@printf "  make ui-install   Install Next.js dependencies\n"
 	@printf "  make ui-build     Build the Next.js frontend\n"
 	@printf "  make ui-dev       Start the Next.js dev server\n"
-	@printf "  make smoke        Call the chat API with a sample request\n"
+	@printf "  make smoke        Call the order suggest API with a sample request\n"
 	@printf "  make seed-data    Insert demo order history (idempotent; safe to re-run)\n"
 	@printf "  make reinit-data  Truncate order history and re-seed from db/seed-data.sql\n"
 
@@ -73,9 +73,15 @@ ui-dev:
 	cd $(UI_DIR) && npm run dev
 
 smoke:
-	curl --fail --silent --show-error -X POST http://localhost:8080/api/chat \
+	@token="$$(curl --fail --silent --show-error -X POST http://localhost:8085/api/auth/sign-in \
 		-H 'Content-Type: application/json' \
-		-d '{"message":"2人分でいつものチキンセットを最速で注文したい"}'
+		-d '{"loginId":"demo","password":"demo-pass"}' \
+		| sed -n 's/.*"accessToken":"\([^"]*\)".*/\1/p')"; \
+		test -n "$$token"; \
+		curl --fail --silent --show-error -X POST http://localhost:8080/api/order/suggest \
+			-H "Authorization: Bearer $$token" \
+			-H 'Content-Type: application/json' \
+			-d '{"intent":{"rawMessage":"2人分でいつものチキンセットを最速で注文したい"},"locale":"ja-JP"}'
 
 seed-data:
 	$(COMPOSE) exec -T postgres psql -U delivery -d food_delivery < $(PROJECT_DIR)db/seed-data.sql

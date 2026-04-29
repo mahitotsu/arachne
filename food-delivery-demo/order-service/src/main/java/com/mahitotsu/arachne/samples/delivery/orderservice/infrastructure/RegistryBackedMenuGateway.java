@@ -39,7 +39,13 @@ public class RegistryBackedMenuGateway implements MenuGateway {
 
     @Override
     public MenuSuggestionResponse suggest(MenuSuggestionRequest request, String accessToken) {
-        return observationSupport.observe("delivery.order.downstream", menuServiceName, "suggest", () ->
+        return observationSupport.observe(
+                "delivery.order.downstream",
+                request.sessionId(),
+                menuServiceName,
+                "suggest",
+                "query=" + request.query(),
+                () ->
             Objects.requireNonNull(restClient.post()
                 .uri(endpointResolver.resolveUrl(menuServiceName, fallbackBaseUrl, "/internal/menu/suggest"))
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)

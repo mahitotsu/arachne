@@ -16,7 +16,7 @@
 |---|---|
 | `/` | サインインページ（demo/family アカウント） |
 | `/home` | ホームダッシュボード（メニュー一覧・注文履歴・キャンペーン・サポート導線） |
-| `/order` | 注文ワークフロー（4ステップ: 初期入力 → アイテム選択 → 配送選択 → 支払い承認） |
+| `/order` | 注文ワークフロー（4ステップ: 初期入力 → アイテム選択 → 配送選択 → 支払い承認）。セッション確立後は step 1 以降で **実行履歴パネル** を表示 |
 | `/support` | サポートチャット（`support-service` の会話型 AI） |
 | `/agents` | エージェント仕様ビューワー（`registry-service` から AI エージェント一覧） |
 
@@ -29,6 +29,8 @@
 3. **配送選択** — delivery-agent の選択肢カード（推奨マーク付き） → `POST /api/backend/order/confirm-delivery`
 4. **支払い承認** — 注文サマリー（アイテム・配送料・合計・支払い方法） + 承認前なら前ステップへ戻る導線 → `POST /api/backend/order/confirm-payment`
 
+注文セッションが確立すると、step 1 以降の `/order` 下部に実行履歴パネルが表示されます。パネルは order/menu/delivery/payment/support の 5 サービスへ BFF 経由で並行取得した履歴を時系列で統合表示し、ステップ遷移時の自動再取得と手動「↺ 更新」に対応します。
+
 認証トークン、注文セッション、サポート会話セッション、注文スナップショットは customer-ui のサーバー側セッションに保持されます。ブラウザ側には `HttpOnly` Cookie の BFF セッション ID のみを置き、注文復元は `GET /api/backend/order/session` で行います。
 
 ## 同一オリジン BFF 契約
@@ -40,6 +42,7 @@
 | `/api/menu/*` | `MENU_SERVICE_ORIGIN/api/menu/*` |
 | `/api/support/*` | `SUPPORT_SERVICE_ORIGIN/api/support/*` |
 | `/api/registry/*` | `REGISTRY_SERVICE_ORIGIN/registry/*` |
+| `/api/execution-history` | BFF が 5 サービスの実行履歴エンドポイントへ並行ファンアウトし、統合タイムラインを返す |
 | `/api/openapi/[serviceName]` | `registry-service` でエンドポイントを解決したうえで `{endpoint}/v3/api-docs` に転送 |
 
 `/api/auth/session` は customer-ui 自身が持つ認証確認・ログアウト用エンドポイントです。サインイン時に customer-ui が upstream のアクセストークンを受け取り、サーバー側セッションへ保存します。

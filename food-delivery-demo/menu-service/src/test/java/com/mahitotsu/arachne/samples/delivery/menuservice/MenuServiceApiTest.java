@@ -24,6 +24,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
+import com.mahitotsu.arachne.samples.delivery.menuservice.domain.MenuExecutionHistoryTypes.MenuExecutionHistoryEvent;
+import com.mahitotsu.arachne.samples.delivery.menuservice.domain.MenuExecutionHistoryTypes.MenuExecutionHistoryResponse;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.JWSAlgorithm;
@@ -165,6 +167,32 @@ class MenuServiceApiTest {
         assertMetricWithTags("/actuator/metrics/delivery.menu.downstream?tag=target:kitchen-service&tag=operation:check&tag=outcome:success");
         assertMetricWithTags("/actuator/metrics/delivery.menu.registry.lookup?tag=target:registry-service&tag=operation:resolve-endpoint&tag=outcome:success");
     }
+
+        @Test
+        void executionHistoryCapturesAgentModelToolAndSkills() {
+        MenuSuggestionResponse response = restTemplate.postForObject(
+            "/internal/menu/suggest",
+            new MenuSuggestionRequest("session-history", "家族4人でファミリー向けのセットを見せて"),
+            MenuSuggestionResponse.class);
+
+        ResponseEntity<MenuExecutionHistoryResponse> historyResponse = restTemplate.getForEntity(
+            "/internal/menu/execution-history/session-history",
+            MenuExecutionHistoryResponse.class);
+
+        assertThat(response).isNotNull();
+        assertThat(historyResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(historyResponse.getBody()).isNotNull();
+        assertThat(historyResponse.getBody().events())
+            .extracting(MenuExecutionHistoryEvent::category)
+            .contains("agent", "model", "tool");
+        assertThat(historyResponse.getBody().events())
+            .filteredOn(event -> "agent".equals(event.category()) && "success".equals(event.outcome()))
+            .singleElement()
+            .satisfies(event -> {
+                    assertThat(event.component()).isEqualTo("menu-agent");
+                assertThat(event.skills()).contains("family-order-guide");
+            });
+        }
 
     @Test
     void catalogExposesCategoryAndTagsForAllSixteenItems() {

@@ -13,9 +13,11 @@ import com.mahitotsu.arachne.samples.delivery.deliveryservice.infrastructure.Cou
 import com.mahitotsu.arachne.samples.delivery.deliveryservice.infrastructure.EtaServiceDiscoveryGateway;
 import com.mahitotsu.arachne.samples.delivery.deliveryservice.infrastructure.ExternalEtaGateway;
 import com.mahitotsu.arachne.samples.delivery.deliveryservice.infrastructure.TrafficWeatherRepository;
+import com.mahitotsu.arachne.samples.delivery.deliveryservice.observation.ArachneLifecycleHistoryListener;
 import com.mahitotsu.arachne.samples.delivery.deliveryservice.observation.AgentObservationSupport;
 
 import com.mahitotsu.arachne.strands.agent.AgentResult;
+import com.mahitotsu.arachne.strands.agent.AgentState;
 import com.mahitotsu.arachne.strands.spring.AgentFactory;
 import com.mahitotsu.arachne.strands.tool.Tool;
 
@@ -89,8 +91,11 @@ public class DeliveryApplicationService {
         List<DeliveryOption> candidateOptions = buildCandidateOptions(courierStatus, conditions, externalQuotes);
         DeliveryRanking fallbackRanking = DeliveryRankingPolicy.rank(candidateOptions, request.preference());
         DeliveryAgentUserPrompt userPrompt = DeliveryAgentUserPrompt.from(request);
+        AgentState agentState = agentState(request.sessionId());
 
-        AgentResult decisionResult = agentObservationSupport.observe("delivery-service", "delivery-agent", () -> agentFactory.builder()
+        AgentResult decisionResult = agentObservationSupport.observe("delivery-service", "delivery-agent", request.sessionId(), userPrompt.render(), agentState, () -> agentFactory.builder()
+            .sessionId(request.sessionId())
+            .state(agentState)
             .systemPrompt(DELIVERY_PROMPT)
             .tools(courierAvailabilityTool, trafficWeatherTool, discoverEtaServicesTool, callEtaServiceTool)
             .build()
@@ -186,5 +191,13 @@ public class DeliveryApplicationService {
                 .map(DeliveryOption::label)
                 .findFirst()
                 .orElse(code);
+    }
+
+    private AgentState agentState(String sessionId) {
+        AgentState state = new AgentState();
+        if (sessionId != null && !sessionId.isBlank()) {
+            state.put(ArachneLifecycleHistoryListener.SESSION_STATE_KEY, sessionId);
+        }
+        return state;
     }
 }
