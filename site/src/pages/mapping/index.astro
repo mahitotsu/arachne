@@ -1,0 +1,93 @@
+---
+import PageHero from '../../components/PageHero.astro';
+import SiteLayout from '../../layouts/SiteLayout.astro';
+
+const rows = [
+  {
+    hypothesis: 'AI エージェントは capability の自然言語 front door',
+    target: 'menu-service, support-service, delivery-service',
+    explanation: '提案、比較、問い合わせを会話的入口として持つ',
+    evidence: '曖昧な利用者要求を受ける公開 API と agent の応答が存在し、利用者向け理由づけが返ること。',
+  },
+  {
+    hypothesis: '従来 API は正本契約として残す',
+    target: 'order-service, payment-service',
+    explanation: 'workflow API と決定論的な課金確定が残る',
+    evidence: '機械間連携や状態変更が、構造化された HTTP 契約と決定論的な backend で確定すること。',
+  },
+  {
+    hypothesis: 'system prompt と skill を分ける',
+    target: 'Arachne SDK + demo services',
+    explanation: 'システム制約と業務知識を別々に保守できる',
+    evidence: 'システム側の制約と業務知識が別ファイル・別責務として読め、変更主体も分かれていること。',
+  },
+  {
+    hypothesis: 'service discovery を capability ベースで行う',
+    target: 'registry-service, delivery-service',
+    explanation: '固定 URL ではなく registry discover で協調先を解決する',
+    evidence: 'downstream 解決が capability や service metadata から行われ、固定 endpoint 依存が前面に出ていないこと。',
+  },
+  {
+    hypothesis: 'AI を使わない責務を見極める',
+    target: 'payment-service',
+    explanation: '正確性が要求される責務は決定論的に処理する',
+    evidence: '支払い方法選択、課金、結果確定が prompt に依存せず、コードから説明できること。',
+  },
+];
+
+const checklist = [
+  '各サービスの公開面が、会話的 front door なのか、workflow API なのか、deterministic contract なのかを分類する。',
+  'プロンプト、SKILL、Java ロジック、OpenAPI の責務分担が、意図どおりかを確認する。',
+  'registry-service を経由する discovery が、実装上も表現上も capability ベースになっているかを確認する。',
+  'UI と observability が、内部の agent 協調を過不足なく可視化しているかを確認する。',
+];
+---
+
+<SiteLayout title="Mapping | Arachne Field Notes">
+  <PageHero
+    eyebrow="Mapping"
+    title="仮説と実装の対応表"
+    summary="読者が一番知りたいのは、抽象論がどこに現れているかです。このページでは仮説の各論点と food-delivery-demo の具体物を対応づけます。"
+  />
+
+  <section class="two-column-band">
+    <article class="panel">
+      <p class="panel__eyebrow">How To Use This Page</p>
+      <p>
+        このページは、ブログ本文の補足ではなく、food-delivery-demo をあとで実装確認するときの評価軸として使う。
+        各行は「何を主張しているか」だけでなく、「どんな証拠が実装にあれば一致と言えるか」まで含めている。
+      </p>
+    </article>
+    <article class="panel panel--warm">
+      <p class="panel__eyebrow">Checklist</p>
+      <ul>
+        {checklist.map((item) => (
+          <li>{item}</li>
+        ))}
+      </ul>
+    </article>
+  </section>
+
+  <section class="table-shell">
+    <table>
+      <thead>
+        <tr>
+          <th>仮説の論点</th>
+          <th>対応する部分</th>
+          <th>何を示しているか</th>
+          <th>実装で見たい証拠</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row) => (
+          <tr>
+            <td>{row.hypothesis}</td>
+            <td>{row.target}</td>
+            <td>{row.explanation}</td>
+            <td>{row.evidence}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </section>
+</SiteLayout>

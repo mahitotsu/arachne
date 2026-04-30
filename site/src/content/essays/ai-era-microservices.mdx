@@ -1,0 +1,132 @@
+---
+title: AI時代におけるマイクロサービス
+summary: 組織、従来 API、AI エージェントの責務境界をそろえるための仮説と、その実証としての food-delivery-demo を整理する。
+publishDate: 2026-04-30
+order: 1
+tags:
+  - architecture
+  - spring
+  - ai-agents
+  - food-delivery-demo
+---
+
+## 問題意識
+
+AI を既存の業務システムに足すだけでは、責務境界が曖昧になりやすい。
+一方で、マイクロサービスはもともと組織と capability の境界をそろえるための実践でもあった。
+
+このサイトでは、次の仮説を起点に議論を組み立てる。
+
+## 仮説
+
+- チームは capability を所有する
+- サービスは capability を API として公開する
+- AI エージェントは capability の自然言語フロントドアとして置く
+- system prompt は IT 側が管理する
+- skill は業務知識の公開面として業務側が管理する
+
+ただし、この仮説は「AI エージェントがサービスそのものになる」という意味ではない。
+ここで言いたいのは、AI エージェントを capability の公開面の一つとして前面に置きつつ、従来の API や決定論的な backend を正本として保つ、という構成である。
+
+## この仮説に対する現時点の結論
+
+現時点では、私は次の立場を取っている。
+
+- AI エージェントは、サービスそのものではなく、サービス capability の自然言語フロントドアとして置くのがよい
+- 従来の API は廃止せず、機械可読で決定論的な正本契約として残すべきである
+- system prompt には役割、制約、ツール利用方針、説明責任を書く
+- skill には業務用語、判断の観点、説明に必要な知識を書く
+- 金額計算、在庫確定、課金、認可のような正解が必要なロジックは、prompt や skill ではなくコード側に残す
+
+要するに、agent-first ではあっても API-less ではなく、knowledge-driven ではあっても rule-in-prompt ではない、というのがこの仮説の中心である。
+
+## なぜこの整理が必要なのか
+
+AI 導入の議論は、しばしば次の二極に流れやすい。
+
+- 既存システムの外側に雑に chatbot を足す
+- 逆に、すべてを agent に寄せて従来の契約や責務境界を壊す
+
+しかし、業務システムの現場ではそのどちらも長続きしない。
+前者では業務 capability との接続が弱く、後者では責任境界、監査性、正確性、保守性が崩れる。
+
+だからこそ、組織の責務境界、マイクロサービスの境界、AI エージェントの境界をそろえる、という整理が要る。
+
+## Spring で実装するなら何が要るか
+
+この仮説を Java と Spring Framework の現場へ持ち込むなら、いくつか条件がある。
+
+- Controller / Application Service / Gateway or Client / Repository の責務分離を壊さないこと
+- agent を導入しても、バックエンド全体が巨大な prompt-driven アプリケーションに崩れないこと
+- prompt、skill、tool、API 契約、認証、観測性を Spring の既存資産と一緒に扱えること
+- 会話的な入口を追加しても、状態変更の正当性は決定論的に担保できること
+
+この前提に立つと、Spring になじむ agent SDK が必要になる。
+それが、Arachne で Strands Agents の移植と Spring 統合を進めた理由である。
+
+## このブログで語るストーリー
+
+このサイトで語りたいストーリーは、単なる demo 紹介でも SDK 紹介でもない。
+流れとしては次の三段階である。
+
+1. AI 時代におけるマイクロサービスの仮説を置く
+2. その仮説を Spring で実装するために、なぜ Strands Agents を移植し、Arachne を整えたのかを語る
+3. その仮説と SDK の妥当性を、food-delivery-demo を通して具体的に示す
+
+つまり、food-delivery-demo は単独のサンプルではなく、仮説を実アプリケーションとして検証し、可視化するための実証環境として位置づける。
+
+## food-delivery-demo が示すもの
+
+food-delivery-demo は、すべてを agent 化したデモではない。
+むしろ、どこに AI を置き、どこに置かないかを見せるために設計している。
+
+- menu-service は、曖昧な注文意図を提案可能な候補へ変換する conversational front door を示す
+- delivery-service は、discover と候補比較を capability ベースで行う AI-native service mesh の断面を示す
+- support-service は、注文 workflow とは別系統の conversational interface を示す
+- payment-service は、AI を置かない方がよい責務を対照的に示す
+- order-service は、agent-first でありながら構造化 workflow API を維持する公開面を示す
+- registry-service は、capability discovery と仕様公開を支える土台を示す
+
+この対比が重要である。
+AI を前面に出しながら、システムの正本、責務境界、運用可能性を壊していないことを、各サービスの役割の違いで見せる。
+
+## 実装確認に使う観点
+
+この先、food-delivery-demo の実装がこの仮説に沿っているかを確認し、必要なら修正していく。
+そのときに見る観点は、少なくとも次の通りである。
+
+1. AI エージェントは capability の自然言語 front door として置かれているか
+2. 従来の API は、状態変更や機械間連携のための正本契約として残っているか
+3. system prompt はシステム制約、skill は業務知識、コードは正解が必要なロジック、という分担が守られているか
+4. service discovery や collaborator resolution は、固定配線ではなく capability ベースの解決になっているか
+5. Spring の責務分離が、agent 導入によって崩れていないか
+6. observability と契約公開があり、agent の振る舞いが運用可能な形で見えるか
+
+このブログは、単に考えを書き留めるだけでなく、これらの観点で demo 実装を読み直すための基準としても使う。
+
+## 期待している一致のしかた
+
+仮説と実装の一致とは、各サービスが一様に agent を持つことではない。
+むしろ、サービスごとに役割の違いがあり、その違いが意図通りであることが重要である。
+
+- menu-service, delivery-service, support-service では conversational front door が前面に出る
+- order-service では workflow API とセッション管理が前面に出る
+- payment-service では deterministic contract が前面に出る
+- registry-service では capability discovery と仕様公開が前面に出る
+
+この「違いがあること」自体が、仮説の正しさを支える材料になる。
+
+## 非目標
+
+- すべての業務ロジックを prompt に押し込むこと
+- 従来 API を廃止すること
+- すべてのサービスを agent-first にすること
+- LLM の賢さだけで業務の正しさを担保しようとすること
+- デモの見栄えのために責務分離や運用性を犠牲にすること
+
+## 次に続くもの
+
+この仮説を Spring で実装可能にするために、Arachne では Strands Agents の移植と Spring 統合を進めた。
+そして、その仮説がどのように実アプリケーションへ落ちるかを示すために food-delivery-demo を作った。
+
+以降のページでは、まずこの仮説を設計原則として整え、その後で Arachne と food-delivery-demo の各要素がどの論点に対応しているかを追っていく。

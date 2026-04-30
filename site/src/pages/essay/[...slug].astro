@@ -1,0 +1,33 @@
+---
+import { getCollection, render } from 'astro:content';
+import SiteLayout from '../../layouts/SiteLayout.astro';
+
+export async function getStaticPaths() {
+  const essays = await getCollection('essays');
+  return essays.map((entry) => ({
+    params: { slug: entry.slug },
+    props: { entry },
+  }));
+}
+
+const { entry } = Astro.props;
+const { Content } = await render(entry);
+---
+
+<SiteLayout title={`${entry.data.title} | Arachne Field Notes`} description={entry.data.summary}>
+  <article class="article-shell">
+    <header class="article-header">
+      <p class="panel__eyebrow">Essay</p>
+      <h1>{entry.data.title}</h1>
+      <p>{entry.data.summary}</p>
+      <div class="tag-row">
+        {entry.data.tags.map((tag: string) => (
+          <span class="tag-chip">{tag}</span>
+        ))}
+      </div>
+    </header>
+    <div class="article-body">
+      <Content />
+    </div>
+  </article>
+</SiteLayout>

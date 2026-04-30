@@ -1,0 +1,65 @@
+---
+import PageHero from '../components/PageHero.astro';
+import SiteLayout from '../layouts/SiteLayout.astro';
+
+const pillars = [
+  {
+    title: 'Hypothesis',
+    body: 'チーム、サービス、AI エージェントの責務境界をそろえると、AI は既存システムを壊さずに前面へ出せる。',
+  },
+  {
+    title: 'SDK',
+    body: 'Spring Boot のコードベースに無理なく埋め込める agent SDK が必要だったため、Strands Agents を移植した。',
+  },
+  {
+    title: 'Demo',
+    body: 'food-delivery-demo は、その仮説が UI、API、prompt、skill、observability まで一貫することを見せる実証環境。',
+  },
+];
+
+const routes = [
+  { href: '/essay', label: 'Essay', body: '仮説と設計原則を長文で整理する。' },
+  { href: '/demo', label: 'Demo', body: 'food-delivery-demo の全体像と読みどころをまとめる。' },
+  { href: '/mapping', label: 'Mapping', body: '仮説と実装の対応関係を表と論点で見せる。' },
+  { href: '/appendix', label: 'Appendix', body: '図版、動画、OpenAPI、prompt contract、補遺を置く。' },
+];
+---
+
+<SiteLayout title="Arachne Field Notes">
+  <PageHero
+    eyebrow="Long-form publication"
+    title="AI時代におけるマイクロサービスを、思想と実装の両方から書く"
+    summary="このサイトは、Arachne の設計仮説、Spring における agent SDK の必要性、そして food-delivery-demo による実証を 1 本の流れで見せるための器です。"
+    aside="静的サイトとして構成し、長文、図版、動画、対応表、実行履歴へのリンクをまとめて扱えるようにする。"
+  />
+
+  <section class="section-grid">
+    {pillars.map((pillar) => (
+      <article class="panel">
+        <p class="panel__eyebrow">{pillar.title}</p>
+        <p>{pillar.body}</p>
+      </article>
+    ))}
+  </section>
+
+  <section class="story-band">
+    <div>
+      <p class="story-band__eyebrow">Story Arc</p>
+      <h2>仮説から demo まで、読む順番がそのまま論理になる</h2>
+    </div>
+    <ol class="story-band__list">
+      <li>AI 時代にマイクロサービスの公開面はどう変わるか、という仮説を置く。</li>
+      <li>その仮説を Spring に持ち込むには、既存の設計原則を壊さない agent SDK が必要だと定義する。</li>
+      <li>food-delivery-demo を、仮説がどのように UI、API、service boundary に落ちるかを示す実証系として読む。</li>
+    </ol>
+  </section>
+
+  <section class="route-grid">
+    {routes.map((route) => (
+      <a class="route-card" href={route.href}>
+        <span>{route.label}</span>
+        <p>{route.body}</p>
+      </a>
+    ))}
+  </section>
+</SiteLayout>

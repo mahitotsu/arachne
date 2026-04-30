@@ -1,0 +1,28 @@
+---
+import PageHero from '../../components/PageHero.astro';
+import SiteLayout from '../../layouts/SiteLayout.astro';
+
+const appendixSections = [
+  'アーキテクチャ図と責務分担図',
+  '画面キャプチャと短い操作動画',
+  'OpenAPI と prompt contract の抜粋',
+  'execution history と metrics の読み方',
+  '参考リンクと関連 ADR',
+];
+---
+
+<SiteLayout title="Appendix | Arachne Field Notes">
+  <PageHero
+    eyebrow="Appendix"
+    title="図版、動画、補足資料"
+    summary="長文本文から切り離した方が読みやすい図版や補足資料をここに集めます。将来的にはサービスごとの API 契約や prompt contract の抜粋もここへ寄せます。"
+  />
+
+  <section class="route-grid">
+    {appendixSections.map((item) => (
+      <article class="route-card route-card--static">
+        <span>{item}</span>
+      </article>
+    ))}
+  </section>
+</SiteLayout>

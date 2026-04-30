@@ -1,0 +1,105 @@
+---
+import PageHero from '../../components/PageHero.astro';
+import SiteLayout from '../../layouts/SiteLayout.astro';
+
+const services = [
+  {
+    name: 'order-service',
+    role: 'workflow API とセッション継続の公開面',
+    fit: 'agent-first だが API-less ではない、という仮説の中心を担う。',
+    check: 'ステップ API が公開面として明確で、状態変更の正本が workflow 側に残っているかを見る。',
+  },
+  {
+    name: 'menu-service',
+    role: '意図を提案可能な注文候補へ変換する front door',
+    fit: '曖昧な利用者意図を conversational に受け、決定論的ロジックと組み合わせて提案へ変換する。',
+    check: 'prompt と skill が説明や提案を担い、候補選択や合計計算はコード側に残っているかを見る。',
+  },
+  {
+    name: 'kitchen-service',
+    role: '在庫、ETA、混雑提案を持つ実運用側の判断境界',
+    fit: '実世界制約を持つ backend 側の責務と、agent 的な説明の接続点になる。',
+    check: '在庫や調理ライン判断が deterministic に保たれ、agent は説明と調整に寄っているかを見る。',
+  },
+  {
+    name: 'delivery-service',
+    role: '動的 discover と配送候補比較の実証',
+    fit: 'AI-native service mesh の一番わかりやすい断面であり、capability discovery の価値を示す。',
+    check: '固定 URL 前提ではなく registry discover を使い、候補比較と推奨理由が前面に出ているかを見る。',
+  },
+  {
+    name: 'payment-service',
+    role: 'AI を使わない方がよい責務の対照例',
+    fit: 'すべてを agent 化しない、という設計判断そのものを示す。',
+    check: '支払い方法提示と課金確定が決定論的に実装され、agent を使わない理由が読み取れるかを見る。',
+  },
+  {
+    name: 'support-service',
+    role: '注文フローとは別系統の会話的公開面',
+    fit: '業務 capability の中には、workflow より会話型の方が自然なものがあることを示す。',
+    check: 'FAQ、問い合わせ、キャンペーン、状態確認が conversational front door として一貫しているかを見る。',
+  },
+  {
+    name: 'registry-service',
+    role: 'capability discovery と仕様公開の土台',
+    fit: 'サービス間協調を固定配線から capability ベースへ寄せるための基盤になる。',
+    check: 'discover、health、仕様一覧が、単なる設定置き場ではなく agent mesh の基盤になっているかを見る。',
+  },
+];
+
+const reviewPoints = [
+  '公開面として agent を置くサービスと、正本 API を置くサービスが意図通りに分かれているか。',
+  'prompt / skill / code の責務分離が、サービスごとに読んで確認できるか。',
+  '固定サービス名や固定 URL に依存せず、capability discovery で協調先が解決されているか。',
+  'UI、OpenAPI、prompt contract、execution history、metrics が同じストーリーを支えているか。',
+];
+---
+
+<SiteLayout title="Demo | Arachne Field Notes">
+  <PageHero
+    eyebrow="Demo"
+    title="food-delivery-demo を実証環境として読む"
+    summary="このページでは、food-delivery-demo を単なるサンプルではなく、仮説を試すための実証系として読むための観点を整理します。"
+    aside="各サービスの役割を列挙するだけでなく、どの設計判断を見せるために存在するかを説明する。"
+  />
+
+  <section class="two-column-band">
+    <article class="panel">
+      <p class="panel__eyebrow">What It Shows</p>
+      <ul>
+        <li>agent-first だが API-less ではない公開面</li>
+        <li>prompt と skill の責務分担</li>
+        <li>決定論的ロジックと conversational front door の共存</li>
+        <li>registry を介した AI-native service mesh</li>
+      </ul>
+    </article>
+    <article class="panel panel--warm">
+      <p class="panel__eyebrow">Review Focus</p>
+      <ul>
+        {reviewPoints.map((point) => (
+          <li>{point}</li>
+        ))}
+      </ul>
+    </article>
+  </section>
+
+  <section class="stacked-list">
+    {services.map((service) => (
+      <article class="essay-card">
+        <div>
+          <p class="panel__eyebrow">Service Lens</p>
+          <h2>{service.name}</h2>
+          <p>{service.role}</p>
+        </div>
+        <div>
+          <p class="panel__eyebrow">Why It Matters</p>
+          <p>{service.fit}</p>
+        </div>
+        <div>
+          <p class="panel__eyebrow">What To Verify Later</p>
+          <p>{service.check}</p>
+        </div>
+      </article>
+    ))}
+  </section>
+</SiteLayout>

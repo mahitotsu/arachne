@@ -1,0 +1,32 @@
+---
+import { getCollection } from 'astro:content';
+import PageHero from '../../components/PageHero.astro';
+import SiteLayout from '../../layouts/SiteLayout.astro';
+
+const essays = (await getCollection('essays')).sort((left, right) => left.data.order - right.data.order);
+---
+
+<SiteLayout title="Essay | Arachne Field Notes">
+  <PageHero
+    eyebrow="Essay"
+    title="仮説と設計原則"
+    summary="長文の本編を置く場所です。AI 時代におけるマイクロサービスの仮説、Spring への要件、Strands Agents 移植の位置づけをここで語ります。"
+  />
+
+  <section class="stacked-list">
+    {essays.map((essay) => (
+      <article class="essay-card">
+        <div>
+          <p class="panel__eyebrow">{essay.data.publishDate.toLocaleDateString('ja-JP')}</p>
+          <h2><a href={`/essay/${essay.slug}`}>{essay.data.title}</a></h2>
+          <p>{essay.data.summary}</p>
+        </div>
+        <div class="tag-row">
+          {essay.data.tags.map((tag) => (
+            <span class="tag-chip">{tag}</span>
+          ))}
+        </div>
+      </article>
+    ))}
+  </section>
+</SiteLayout>
