@@ -3,6 +3,8 @@ package com.mahitotsu.arachne.samples.delivery.menuservice.domain;
 import java.math.BigDecimal;
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
 import io.swagger.v3.oas.annotations.media.Schema;
 
 public final class MenuTypes {
@@ -62,7 +64,18 @@ public final class MenuTypes {
     public record AgentCollaboration(String service, String agent, String headline, String summary) {
     }
 
-    public record RegistryServiceDescriptorPayload(String serviceName, String endpoint, String status) {
+    public record RegistryDiscoverRequestPayload(String query, Boolean availableOnly) {
+    }
+
+    public record RegistryDiscoverResponsePayload(
+            String service,
+            String agent,
+            String summary,
+            List<RegistryServiceDescriptorPayload> matches) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record RegistryServiceDescriptorPayload(String serviceName, String endpoint, String requestPath, String status) {
     }
 
     public record KitchenTrace(String summary, List<String> notes) {

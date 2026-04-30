@@ -2,11 +2,10 @@ package com.mahitotsu.arachne.samples.delivery.menuservice.infrastructure;
 
 import static com.mahitotsu.arachne.samples.delivery.menuservice.domain.MenuTypes.*;
 
-import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
@@ -18,7 +17,7 @@ public class RegistryServiceEndpointResolver implements ServiceEndpointResolver 
 
     private final RestClient registryRestClient;
     private final DownstreamObservationSupport observationSupport;
-    private final ConcurrentMap<String, String> cachedBaseUrls = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, RegistryEndpointMetadata> cachedEndpoints = new ConcurrentHashMap<>();
 
     RegistryServiceEndpointResolver(
             RestClient.Builder restClientBuilder,
@@ -30,55 +29,61 @@ public class RegistryServiceEndpointResolver implements ServiceEndpointResolver 
     }
 
     @Override
-    public String resolveUrl(String serviceName, String fallbackBaseUrl, String requestPath) {
-        return joinUrl(resolveBaseUrl(serviceName, fallbackBaseUrl), requestPath);
+    public String resolveUrl(String capabilityQuery, String requestPath) {
+        RegistryEndpointMetadata endpoint = resolveEndpoint(capabilityQuery);
+        if (endpoint != null && StringUtils.hasText(endpoint.endpoint())) {
+            return joinUrl(endpoint.endpoint(), endpoint.requestPathOr(requestPath));
+        }
+        return "";
     }
 
     public void clearCache() {
-        cachedBaseUrls.clear();
+        cachedEndpoints.clear();
     }
 
-    private String resolveBaseUrl(String serviceName, String fallbackBaseUrl) {
-        if (StringUtils.hasText(serviceName)) {
-            String cachedBaseUrl = cachedBaseUrls.get(serviceName);
-            if (StringUtils.hasText(cachedBaseUrl)) {
-                return cachedBaseUrl;
-            }
-            String discoveredBaseUrl = discoverBaseUrl(serviceName);
-            if (StringUtils.hasText(discoveredBaseUrl)) {
-                cachedBaseUrls.put(serviceName, discoveredBaseUrl);
-                return discoveredBaseUrl;
-            }
+    private RegistryEndpointMetadata resolveEndpoint(String capabilityQuery) {
+        if (!StringUtils.hasText(capabilityQuery)) {
+            return null;
         }
-        return fallbackBaseUrl;
+        RegistryEndpointMetadata cachedEndpoint = cachedEndpoints.get(capabilityQuery);
+        if (cachedEndpoint != null && StringUtils.hasText(cachedEndpoint.endpoint())) {
+            return cachedEndpoint;
+        }
+        RegistryEndpointMetadata discoveredEndpoint = discoverEndpoint(capabilityQuery);
+        if (discoveredEndpoint != null && StringUtils.hasText(discoveredEndpoint.endpoint())) {
+            cachedEndpoints.put(capabilityQuery, discoveredEndpoint);
+            return discoveredEndpoint;
+        }
+        return null;
     }
 
-    private String discoverBaseUrl(String serviceName) {
-        if (registryRestClient == null || !StringUtils.hasText(serviceName)) {
-            return "";
+    private RegistryEndpointMetadata discoverEndpoint(String capabilityQuery) {
+        if (registryRestClient == null || !StringUtils.hasText(capabilityQuery)) {
+            return null;
         }
         try {
-            RegistryServiceDescriptorPayload[] response = observationSupport.observe(
+            RegistryDiscoverResponsePayload response = observationSupport.observe(
                     "delivery.menu.registry.lookup",
                     "registry-service",
                     "resolve-endpoint",
-                    () -> registryRestClient.get()
-                            .uri("/registry/services")
+                    () -> registryRestClient.post()
+                            .uri("/registry/discover")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .body(new RegistryDiscoverRequestPayload(capabilityQuery, true))
                             .retrieve()
-                            .body(RegistryServiceDescriptorPayload[].class));
-            if (response == null) {
-                return "";
+                            .body(RegistryDiscoverResponsePayload.class));
+            if (response == null || response.matches() == null) {
+                return null;
             }
-            return List.of(response).stream()
-                    .filter(Objects::nonNull)
-                    .filter(service -> serviceName.equalsIgnoreCase(service.serviceName()))
+            return response.matches().stream()
+                    .filter(java.util.Objects::nonNull)
                     .filter(service -> "AVAILABLE".equalsIgnoreCase(service.status()))
-                    .map(RegistryServiceDescriptorPayload::endpoint)
-                    .filter(StringUtils::hasText)
+                    .map(service -> new RegistryEndpointMetadata(service.endpoint(), service.requestPath()))
+                    .filter(service -> StringUtils.hasText(service.endpoint()))
                     .findFirst()
-                    .orElse("");
+                    .orElse(null);
         } catch (Exception ignored) {
-            return "";
+            return null;
         }
     }
 
@@ -99,5 +104,11 @@ public class RegistryServiceEndpointResolver implements ServiceEndpointResolver 
             return endpoint + "/" + requestPath;
         }
         return endpoint + requestPath;
+    }
+
+    private record RegistryEndpointMetadata(String endpoint, String requestPath) {
+        private String requestPathOr(String fallbackRequestPath) {
+            return StringUtils.hasText(requestPath) ? requestPath : fallbackRequestPath;
+        }
     }
 }

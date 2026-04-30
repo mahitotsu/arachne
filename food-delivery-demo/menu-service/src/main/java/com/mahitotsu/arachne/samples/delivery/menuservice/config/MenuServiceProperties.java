@@ -84,29 +84,14 @@ public class MenuServiceProperties {
     public static final class Kitchen {
 
         @NotBlank
-        private String serviceName = "kitchen-service";
+        private String capabilityQuery = "在庫確認 調理ライン別 ETA 欠品時の代替承認 混雑時の別ライン提案";
 
-        private String baseUrl = "";
-
-        public String getServiceName() {
-            return serviceName;
+        public String getCapabilityQuery() {
+            return capabilityQuery;
         }
 
-        public void setServiceName(String serviceName) {
-            this.serviceName = normalize(serviceName);
-        }
-
-        public String getBaseUrl() {
-            return baseUrl;
-        }
-
-        public void setBaseUrl(String baseUrl) {
-            this.baseUrl = normalize(baseUrl);
-        }
-
-        @AssertTrue(message = "delivery.downstream.kitchen.base-url must be blank or an absolute http(s) URL")
-        public boolean isBaseUrlValid() {
-            return baseUrl.isBlank() || isHttpUrl(baseUrl);
+        public void setCapabilityQuery(String capabilityQuery) {
+            this.capabilityQuery = normalize(capabilityQuery);
         }
     }
 

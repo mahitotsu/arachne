@@ -12,13 +12,12 @@ import com.mahitotsu.arachne.samples.delivery.menuservice.config.MenuServiceProp
 @Component
 public class RegistryBackedKitchenCheckGateway implements KitchenCheckGateway {
 
-    private static final String DEFAULT_KITCHEN_SERVICE_NAME = "kitchen-service";
+    private static final String OBSERVATION_TARGET = "kitchen-service";
 
     private final RestClient restClient;
     private final ServiceEndpointResolver endpointResolver;
     private final DownstreamObservationSupport observationSupport;
-    private final String kitchenServiceName;
-    private final String fallbackBaseUrl;
+    private final String kitchenCapabilityQuery;
 
     RegistryBackedKitchenCheckGateway(
             RestClient.Builder restClientBuilder,
@@ -28,17 +27,13 @@ public class RegistryBackedKitchenCheckGateway implements KitchenCheckGateway {
         this.restClient = restClientBuilder.build();
         this.endpointResolver = endpointResolver;
         this.observationSupport = observationSupport;
-        this.kitchenServiceName = properties.getDownstream().getKitchen().getServiceName();
-        String configuredBaseUrl = properties.getDownstream().getKitchen().getBaseUrl();
-        this.fallbackBaseUrl = configuredBaseUrl.isBlank()
-                ? "http://" + kitchenServiceName + ":8080"
-            : configuredBaseUrl;
+        this.kitchenCapabilityQuery = properties.getDownstream().getKitchen().getCapabilityQuery();
     }
 
     @Override
     public KitchenCheckResponse check(KitchenCheckRequest request, String accessToken) {
-        return observationSupport.observe("delivery.menu.downstream", kitchenServiceName, "check", () -> restClient.post()
-            .uri(endpointResolver.resolveUrl(kitchenServiceName, fallbackBaseUrl, "/internal/kitchen/check"))
+        return observationSupport.observe("delivery.menu.downstream", OBSERVATION_TARGET, "check", () -> restClient.post()
+            .uri(endpointResolver.resolveUrl(kitchenCapabilityQuery, "/internal/kitchen/check"))
             .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
             .contentType(MediaType.APPLICATION_JSON)
             .body(request)

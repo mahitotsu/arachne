@@ -84,29 +84,14 @@ public class SupportServiceProperties {
     public static final class Order {
 
         @NotBlank
-        private String serviceName = "order-service";
+        private String capabilityQuery = "注文履歴参照";
 
-        private String baseUrl = "";
-
-        public String getServiceName() {
-            return serviceName;
+        public String getCapabilityQuery() {
+            return capabilityQuery;
         }
 
-        public void setServiceName(String serviceName) {
-            this.serviceName = normalize(serviceName);
-        }
-
-        public String getBaseUrl() {
-            return baseUrl;
-        }
-
-        public void setBaseUrl(String baseUrl) {
-            this.baseUrl = normalize(baseUrl);
-        }
-
-        @AssertTrue(message = "delivery.downstream.order.base-url must be blank or an absolute http(s) URL")
-        public boolean isBaseUrlValid() {
-            return baseUrl.isBlank() || isHttpUrl(baseUrl);
+        public void setCapabilityQuery(String capabilityQuery) {
+            this.capabilityQuery = normalize(capabilityQuery);
         }
     }
 

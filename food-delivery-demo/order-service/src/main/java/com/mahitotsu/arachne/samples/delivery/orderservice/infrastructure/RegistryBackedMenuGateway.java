@@ -14,13 +14,12 @@ import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.Men
 @Component
 public class RegistryBackedMenuGateway implements MenuGateway {
 
-    private static final String DEFAULT_MENU_SERVICE_NAME = "menu-service";
+    private static final String MENU_TARGET = "menu-service";
 
     private final RestClient restClient;
     private final ServiceEndpointResolver endpointResolver;
     private final DownstreamObservationSupport observationSupport;
-    private final String menuServiceName;
-    private final String fallbackBaseUrl;
+    private final String menuCapabilityQuery;
 
     RegistryBackedMenuGateway(
             RestClient.Builder restClientBuilder,
@@ -30,11 +29,7 @@ public class RegistryBackedMenuGateway implements MenuGateway {
         this.restClient = restClientBuilder.build();
         this.endpointResolver = endpointResolver;
         this.observationSupport = observationSupport;
-        this.menuServiceName = properties.getDownstream().getMenu().getServiceName();
-        String configuredBaseUrl = properties.getDownstream().getMenu().getBaseUrl();
-        this.fallbackBaseUrl = configuredBaseUrl.isBlank()
-                ? "http://" + menuServiceName + ":8080"
-            : configuredBaseUrl;
+        this.menuCapabilityQuery = properties.getDownstream().getMenu().getCapabilityQuery();
     }
 
     @Override
@@ -42,12 +37,12 @@ public class RegistryBackedMenuGateway implements MenuGateway {
         return observationSupport.observe(
                 "delivery.order.downstream",
                 request.sessionId(),
-                menuServiceName,
+                MENU_TARGET,
                 "suggest",
                 "query=" + request.query(),
                 () ->
             Objects.requireNonNull(restClient.post()
-                .uri(endpointResolver.resolveUrl(menuServiceName, fallbackBaseUrl, "/internal/menu/suggest"))
+                .uri(endpointResolver.resolveUrl(menuCapabilityQuery, "/internal/menu/suggest"))
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(request)

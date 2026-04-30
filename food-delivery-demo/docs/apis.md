@@ -76,9 +76,9 @@
 - `POST /registry/register`
   サービス起動時にケイパビリティ、エンドポイント、エージェント仕様、ヘルス URL を登録する。
 - `POST /registry/discover`
-  自然言語クエリを受け取り、マッチしたサービス記述子と capability-registry-agent の要約を返す。
+  自然言語クエリを受け取り、マッチしたサービス記述子と capability-registry-agent の要約を返す。サービス間 collaborator 解決はこちらを使う。
 - `GET /registry/services`
-  全登録サービスの仕様一覧を返す。停止中の `icarus-adapter` も含む。
+  全登録サービスの仕様一覧を返す。停止中の `icarus-adapter` も含む。主用途は仕様一覧表示と OpenAPI 参照。
 - `GET /registry/health`
   登録済みサービスの集約ヘルス状態を返す。
 

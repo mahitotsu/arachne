@@ -14,8 +14,7 @@ delivery:
     endpoint: ${DELIVERY_KITCHEN_ENDPOINT:http://kitchen-service:8080}
   downstream:
     menu:
-      service-name: ${MENU_SERVICE_NAME:menu-service}
-      base-url: ${MENU_SERVICE_BASE_URL:}
+      capability-query: ${MENU_CAPABILITY_QUERY:欠品時の代替候補提示}
 
 management:
   endpoints:

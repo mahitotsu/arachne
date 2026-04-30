@@ -14,12 +14,9 @@ import com.mahitotsu.arachne.samples.delivery.kitchenservice.config.KitchenServi
 @Component
 public class RegistryBackedMenuSubstitutionGateway implements MenuSubstitutionGateway {
 
-    private static final String DEFAULT_MENU_SERVICE_NAME = "menu-service";
-
     private final RestClient restClient;
     private final ServiceEndpointResolver endpointResolver;
-    private final String menuServiceName;
-    private final String fallbackBaseUrl;
+    private final String menuCapabilityQuery;
 
     RegistryBackedMenuSubstitutionGateway(
             RestClient.Builder restClientBuilder,
@@ -27,17 +24,13 @@ public class RegistryBackedMenuSubstitutionGateway implements MenuSubstitutionGa
             KitchenServiceProperties properties) {
         this.restClient = restClientBuilder.build();
         this.endpointResolver = endpointResolver;
-        this.menuServiceName = properties.getDownstream().getMenu().getServiceName();
-        String configuredBaseUrl = properties.getDownstream().getMenu().getBaseUrl();
-        this.fallbackBaseUrl = configuredBaseUrl.isBlank()
-                ? "http://" + menuServiceName + ":8080"
-            : configuredBaseUrl;
+        this.menuCapabilityQuery = properties.getDownstream().getMenu().getCapabilityQuery();
     }
 
     @Override
     public MenuSubstitutionResponse suggestSubstitutes(MenuSubstitutionRequest request, String accessToken) {
         return Objects.requireNonNull(restClient.post()
-                .uri(endpointResolver.resolveUrl(menuServiceName, fallbackBaseUrl, "/internal/menu/substitutes"))
+            .uri(endpointResolver.resolveUrl(menuCapabilityQuery, "/internal/menu/substitutes"))
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(request)

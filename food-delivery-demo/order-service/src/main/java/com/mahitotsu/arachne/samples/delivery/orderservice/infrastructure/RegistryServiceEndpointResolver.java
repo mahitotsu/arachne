@@ -1,18 +1,16 @@
 package com.mahitotsu.arachne.samples.delivery.orderservice.infrastructure;
 
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Locale;
-import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 
 import com.mahitotsu.arachne.samples.delivery.orderservice.config.OrderRegistryProperties;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.RegistryDiscoverRequestPayload;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.RegistryDiscoverResponsePayload;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.RegistryServiceDescriptorPayload;
 
 @Component
@@ -32,12 +30,12 @@ public class RegistryServiceEndpointResolver implements ServiceEndpointResolver 
     }
 
     @Override
-    public String resolveUrl(String capabilityQuery, String fallbackBaseUrl, String fallbackRequestPath) {
+    public String resolveUrl(String capabilityQuery, String fallbackRequestPath) {
         RegistryEndpointMetadata endpoint = resolveEndpoint(capabilityQuery);
         if (endpoint != null && StringUtils.hasText(endpoint.endpoint())) {
             return joinUrl(endpoint.endpoint(), endpoint.requestPathOr(fallbackRequestPath));
         }
-        return joinUrl(fallbackBaseUrl, fallbackRequestPath);
+        return "";
     }
 
     public void clearCache() {
@@ -65,67 +63,29 @@ public class RegistryServiceEndpointResolver implements ServiceEndpointResolver 
             return null;
         }
         try {
-            RegistryServiceDescriptorPayload[] response = observationSupport.observe(
+            RegistryDiscoverResponsePayload response = observationSupport.observe(
                     "delivery.order.registry.lookup",
                     "registry-service",
                     "resolve-endpoint",
-                    () -> registryRestClient.get()
-                            .uri("/registry/services")
+                    () -> registryRestClient.post()
+                            .uri("/registry/discover")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .body(new RegistryDiscoverRequestPayload(capabilityQuery, true))
                             .retrieve()
-                            .body(RegistryServiceDescriptorPayload[].class));
-            if (response == null) {
+                            .body(RegistryDiscoverResponsePayload.class));
+            if (response == null || response.matches() == null) {
                 return null;
             }
-            List<String> queryTokens = tokenize(capabilityQuery);
-            return List.of(response).stream()
-                    .filter(Objects::nonNull)
+            return response.matches().stream()
+                    .filter(java.util.Objects::nonNull)
                     .filter(service -> "AVAILABLE".equalsIgnoreCase(service.status()))
-                    .filter(service -> matchesAllTokens(service, queryTokens))
-                    .max(Comparator.comparingInt(service -> score(service, queryTokens)))
+                    .findFirst()
                     .map(service -> new RegistryEndpointMetadata(service.endpoint(), service.requestPath()))
                     .filter(service -> StringUtils.hasText(service.endpoint()))
                     .orElse(null);
         } catch (Exception ignored) {
             return null;
         }
-    }
-
-    private int score(RegistryServiceDescriptorPayload descriptor, List<String> queryTokens) {
-        if (queryTokens.isEmpty()) {
-            return 0;
-        }
-        String searchable = searchableContent(descriptor);
-        int score = 0;
-        for (String token : queryTokens) {
-            if (searchable.contains(token)) {
-                score++;
-            }
-        }
-        return score;
-    }
-
-    private boolean matchesAllTokens(RegistryServiceDescriptorPayload descriptor, List<String> queryTokens) {
-        return !queryTokens.isEmpty() && score(descriptor, queryTokens) == queryTokens.size();
-    }
-
-    private String searchableContent(RegistryServiceDescriptorPayload descriptor) {
-        return normalize(String.join(" ",
-                Objects.requireNonNullElse(descriptor.serviceName(), ""),
-                Objects.requireNonNullElse(descriptor.capability(), ""),
-                Objects.requireNonNullElse(descriptor.agentName(), ""),
-                Objects.requireNonNullElse(descriptor.requestPath(), "")));
-    }
-
-    private List<String> tokenize(String query) {
-        return Arrays.stream(normalize(query).split("\\s+"))
-                .filter(StringUtils::hasText)
-                .toList();
-    }
-
-    private String normalize(String value) {
-        return value == null
-                ? ""
-                : value.toLowerCase(Locale.ROOT).replaceAll("[\\p{Punct}、。・]+", " ").trim();
     }
 
     private String joinUrl(String endpoint, String requestPath) {

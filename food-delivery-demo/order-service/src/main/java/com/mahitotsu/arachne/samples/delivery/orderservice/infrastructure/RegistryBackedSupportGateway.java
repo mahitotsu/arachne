@@ -14,13 +14,12 @@ import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.Sup
 @Component
 public class RegistryBackedSupportGateway implements SupportGateway {
 
-    private static final String DEFAULT_SUPPORT_SERVICE_NAME = "support-service";
+    private static final String SUPPORT_TARGET = "support-service";
 
     private final RestClient restClient;
     private final ServiceEndpointResolver endpointResolver;
     private final DownstreamObservationSupport observationSupport;
-    private final String supportServiceName;
-    private final String fallbackBaseUrl;
+    private final String supportCapabilityQuery;
 
     RegistryBackedSupportGateway(
             RestClient.Builder restClientBuilder,
@@ -30,11 +29,7 @@ public class RegistryBackedSupportGateway implements SupportGateway {
         this.restClient = restClientBuilder.build();
         this.endpointResolver = endpointResolver;
         this.observationSupport = observationSupport;
-        this.supportServiceName = properties.getDownstream().getSupport().getServiceName();
-        String configuredBaseUrl = properties.getDownstream().getSupport().getBaseUrl();
-        this.fallbackBaseUrl = configuredBaseUrl.isBlank()
-                ? "http://" + supportServiceName + ":8080"
-            : configuredBaseUrl;
+        this.supportCapabilityQuery = properties.getDownstream().getSupport().getCapabilityQuery();
     }
 
     @Override
@@ -43,12 +38,12 @@ public class RegistryBackedSupportGateway implements SupportGateway {
             return observationSupport.observe(
                 "delivery.order.downstream",
                 request.sessionId(),
-                supportServiceName,
+                SUPPORT_TARGET,
                 "record-feedback",
                 "orderId=" + request.orderId(),
                 () ->
                     Optional.ofNullable(restClient.post()
-                            .uri(endpointResolver.resolveUrl(supportServiceName, fallbackBaseUrl, "/api/support/feedback"))
+                            .uri(endpointResolver.resolveUrl(supportCapabilityQuery, "/api/support/feedback"))
                             .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                             .contentType(MediaType.APPLICATION_JSON)
                             .body(request)

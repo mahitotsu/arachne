@@ -18,15 +18,15 @@ class OrderRegistryPropertiesTest {
             .withUserConfiguration(TestConfiguration.class);
 
     @Test
-    void bindsDeliveryRegistrySettings() {
+        void bindsDeliveryRegistryAndCapabilityQuerySettings() {
         contextRunner
                 .withPropertyValues(
                         "delivery.registry.base-url=http://registry-service:8087",
                                                 "delivery.order.endpoint=http://order-service:8080",
-                                                "delivery.downstream.menu.service-name=legacy-menu-service",
-                                                "delivery.downstream.delivery.service-name=legacy-delivery-service",
-                                                "delivery.downstream.payment.service-name=legacy-payment-service",
-                                                "delivery.downstream.support.service-name=legacy-support-service")
+                                                "delivery.downstream.menu.capability-query=メニュー提案 在庫付き提案 注文候補",
+                                                "delivery.downstream.delivery.capability-query=配送候補 ETA 比較 配送選択肢",
+                                                "delivery.downstream.payment.capability-query=支払い準備 合計確認 課金確定",
+                                                "delivery.downstream.support.capability-query=注文後フィードバック受付 問い合わせ受付 サポート連携")
                 .run(context -> {
                     assertThat(context).hasNotFailed();
                     assertThat(context).hasSingleBean(OrderRegistryProperties.class);
@@ -34,10 +34,10 @@ class OrderRegistryPropertiesTest {
                     OrderRegistryProperties properties = context.getBean(OrderRegistryProperties.class);
                     assertThat(properties.getRegistry().getBaseUrl()).isEqualTo("http://registry-service:8087");
                     assertThat(properties.getOrder().getEndpoint()).isEqualTo("http://order-service:8080");
-                                        assertThat(properties.getDownstream().getMenu().getServiceName()).isEqualTo("legacy-menu-service");
-                                        assertThat(properties.getDownstream().getDelivery().getServiceName()).isEqualTo("legacy-delivery-service");
-                                        assertThat(properties.getDownstream().getPayment().getServiceName()).isEqualTo("legacy-payment-service");
-                                        assertThat(properties.getDownstream().getSupport().getServiceName()).isEqualTo("legacy-support-service");
+                                        assertThat(properties.getDownstream().getMenu().getCapabilityQuery()).isEqualTo("メニュー提案 在庫付き提案 注文候補");
+                                        assertThat(properties.getDownstream().getDelivery().getCapabilityQuery()).isEqualTo("配送候補 ETA 比較 配送選択肢");
+                                        assertThat(properties.getDownstream().getPayment().getCapabilityQuery()).isEqualTo("支払い準備 合計確認 課金確定");
+                                        assertThat(properties.getDownstream().getSupport().getCapabilityQuery()).isEqualTo("注文後フィードバック受付 問い合わせ受付 サポート連携");
                 });
     }
 

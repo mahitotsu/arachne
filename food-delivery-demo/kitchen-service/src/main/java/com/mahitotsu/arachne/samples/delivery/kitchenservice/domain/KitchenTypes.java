@@ -3,6 +3,8 @@ package com.mahitotsu.arachne.samples.delivery.kitchenservice.domain;
 import java.math.BigDecimal;
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
 import io.swagger.v3.oas.annotations.media.Schema;
 
 public final class KitchenTypes {
@@ -52,6 +54,17 @@ public final class KitchenTypes {
     public record MenuSubstitutionResponse(String service, String agent, String headline, String summary, List<MenuItem> items) {
     }
 
+    public record RegistryDiscoverRequestPayload(String query, Boolean availableOnly) {
+    }
+
+    public record RegistryDiscoverResponsePayload(
+            String service,
+            String agent,
+            String summary,
+            List<RegistryServiceDescriptorPayload> matches) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public record RegistryServiceDescriptorPayload(
             String serviceName,
             String endpoint,

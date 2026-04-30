@@ -3,11 +3,11 @@ package com.mahitotsu.arachne.samples.delivery.kitchenservice;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.TimeUnit;
 
 import static com.mahitotsu.arachne.samples.delivery.kitchenservice.domain.KitchenTypes.*;
 import static com.mahitotsu.arachne.samples.delivery.testsupport.MockWebServerTestSupport.drainRequests;
-import static com.mahitotsu.arachne.samples.delivery.testsupport.MockWebServerTestSupport.recordedPaths;
 import static com.mahitotsu.arachne.samples.delivery.testsupport.MockWebServerTestSupport.trimTrailingSlash;
 import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.AfterAll;
@@ -53,6 +53,7 @@ class KitchenServiceApiTest {
     private static MockWebServer menuServer;
     private static MockWebServer registryServer;
     private static MockWebServer jwkServer;
+    private static final AtomicReference<String> lastRegistryDiscoverRequestBody = new AtomicReference<>("");
     private static RSAKey signingKey;
     private static String accessToken;
 
@@ -94,6 +95,7 @@ class KitchenServiceApiTest {
     @BeforeEach
     void prepareAuthenticatedClient() throws InterruptedException {
         endpointResolver.clearCache();
+        lastRegistryDiscoverRequestBody.set("");
         drainRequests(registryServer);
         drainRequests(menuServer);
         restTemplate.getRestTemplate().setInterceptors(List.of((request, body, execution) -> {
@@ -105,7 +107,6 @@ class KitchenServiceApiTest {
     @DynamicPropertySource
     static void configureProperties(DynamicPropertyRegistry registry) {
         registry.add("DELIVERY_REGISTRY_BASE_URL", () -> registryServer.url("/").toString());
-        registry.add("MENU_SERVICE_NAME", () -> "legacy-menu-service");
         registry.add("spring.security.oauth2.resourceserver.jwt.jwk-set-uri", () -> jwkServer.url("/oauth2/jwks").toString());
     }
 
@@ -165,7 +166,12 @@ class KitchenServiceApiTest {
             assertThat(trace.service()).isEqualTo("menu-service/support");
             assertThat(trace.agent()).isEqualTo("menu-agent");
         });
-        assertThat(recordedPaths(registryServer)).anyMatch(path -> path.startsWith("/registry/services"));
+        RecordedRequest registryRequest = registryServer.takeRequest(1, TimeUnit.SECONDS);
+        assertThat(registryRequest).isNotNull();
+        assertThat(registryRequest.getPath()).isEqualTo("/registry/discover");
+        assertThat(lastRegistryDiscoverRequestBody.get())
+            .contains("\"query\":\"欠品時の代替候補提示\"")
+            .contains("\"availableOnly\":true");
         RecordedRequest menuRequest = menuServer.takeRequest(1, TimeUnit.SECONDS);
         assertThat(menuRequest).isNotNull();
         assertThat(menuRequest.getPath()).isEqualTo(MENU_SUBSTITUTION_META_PATH);
@@ -223,13 +229,19 @@ class KitchenServiceApiTest {
                                     }
                                     """);
                 }
-                if (path != null && path.startsWith("/registry/services")) {
+                                if (path != null && path.startsWith("/registry/discover")) {
+                                        lastRegistryDiscoverRequestBody.set(request.getBody().readUtf8());
                     return new MockResponse()
                             .setHeader("Content-Type", "application/json")
                             .setBody("""
-                                    [
-                                                {"serviceName": "legacy-menu-service", "endpoint": "%s", "capability": "メニュー提案、問い合わせ受付、欠品時の代替候補提示を扱う。", "agentName": "menu-agent", "requestMethod": "POST", "requestPath": "%s", "status": "AVAILABLE"}
-                                    ]
+                                                                        {
+                                                                            "service": "registry-service",
+                                                                            "agent": "registry-agent",
+                                                                            "summary": "query に一致した service を返しました。",
+                                                                            "matches": [
+                                                                                {"serviceName": "menu-catalog-node", "endpoint": "%s", "capability": "メニュー提案、問い合わせ受付、欠品時の代替候補提示を扱う。", "agentName": "menu-agent", "requestMethod": "POST", "requestPath": "%s", "status": "AVAILABLE"}
+                                                                            ]
+                                                                        }
                                                                         """.formatted(trimTrailingSlash(menuServer.url("/").toString()), MENU_SUBSTITUTION_META_PATH));
                 }
                 return new MockResponse().setResponseCode(404);

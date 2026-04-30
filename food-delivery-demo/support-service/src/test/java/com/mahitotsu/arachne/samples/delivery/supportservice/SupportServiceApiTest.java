@@ -3,9 +3,9 @@ package com.mahitotsu.arachne.samples.delivery.supportservice;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static com.mahitotsu.arachne.samples.delivery.testsupport.MockWebServerTestSupport.drainRequests;
-import static com.mahitotsu.arachne.samples.delivery.testsupport.MockWebServerTestSupport.recordedPaths;
 import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -21,6 +21,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
+import static com.mahitotsu.arachne.samples.delivery.testsupport.MockWebServerTestSupport.recordedPaths;
 import com.mahitotsu.arachne.samples.delivery.supportservice.api.SupportChatRequest;
 import com.mahitotsu.arachne.samples.delivery.supportservice.api.SupportChatResponse;
 import com.mahitotsu.arachne.samples.delivery.supportservice.api.SupportFeedbackRequest;
@@ -56,6 +57,7 @@ class SupportServiceApiTest {
     private static MockWebServer jwkServer;
     private static MockWebServer registryServer;
     private static MockWebServer orderServer;
+    private static final AtomicReference<String> lastRegistryDiscoverRequestBody = new AtomicReference<>("");
     private static RSAKey signingKey;
     private static String accessToken;
 
@@ -96,12 +98,12 @@ class SupportServiceApiTest {
     static void configureProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.security.oauth2.resourceserver.jwt.jwk-set-uri", () -> jwkServer.url("/oauth2/jwks").toString());
         registry.add("DELIVERY_REGISTRY_BASE_URL", () -> registryServer.url("/").toString());
-        registry.add("ORDER_SERVICE_NAME", () -> "order-service");
     }
 
     @BeforeEach
     void prepareAuthenticatedClient() throws InterruptedException {
         endpointResolver.clearCache();
+        lastRegistryDiscoverRequestBody.set("");
         drainRequests(registryServer);
         drainRequests(orderServer);
         restTemplate.getRestTemplate().setInterceptors(List.of((request, body, execution) -> {
@@ -154,7 +156,10 @@ class SupportServiceApiTest {
         assertThat(response.recentOrders()).extracting(CustomerOrderHistoryEntry::orderId)
                 .contains("ord-1001");
         assertThat(response.summary()).contains("雨の日ポイント2倍", "delivery-service", "照り焼き");
-        assertThat(recordedPaths(registryServer)).anyMatch(path -> path.startsWith("/registry/services"));
+        assertThat(recordedPaths(registryServer)).anyMatch(path -> path.startsWith("/registry/discover"));
+        assertThat(lastRegistryDiscoverRequestBody.get())
+            .contains("\"query\":\"注文履歴参照\"")
+            .contains("\"availableOnly\":true");
         assertThat(recordedPaths(orderServer)).anyMatch(path -> path.startsWith("/api/orders/history"));
     }
 
@@ -276,17 +281,24 @@ class SupportServiceApiTest {
                                     }
                                     """);
                 }
-                                if (path != null && path.startsWith("/registry/services")) {
+                                                                if (path != null && path.startsWith("/registry/discover")) {
+                                                                                lastRegistryDiscoverRequestBody.set(request.getBody().readUtf8());
                                         return new MockResponse()
                                                         .setHeader("Content-Type", "application/json")
                                                         .setBody("""
-                                                                        [
-                                                                            {
-                                                                                "serviceName": "order-service",
-                                                                                "endpoint": "%s",
-                                                                                "status": "AVAILABLE"
-                                                                            }
-                                                                        ]
+                                                                                                                                                {
+                                                                                                                                                    "service": "registry-service",
+                                                                                                                                                    "agent": "registry-agent",
+                                                                                                                                                    "summary": "query に一致した service を返しました。",
+                                                                                                                                                    "matches": [
+                                                                                                                                                        {
+                                                                                                                                                            "serviceName": "order-history-node",
+                                                                                                                                                            "endpoint": "%s",
+                                                                                                                                                            "requestPath": "/api/orders/history",
+                                                                                                                                                            "status": "AVAILABLE"
+                                                                                                                                                        }
+                                                                                                                                                    ]
+                                                                                                                                                }
                                                                         """.formatted(orderServer.url("/").toString().replaceAll("/$", "")));
                                 }
                 return new MockResponse().setResponseCode(404);

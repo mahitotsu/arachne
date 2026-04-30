@@ -74,16 +74,16 @@ public class OrderRegistryProperties {
     public static final class Downstream {
 
         @Valid
-        private final ServiceTarget menu = new ServiceTarget("menu-service");
+        private final ServiceTarget menu = new ServiceTarget("メニュー提案 在庫付き提案 注文候補");
 
         @Valid
-        private final ServiceTarget delivery = new ServiceTarget("delivery-service");
+        private final ServiceTarget delivery = new ServiceTarget("配送候補 ETA 比較 配送選択肢");
 
         @Valid
-        private final ServiceTarget payment = new ServiceTarget("payment-service");
+        private final ServiceTarget payment = new ServiceTarget("支払い準備 合計確認 課金確定");
 
         @Valid
-        private final ServiceTarget support = new ServiceTarget("support-service");
+        private final ServiceTarget support = new ServiceTarget("注文後フィードバック受付 問い合わせ受付 サポート連携");
 
         public ServiceTarget getMenu() {
             return menu;
@@ -105,33 +105,18 @@ public class OrderRegistryProperties {
     public static final class ServiceTarget {
 
         @NotBlank
-        private String serviceName;
+        private String capabilityQuery;
 
-        private String baseUrl = "";
-
-        ServiceTarget(String serviceName) {
-            this.serviceName = serviceName;
+        ServiceTarget(String capabilityQuery) {
+            this.capabilityQuery = capabilityQuery;
         }
 
-        public String getServiceName() {
-            return serviceName;
+        public String getCapabilityQuery() {
+            return capabilityQuery;
         }
 
-        public void setServiceName(String serviceName) {
-            this.serviceName = normalize(serviceName);
-        }
-
-        public String getBaseUrl() {
-            return baseUrl;
-        }
-
-        public void setBaseUrl(String baseUrl) {
-            this.baseUrl = normalize(baseUrl);
-        }
-
-        @AssertTrue(message = "delivery.downstream service base-url must be blank or an absolute http(s) URL")
-        public boolean isBaseUrlValid() {
-            return baseUrl.isBlank() || isHttpUrl(baseUrl);
+        public void setCapabilityQuery(String capabilityQuery) {
+            this.capabilityQuery = normalize(capabilityQuery);
         }
     }
 

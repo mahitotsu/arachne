@@ -14,13 +14,12 @@ import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.Pay
 @Component
 public class RegistryBackedPaymentGateway implements PaymentGateway {
 
-    private static final String DEFAULT_PAYMENT_SERVICE_NAME = "payment-service";
+    private static final String PAYMENT_TARGET = "payment-service";
 
     private final RestClient restClient;
     private final ServiceEndpointResolver endpointResolver;
     private final DownstreamObservationSupport observationSupport;
-    private final String paymentServiceName;
-    private final String fallbackBaseUrl;
+    private final String paymentCapabilityQuery;
 
     RegistryBackedPaymentGateway(
             RestClient.Builder restClientBuilder,
@@ -30,18 +29,14 @@ public class RegistryBackedPaymentGateway implements PaymentGateway {
         this.restClient = restClientBuilder.build();
         this.endpointResolver = endpointResolver;
         this.observationSupport = observationSupport;
-        this.paymentServiceName = properties.getDownstream().getPayment().getServiceName();
-        String configuredBaseUrl = properties.getDownstream().getPayment().getBaseUrl();
-        this.fallbackBaseUrl = configuredBaseUrl.isBlank()
-                ? "http://" + paymentServiceName + ":8080"
-            : configuredBaseUrl;
+        this.paymentCapabilityQuery = properties.getDownstream().getPayment().getCapabilityQuery();
     }
 
     @Override
     public PaymentPrepareResponse prepare(PaymentPrepareRequest request, String accessToken) {
-        return observationSupport.observe("delivery.order.downstream", paymentServiceName, "prepare", () ->
+        return observationSupport.observe("delivery.order.downstream", PAYMENT_TARGET, "prepare", () ->
             Objects.requireNonNull(restClient.post()
-                .uri(endpointResolver.resolveUrl(paymentServiceName, fallbackBaseUrl, "/internal/payment/prepare"))
+            .uri(endpointResolver.resolveUrl(paymentCapabilityQuery, "/internal/payment/prepare"))
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(request)

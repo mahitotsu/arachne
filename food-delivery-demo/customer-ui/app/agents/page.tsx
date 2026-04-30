@@ -154,7 +154,7 @@ export default function AgentsPage() {
       <PageHeader
         icon="🤖"
         title="AI エージェント一覧"
-        lead="このシステムで稼働中の Arachne AI エージェントです。各エージェントのシステムプロンプト・利用ツール・スキルを確認できます。"
+        lead="この画面は registry-service の一覧 API を使って、稼働中の Arachne AI エージェントの仕様を表示します。サービス間 collaborator 解決は別途 POST /registry/discover で行われます。"
       />
 
       <div className="ag-content">

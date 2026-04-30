@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -41,7 +42,6 @@ import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.Sug
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.SuggestOrderResponse;
 import com.mahitotsu.arachne.samples.delivery.orderservice.infrastructure.RegistryServiceEndpointResolver;
 import static com.mahitotsu.arachne.samples.delivery.testsupport.MockWebServerTestSupport.drainRequests;
-import static com.mahitotsu.arachne.samples.delivery.testsupport.MockWebServerTestSupport.recordedPaths;
 import static com.mahitotsu.arachne.samples.delivery.testsupport.MockWebServerTestSupport.trimTrailingSlash;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JOSEObjectType;
@@ -80,6 +80,7 @@ class OrderServiceApiTest {
     private static MockWebServer paymentServer;
         private static MockWebServer supportServer;
         private static MockWebServer registryServer;
+        private static final AtomicReference<String> lastRegistryDiscoverRequestBody = new AtomicReference<>("");
     private static MockWebServer jwkServer;
     private static RSAKey signingKey;
     private static String accessToken;
@@ -128,16 +129,13 @@ class OrderServiceApiTest {
     @DynamicPropertySource
     static void configureProperties(DynamicPropertyRegistry registry) {
                 registry.add("DELIVERY_REGISTRY_BASE_URL", () -> registryServer.url("/").toString());
-                                registry.add("MENU_SERVICE_NAME", () -> "legacy-menu-service");
-                                registry.add("DELIVERY_SERVICE_NAME", () -> "legacy-delivery-service");
-                                registry.add("PAYMENT_SERVICE_NAME", () -> "legacy-payment-service");
-                                registry.add("SUPPORT_SERVICE_NAME", () -> "legacy-support-service");
         registry.add("spring.security.oauth2.resourceserver.jwt.jwk-set-uri", () -> jwkServer.url("/oauth2/jwks").toString());
     }
 
     @BeforeEach
     void prepareAuthenticatedClient() throws InterruptedException {
                 endpointResolver.clearCache();
+                lastRegistryDiscoverRequestBody.set("");
                 drainRequests(registryServer);
         drainRequests(menuServer);
         drainRequests(deliveryServer);
@@ -225,11 +223,11 @@ class OrderServiceApiTest {
                         org.assertj.core.groups.Tuple.tuple("workflow", "suggest", "success"));
         assertThat(historyResponse.getBody().events())
                 .extracting(OrderExecutionHistoryEntry::component)
-                .contains("legacy-menu-service", "order-workflow");
+                .contains("menu-service", "order-workflow");
     }
 
     @Test
-        void suggestReturnsStructuredProposalAndWorkflowStep() throws InterruptedException {
+        void suggestResolvesMenuByCapabilityQueryAndReturnsStructuredProposal() throws InterruptedException {
         menuServer.enqueue(jsonResponse(menuSuggestBody()));
 
         SuggestOrderResponse response = restTemplate.postForObject(
@@ -246,9 +244,14 @@ class OrderServiceApiTest {
         RecordedRequest menuRequest = menuServer.takeRequest(1, TimeUnit.SECONDS);
         assertThat(menuRequest).isNotNull();
         assertThat(menuRequest.getPath()).isEqualTo(MENU_META_PATH);
+        RecordedRequest registryRequest = registryServer.takeRequest(1, TimeUnit.SECONDS);
+        assertThat(registryRequest).isNotNull();
+        assertThat(registryRequest.getPath()).isEqualTo("/registry/discover");
+        assertThat(lastRegistryDiscoverRequestBody.get())
+                .contains("\"query\":\"メニュー提案 在庫付き提案 注文候補\"")
+                .contains("\"availableOnly\":true");
         assertThat(response.trace()).extracting(ServiceTrace::service)
                 .contains("menu-service", "kitchen-service/support", "order-service");
-        assertThat(recordedPaths(registryServer)).anyMatch(path -> path.startsWith("/registry/services"));
     }
 
     @Test
@@ -560,10 +563,10 @@ class OrderServiceApiTest {
                 new ConfirmPaymentRequest(suggestion.sessionId()),
                 ConfirmPaymentResponse.class);
 
-        assertMetricWithTags("/actuator/metrics/delivery.order.downstream?tag=target:legacy-menu-service&tag=operation:suggest&tag=outcome:success");
-        assertMetricWithTags("/actuator/metrics/delivery.order.downstream?tag=target:legacy-delivery-service&tag=operation:quote&tag=outcome:success");
-        assertMetricWithTags("/actuator/metrics/delivery.order.downstream?tag=target:legacy-payment-service&tag=operation:prepare&tag=outcome:success");
-        assertMetricWithTags("/actuator/metrics/delivery.order.downstream?tag=target:legacy-support-service&tag=operation:record-feedback&tag=outcome:success");
+        assertMetricWithTags("/actuator/metrics/delivery.order.downstream?tag=target:menu-service&tag=operation:suggest&tag=outcome:success");
+        assertMetricWithTags("/actuator/metrics/delivery.order.downstream?tag=target:delivery-service&tag=operation:quote&tag=outcome:success");
+        assertMetricWithTags("/actuator/metrics/delivery.order.downstream?tag=target:payment-service&tag=operation:prepare&tag=outcome:success");
+        assertMetricWithTags("/actuator/metrics/delivery.order.downstream?tag=target:support-service&tag=operation:record-feedback&tag=outcome:success");
         assertMetricWithTags("/actuator/metrics/delivery.order.registry.lookup?tag=target:registry-service&tag=operation:resolve-endpoint&tag=outcome:success");
     }
 
@@ -709,28 +712,80 @@ class OrderServiceApiTest {
                                                         }
                                                         """);
                                 }
-                                if (path != null && path.startsWith("/registry/services")) {
-                                        return jsonResponse("""
-                                                        [
-                                                                                                                                                                                                                                        {"serviceName": "legacy-menu-service", "endpoint": "%s", "capability": "メニュー提案、在庫付き提案、注文候補の提示を扱う。", "agentName": "menu-agent", "requestMethod": "POST", "requestPath": "%s", "status": "AVAILABLE"},
-                                                                                                                                                                                                                                        {"serviceName": "legacy-delivery-service", "endpoint": "%s", "capability": "配送候補、ETA 比較、配送選択肢の提示を扱う。", "agentName": "delivery-agent", "requestMethod": "POST", "requestPath": "%s", "status": "AVAILABLE"},
-                                                                                                                                                                                                                                        {"serviceName": "legacy-payment-service", "endpoint": "%s", "capability": "支払い準備、合計確認、課金確定を扱う。", "agentName": "payment-service", "requestMethod": "POST", "requestPath": "%s", "status": "AVAILABLE"},
-                                                                                                                                                                                                                                        {"serviceName": "legacy-support-service", "endpoint": "%s", "capability": "注文後フィードバック受付、問い合わせ受付、サポート連携を扱う。", "agentName": "support-agent", "requestMethod": "POST", "requestPath": "%s", "status": "AVAILABLE"}
-                                                        ]
-                                                        """.formatted(
-                                                                        trimTrailingSlash(menuServer.url("/").toString()),
-                                                                                                                                                                                                                                                                                                MENU_META_PATH,
-                                                                        trimTrailingSlash(deliveryServer.url("/").toString()),
-                                                                                                                                                                                                                                                                                                DELIVERY_META_PATH,
-                                                                        trimTrailingSlash(paymentServer.url("/").toString()),
-                                                                                                                                                                                                                                                                                                PAYMENT_META_PATH,
-                                                                                                                                                                                                                                                                                                trimTrailingSlash(supportServer.url("/").toString()),
-                                                                                                                                                                                                                                                                                                SUPPORT_META_PATH));
+                                                                                                                                if (path != null && path.startsWith("/registry/discover")) {
+                                                                                                                                        String requestBody = request.getBody().readUtf8();
+                                                                                                                                        lastRegistryDiscoverRequestBody.set(requestBody);
+                                                                                                                                        if (requestBody.contains("メニュー提案 在庫付き提案 注文候補")) {
+                                                                                                                                                return jsonResponse(discoverResponse(
+                                                                                                                                                                "menu-catalog-node",
+                                                                                                                                                                trimTrailingSlash(menuServer.url("/").toString()),
+                                                                                                                                                                "メニュー提案、在庫付き提案、注文候補の提示を扱う。",
+                                                                                                                                                                "menu-agent",
+                                                                                                                                                                MENU_META_PATH));
+                                                                                                                                        }
+                                                                                                                                        if (requestBody.contains("配送候補 ETA 比較 配送選択肢")) {
+                                                                                                                                                return jsonResponse(discoverResponse(
+                                                                                                                                                                "dispatch-router-node",
+                                                                                                                                                                trimTrailingSlash(deliveryServer.url("/").toString()),
+                                                                                                                                                                "配送候補、ETA 比較、配送選択肢の提示を扱う。",
+                                                                                                                                                                "delivery-agent",
+                                                                                                                                                                DELIVERY_META_PATH));
+                                                                                                                                        }
+                                                                                                                                        if (requestBody.contains("支払い準備 合計確認 課金確定")) {
+                                                                                                                                                return jsonResponse(discoverResponse(
+                                                                                                                                                                "settlement-orchestrator",
+                                                                                                                                                                trimTrailingSlash(paymentServer.url("/").toString()),
+                                                                                                                                                                "支払い準備、合計確認、課金確定を扱う。",
+                                                                                                                                                                "payment-service",
+                                                                                                                                                                PAYMENT_META_PATH));
+                                                                                                                                        }
+                                                                                                                                        if (requestBody.contains("注文後フィードバック受付 問い合わせ受付 サポート連携")) {
+                                                                                                                                                return jsonResponse(discoverResponse(
+                                                                                                                                                                "post-order-care",
+                                                                                                                                                                trimTrailingSlash(supportServer.url("/").toString()),
+                                                                                                                                                                "注文後フィードバック受付、問い合わせ受付、サポート連携を扱う。",
+                                                                                                                                                                "support-agent",
+                                                                                                                                                                SUPPORT_META_PATH));
+                                                                                                                                        }
+                                                                                                                                        return jsonResponse("""
+                                                                                                                                                        {
+                                                                                                                                                          "service": "registry-service",
+                                                                                                                                                          "agent": "registry-agent",
+                                                                                                                                                          "summary": "query に一致した service はありませんでした。",
+                                                                                                                                                          "matches": []
+                                                                                                                                                        }
+                                                                                                                                                        """);
                                 }
                                 return new MockResponse().setResponseCode(404);
                         }
                 };
         }
+
+                                                                                                    private static String discoverResponse(
+                                                                                                            String serviceName,
+                                                                                                            String endpoint,
+                                                                                                            String capability,
+                                                                                                            String agentName,
+                                                                                                            String requestPath) {
+                                                                                                        return """
+                                                                                                                {
+                                                                                                                  "service": "registry-service",
+                                                                                                                  "agent": "registry-agent",
+                                                                                                                  "summary": "query に一致した service を返しました。",
+                                                                                                                  "matches": [
+                                                                                                                    {
+                                                                                                                      "serviceName": "%s",
+                                                                                                                      "endpoint": "%s",
+                                                                                                                      "capability": "%s",
+                                                                                                                      "agentName": "%s",
+                                                                                                                      "requestMethod": "POST",
+                                                                                                                      "requestPath": "%s",
+                                                                                                                      "status": "AVAILABLE"
+                                                                                                                    }
+                                                                                                                  ]
+                                                                                                                }
+                                                                                                                """.formatted(serviceName, endpoint, capability, agentName, requestPath);
+                                                                                                    }
 
     private static String createAccessToken() {
         try {

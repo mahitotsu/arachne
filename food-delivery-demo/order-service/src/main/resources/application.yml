@@ -18,17 +18,13 @@ delivery:
     session-store: ${DELIVERY_ORDER_SESSION_STORE:redis}
   downstream:
     menu:
-      service-name: ${MENU_SERVICE_NAME:menu-service}
-      base-url: ${MENU_SERVICE_BASE_URL:}
+      capability-query: ${MENU_CAPABILITY_QUERY:メニュー提案 在庫付き提案 注文候補}
     delivery:
-      service-name: ${DELIVERY_SERVICE_NAME:delivery-service}
-      base-url: ${DELIVERY_SERVICE_BASE_URL:}
+      capability-query: ${DELIVERY_CAPABILITY_QUERY:配送候補 ETA 比較 配送選択肢}
     payment:
-      service-name: ${PAYMENT_SERVICE_NAME:payment-service}
-      base-url: ${PAYMENT_SERVICE_BASE_URL:}
+      capability-query: ${PAYMENT_CAPABILITY_QUERY:支払い準備 合計確認 課金確定}
     support:
-      service-name: ${SUPPORT_SERVICE_NAME:support-service}
-      base-url: ${SUPPORT_SERVICE_BASE_URL:}
+      capability-query: ${SUPPORT_CAPABILITY_QUERY:注文後フィードバック受付 問い合わせ受付 サポート連携}
 
 management:
   endpoints:

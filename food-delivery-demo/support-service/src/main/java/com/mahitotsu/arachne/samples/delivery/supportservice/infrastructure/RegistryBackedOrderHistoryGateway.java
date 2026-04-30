@@ -12,11 +12,12 @@ import com.mahitotsu.arachne.samples.delivery.supportservice.domain.CustomerOrde
 @Component
 public class RegistryBackedOrderHistoryGateway implements OrderHistoryGateway {
 
+    private static final String ORDER_TARGET = "order-service";
+
     private final RestClient restClient;
     private final ServiceEndpointResolver endpointResolver;
     private final DownstreamObservationSupport observationSupport;
-    private final String orderServiceName;
-    private final String fallbackOrderServiceBaseUrl;
+    private final String orderCapabilityQuery;
 
     RegistryBackedOrderHistoryGateway(
             RestClient.Builder restClientBuilder,
@@ -26,20 +27,19 @@ public class RegistryBackedOrderHistoryGateway implements OrderHistoryGateway {
         this.restClient = restClientBuilder.build();
         this.endpointResolver = endpointResolver;
         this.observationSupport = observationSupport;
-        this.orderServiceName = properties.getDownstream().getOrder().getServiceName();
-        this.fallbackOrderServiceBaseUrl = properties.getDownstream().getOrder().getBaseUrl();
+        this.orderCapabilityQuery = properties.getDownstream().getOrder().getCapabilityQuery();
     }
 
     @Override
     public List<CustomerOrderHistoryEntry> recentOrders(String accessToken) {
-        String orderHistoryUrl = endpointResolver.resolveUrl(orderServiceName, fallbackOrderServiceBaseUrl, "/api/orders/history");
+        String orderHistoryUrl = endpointResolver.resolveUrl(orderCapabilityQuery, "/api/orders/history");
         if (!StringUtils.hasText(orderHistoryUrl) || !StringUtils.hasText(accessToken)) {
             return List.of();
         }
         try {
             CustomerOrderHistoryEntry[] response = observationSupport.observe(
                     "delivery.support.downstream",
-                    orderServiceName,
+                    ORDER_TARGET,
                     "recent-orders",
                     () -> restClient.get()
                             .uri(orderHistoryUrl)

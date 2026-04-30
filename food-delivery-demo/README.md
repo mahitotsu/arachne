@@ -162,8 +162,8 @@ customer-service の主要エンドポイント:
 registry-service の主要エンドポイント:
 
 - `POST /registry/register`
-- `POST /registry/discover`
-- `GET /registry/services`
+- `POST /registry/discover`（サービス間 collaborator 解決用。capability-query から endpoint / requestPath を返す）
+- `GET /registry/services`（エージェント仕様ビューワーや OpenAPI 参照向けの一覧 API）
 - `GET /registry/health`
 
 support-service の主要エンドポイント:

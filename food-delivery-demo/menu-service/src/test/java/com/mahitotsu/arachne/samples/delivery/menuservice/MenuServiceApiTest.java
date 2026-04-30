@@ -4,10 +4,10 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static com.mahitotsu.arachne.samples.delivery.menuservice.domain.MenuTypes.*;
 import static com.mahitotsu.arachne.samples.delivery.testsupport.MockWebServerTestSupport.drainRequests;
-import static com.mahitotsu.arachne.samples.delivery.testsupport.MockWebServerTestSupport.recordedPaths;
 import static com.mahitotsu.arachne.samples.delivery.testsupport.MockWebServerTestSupport.trimTrailingSlash;
 import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.AfterAll;
@@ -50,6 +50,7 @@ class MenuServiceApiTest {
 
     private static MockWebServer kitchenServer;
     private static MockWebServer registryServer;
+    private static final AtomicReference<String> lastRegistryDiscoverRequestBody = new AtomicReference<>("");
     private static MockWebServer jwkServer;
     private static RSAKey signingKey;
     private static String accessToken;
@@ -90,13 +91,13 @@ class MenuServiceApiTest {
     @DynamicPropertySource
     static void configureProperties(DynamicPropertyRegistry registry) {
         registry.add("DELIVERY_REGISTRY_BASE_URL", () -> registryServer.url("/").toString());
-        registry.add("KITCHEN_SERVICE_NAME", () -> "kitchen-service");
         registry.add("spring.security.oauth2.resourceserver.jwt.jwk-set-uri", () -> jwkServer.url("/oauth2/jwks").toString());
     }
 
     @BeforeEach
     void prepareAuthenticatedClient() throws InterruptedException {
         endpointResolver.clearCache();
+        lastRegistryDiscoverRequestBody.set("");
         drainRequests(registryServer);
         restTemplate.getRestTemplate().setInterceptors(List.of((request, body, execution) -> {
             request.getHeaders().setBearerAuth(accessToken);
@@ -144,7 +145,11 @@ class MenuServiceApiTest {
         assertThat(response.items()).extracting(MenuItem::name).anyMatch(name -> name.contains("Kids"));
         assertThat(response.etaMinutes()).isPositive();
         assertThat(response.kitchenTrace()).isNotNull();
-        assertThat(recordedPaths(registryServer)).anyMatch(path -> path.startsWith("/registry/services"));
+        RecordedRequest registryRequest = registryServer.takeRequest();
+        assertThat(registryRequest.getPath()).isEqualTo("/registry/discover");
+        assertThat(lastRegistryDiscoverRequestBody.get())
+            .contains("\"query\":\"在庫確認 調理ライン別 ETA 欠品時の代替承認 混雑時の別ライン提案\"")
+            .contains("\"availableOnly\":true");
     }
 
     @Test
@@ -375,14 +380,21 @@ class MenuServiceApiTest {
                                     }
                                     """);
                 }
-                if (path != null && path.startsWith("/registry/services")) {
+                                if (path != null && path.startsWith("/registry/discover")) {
+                                        String requestBody = request.getBody().readUtf8();
+                                        lastRegistryDiscoverRequestBody.set(requestBody);
                     return new MockResponse()
                             .setHeader("Content-Type", "application/json")
                             .setBody("""
-                                    [
-                                      {"serviceName": "kitchen-service", "endpoint": "%s", "status": "AVAILABLE"}
-                                    ]
-                                    """.formatted(trimTrailingSlash(kitchenServer.url("/").toString())));
+                                                                        {
+                                                                            "service": "registry-service",
+                                                                            "agent": "registry-agent",
+                                                                            "summary": "query に一致した service を返しました。",
+                                                                            "matches": [
+                                                                                {"serviceName": "kitchen-service", "endpoint": "%s", "requestPath": "/internal/kitchen/check", "status": "AVAILABLE"}
+                                                                            ]
+                                                                        }
+                                                                        """.formatted(trimTrailingSlash(kitchenServer.url("/").toString())));
                 }
                 return new MockResponse().setResponseCode(404);
             }

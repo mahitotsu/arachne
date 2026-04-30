@@ -14,8 +14,7 @@ delivery:
     endpoint: ${DELIVERY_SUPPORT_ENDPOINT:http://support-service:8080}
   downstream:
     order:
-      service-name: ${ORDER_SERVICE_NAME:order-service}
-      base-url: ${ORDER_SERVICE_BASE_URL:}
+      capability-query: ${ORDER_CAPABILITY_QUERY:注文履歴参照}
 
 management:
   endpoints:
