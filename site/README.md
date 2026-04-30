@@ -29,4 +29,4 @@ npm run build
 - `/essay`: 仮説と設計原則の本編
 - `/demo`: food-delivery-demo の見せ方
 - `/mapping`: 仮説と実装の対応表
-- `/appendix`: 図版、動画、補足資料の置き場
+- `/appendix`: OpenAPI、prompt contract、execution history、metrics、registry boundary をまとめる証拠面

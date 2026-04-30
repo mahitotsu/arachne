@@ -13,7 +13,7 @@ const pillars = [
   },
   {
     title: 'Demo',
-    body: 'food-delivery-demo は、その仮説が UI、API、prompt、skill、observability まで一貫することを見せる実証環境。',
+    body: 'food-delivery-demo は、workflow-first ordering、support chat、registry-backed viewer、execution history まで含めてその仮説を実証する。',
   },
 ];
 
@@ -21,7 +21,7 @@ const routes = [
   { href: '/essay', label: 'Essay', body: '仮説と設計原則を長文で整理する。' },
   { href: '/demo', label: 'Demo', body: 'food-delivery-demo の全体像と読みどころをまとめる。' },
   { href: '/mapping', label: 'Mapping', body: '仮説と実装の対応関係を表と論点で見せる。' },
-  { href: '/appendix', label: 'Appendix', body: '図版、動画、OpenAPI、prompt contract、補遺を置く。' },
+  { href: '/appendix', label: 'Appendix', body: 'OpenAPI、prompt contract、execution history、metrics、registry boundary の証拠面をまとめる。' },
 ];
 ---
 
@@ -50,7 +50,7 @@ const routes = [
     <ol class="story-band__list">
       <li>AI 時代にマイクロサービスの公開面はどう変わるか、という仮説を置く。</li>
       <li>その仮説を Spring に持ち込むには、既存の設計原則を壊さない agent SDK が必要だと定義する。</li>
-      <li>food-delivery-demo を、仮説がどのように UI、API、service boundary に落ちるかを示す実証系として読む。</li>
+      <li>food-delivery-demo を、workflow、support、viewer、proof surface がどう分離されて出荷されたかを示す実証系として読む。</li>
     </ol>
   </section>
 

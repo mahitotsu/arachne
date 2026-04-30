@@ -2,27 +2,178 @@
 import PageHero from '../../components/PageHero.astro';
 import SiteLayout from '../../layouts/SiteLayout.astro';
 
-const appendixSections = [
-  'アーキテクチャ図と責務分担図',
-  '画面キャプチャと短い操作動画',
-  'OpenAPI と prompt contract の抜粋',
-  'execution history と metrics の読み方',
-  '参考リンクと関連 ADR',
+const evidenceChecklist = [
+  'OpenAPI が実サービスの code-first contract として公開されているか。',
+  'x-ai-prompt-contract が tool-facing operation の入出力意図を補助しているか。',
+  'execution history が内部 trace ではなく user-facing proof surface として読めるか。',
+  'Micrometer metrics が workflow と downstream call の両方を可視化しているか。',
+  'POST /registry/discover と GET /registry/services の境界が artifact レベルで明確か。',
+];
+
+const artifactRows = [
+  {
+    artifact: 'OpenAPI',
+    runtime: 'customer / order / support / menu / kitchen / delivery / payment / registry / adapters が /v3/api-docs と /swagger-ui.html を公開',
+    proof: 'viewer ではなく service contract 自体が runtime から取得でき、公開面の説明が実装と乖離しない。',
+  },
+  {
+    artifact: 'x-ai-prompt-contract',
+    runtime: 'relevant operation に requiredInputs / optionalInputs / serviceBehavior を付与',
+    proof: 'prompt を黒箱のままにせず、構造化入力とサービス責務の境界を OpenAPI 上で読める。',
+  },
+  {
+    artifact: 'Execution history',
+    runtime: '5 service の /execution-history/{sessionId} を UI が集約し、時系列で再読込',
+    proof: 'service、category、outcome、tool、skill、token usage を利用者が追える。',
+  },
+  {
+    artifact: 'Micrometer metrics',
+    runtime: 'order workflow、registry lookup、downstream call、agent invocation を /actuator/metrics で公開',
+    proof: 'どこで判断し、どこで呼び出し、どこで遅延するかを trace なしでも観測できる。',
+  },
+  {
+    artifact: 'Registry API split',
+    runtime: 'POST /registry/discover は collaborator resolution、GET /registry/services は inventory / viewer',
+    proof: 'service mesh の経路解決と UI の棚卸しを別 API に分けた設計意図がそのまま見える。',
+  },
+];
+
+const evidenceCards = [
+  {
+    title: 'OpenAPI surface',
+    eyebrow: 'Contract',
+    summary: 'food-delivery-demo は主要 service と adapter で code-first OpenAPI を公開している。appendix ではこれを将来の予定ではなく、今ある runtime artifact として扱う。',
+    anchor: 'OpenAPI は /agents の API仕様 タブから辿れるだけでなく、各 service が直接 /v3/api-docs を返す。',
+  },
+  {
+    title: 'Prompt contract overlay',
+    eyebrow: 'AI Boundary',
+    summary: 'x-ai-prompt-contract は prompt を magic にしないための補助層で、OpenAPI 上に requiredInputs、optionalInputs、serviceBehavior を露出する。',
+    anchor: 'order の intent、delivery の preference、payment の instruction のような構造化入力が contract として説明可能になっている。',
+  },
+  {
+    title: 'Execution history as proof surface',
+    eyebrow: 'Runtime Evidence',
+    summary: 'execution history は trace panel の残骸ではなく、workflow の裏側で何が起きたかを利用者が読むための proof surface である。',
+    anchor: 'step 1 以降の UI で sessionId が立つと履歴を再取得でき、service ごとの event が時系列で並ぶ。',
+  },
+  {
+    title: 'Metrics as operational evidence',
+    eyebrow: 'Observability',
+    summary: 'Micrometer / Actuator は AI path を曖昧な印象論で終わらせず、workflow entry、registry lookup、downstream call、agent call を計測面に落としている。',
+    anchor: 'delivery.order.workflow、delivery.order.downstream、delivery.order.registry.lookup、delivery.agent.* などが service-local に見える。',
+  },
+  {
+    title: 'Discover vs services split',
+    eyebrow: 'Registry Boundary',
+    summary: 'registry-service は一つの万能 API ではない。collaborator resolution と inventory/viewer は分けて公開されている。',
+    anchor: 'delivery-service などの downstream 解決は discover を使い、/agents は services API から一覧と説明面を構成する。',
+  },
+];
+
+const readingGuides = [
+  {
+    topic: 'OpenAPI を読む',
+    detail: 'まず operation の責務を見て、その上に x-ai-prompt-contract が何を補足しているかを読む。prompt contract は OpenAPI の代替ではなく補助である。',
+  },
+  {
+    topic: 'Execution history を読む',
+    detail: 'どの service がどの順序で呼ばれたか、tool と skill がどこで介在したか、outcome が成功か失敗かを時系列で確認する。',
+  },
+  {
+    topic: 'Metrics を読む',
+    detail: 'まず workflow と registry lookup を見て入口の振る舞いを掴み、その後 downstream timer と agent metric で内部の偏りを確認する。',
+  },
+  {
+    topic: 'Registry API split を読む',
+    detail: 'viewer で見える一覧性と、runtime が使う capability discovery を混同しない。UI が services API を読み、service は discover を叩く。',
+  },
 ];
 ---
 
 <SiteLayout title="Appendix | Arachne Field Notes">
   <PageHero
     eyebrow="Appendix"
-    title="図版、動画、補足資料"
-    summary="長文本文から切り離した方が読みやすい図版や補足資料をここに集めます。将来的にはサービスごとの API 契約や prompt contract の抜粋もここへ寄せます。"
+    title="runtime artifact を読むための証拠面"
+    summary="appendix は補遺の倉庫ではなく、food-delivery-demo がすでに出荷している OpenAPI、prompt contract、execution history、metrics、registry boundary をまとめて確認する evidence page です。"
   />
 
-  <section class="route-grid">
-    {appendixSections.map((item) => (
-      <article class="route-card route-card--static">
-        <span>{item}</span>
+  <section class="two-column-band">
+    <article class="panel">
+      <p class="panel__eyebrow">How To Read This Page</p>
+      <p>
+        ここで扱うのは将来こうしたい資料ではない。
+        shipped runtime が今すでに露出している contract と observability surface を並べ、本文の主張を artifact で裏づけるためのページである。
+      </p>
+    </article>
+    <article class="panel panel--warm">
+      <p class="panel__eyebrow">Evidence Checklist</p>
+      <ul>
+        {evidenceChecklist.map((item) => (
+          <li>{item}</li>
+        ))}
+      </ul>
+    </article>
+  </section>
+
+  <section class="table-shell">
+    <table>
+      <thead>
+        <tr>
+          <th>artifact</th>
+          <th>runtime surface</th>
+          <th>何の証拠か</th>
+        </tr>
+      </thead>
+      <tbody>
+        {artifactRows.map((row) => (
+          <tr>
+            <td>{row.artifact}</td>
+            <td>{row.runtime}</td>
+            <td>{row.proof}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </section>
+
+  <section class="stacked-list">
+    {evidenceCards.map((card) => (
+      <article class="essay-card">
+        <div>
+          <p class="panel__eyebrow">{card.eyebrow}</p>
+          <h2>{card.title}</h2>
+        </div>
+        <div>
+          <p>{card.summary}</p>
+        </div>
+        <div>
+          <p class="panel__eyebrow">Runtime Anchor</p>
+          <p>{card.anchor}</p>
+        </div>
       </article>
     ))}
+  </section>
+
+  <section class="two-column-band">
+    <article class="panel panel--warm">
+      <p class="panel__eyebrow">What The Appendix Clarifies</p>
+      <ul>
+        <li>/order は workflow-first の公開面であり、会話責務を抱え込まない。</li>
+        <li>/support は conversational surface であり、問い合わせと handoff を扱う。</li>
+        <li>/agents は inventory/viewer であり、runtime collaborator ではない。</li>
+        <li>execution history は user-facing proof surface であり、旧 trace panel の言い換えではない。</li>
+      </ul>
+    </article>
+    <article class="panel">
+      <p class="panel__eyebrow">Reading Guides</p>
+      <ul>
+        {readingGuides.map((guide) => (
+          <li>
+            <strong>{guide.topic}:</strong> {guide.detail}
+          </li>
+        ))}
+      </ul>
+    </article>
   </section>
 </SiteLayout>
