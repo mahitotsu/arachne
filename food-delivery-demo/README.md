@@ -27,7 +27,7 @@
 `icarus-adapter` は起動しない registry-only エントリです。常時 `NOT_AVAILABLE` として登録され、停止中の候補表示をデモします。
 
 会話的な役割を持つダウンストリームサービスは独自のサービスローカルエージェントを持ちます。API は通常の Spring HTTP 境界のままですが、`menu-service`・`kitchen-service`・`delivery-service`・`support-service` ではレスポンステキストや調整動作の一部が各サービス内に埋め込まれた Arachne ランタイムから来ます。一方で `payment-service` は agent runtime を前面に出さず、決定論的ロジックで支払い準備と課金を扱います。
-さらに各バックエンドサービスは起動時に `registry-service` へ自分のケイパビリティを登録し、registry はエージェント仕様ビューワーや将来の動的 service discovery の土台を提供します。
+さらに各バックエンドサービスは起動時に `registry-service` へ自分のケイパビリティを登録し、registry は `POST /registry/discover` による service-to-service collaborator resolution と `GET /registry/services` による viewer / inventory の両面を支えます。
 
 ## メインデモストーリー
 

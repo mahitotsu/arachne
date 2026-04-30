@@ -15,9 +15,9 @@
 - `order-service`
   公開ワークフロー API、Redis バックドのセッション復元、PostgreSQL バックドの確定注文。
 - `support-service`
-  `support-agent` を通じた FAQ、問い合わせ受付、キャンペーン一覧、稼働状況集約を管理。registry-service と order-service を将来 UI サポート導線へ接続する公開境界。
+  `support-agent` を通じた FAQ、問い合わせ受付、キャンペーン一覧、稼働状況集約を管理。`/support` の conversational surface と、注文完了後の事後サポート導線を担う公開境界。
 - `registry-service`
-  全サービスのケイパビリティ登録、自然言語 discover、集約ヘルス、仕様一覧を管理。
+  全サービスのケイパビリティ登録、自然言語 discover、集約ヘルス、仕様一覧を管理。`POST /registry/discover` は collaborator resolution、`GET /registry/services` は inventory / viewer を担う。
 - `menu-service`
   `menu-agent` を通じた同一ブランドのメニュー検索と代替提案を管理。
 - `kitchen-service`
@@ -45,7 +45,7 @@
 6. 各ダウンストリーム API は返答前にサービスローカルの Arachne エージェント、または決定論的ロジックを実行する。
 7. `menu-service` は内部で `kitchen-service` を呼び、在庫、ETA、欠品代替、混雑提案をまとめて返す。
 8. `kitchen-agent` がアイテムを提供できない場合、同一ブランドのメニューから代替候補を `menu-agent` に問い合わせ、単一キッチンで実際に対応できる代替品のみを承認する。
-9. `registry-service` はエージェント仕様ビューワー向け一覧と、動的 collaborator discovery 向け capability query を提供する。`delivery-service` はここから `hermes-adapter`、`idaten-adapter`、停止中の `icarus-adapter` を問い合わせる。
+9. `registry-service` は `GET /registry/services` でエージェント仕様ビューワー向け inventory を返し、`POST /registry/discover` で動的 collaborator discovery を返す。`delivery-service` は discover を通じて `hermes-adapter`、`idaten-adapter`、停止中の `icarus-adapter` を問い合わせる。
 10. `order-service` は結果をワークフロー用の構造化レスポンスへ整形して返し、UI は session を使って execution history をユーザー向け証跡として再取得する。
 11. 利用可能な候補が複数ある場合、カスタマーは自社エクスプレス、Hermes、Idaten の中から選択する。`delivery-agent` は「急いで」なら最短 ETA を、「安く」なら最安料金を優先して推奨する。
 12. `/support` では `support-service` が FAQ、問い合わせ、キャンペーン、稼働状況を会話的に返し、必要に応じて注文履歴や事後フィードバック導線につなぐ。
