@@ -2,7 +2,7 @@
 
 このディレクトリは、旧マーケットプレイスワークフローサンプルに代わるデモを提供します。
 
-デモは単一ブランドのクラウドキッチン向けのチャット優先デリバリーアプリです。キッチンは1つのみ、店内飲食フローなし、ブランチ切り替えなし。フロントエンドは通常のデリバリーアプリのように見えますが、すべてのバックエンド API はサービスローカルの Arachne エージェントが前面に立っています。普通のマイクロサービストラフィックに見えるものが、マルチエージェントコラボレーションパスでもあります。
+デモは単一ブランドのクラウドキッチン向けのチャット優先デリバリーアプリです。キッチンは1つのみ、店内飲食フローなし、ブランチ切り替えなし。フロントエンドは通常のデリバリーアプリのように見えますが、バックエンドは一様な agent-fronted API 群ではありません。`order-service` は公開ワークフロー API の front door、`payment-service` は決定論的な契約面、`menu-service`・`delivery-service`・`support-service` は会話的または agent-fronted な公開面を担います。普通のマイクロサービストラフィックに見えるものの一部が、マルチエージェントコラボレーションパスでもあります。
 
 これは意図的に実行可能な `samples/` カタログには含めていません。ここでのゴールは、Arachne が Spring Boot マイクロサービスにいかに自然に溶け込めるかを示す、構成された実用的なアプリケーションスライスです。
 
@@ -26,7 +26,7 @@
 
 `icarus-adapter` は起動しない registry-only エントリです。常時 `NOT_AVAILABLE` として登録され、停止中の候補表示をデモします。
 
-各ダウンストリームサービスは独自のサービスローカルエージェントを持ちます。API は通常の Spring HTTP 境界のままですが、レスポンステキストと調整動作は各サービス内に埋め込まれた Arachne ランタイムから来ます。
+会話的な役割を持つダウンストリームサービスは独自のサービスローカルエージェントを持ちます。API は通常の Spring HTTP 境界のままですが、`menu-service`・`kitchen-service`・`delivery-service`・`support-service` ではレスポンステキストや調整動作の一部が各サービス内に埋め込まれた Arachne ランタイムから来ます。一方で `payment-service` は agent runtime を前面に出さず、決定論的ロジックで支払い準備と課金を扱います。
 さらに各バックエンドサービスは起動時に `registry-service` へ自分のケイパビリティを登録し、registry はエージェント仕様ビューワーや将来の動的 service discovery の土台を提供します。
 
 ## メインデモストーリー
@@ -35,7 +35,7 @@
 2. ブラウザは `customer-ui` のリライトで同一オリジンを維持: `/api/customer/*` は `customer-service` へ、`/api/backend/*` は `order-service` へ転送される。
 3. UI はそのベアラートークンを `order-service` へ送信する。
 4. `order-service` がステップ別ワークフロー API を通じてダウンストリームサービスを調整し、アクティブな注文セッションを Redis に保持する。
-5. `menu-service`、`kitchen-service`、`delivery-service`、`payment-service` が同じアクセストークンを検証し、それぞれの Arachne エージェントを通じて回答する。
+5. `menu-service`、`kitchen-service`、`delivery-service` は同じアクセストークンを検証したうえで service-local agent を通じた提案や調整を返し、`payment-service` は決定論的ロジックで支払い準備と課金を処理する。
 6. `support-service` は FAQ、キャンペーン、問い合わせ事例を返し、必要に応じて registry-service の稼働状況と order-service の注文履歴を参照する。
 7. 唯一のキッチンがリクエストされたアイテムを提供できない場合、`kitchen-agent` は `menu-agent` に同一ブランドのフォールバックアイテムを問い合わせることができる。
 8. UI はユーザー向け返答とサービス/エージェントトレースの両方を表示し、マイクロサービス構造とマルチエージェント構造の両方が明確に見える。
