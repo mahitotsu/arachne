@@ -2,102 +2,96 @@
 import PageHero from '../../components/PageHero.astro';
 import SiteLayout from '../../layouts/SiteLayout.astro';
 
-const services = [
+const surfaces = [
   {
-    name: 'order-service',
-    role: 'workflow API とセッション継続の公開面',
-    fit: 'agent-first だが API-less ではない、という仮説の中心を担う。',
-    check: 'ステップ API が公開面として明確で、状態変更の正本が workflow 側に残っているかを見る。',
+    name: '/order',
+    role: '4-step workflow-first ordering UI',
+    fit: '注文面は入力整理、候補選択、配送選択、支払い承認を段階的に進める workflow-first の公開面として出荷されている。',
+    check: 'order-service の step API が構造化レスポンスを返し、選択理由と確定責務を workflow 側に残していること。',
   },
   {
-    name: 'menu-service',
-    role: '意図を提案可能な注文候補へ変換する front door',
-    fit: '曖昧な利用者意図を conversational に受け、決定論的ロジックと組み合わせて提案へ変換する。',
-    check: 'prompt と skill が説明や提案を担い、候補選択や合計計算はコード側に残っているかを見る。',
+    name: '/support',
+    role: 'conversational support surface',
+    fit: '会話面は注文 UI から分離され、FAQ、問い合わせ、キャンペーン、運用状態確認を扱う専用公開面として残している。',
+    check: 'support-service が注文後導線や `[HANDOFF: order]` を含めて、workflow とは別責務の conversational front door になっていること。',
   },
   {
-    name: 'kitchen-service',
-    role: '在庫、ETA、混雑提案を持つ実運用側の判断境界',
-    fit: '実世界制約を持つ backend 側の責務と、agent 的な説明の接続点になる。',
-    check: '在庫や調理ライン判断が deterministic に保たれ、agent は説明と調整に寄っているかを見る。',
+    name: '/agents',
+    role: 'registry-backed viewer',
+    fit: '説明面は別ページに分離し、ケイパビリティ、プロンプト、スキル、OpenAPI を inventory/viewer として読む形にしている。',
+    check: 'GET /registry/services と各 service の OpenAPI を使い、viewer 用 inventory と runtime 契約を同じ画面で説明できること。',
   },
   {
-    name: 'delivery-service',
-    role: '動的 discover と配送候補比較の実証',
-    fit: 'AI-native service mesh の一番わかりやすい断面であり、capability discovery の価値を示す。',
-    check: '固定 URL 前提ではなく registry discover を使い、候補比較と推奨理由が前面に出ているかを見る。',
+    name: 'Execution History',
+    role: 'user-facing proof surface',
+    fit: '内部の開発者向けトレースに閉じず、ユーザーが各ステップのサービス実行と判断理由を辿れる証跡として見せている。',
+    check: 'step 1 以降の UI から再読込でき、service、category、outcome、tool 使用、token usage が見えること。',
   },
   {
-    name: 'payment-service',
-    role: 'AI を使わない方がよい責務の対照例',
-    fit: 'すべてを agent 化しない、という設計判断そのものを示す。',
-    check: '支払い方法提示と課金確定が決定論的に実装され、agent を使わない理由が読み取れるかを見る。',
-  },
-  {
-    name: 'support-service',
-    role: '注文フローとは別系統の会話的公開面',
-    fit: '業務 capability の中には、workflow より会話型の方が自然なものがあることを示す。',
-    check: 'FAQ、問い合わせ、キャンペーン、状態確認が conversational front door として一貫しているかを見る。',
-  },
-  {
-    name: 'registry-service',
-    role: 'capability discovery と仕様公開の土台',
-    fit: 'サービス間協調を固定配線から capability ベースへ寄せるための基盤になる。',
-    check: 'discover、health、仕様一覧が、単なる設定置き場ではなく agent mesh の基盤になっているかを見る。',
+    name: 'Registry API split',
+    role: 'discover-vs-inventory boundary',
+    fit: 'service-to-service collaborator resolution と viewer/inventory を別 API に分け、公開説明でもその境界を隠さない。',
+    check: 'POST /registry/discover は downstream 解決、GET /registry/services は viewer/inventory 用として語り分けられていること。',
   },
 ];
 
-const reviewPoints = [
-  '公開面として agent を置くサービスと、正本 API を置くサービスが意図通りに分かれているか。',
-  'prompt / skill / code の責務分離が、サービスごとに読んで確認できるか。',
-  '固定サービス名や固定 URL に依存せず、capability discovery で協調先が解決されているか。',
-  'UI、OpenAPI、prompt contract、execution history、metrics が同じストーリーを支えているか。',
+const shippedSurfaces = [
+  '注文は /order の 4-step workflow UI で進み、会話面とは分離されている。',
+  '問い合わせは /support に寄せ、FAQ と post-order support を conversational に扱う。',
+  '/agents は registry-backed viewer として capability、prompt、skill、API を一覧できる。',
+  'execution history は利用者向けの proof surface として独立に露出している。',
+];
+
+const evidenceAnchors = [
+  'workflow/support/viewer の 3 面が UI 上で明確に分かれていること。',
+  'OpenAPI と x-ai-prompt-contract が /agents から辿れること。',
+  'delivery-service の候補比較が discover API に立脚していること。',
+  'inventory API と collaborator discovery API が混同されていないこと。',
 ];
 ---
 
 <SiteLayout title="Demo | Arachne Field Notes">
   <PageHero
     eyebrow="Demo"
-    title="food-delivery-demo を実証環境として読む"
-    summary="このページでは、food-delivery-demo を単なるサンプルではなく、仮説を試すための実証系として読むための観点を整理します。"
-    aside="各サービスの役割を列挙するだけでなく、どの設計判断を見せるために存在するかを説明する。"
+    title="food-delivery-demo の公開面を shipped runtime に合わせて読む"
+    summary="food-delivery-demo は未来の構想ではなく、すでに workflow-first ordering、support chat、registry-backed viewer、execution history を並立させている実行中の proof surface です。"
+    aside="ここで見るべきなのは agent の数ではなく、どの公開面をどの UX で見せ、どの証跡で裏づけているかです。"
   />
 
   <section class="two-column-band">
     <article class="panel">
-      <p class="panel__eyebrow">What It Shows</p>
+      <p class="panel__eyebrow">Shipped Surfaces</p>
       <ul>
-        <li>agent-first だが API-less ではない公開面</li>
-        <li>prompt と skill の責務分担</li>
-        <li>決定論的ロジックと conversational front door の共存</li>
-        <li>registry を介した AI-native service mesh</li>
+        {shippedSurfaces.map((item) => (
+          <li>{item}</li>
+        ))}
       </ul>
     </article>
     <article class="panel panel--warm">
-      <p class="panel__eyebrow">Review Focus</p>
+      <p class="panel__eyebrow">Evidence Anchors</p>
       <ul>
-        {reviewPoints.map((point) => (
-          <li>{point}</li>
+        {evidenceAnchors.map((item) => (
+          <li>{item}</li>
         ))}
       </ul>
     </article>
   </section>
 
   <section class="stacked-list">
-    {services.map((service) => (
+    {surfaces.map((surface) => (
       <article class="essay-card">
         <div>
-          <p class="panel__eyebrow">Service Lens</p>
-          <h2>{service.name}</h2>
-          <p>{service.role}</p>
+          <p class="panel__eyebrow">Public Surface</p>
+          <h2>{surface.name}</h2>
+          <p>{surface.role}</p>
         </div>
         <div>
-          <p class="panel__eyebrow">Why It Matters</p>
-          <p>{service.fit}</p>
+          <p class="panel__eyebrow">What It Proves</p>
+          <p>{surface.fit}</p>
         </div>
         <div>
-          <p class="panel__eyebrow">What To Verify Later</p>
-          <p>{service.check}</p>
+          <p class="panel__eyebrow">Runtime Anchor</p>
+          <p>{surface.check}</p>
         </div>
       </article>
     ))}

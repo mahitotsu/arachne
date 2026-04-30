@@ -4,58 +4,64 @@ import SiteLayout from '../../layouts/SiteLayout.astro';
 
 const rows = [
   {
-    hypothesis: 'AI エージェントは capability の自然言語 front door',
-    target: 'menu-service, support-service, delivery-service',
-    explanation: '提案、比較、問い合わせを会話的入口として持つ',
-    evidence: '曖昧な利用者要求を受ける公開 API と agent の応答が存在し、利用者向け理由づけが返ること。',
+    surface: '/order',
+    runtime: 'order-service の step API + menu/delivery/payment 連携',
+    explanation: '注文は 4 段階 workflow で確定責務を前に出す。',
+    evidence: 'suggest -> item-selection -> delivery-selection -> payment-approval の構造化レスポンスと理由表示。',
   },
   {
-    hypothesis: '従来 API は正本契約として残す',
-    target: 'order-service, payment-service',
-    explanation: 'workflow API と決定論的な課金確定が残る',
-    evidence: '機械間連携や状態変更が、構造化された HTTP 契約と決定論的な backend で確定すること。',
+    surface: '/support',
+    runtime: 'support-service の FAQ / campaigns / status / feedback',
+    explanation: '会話型 UX は注文面から分離し、サポート業務にだけ使う。',
+    evidence: 'FAQ と問い合わせに加え、post-order support や `[HANDOFF: order]` を conversational に返せること。',
   },
   {
-    hypothesis: 'system prompt と skill を分ける',
-    target: 'Arachne SDK + demo services',
-    explanation: 'システム制約と業務知識を別々に保守できる',
-    evidence: 'システム側の制約と業務知識が別ファイル・別責務として読め、変更主体も分かれていること。',
+    surface: '/agents',
+    runtime: 'registry-service inventory + 各 service の OpenAPI / prompt contract',
+    explanation: 'viewer は runtime collaborator ではなく、説明と棚卸しの公開面として切り出す。',
+    evidence: 'GET /registry/services から service card を出し、prompt、skill、OpenAPI、x-ai-prompt-contract を読めること。',
   },
   {
-    hypothesis: 'service discovery を capability ベースで行う',
-    target: 'registry-service, delivery-service',
-    explanation: '固定 URL ではなく registry discover で協調先を解決する',
-    evidence: 'downstream 解決が capability や service metadata から行われ、固定 endpoint 依存が前面に出ていないこと。',
+    surface: 'Execution history',
+    runtime: '5 service の /execution-history/{sessionId} 集約',
+    explanation: '証跡は内部 trace の断片ではなく、利用者が workflow の裏側を追える proof surface にする。',
+    evidence: 'service、category、outcome、skill、tool、token usage を時系列に再読込できること。',
   },
   {
-    hypothesis: 'AI を使わない責務を見極める',
-    target: 'payment-service',
-    explanation: '正確性が要求される責務は決定論的に処理する',
-    evidence: '支払い方法選択、課金、結果確定が prompt に依存せず、コードから説明できること。',
+    surface: 'Registry boundary',
+    runtime: 'POST /registry/discover と GET /registry/services の分離',
+    explanation: 'collaborator resolution と inventory/viewer を API レベルで分ける。',
+    evidence: 'delivery-service などの downstream 解決は discover を使い、/agents の一覧表示は services API を使うこと。',
+  },
+  {
+    surface: 'Deterministic payment',
+    runtime: 'payment-service の決定論的 payment preparation / charge',
+    explanation: 'すべてを agent 化せず、正確性が要る責務はコードで閉じる。',
+    evidence: '支払い方法提示と課金確定が prompt に依存せず、workflow の最終確定点として残っていること。',
   },
 ];
 
 const checklist = [
-  '各サービスの公開面が、会話的 front door なのか、workflow API なのか、deterministic contract なのかを分類する。',
-  'プロンプト、SKILL、Java ロジック、OpenAPI の責務分担が、意図どおりかを確認する。',
-  'registry-service を経由する discovery が、実装上も表現上も capability ベースになっているかを確認する。',
-  'UI と observability が、内部の agent 協調を過不足なく可視化しているかを確認する。',
+  'workflow、support、viewer、proof surface が別々の公開面として語れているか。',
+  'discover API と inventory API の役割が混ざっていないか。',
+  'execution history と OpenAPI が、実装確認の証拠面としてつながっているか。',
+  'deterministic な確定責務と agent 的な説明責務が、同じ列で混線していないか。',
 ];
 ---
 
 <SiteLayout title="Mapping | Arachne Field Notes">
   <PageHero
     eyebrow="Mapping"
-    title="仮説と実装の対応表"
-    summary="読者が一番知りたいのは、抽象論がどこに現れているかです。このページでは仮説の各論点と food-delivery-demo の具体物を対応づけます。"
+    title="公開面と runtime 証拠の対応表"
+    summary="抽象的な AI-native microservices 論ではなく、food-delivery-demo で今どの公開面が出荷され、どの runtime artifact がその主張を裏づけているかを対応づけます。"
   />
 
   <section class="two-column-band">
     <article class="panel">
       <p class="panel__eyebrow">How To Use This Page</p>
       <p>
-        このページは、ブログ本文の補足ではなく、food-delivery-demo をあとで実装確認するときの評価軸として使う。
-        各行は「何を主張しているか」だけでなく、「どんな証拠が実装にあれば一致と言えるか」まで含めている。
+        このページは future plan の表ではない。
+        読者が demo を開いたときに、各公開面がどの runtime artifact と結びついているかを手早く確認するための evidence map である。
       </p>
     </article>
     <article class="panel panel--warm">
@@ -72,17 +78,17 @@ const checklist = [
     <table>
       <thead>
         <tr>
-          <th>仮説の論点</th>
-          <th>対応する部分</th>
+          <th>公開面</th>
+          <th>対応する runtime</th>
           <th>何を示しているか</th>
-          <th>実装で見たい証拠</th>
+          <th>見える証拠</th>
         </tr>
       </thead>
       <tbody>
         {rows.map((row) => (
           <tr>
-            <td>{row.hypothesis}</td>
-            <td>{row.target}</td>
+            <td>{row.surface}</td>
+            <td>{row.runtime}</td>
             <td>{row.explanation}</td>
             <td>{row.evidence}</td>
           </tr>
