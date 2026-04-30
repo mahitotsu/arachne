@@ -2,98 +2,176 @@
 import PageHero from '../../components/PageHero.astro';
 import SiteLayout from '../../layouts/SiteLayout.astro';
 
+const services = [
+  {
+    name: 'order-service',
+    port: '8080',
+    role: '注文ワークフロー coordinator',
+    agent: true,
+    note: '4 ステップの workflow API（suggest → confirm-items → confirm-delivery → confirm-payment）を持つ。menu / delivery / payment / support をダウンストリームに持ち、registry 経由で動的に解決する。',
+  },
+  {
+    name: 'menu-service',
+    port: '8081',
+    role: 'メニュー提案・合計計算',
+    agent: true,
+    note: '曖昧な注文意図を具体的な商品提案に変換する。catalog_lookup・calculate_total ツールを持ち、欠品時は kitchen-service と連携して代替候補を提示する。',
+  },
+  {
+    name: 'kitchen-service',
+    port: '8082',
+    role: 'キッチン状況管理',
+    agent: true,
+    note: '厨房のキャパシティと仕込み状況を管理する。注文確定時に準備スケジュールを調整し、混雑時は代替提案をエージェントが生成する。',
+  },
+  {
+    name: 'delivery-service',
+    port: '8083',
+    role: '配送 ETA 評価・推奨',
+    agent: true,
+    note: 'registry-service を通じて外部 ETA サービスを動的に発見し、自社急配と比較して推奨配送プランを返す。capability-based discovery の主な実証箇所。',
+  },
+  {
+    name: 'payment-service',
+    port: '8084',
+    role: '支払い処理',
+    agent: false,
+    note: 'エージェントを持たない。支払い準備と課金確定は決定論的コードで実行する。「正解が必要な処理はコードで守る」という設計方針の体現。',
+  },
+  {
+    name: 'customer-service',
+    port: '8085',
+    role: '認証・顧客情報管理',
+    agent: false,
+    note: 'デモアカウント認証（demo/demo-pass など）と顧客プロフィールを提供する。JWT 発行と JWKS 公開を担い、他サービスがトークンを検証する。',
+  },
+  {
+    name: 'support-service',
+    port: '8086',
+    role: '会話型サポート窓口',
+    agent: true,
+    note: '注文フローとは分離した会話インターフェース。FAQ・キャンペーン・サービス稼働状況・注文後フォローを扱う。[HANDOFF: order] で注文ページへの誘導も行う。',
+  },
+  {
+    name: 'registry-service',
+    port: '8087',
+    role: 'サービス登録・capability 検索',
+    agent: false,
+    note: '各サービスが起動時に自己登録する。POST /registry/discover がランタイムの collaborator resolution、GET /registry/services が viewer/inventory 用と、2 つの API を意図的に分けている。',
+  },
+  {
+    name: 'hermes-adapter',
+    port: '8088',
+    role: '外部 ETA アダプター（常に遅延）',
+    agent: false,
+    note: '外部配送会社のモック。常に NOT_AVAILABLE を返すことで、delivery-service がフォールバックを正しく処理するかを検証できる。',
+  },
+  {
+    name: 'idaten-adapter',
+    port: '8089',
+    role: '外部 ETA アダプター（常に最速）',
+    agent: false,
+    note: '外部配送会社のモック。常に最短 ETA で AVAILABLE を返す。hermes-adapter と対にすることで、delivery-service の比較ロジックが機能することを確認できる。',
+  },
+];
+
 const surfaces = [
   {
-    name: '/order',
-    role: '4-step workflow-first ordering UI',
-    fit: '注文面は入力整理、候補選択、配送選択、支払い承認を段階的に進める workflow-first の公開面として出荷されている。',
-    check: 'order-service の step API が構造化レスポンスを返し、選択理由と確定責務を workflow 側に残していること。',
+    path: '/order',
+    title: '4 ステップ注文 UI',
+    steps: ['意図入力', '商品選択', '配送選択', '支払い確認'],
+    desc: 'ユーザーの注文意図を段階的に確定させる workflow-first UI。各ステップで AI が提案と理由を返し、ユーザーが選択・調整する。会話的な自由入力と structured workflow の組み合わせが特徴。',
   },
   {
-    name: '/support',
-    role: 'conversational support surface',
-    fit: '会話面は注文 UI から分離され、FAQ、問い合わせ、キャンペーン、運用状態確認を扱う専用公開面として残している。',
-    check: 'support-service が注文後導線や `[HANDOFF: order]` を含めて、workflow とは別責務の conversational front door になっていること。',
+    path: '/support',
+    title: '会話型サポート',
+    steps: ['FAQ', 'キャンペーン', '稼働状況確認', '注文後フォロー'],
+    desc: '注文フローとは分離したサポート専用の会話窓口。support-service のエージェントが対話を担う。注文関連の問い合わせには [HANDOFF: order] リンクで /order に誘導できる。',
   },
   {
-    name: '/agents',
-    role: 'registry-backed viewer',
-    fit: '説明面は別ページに分離し、ケイパビリティ、プロンプト、スキル、OpenAPI を inventory/viewer として読む形にしている。',
-    check: 'GET /registry/services と各 service の OpenAPI を使い、viewer 用 inventory と runtime 契約を同じ画面で説明できること。',
+    path: '/agents',
+    title: 'サービスビューワー',
+    steps: ['サービス一覧', 'プロンプト確認', 'スキル一覧', 'OpenAPI 仕様'],
+    desc: 'registry-service の GET /registry/services を使い、登録済みサービスのカード一覧を表示する。各カードからシステムプロンプト・スキル・OpenAPI 仕様（x-ai-prompt-contract 含む）を確認できる inventory viewer。',
   },
-  {
-    name: 'Execution History',
-    role: 'user-facing proof surface',
-    fit: '内部の開発者向けトレースに閉じず、ユーザーが各ステップのサービス実行と判断理由を辿れる証跡として見せている。',
-    check: 'step 1 以降の UI から再読込でき、service、category、outcome、tool 使用、token usage が見えること。',
-  },
-  {
-    name: 'Registry API split',
-    role: 'discover-vs-inventory boundary',
-    fit: 'service-to-service collaborator resolution と viewer/inventory を別 API に分け、公開説明でもその境界を隠さない。',
-    check: 'POST /registry/discover は downstream 解決、GET /registry/services は viewer/inventory 用として語り分けられていること。',
-  },
-];
-
-const shippedSurfaces = [
-  '注文は /order の 4-step workflow UI で進み、会話面とは分離されている。',
-  '問い合わせは /support に寄せ、FAQ と post-order support を conversational に扱う。',
-  '/agents は registry-backed viewer として capability、prompt、skill、API を一覧できる。',
-  'execution history は利用者向けの proof surface として独立に露出している。',
-];
-
-const evidenceAnchors = [
-  'workflow/support/viewer の 3 面が UI 上で明確に分かれていること。',
-  'OpenAPI と x-ai-prompt-contract が /agents から辿れること。',
-  'delivery-service の候補比較が discover API に立脚していること。',
-  'inventory API と collaborator discovery API が混同されていないこと。',
 ];
 ---
 
 <SiteLayout title="Demo | Arachne Field Notes">
   <PageHero
     eyebrow="Demo"
-    title="food-delivery-demo の公開面を shipped runtime に合わせて読む"
-    summary="food-delivery-demo は未来の構想ではなく、すでに workflow-first ordering、support chat、registry-backed viewer、execution history を並立させている実行中の proof surface です。"
-    aside="ここで見るべきなのは agent の数ではなく、どの公開面をどの UX で見せ、どの証跡で裏づけているかです。"
+    title="food-delivery-demo ── 10 サービスで仮説を検証する実証環境"
+    summary="food-delivery-demo はクラウドキッチンの注文・配送システムを実装したデモアプリケーションです。どのサービスにエージェントを置き、どこに置かないかを意図的に設計し、AI 時代のマイクロサービス設計仮説を動くコードで示します。"
   />
 
-  <section class="two-column-band">
-    <article class="panel">
-      <p class="panel__eyebrow">Shipped Surfaces</p>
-      <ul>
-        {shippedSurfaces.map((item) => (
-          <li>{item}</li>
+  <section class="panel">
+    <p class="panel__eyebrow">デモを読む上での視点</p>
+    <p>
+      このデモで重要なのはエージェントの数ではなく、<strong>エージェントを持つサービスと持たないサービスの対比</strong>です。
+      menu / delivery / support はエージェントが自然言語の解釈を担い、payment / customer / registry は決定論的コードで責務を果たす。
+      この設計の違いが「自然言語フロントドア」という仮説の実装上の答えです。
+    </p>
+  </section>
+
+  <section class="table-shell">
+    <table>
+      <thead>
+        <tr>
+          <th>サービス</th>
+          <th>ポート</th>
+          <th>役割</th>
+          <th>エージェント</th>
+          <th>設計ポイント</th>
+        </tr>
+      </thead>
+      <tbody>
+        {services.map((s) => (
+          <tr>
+            <td><code>{s.name}</code></td>
+            <td>{s.port}</td>
+            <td>{s.role}</td>
+            <td style="white-space:nowrap">{s.agent ? '✓ あり' : '─ なし'}</td>
+            <td>{s.note}</td>
+          </tr>
         ))}
-      </ul>
-    </article>
-    <article class="panel panel--warm">
-      <p class="panel__eyebrow">Evidence Anchors</p>
-      <ul>
-        {evidenceAnchors.map((item) => (
-          <li>{item}</li>
-        ))}
-      </ul>
-    </article>
+      </tbody>
+    </table>
   </section>
 
   <section class="stacked-list">
-    {surfaces.map((surface) => (
+    <h2 style="font-size:1.1rem; color:var(--text-muted); font-weight:600; margin-bottom:-8px">カスタマー UI の 3 つの公開面</h2>
+    {surfaces.map((s) => (
       <article class="essay-card">
         <div>
-          <p class="panel__eyebrow">Public Surface</p>
-          <h2>{surface.name}</h2>
-          <p>{surface.role}</p>
+          <p class="panel__eyebrow">{s.path}</p>
+          <h2>{s.title}</h2>
+          <p>{s.desc}</p>
         </div>
-        <div>
-          <p class="panel__eyebrow">What It Proves</p>
-          <p>{surface.fit}</p>
-        </div>
-        <div>
-          <p class="panel__eyebrow">Runtime Anchor</p>
-          <p>{surface.check}</p>
+        <div class="tag-row">
+          {s.steps.map((step) => (
+            <span class="tag-chip">{step}</span>
+          ))}
         </div>
       </article>
     ))}
+  </section>
+
+  <section class="two-column-band">
+    <article class="panel">
+      <p class="panel__eyebrow">起動方法</p>
+      <p>
+        リポジトリの <code>food-delivery-demo/</code> ディレクトリで <code>make up</code> を実行すると、
+        Docker Compose で全サービスが起動します。Bedrock を使う場合は <code>make up-bedrock</code>。
+        AWS 認証情報は <code>aws configure export-credentials</code> 経由で渡されます。
+      </p>
+    </article>
+    <article class="panel panel--soft">
+      <p class="panel__eyebrow">実行履歴（Execution History）について</p>
+      <p>
+        注文ワークフローの各ステップを進めると、5 サービスの実行イベントが時系列で記録されます。
+        <code>/order</code> の UI から「実行履歴」パネルを開くと、サービス・カテゴリ・結果・ツール使用・トークン消費を確認できます。
+        エージェントの判断過程を追うための証拠面として設計しています。
+      </p>
+    </article>
   </section>
 </SiteLayout>

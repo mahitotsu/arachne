@@ -10,9 +10,8 @@ const { title, description = 'Arachne の思想、実装、デモを束ねる長
 
 const navItems = [
   { href: '/', label: 'Top' },
-  { href: '/essay', label: 'Essay' },
+  { href: '/essay/ai-era-microservices', label: 'Essay' },
   { href: '/demo', label: 'Demo' },
-  { href: '/mapping', label: 'Mapping' },
   { href: '/appendix', label: 'Appendix' },
 ];
 
@@ -28,10 +27,8 @@ const currentPath = Astro.url.pathname;
     <title>{title}</title>
   </head>
   <body>
-    <div class="bg-orb bg-orb--left"></div>
-    <div class="bg-orb bg-orb--right"></div>
-    <div class="site-shell">
-      <header class="site-header">
+    <header class="site-header">
+      <div class="site-header-inner">
         <a class="site-brand" href="/">
           <span class="site-brand__mark">A</span>
           <span>
@@ -46,12 +43,14 @@ const currentPath = Astro.url.pathname;
             </a>
           ))}
         </nav>
-      </header>
+      </div>
+    </header>
+    <div class="site-shell">
       <main class="site-main">
         <slot />
       </main>
       <footer class="site-footer">
-        <p>仮説、SDK、food-delivery-demo を 1 本のストーリーとして編み直すための静的サイト。</p>
+        <p>仮説・SDK・food-delivery-demo を 1 本のストーリーとして束ねる静的サイト。</p>
       </footer>
     </div>
   </body>

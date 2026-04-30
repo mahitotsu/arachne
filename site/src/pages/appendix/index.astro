@@ -2,91 +2,69 @@
 import PageHero from '../../components/PageHero.astro';
 import SiteLayout from '../../layouts/SiteLayout.astro';
 
-const evidenceChecklist = [
-  'OpenAPI が実サービスの code-first contract として公開されているか。',
-  'x-ai-prompt-contract が tool-facing operation の入出力意図を補助しているか。',
-  'execution history が内部 trace ではなく user-facing proof surface として読めるか。',
-  'Micrometer metrics が workflow と downstream call の両方を可視化しているか。',
-  'POST /registry/discover と GET /registry/services の境界が artifact レベルで明確か。',
+const designRows = [
+  {
+    principle: 'AI エージェントは自然言語フロントドアとして追加する',
+    impl: 'menu-service・delivery-service・support-service にエージェントを置き、ユーザーの曖昧な入力を解釈する責務を担わせる',
+    check: 'order-service の suggest API がユーザー入力を menu-service に渡し、menu-service のエージェントが商品提案を返す流れで確認できる',
+  },
+  {
+    principle: '従来の API は機械間連携の正本契約として残す',
+    impl: '全サービスが REST API と OpenAPI 仕様を公開し、エージェントはその API をツールとして呼び出す形を維持する',
+    check: '/agents の API 仕様タブから各サービスの OpenAPI を確認できる。エージェントのツール定義も同じ API 上に乗っている',
+  },
+  {
+    principle: '金額計算・課金・認可は決定論的コードで処理する',
+    impl: 'payment-service はエージェントを持たず、支払い準備と課金確定をコードで完結させる',
+    check: 'payment-service の /v3/api-docs で intent.rawMessage を受け取り、PaymentProfileRepository が決定論的に処理することを確認できる',
+  },
+  {
+    principle: 'system prompt はエンジニアが管理するシステム制約として書く',
+    impl: '各エージェントの system prompt はソースコード中に置き、役割・制約・ツール利用方針・言語設定を明示する',
+    check: '/agents のサービスカードを開くと、登録済みの system prompt をそのまま読める',
+  },
+  {
+    principle: 'skill は業務知識の公開面として分離する',
+    impl: 'menu-service と kitchen-service は商品説明・推薦ロジック・仕込みスケジュール方針を SKILL.md に分離し、ResourceLoader で読み込む',
+    check: '/agents のスキルタブで、system prompt とは別に管理されているスキルドキュメントの内容を確認できる',
+  },
+  {
+    principle: 'サービス間の collaborator 解決は capability ベースで動的に行う',
+    impl: 'order / kitchen / menu / support / delivery が起動時に registry-service へ自己登録し、ダウンストリーム解決は POST /registry/discover で行う',
+    check: 'delivery-service が hermes-adapter と idaten-adapter を discover 経由で発見し、ETA を比較して推奨を返すフローで確認できる',
+  },
+  {
+    principle: '会話責務・workflow 責務・仕様閲覧責務は UI レベルでも分離する',
+    impl: 'カスタマー UI を /order（workflow）・/support（会話）・/agents（viewer）の 3 ページに分け、責務を混在させない',
+    check: '/support は注文フローと独立しており、/order での workflow 処理中でも別タブでサポートに問い合わせできる',
+  },
 ];
 
 const artifactRows = [
   {
-    artifact: 'OpenAPI',
-    runtime: 'customer / order / support / menu / kitchen / delivery / payment / registry / adapters が /v3/api-docs と /swagger-ui.html を公開',
-    proof: 'viewer ではなく service contract 自体が runtime から取得でき、公開面の説明が実装と乖離しない。',
+    artifact: 'OpenAPI（/v3/api-docs）',
+    location: '全 10 サービスが各自 /v3/api-docs と /swagger-ui.html を公開。認証が必要なサービスも /v3/api-docs は匿名アクセスを許可',
+    purpose: 'エージェントのツール定義と REST API 仕様を同一の contract として管理し、実装と説明が乖離しない状態を保つ',
   },
   {
     artifact: 'x-ai-prompt-contract',
-    runtime: 'relevant operation に requiredInputs / optionalInputs / serviceBehavior を付与',
-    proof: 'prompt を黒箱のままにせず、構造化入力とサービス責務の境界を OpenAPI 上で読める。',
+    location: 'order・delivery・payment 等の AI 向け operation に OpenAPI extension として付与。requiredInputs / optionalInputs / serviceBehavior を持つ',
+    purpose: 'prompt を黒箱のままにせず、エージェントが期待する入力構造とサービスの振る舞いを OpenAPI 上で読めるようにする',
   },
   {
-    artifact: 'Execution history',
-    runtime: '5 service の /execution-history/{sessionId} を UI が集約し、時系列で再読込',
-    proof: 'service、category、outcome、tool、skill、token usage を利用者が追える。',
+    artifact: '実行履歴（/execution-history/{sessionId}）',
+    location: 'order / menu / kitchen / delivery / support の 5 サービスが /execution-history/{sessionId} を公開。カスタマー UI がファンアウトして時系列集約',
+    purpose: 'エージェントがどのツールをどの順序で呼び出し、どの結果を受け取ったかを利用者が追える。開発者向けトレースではなくユーザー向け証跡として設計',
   },
   {
-    artifact: 'Micrometer metrics',
-    runtime: 'order workflow、registry lookup、downstream call、agent invocation を /actuator/metrics で公開',
-    proof: 'どこで判断し、どこで呼び出し、どこで遅延するかを trace なしでも観測できる。',
+    artifact: 'Micrometer メトリクス（/actuator/metrics）',
+    location: 'delivery.order.workflow（ワークフロー入口）・delivery.order.downstream（各ゲートウェイ呼び出し）・delivery.order.registry.lookup・delivery.agent.* を計測',
+    purpose: 'エージェント経由の処理でも「どこで時間がかかるか」「registry lookup は何回成功しているか」を数値で観測できる',
   },
   {
-    artifact: 'Registry API split',
-    runtime: 'POST /registry/discover は collaborator resolution、GET /registry/services は inventory / viewer',
-    proof: 'service mesh の経路解決と UI の棚卸しを別 API に分けた設計意図がそのまま見える。',
-  },
-];
-
-const evidenceCards = [
-  {
-    title: 'OpenAPI surface',
-    eyebrow: 'Contract',
-    summary: 'food-delivery-demo は主要 service と adapter で code-first OpenAPI を公開している。appendix ではこれを将来の予定ではなく、今ある runtime artifact として扱う。',
-    anchor: 'OpenAPI は /agents の API仕様 タブから辿れるだけでなく、各 service が直接 /v3/api-docs を返す。',
-  },
-  {
-    title: 'Prompt contract overlay',
-    eyebrow: 'AI Boundary',
-    summary: 'x-ai-prompt-contract は prompt を magic にしないための補助層で、OpenAPI 上に requiredInputs、optionalInputs、serviceBehavior を露出する。',
-    anchor: 'order の intent、delivery の preference、payment の instruction のような構造化入力が contract として説明可能になっている。',
-  },
-  {
-    title: 'Execution history as proof surface',
-    eyebrow: 'Runtime Evidence',
-    summary: 'execution history は trace panel の残骸ではなく、workflow の裏側で何が起きたかを利用者が読むための proof surface である。',
-    anchor: 'step 1 以降の UI で sessionId が立つと履歴を再取得でき、service ごとの event が時系列で並ぶ。',
-  },
-  {
-    title: 'Metrics as operational evidence',
-    eyebrow: 'Observability',
-    summary: 'Micrometer / Actuator は AI path を曖昧な印象論で終わらせず、workflow entry、registry lookup、downstream call、agent call を計測面に落としている。',
-    anchor: 'delivery.order.workflow、delivery.order.downstream、delivery.order.registry.lookup、delivery.agent.* などが service-local に見える。',
-  },
-  {
-    title: 'Discover vs services split',
-    eyebrow: 'Registry Boundary',
-    summary: 'registry-service は一つの万能 API ではない。collaborator resolution と inventory/viewer は分けて公開されている。',
-    anchor: 'delivery-service などの downstream 解決は discover を使い、/agents は services API から一覧と説明面を構成する。',
-  },
-];
-
-const readingGuides = [
-  {
-    topic: 'OpenAPI を読む',
-    detail: 'まず operation の責務を見て、その上に x-ai-prompt-contract が何を補足しているかを読む。prompt contract は OpenAPI の代替ではなく補助である。',
-  },
-  {
-    topic: 'Execution history を読む',
-    detail: 'どの service がどの順序で呼ばれたか、tool と skill がどこで介在したか、outcome が成功か失敗かを時系列で確認する。',
-  },
-  {
-    topic: 'Metrics を読む',
-    detail: 'まず workflow と registry lookup を見て入口の振る舞いを掴み、その後 downstream timer と agent metric で内部の偏りを確認する。',
-  },
-  {
-    topic: 'Registry API split を読む',
-    detail: 'viewer で見える一覧性と、runtime が使う capability discovery を混同しない。UI が services API を読み、service は discover を叩く。',
+    artifact: 'Registry API の 2 分割',
+    location: 'POST /registry/discover がランタイムの collaborator resolution 用。GET /registry/services が viewer / inventory 用',
+    purpose: 'サービスメッシュの経路解決と UI の棚卸し表示を別 API に分けることで、設計意図がそのまま API 構造に見える',
   },
 ];
 ---
@@ -94,85 +72,87 @@ const readingGuides = [
 <SiteLayout title="Appendix | Arachne Field Notes">
   <PageHero
     eyebrow="Appendix"
-    title="runtime artifact を読むための証拠面"
-    summary="appendix は補遺の倉庫ではなく、food-delivery-demo がすでに出荷している OpenAPI、prompt contract、execution history、metrics、registry boundary をまとめて確認する evidence page です。"
+    title="設計仮説と実装の対応、および技術的証拠"
+    summary="このページは 2 つの目的を持ちます。ひとつは設計仮説が food-delivery-demo のどの実装に対応しているかの確認。もうひとつは、その主張を裏付ける OpenAPI・実行履歴・メトリクスといった技術的証拠の参照です。"
   />
 
+  <section class="panel">
+    <p class="panel__eyebrow">このページの使い方</p>
+    <p>
+      上の表（設計仮説との対応）は <strong>「なぜそう設計したか」</strong> を確認するためのものです。
+      下の表（技術的証拠）は <strong>「その設計が実際に実装されているか」</strong> を確認するためのものです。
+      Demo ページでサービス構成を把握した後に、このページで設計の根拠と証拠を追うという順番で読むのがおすすめです。
+    </p>
+  </section>
+
+  <section>
+    <h2 style="font-size:1.05rem; font-weight:700; margin-bottom:16px; color:var(--text-muted); letter-spacing:0.02em; text-transform:uppercase; font-family:var(--font-mono)">設計仮説と実装の対応</h2>
+    <div class="table-shell">
+      <table>
+        <thead>
+          <tr>
+            <th>設計仮説の原則</th>
+            <th>food-delivery-demo での実装</th>
+            <th>どこで確認できるか</th>
+          </tr>
+        </thead>
+        <tbody>
+          {designRows.map((row) => (
+            <tr>
+              <td>{row.principle}</td>
+              <td>{row.impl}</td>
+              <td>{row.check}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 style="font-size:1.05rem; font-weight:700; margin-bottom:16px; color:var(--text-muted); letter-spacing:0.02em; text-transform:uppercase; font-family:var(--font-mono)">技術的証拠</h2>
+    <div class="table-shell">
+      <table>
+        <thead>
+          <tr>
+            <th>証拠</th>
+            <th>どこにあるか</th>
+            <th>何を示しているか</th>
+          </tr>
+        </thead>
+        <tbody>
+          {artifactRows.map((row) => (
+            <tr>
+              <td style="white-space:nowrap">{row.artifact}</td>
+              <td>{row.location}</td>
+              <td>{row.purpose}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
   <section class="two-column-band">
     <article class="panel">
-      <p class="panel__eyebrow">How To Read This Page</p>
+      <p class="panel__eyebrow">Arachne コアと food-delivery-demo の関係</p>
       <p>
-        ここで扱うのは将来こうしたい資料ではない。
-        shipped runtime が今すでに露出している contract と observability surface を並べ、本文の主張を artifact で裏づけるためのページである。
+        Arachne は food-delivery-demo のために作ったフレームワークではなく、Spring になじむ汎用エージェント実行基盤として独立したライブラリです。
+        food-delivery-demo は Arachne を依存として追加し、<code>AgentFactory</code> と <code>ArachneAutoConfiguration</code> を通じて Agent を Spring Bean として登録しています。
+      </p>
+      <p style="margin-top:12px">
+        Arachne 自体のソースコードは <code>arachne/</code> モジュールにあり、<code>mvn test</code> で単体テストを実行できます。
+        food-delivery-demo のビルドは <code>mvn -f food-delivery-demo/pom.xml test</code> で実行します。
       </p>
     </article>
-    <article class="panel panel--warm">
-      <p class="panel__eyebrow">Evidence Checklist</p>
+    <article class="panel panel--soft">
+      <p class="panel__eyebrow">未解決の設計問題</p>
+      <p>現時点でまだ答えが固まっていない、あるいは意図的に先送りしている問題があります。</p>
       <ul>
-        {evidenceChecklist.map((item) => (
-          <li>{item}</li>
-        ))}
-      </ul>
-    </article>
-  </section>
-
-  <section class="table-shell">
-    <table>
-      <thead>
-        <tr>
-          <th>artifact</th>
-          <th>runtime surface</th>
-          <th>何の証拠か</th>
-        </tr>
-      </thead>
-      <tbody>
-        {artifactRows.map((row) => (
-          <tr>
-            <td>{row.artifact}</td>
-            <td>{row.runtime}</td>
-            <td>{row.proof}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  </section>
-
-  <section class="stacked-list">
-    {evidenceCards.map((card) => (
-      <article class="essay-card">
-        <div>
-          <p class="panel__eyebrow">{card.eyebrow}</p>
-          <h2>{card.title}</h2>
-        </div>
-        <div>
-          <p>{card.summary}</p>
-        </div>
-        <div>
-          <p class="panel__eyebrow">Runtime Anchor</p>
-          <p>{card.anchor}</p>
-        </div>
-      </article>
-    ))}
-  </section>
-
-  <section class="two-column-band">
-    <article class="panel panel--warm">
-      <p class="panel__eyebrow">What The Appendix Clarifies</p>
-      <ul>
-        <li>/order は workflow-first の公開面であり、会話責務を抱え込まない。</li>
-        <li>/support は conversational surface であり、問い合わせと handoff を扱う。</li>
-        <li>/agents は inventory/viewer であり、runtime collaborator ではない。</li>
-        <li>execution history は user-facing proof surface であり、旧 trace panel の言い換えではない。</li>
-      </ul>
-    </article>
-    <article class="panel">
-      <p class="panel__eyebrow">Reading Guides</p>
-      <ul>
-        {readingGuides.map((guide) => (
-          <li>
-            <strong>{guide.topic}:</strong> {guide.detail}
-          </li>
-        ))}
+        <li>interrupt（human-in-the-loop）と構造化出力の組み合わせ時のセッション復元方法</li>
+        <li>skill ドキュメントの変更がエージェントの振る舞いに与える影響をどうテストするか</li>
+        <li>registry-service のストレージが現状インメモリのため、再起動時に再登録が必要</li>
+        <li>capability-based discovery と Spring Cloud の service registry の位置づけの整理</li>
       </ul>
     </article>
   </section>
