@@ -2,7 +2,7 @@
 
 このディレクトリは、旧マーケットプレイスワークフローサンプルに代わるデモを提供します。
 
-デモは単一ブランドのクラウドキッチン向けのチャット優先デリバリーアプリです。キッチンは1つのみ、店内飲食フローなし、ブランチ切り替えなし。フロントエンドは通常のデリバリーアプリのように見えますが、バックエンドは一様な agent-fronted API 群ではありません。`order-service` は公開ワークフロー API の front door、`payment-service` は決定論的な契約面、`menu-service`・`delivery-service`・`support-service` は会話的または agent-fronted な公開面を担います。普通のマイクロサービストラフィックに見えるものの一部が、マルチエージェントコラボレーションパスでもあります。
+デモは単一ブランドのクラウドキッチン向けデリバリーアプリです。注文体験は `/order` の 4 ステップ workflow-first UI、問い合わせは `/support` の会話面、エージェント説明は `/agents` の registry-backed viewer が担います。キッチンは1つのみ、店内飲食フローなし、ブランチ切り替えなし。フロントエンドは通常のデリバリーアプリのように見えますが、バックエンドは一様な agent-fronted API 群ではありません。`order-service` は公開ワークフロー API の front door、`payment-service` は決定論的な契約面、`menu-service`・`delivery-service`・`support-service` は会話的または agent-fronted な公開面を担います。普通のマイクロサービストラフィックに見えるものの一部が、マルチエージェントコラボレーションパスでもあります。
 
 これは意図的に実行可能な `samples/` カタログには含めていません。ここでのゴールは、Arachne が Spring Boot マイクロサービスにいかに自然に溶け込めるかを示す、構成された実用的なアプリケーションスライスです。
 
@@ -10,7 +10,7 @@
 
 ローカルランタイムが起動するもの:
 
-- `customer-ui`: カスタマー向けフローの Next.js チャット UI
+- `customer-ui`: カスタマー向けの Next.js UI。`/order` は 4 ステップ注文ワークフロー、`/support` は会話型サポート、`/agents` は registry-backed なエージェント仕様ビューワー
 - `customer-service`: デモカスタマーディレクトリ、サインイン API、JWT 発行、JWKS 公開
 - `support-service`: FAQ、問い合わせ受付、キャンペーン一覧、registry 連携の稼働状況集約
 - `order-service`: 公開ワークフロー API、Redis バックドのセッション継続、PostgreSQL バックドの注文永続化
@@ -38,9 +38,11 @@
 5. `menu-service`、`kitchen-service`、`delivery-service` は同じアクセストークンを検証したうえで service-local agent を通じた提案や調整を返し、`payment-service` は決定論的ロジックで支払い準備と課金を処理する。
 6. `support-service` は FAQ、キャンペーン、問い合わせ事例を返し、必要に応じて registry-service の稼働状況と order-service の注文履歴を参照する。
 7. 唯一のキッチンがリクエストされたアイテムを提供できない場合、`kitchen-agent` は `menu-agent` に同一ブランドのフォールバックアイテムを問い合わせることができる。
-8. UI はユーザー向け返答とサービス/エージェントトレースの両方を表示し、マイクロサービス構造とマルチエージェント構造の両方が明確に見える。
-9. 配送見積もりでは `delivery-agent` が自社エクスプレスに加え、registry-service で動的発見した `Hermes` / `Idaten` の外部 ETA 候補を比較し、文脈に応じて推奨を返す。
-10. ユーザーが下書きを確定すると、`payment-service` が決定論的課金を実行し、`order-service` が注文を PostgreSQL に記録したうえで `support-service` に事後フィードバック受付を通知する。
+8. UI の `/order` はステップ別の構造化レスポンスを表示し、step 1 以降は execution history をユーザー向け proof surface として表示する。
+9. UI の `/support` は `support-service` の FAQ、問い合わせ、キャンペーン、稼働状況を会話面として表示し、注文後のサポート導線も受け持つ。
+10. UI の `/agents` は `GET /registry/services` と各 service の OpenAPI を使って、ケイパビリティ、システムプロンプト、ツール、スキル、API 契約を説明面として表示する。
+11. 配送見積もりでは `delivery-agent` が自社エクスプレスに加え、registry-service で動的発見した `Hermes` / `Idaten` の外部 ETA 候補を比較し、文脈に応じて推奨を返す。
+12. ユーザーが下書きを確定すると、`payment-service` が決定論的課金を実行し、`order-service` が注文を PostgreSQL に記録したうえで `support-service` に事後フィードバック受付を通知する。
 
 ## ローカルコマンド
 
@@ -131,6 +133,9 @@ curl 'http://localhost:8086/actuator/metrics/delivery.agent.tool.call?tag=servic
 ## エンドポイント
 
 - UI: `http://localhost:3000`
+- 注文ワークフロー UI: `http://localhost:3000/order`
+- サポート UI: `http://localhost:3000/support`
+- エージェント仕様ビューワー: `http://localhost:3000/agents`
 - カスタマーサービス: `http://localhost:8085`
 - 公開注文 API: `http://localhost:8080/api/order/suggest`
 - サポートサービス: `http://localhost:8086`
