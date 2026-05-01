@@ -17,20 +17,20 @@ const pillars = [
   },
 ];
 
-const base = import.meta.env.BASE_URL;
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const routes = [
   {
-    href: `${base}essay`,
+    href: `${base}/essay`,
     label: 'Essay',
     body: '仮説の論拠、Arachne の設計意図、demo の読み方を長文で整理する。',
   },
   {
-    href: `${base}demo`,
+    href: `${base}/demo`,
     label: 'Demo',
     body: 'food-delivery-demo のサービス構成、設計上の判断、3 つの UI 公開面を解説する。',
   },
   {
-    href: `${base}appendix`,
+    href: `${base}/appendix`,
     label: 'Appendix',
     body: '設計仮説と実装の対応関係、および OpenAPI・メトリクス・実行履歴といった技術的証拠をまとめる。',
   },

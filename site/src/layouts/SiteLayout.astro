@@ -8,12 +8,12 @@ interface Props {
 
 const { title, description = 'Arachne の思想、実装、デモを束ねる長編サイト。' } = Astro.props;
 
-const base = import.meta.env.BASE_URL;
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const navItems = [
-  { href: base, label: 'Top' },
-  { href: `${base}essay/ai-era-microservices`, label: 'Essay' },
-  { href: `${base}demo`, label: 'Demo' },
-  { href: `${base}appendix`, label: 'Appendix' },
+  { href: `${base}/`, label: 'Top' },
+  { href: `${base}/essay/ai-era-microservices`, label: 'Essay' },
+  { href: `${base}/demo`, label: 'Demo' },
+  { href: `${base}/appendix`, label: 'Appendix' },
 ];
 
 const currentPath = Astro.url.pathname;
@@ -30,7 +30,7 @@ const currentPath = Astro.url.pathname;
   <body>
     <header class="site-header">
       <div class="site-header-inner">
-        <a class="site-brand" href={base}>
+        <a class="site-brand" href={`${base}/`}>
           <span class="site-brand__mark">A</span>
           <span>
             <strong>Arachne Field Notes</strong>

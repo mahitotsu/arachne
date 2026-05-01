@@ -18,7 +18,7 @@ const essays = (await getCollection('essays')).sort((left, right) => left.data.o
       <article class="essay-card">
         <div>
           <p class="panel__eyebrow">{essay.data.publishDate.toLocaleDateString('ja-JP')}</p>
-          <h2><a href={`${import.meta.env.BASE_URL}essay/${essay.slug}`}>{essay.data.title}</a></h2>
+          <h2><a href={`${import.meta.env.BASE_URL.replace(/\/$/, '')}/essay/${essay.slug}`}>{essay.data.title}</a></h2>
           <p>{essay.data.summary}</p>
         </div>
         <div class="tag-row">
