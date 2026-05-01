@@ -23,6 +23,7 @@ export type OrderSnapshot = {
   message: string;
   suggestSummary: string;
   suggestEta: number;
+  kitchenAssessment: string;
   pendingProposals: SnapshotProposalItem[];
   confirmedItems: SnapshotProposalItem[];
 };

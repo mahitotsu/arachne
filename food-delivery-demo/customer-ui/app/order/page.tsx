@@ -46,6 +46,13 @@ type DeliveryOptionChoice = {
   recommended: boolean;
 };
 
+type ServiceTrace = {
+  service: string;
+  agent: string;
+  headline: string;
+  summary: string;
+};
+
 type SuggestResponse = {
   sessionId: string;
   workflowStep: string;
@@ -54,6 +61,7 @@ type SuggestResponse = {
   etaMinutes: number;
   proposals: ProposalItem[];
   draft: OrderDraft;
+  trace?: ServiceTrace[];
 };
 
 type ConfirmItemsResponse = {
@@ -93,6 +101,7 @@ type OrderSnapshot = {
   message: string;
   suggestSummary: string;
   suggestEta: number;
+  kitchenAssessment: string;
   pendingProposals: ProposalItem[];
   confirmedItems: ProposalItem[];
 };
@@ -125,6 +134,12 @@ function mapWorkflowStepToStep(workflowStep: string) {
     default:
       return 0;
   }
+}
+
+function extractKitchenAssessment(trace?: ServiceTrace[]): string {
+  if (!trace) return '';
+  const entry = trace.find(t => t.service.startsWith('kitchen'));
+  return entry?.summary ?? '';
 }
 
 function proposalItemsFromDraft(draft: OrderDraft) {
@@ -161,6 +176,7 @@ function OrderPageInner() {
   const [refinement, setRefinement] = useState('');
   const [suggestSummary, setSuggestSummary] = useState('');
   const [suggestEta, setSuggestEta] = useState(0);
+  const [kitchenAssessment, setKitchenAssessment] = useState('');
   const [proposals, setProposals] = useState<ProposalItem[]>([]);
   const [removedItemIds, setRemovedItemIds] = useState<Set<string>>(new Set());
   const [deliveryOptions, setDeliveryOptions] = useState<DeliveryOptionChoice[]>([]);
@@ -213,6 +229,7 @@ function OrderPageInner() {
           setMessage(snapshot.message ?? '');
           setSuggestSummary(snapshot.suggestSummary ?? '');
           setSuggestEta(snapshot.suggestEta ?? 0);
+          setKitchenAssessment(snapshot.kitchenAssessment ?? '');
         }
 
         switch (view.workflowStep) {
@@ -261,6 +278,7 @@ function OrderPageInner() {
     setRefinement('');
     setSuggestSummary('');
     setSuggestEta(0);
+    setKitchenAssessment('');
     setProposals([]);
     setDeliveryOptions([]);
     setSelectedDeliveryCode('');
@@ -295,6 +313,7 @@ function OrderPageInner() {
       setRemovedItemIds(new Set());
       setSuggestSummary(payload.summary ?? '');
       setSuggestEta(payload.etaMinutes ?? 0);
+      setKitchenAssessment(extractKitchenAssessment(payload.trace));
       setDraft(payload.draft ?? EMPTY_DRAFT);
       setDeliveryOptions([]);
       setSelectedDeliveryCode('');
@@ -331,6 +350,7 @@ function OrderPageInner() {
       setRemovedItemIds(new Set());
       setSuggestSummary(payload.summary ?? '');
       setSuggestEta(payload.etaMinutes ?? 0);
+      setKitchenAssessment(extractKitchenAssessment(payload.trace));
       setDraft(payload.draft ?? EMPTY_DRAFT);
       setCommittedStep(1);
       setRefinement('');
@@ -526,7 +546,14 @@ function OrderPageInner() {
               {suggestEta > 0 && (
                 <p className="wf-eta">🕐 調理 ETA: 約 {suggestEta} 分</p>
               )}
-
+              {kitchenAssessment && (
+                <div className="wf-kitchen-assessment">
+                  <div className="wf-kitchen-assessment-label">🍳 キッチン確認</div>
+                  <div className="wf-kitchen-assessment-body wf-md">
+                    <ReactMarkdown>{kitchenAssessment}</ReactMarkdown>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="wf-proposal-grid">
@@ -565,11 +592,6 @@ function OrderPageInner() {
                         <span className="wf-proposal-qty">×{item.quantity}</span>
                         <span className="wf-proposal-price">¥{Number(item.unitPrice).toFixed(0)}</span>
                       </div>
-                      {item.reason && (
-                        <div className="wf-proposal-reason wf-md">
-                          <ReactMarkdown>{item.reason}</ReactMarkdown>
-                        </div>
-                      )}
                     </>
                   )}
                 </div>

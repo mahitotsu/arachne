@@ -52,6 +52,19 @@ function normalizeSuggestRequest(
   };
 }
 
+function extractKitchenAssessment(trace: unknown): string {
+  if (!Array.isArray(trace)) {
+    return '';
+  }
+  const kitchen = trace.find(entry => {
+    if (!entry || typeof entry !== 'object') return false;
+    const e = entry as Record<string, unknown>;
+    return typeof e.service === 'string' && e.service.startsWith('kitchen');
+  });
+  if (!kitchen || typeof kitchen !== 'object') return '';
+  return String((kitchen as Record<string, unknown>).summary ?? '');
+}
+
 function toSnapshotProposalItems(items: unknown): SnapshotProposalItem[] {
   if (!Array.isArray(items)) {
     return [];
@@ -142,6 +155,7 @@ async function handle(request: NextRequest, context: RouteContext) {
             message: getSuggestRawMessage(body),
             suggestSummary: String(payload.summary ?? ''),
             suggestEta: Number(payload.etaMinutes ?? 0),
+            kitchenAssessment: extractKitchenAssessment(payload.trace),
             pendingProposals: toSnapshotProposalItems(payload.proposals),
             confirmedItems: [],
           };
@@ -157,6 +171,7 @@ async function handle(request: NextRequest, context: RouteContext) {
             message: session.orderSnapshot?.message ?? '',
             suggestSummary: session.orderSnapshot?.suggestSummary ?? '',
             suggestEta: session.orderSnapshot?.suggestEta ?? 0,
+            kitchenAssessment: session.orderSnapshot?.kitchenAssessment ?? '',
             pendingProposals,
             confirmedItems: selectConfirmedItems(pendingProposals, body.items),
           };

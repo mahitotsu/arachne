@@ -338,6 +338,9 @@ p,h1,h2,h3,h4,h5,h6 { margin: 0; }
 .wf-step-header h2 { font-size: 1.25rem; font-weight: 800; letter-spacing: -0.02em; }
 .wf-summary { color: var(--ink-muted); font-size: 0.87rem; line-height: 1.55; }
 .wf-eta     { font-size: 0.82rem; color: var(--p-amber-t); font-weight: 600; }
+.wf-kitchen-assessment { background: var(--surface-2); border-radius: var(--r-md); padding: 12px 16px; display: flex; flex-direction: column; gap: 5px; }
+.wf-kitchen-assessment-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: var(--p-amber-t); }
+.wf-kitchen-assessment-body { font-size: 0.82rem; color: var(--ink-muted); line-height: 1.5; }
 
 .wf-proposal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
 .wf-proposal-card { background: var(--surface-0); border-radius: var(--r-md); padding: 14px 16px; box-shadow: var(--shadow-sm); display: flex; flex-direction: column; gap: 7px; transition: opacity 0.2s; }

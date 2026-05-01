@@ -420,11 +420,7 @@ public class OrderApplicationService {
     }
 
     private String proposalReason(MenuSuggestionResponse menuResponse) {
-        if (menuResponse.kitchenTrace() == null || menuResponse.kitchenTrace().summary() == null
-                || menuResponse.kitchenTrace().summary().isBlank()) {
-            return menuResponse.summary();
-        }
-        return menuResponse.summary() + " " + menuResponse.kitchenTrace().summary();
+        return "";
     }
 
     private List<ServiceTrace> buildSuggestTrace(MenuSuggestionResponse menuResponse) {
