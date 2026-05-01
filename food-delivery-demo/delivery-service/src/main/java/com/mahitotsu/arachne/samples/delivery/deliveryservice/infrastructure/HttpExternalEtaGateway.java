@@ -1,7 +1,5 @@
 package com.mahitotsu.arachne.samples.delivery.deliveryservice.infrastructure;
 
-import static com.mahitotsu.arachne.samples.delivery.deliveryservice.domain.DeliveryTypes.*;
-
 import java.util.List;
 import java.util.Optional;
 
@@ -11,19 +9,29 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.mahitotsu.arachne.samples.delivery.deliveryservice.domain.DeliveryTypes.AdapterEtaRequestPayload;
+import com.mahitotsu.arachne.samples.delivery.deliveryservice.domain.DeliveryTypes.AdapterEtaResponsePayload;
+import com.mahitotsu.arachne.samples.delivery.deliveryservice.domain.DeliveryTypes.DeliveryPreferenceInput;
+import com.mahitotsu.arachne.samples.delivery.deliveryservice.domain.DeliveryTypes.EtaServiceTarget;
+import com.mahitotsu.arachne.samples.delivery.deliveryservice.domain.DeliveryTypes.ExternalEtaQuote;
 
 @Component
 public class HttpExternalEtaGateway implements ExternalEtaGateway {
 
-    private final RestClient.Builder restClientBuilder;
+    private final RestClient restClient;
     private final ObjectMapper objectMapper;
     private final DownstreamObservationSupport observationSupport;
 
     HttpExternalEtaGateway(
             RestClient.Builder restClientBuilder,
             ObjectMapper objectMapper,
-            DownstreamObservationSupport observationSupport) {
-        this.restClientBuilder = restClientBuilder;
+            DownstreamObservationSupport observationSupport,
+            SsrfGuardInterceptor ssrfGuardInterceptor) {
+        // SsrfGuardInterceptor はこの RestClient 専用。レジストリ呼び出し等の
+        // 他の RestClient には適用されない。
+        this.restClient = restClientBuilder
+                .requestInterceptor(ssrfGuardInterceptor)
+                .build();
         this.objectMapper = objectMapper;
         this.observationSupport = observationSupport;
     }
@@ -35,7 +43,7 @@ public class HttpExternalEtaGateway implements ExternalEtaGateway {
                     "delivery.delivery.downstream",
                     service.serviceName(),
                     "quote",
-                    () -> restClientBuilder.build().post()
+                    () -> restClient.post()
                             .uri(service.url())
                             .contentType(MediaType.APPLICATION_JSON)
                             .body(new AdapterEtaRequestPayload(itemNames, preference))

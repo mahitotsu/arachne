@@ -1,7 +1,9 @@
 package com.mahitotsu.arachne.samples.delivery.supportservice.application;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import org.springframework.stereotype.Service;
@@ -33,6 +35,11 @@ import com.mahitotsu.arachne.strands.agent.AgentResult;
 import com.mahitotsu.arachne.strands.agent.AgentState;
 import com.mahitotsu.arachne.strands.spring.AgentFactory;
 import com.mahitotsu.arachne.strands.tool.Tool;
+import com.mahitotsu.arachne.strands.tool.ToolInvocationContext;
+import com.mahitotsu.arachne.strands.tool.ToolResult;
+import com.mahitotsu.arachne.strands.model.ToolSpec;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 @Service
 public class SupportApplicationService {
@@ -60,7 +67,6 @@ public class SupportApplicationService {
     private final Tool campaignLookupTool;
     private final Tool serviceStatusLookupTool;
     private final Tool feedbackLookupTool;
-    private final Tool orderHistoryLookupTool;
     private final AgentObservationSupport agentObservationSupport;
     private final SupportExecutionHistoryStore historyStore;
 
@@ -76,7 +82,6 @@ public class SupportApplicationService {
             Tool campaignLookupTool,
             Tool serviceStatusLookupTool,
             Tool feedbackLookupTool,
-            Tool orderHistoryLookupTool,
             AgentObservationSupport agentObservationSupport,
             SupportExecutionHistoryStore historyStore) {
         this.agentFactory = agentFactory;
@@ -90,7 +95,6 @@ public class SupportApplicationService {
         this.campaignLookupTool = campaignLookupTool;
         this.serviceStatusLookupTool = serviceStatusLookupTool;
         this.feedbackLookupTool = feedbackLookupTool;
-        this.orderHistoryLookupTool = orderHistoryLookupTool;
         this.agentObservationSupport = agentObservationSupport;
         this.historyStore = historyStore;
     }
@@ -117,7 +121,7 @@ public class SupportApplicationService {
             .sessionId(request.sessionId())
             .state(agentState)
             .systemPrompt(SUPPORT_PROMPT)
-            .tools(faqLookupTool, campaignLookupTool, serviceStatusLookupTool, feedbackLookupTool, orderHistoryLookupTool)
+            .tools(faqLookupTool, campaignLookupTool, serviceStatusLookupTool, feedbackLookupTool, buildOrderHistoryLookupTool(customerId))
             .build()
             .run(userPrompt.render(), SupportReplyDecision.class));
         SupportReplyDecision decision = decisionResult.structuredOutput(SupportReplyDecision.class);
@@ -203,6 +207,49 @@ public class SupportApplicationService {
             return "support-agent がお問い合わせを受け付けました";
         }
         return "support-agent が " + String.join("・", topics) + " を案内しました";
+    }
+
+    /**
+     * リクエストごとに order_history_lookup ツールを生成し、認証済み customerId をクロージャでキャプチャする。
+     *
+     * <p>Arachne のデフォルト実行モードは PARALLEL（仮想スレッド）であるため、ツール実行スレッドで
+     * SecurityContextHolder や ThreadLocal を参照することは安全でない。
+     * リクエストスレッドで取得した customerId を最終変数としてクロージャにバインドすることで、
+     * ツール引数に customerId を公開することなく正しいユーザーデータへのアクセスを保証する。
+     */
+    private Tool buildOrderHistoryLookupTool(String customerId) {
+        return new Tool() {
+            @Override
+            public ToolSpec spec() {
+                ObjectNode root = JsonNodeFactory.instance.objectNode();
+                root.put("type", "object");
+                root.putObject("properties");
+                root.put("additionalProperties", false);
+                return new ToolSpec("order_history_lookup", "認証済みカスタマーの直近注文履歴を取得する。", root);
+            }
+
+            @Override
+            public ToolResult invoke(Object input) {
+                return invoke(input, new ToolInvocationContext("order_history_lookup", null, input, null));
+            }
+
+            @Override
+            public ToolResult invoke(Object input, ToolInvocationContext context) {
+                List<Map<String, Object>> orders = orderHistorySnapshotStore.get(customerId).stream()
+                        .<Map<String, Object>>map(order -> {
+                            Map<String, Object> mapped = new LinkedHashMap<>();
+                            mapped.put("orderId", order.orderId());
+                            mapped.put("itemSummary", order.itemSummary());
+                            mapped.put("total", order.total());
+                            mapped.put("etaLabel", order.etaLabel());
+                            mapped.put("paymentStatus", order.paymentStatus());
+                            mapped.put("createdAt", order.createdAt());
+                            return mapped;
+                        })
+                        .toList();
+                return ToolResult.success(context.toolUseId(), Map.of("orders", orders));
+            }
+        };
     }
 
     private AgentState agentState(String sessionId) {

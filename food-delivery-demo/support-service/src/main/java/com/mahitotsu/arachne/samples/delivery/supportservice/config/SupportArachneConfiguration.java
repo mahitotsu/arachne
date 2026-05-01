@@ -10,11 +10,9 @@ import org.springframework.context.annotation.Configuration;
 
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.mahitotsu.arachne.samples.delivery.supportservice.domain.CustomerOrderHistoryEntry;
 import com.mahitotsu.arachne.samples.delivery.supportservice.infrastructure.CampaignRepository;
 import com.mahitotsu.arachne.samples.delivery.supportservice.infrastructure.FaqRepository;
 import com.mahitotsu.arachne.samples.delivery.supportservice.infrastructure.FeedbackRepository;
-import com.mahitotsu.arachne.samples.delivery.supportservice.infrastructure.OrderHistorySnapshotStore;
 import com.mahitotsu.arachne.samples.delivery.supportservice.infrastructure.SupportStatusGateway;
 import com.mahitotsu.arachne.strands.model.Model;
 import com.mahitotsu.arachne.strands.model.ToolSpec;
@@ -179,50 +177,6 @@ class SupportArachneConfiguration {
                         })
                         .toList();
                 return ToolResult.success(context.toolUseId(), Map.of("entries", entries));
-            }
-        };
-    }
-
-    @Bean
-    Tool orderHistoryLookupTool(OrderHistorySnapshotStore snapshotStore) {
-        return new Tool() {
-            @Override
-            public ToolSpec spec() {
-                ObjectNode root = JsonNodeFactory.instance.objectNode();
-                root.put("type", "object");
-                ObjectNode properties = root.putObject("properties");
-                properties.putObject("customerId")
-                        .put("type", "string")
-                        .put("description", "注文履歴を参照する顧客ID");
-                root.putArray("required").add("customerId");
-                root.put("additionalProperties", false);
-                return new ToolSpec("order_history_lookup", "認証済みカスタマーの直近注文履歴を取得する。", root);
-            }
-
-            @Override
-            public ToolResult invoke(Object input) {
-                return invoke(input, new ToolInvocationContext("order_history_lookup", null, input, null));
-            }
-
-            @Override
-            public ToolResult invoke(Object input, ToolInvocationContext context) {
-                Map<String, Object> values = values(input);
-                String customerId = String.valueOf(values.getOrDefault("customerId", ""));
-                List<Map<String, Object>> orders = snapshotStore.get(customerId).stream()
-                        .<Map<String, Object>>map(order -> orderEntry(order))
-                        .toList();
-                return ToolResult.success(context.toolUseId(), Map.of("orders", orders));
-            }
-
-            private Map<String, Object> orderEntry(CustomerOrderHistoryEntry order) {
-                Map<String, Object> mapped = new LinkedHashMap<>();
-                mapped.put("orderId", order.orderId());
-                mapped.put("itemSummary", order.itemSummary());
-                mapped.put("total", order.total());
-                mapped.put("etaLabel", order.etaLabel());
-                mapped.put("paymentStatus", order.paymentStatus());
-                mapped.put("createdAt", order.createdAt());
-                return mapped;
             }
         };
     }

@@ -46,7 +46,7 @@ final class SupportDeterministicModel implements Model {
                     new ModelEvent.ToolUse(
                             "history-lookup",
                             "order_history_lookup",
-                            Map.of("customerId", extractCustomerId(query))),
+                            Map.of()),
                     new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
         }
         if (intent.includesFeedback() && latestToolContent(messages, "feedback-lookup") == null) {
@@ -151,24 +151,6 @@ final class SupportDeterministicModel implements Model {
             }
         }
         return "";
-    }
-
-    private String extractCustomerId(String query) {
-        String marker = "customerId=";
-        int markerIndex = query.indexOf(marker);
-        if (markerIndex < 0) {
-            return "";
-        }
-        int start = markerIndex + marker.length();
-        int end = start;
-        while (end < query.length()) {
-            char current = query.charAt(end);
-            if (Character.isWhitespace(current) || current == '。' || current == ',' || current == ';') {
-                break;
-            }
-            end++;
-        }
-        return query.substring(start, end);
     }
 
     private List<String> extractStrings(Map<String, Object> toolResult, String listKey, String valueKey) {
