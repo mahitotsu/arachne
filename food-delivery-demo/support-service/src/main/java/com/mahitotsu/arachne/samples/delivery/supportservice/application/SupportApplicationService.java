@@ -8,6 +8,8 @@ import java.util.Objects;
 
 import org.springframework.stereotype.Service;
 
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.mahitotsu.arachne.samples.delivery.supportservice.api.SupportChatRequest;
 import com.mahitotsu.arachne.samples.delivery.supportservice.api.SupportChatResponse;
 import com.mahitotsu.arachne.samples.delivery.supportservice.api.SupportFeedbackRequest;
@@ -28,18 +30,16 @@ import com.mahitotsu.arachne.samples.delivery.supportservice.infrastructure.Feed
 import com.mahitotsu.arachne.samples.delivery.supportservice.infrastructure.OrderHistoryGateway;
 import com.mahitotsu.arachne.samples.delivery.supportservice.infrastructure.OrderHistorySnapshotStore;
 import com.mahitotsu.arachne.samples.delivery.supportservice.infrastructure.SupportStatusGateway;
-import com.mahitotsu.arachne.samples.delivery.supportservice.observation.ArachneLifecycleHistoryListener;
 import com.mahitotsu.arachne.samples.delivery.supportservice.observation.AgentObservationSupport;
+import com.mahitotsu.arachne.samples.delivery.supportservice.observation.ArachneLifecycleHistoryListener;
 import com.mahitotsu.arachne.samples.delivery.supportservice.observation.SupportExecutionHistoryStore;
 import com.mahitotsu.arachne.strands.agent.AgentResult;
 import com.mahitotsu.arachne.strands.agent.AgentState;
+import com.mahitotsu.arachne.strands.model.ToolSpec;
 import com.mahitotsu.arachne.strands.spring.AgentFactory;
 import com.mahitotsu.arachne.strands.tool.Tool;
 import com.mahitotsu.arachne.strands.tool.ToolInvocationContext;
 import com.mahitotsu.arachne.strands.tool.ToolResult;
-import com.mahitotsu.arachne.strands.model.ToolSpec;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 
 @Service
 public class SupportApplicationService {

@@ -64,7 +64,7 @@ const services = [
     port: '8088',
     role: '外部 ETA アダプター（常に遅延）',
     agent: false,
-    note: '外部配送会社のモック。常に NOT_AVAILABLE を返すことで、delivery-service がフォールバックを正しく処理するかを検証できる。',
+    note: '外部配送会社のモック。15 秒サイクルで周期的に停止する。delivery-service が外部候補の可用性変動を正しく処理するかを検証できる。',
   },
   {
     name: 'idaten-adapter',
