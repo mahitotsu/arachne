@@ -8,70 +8,70 @@ const services = [
     port: '8080',
     role: '注文ワークフロー coordinator',
     agent: true,
-    note: '4 ステップの workflow API（suggest → confirm-items → confirm-delivery → confirm-payment）を持つ。menu / delivery / payment / support をダウンストリームに持ち、registry 経由で動的に解決する。',
+    note: '4 ステップの workflow API（suggest → confirm-items → confirm-delivery → confirm-payment）を持ちます。menu / delivery / payment / support をダウンストリームに持ち、registry 経由で動的に解決します。',
   },
   {
     name: 'menu-service',
     port: '8081',
     role: 'メニュー提案・合計計算',
     agent: true,
-    note: '曖昧な注文意図を具体的な商品提案に変換する。catalog_lookup・calculate_total ツールを持ち、欠品時は kitchen-service と連携して代替候補を提示する。',
+    note: '曘昧な注文意図を具体的な商品提案に変換します。catalog_lookup・calculate_total ツールを持ち、欠品時は kitchen-service と連携して代替候補を提示します。',
   },
   {
     name: 'kitchen-service',
     port: '8082',
     role: 'キッチン状況管理',
     agent: true,
-    note: '厨房のキャパシティと仕込み状況を管理する。注文確定時に準備スケジュールを調整し、混雑時は代替提案をエージェントが生成する。',
+    note: '厄房のキャパシティと仕込み状況を管理します。注文確定時に準備スケジュールを調整し、混雑時は代替提案をエージェントが生成します。',
   },
   {
     name: 'delivery-service',
     port: '8083',
     role: '配送 ETA 評価・推奨',
     agent: true,
-    note: 'registry-service を通じて外部 ETA サービスを動的に発見し、自社急配と比較して推奨配送プランを返す。capability-based discovery の主な実証箇所。',
+    note: 'registry-service を通じて外部 ETA サービスを動的に発見し、自社急配と比較して推奨配送プランを返します。capability-based discovery の主な実証箇所です。',
   },
   {
     name: 'payment-service',
     port: '8084',
     role: '支払い処理',
     agent: false,
-    note: 'エージェントを持たない。支払い準備と課金確定は決定論的コードで実行する。「正解が必要な処理はコードで守る」という設計方針の体現。',
+    note: 'エージェントを持ちません。支払い準備と課金確定は決定論的コードで実行します。「正解が必要な処理はコードで守る」という設計方针の体現です。',
   },
   {
     name: 'customer-service',
     port: '8085',
     role: '認証・顧客情報管理',
     agent: false,
-    note: 'デモアカウント認証（demo/demo-pass など）と顧客プロフィールを提供する。JWT 発行と JWKS 公開を担い、他サービスがトークンを検証する。',
+    note: 'デモアカウント認証（demo/demo-pass など）と顧客プロフィールを提供します。JWT 発行と JWKS 公開を担い、他サービスがトークンを検証します。',
   },
   {
     name: 'support-service',
     port: '8086',
     role: '会話型サポート窓口',
     agent: true,
-    note: '注文フローとは分離した会話インターフェース。FAQ・キャンペーン・サービス稼働状況・注文後フォローを扱う。[HANDOFF: order] で注文ページへの誘導も行う。',
+    note: '注文フローとは分離した会話インターフェースです。FAQ・キャンペーン・サービス稼働状況・注文後フォローを扱います。[HANDOFF: order] で注文ページへの誘導も行います。',
   },
   {
     name: 'registry-service',
     port: '8087',
     role: 'サービス登録・capability 検索',
     agent: false,
-    note: '各サービスが起動時に自己登録する。POST /registry/discover がランタイムの collaborator resolution、GET /registry/services が viewer/inventory 用と、2 つの API を意図的に分けている。',
+    note: '各サービスが起動時に自己登録します。POST /registry/discover がランタイムの collaborator resolution、GET /registry/services が viewer/inventory 用と、2 つの API を意図的に分けています。',
   },
   {
     name: 'hermes-adapter',
     port: '8088',
     role: '外部 ETA アダプター（常に遅延）',
     agent: false,
-    note: '外部配送会社のモック。15 秒サイクルで周期的に停止する。delivery-service が外部候補の可用性変動を正しく処理するかを検証できる。',
+    note: '外部配送会社のモックです。15 秒サイクルで周期的に停止します。delivery-service が外部候補の可用性変動を正しく処理するかを検証できます。',
   },
   {
     name: 'idaten-adapter',
     port: '8089',
     role: '外部 ETA アダプター（常に最速）',
     agent: false,
-    note: '外部配送会社のモック。常に最短 ETA で AVAILABLE を返す。hermes-adapter と対にすることで、delivery-service の比較ロジックが機能することを確認できる。',
+    note: '外部配送会社のモックです。常に最短 ETA で AVAILABLE を返します。hermes-adapter と対にすることで、delivery-service の比較ロジックが機能することを確認できます。',
   },
 ];
 
@@ -80,19 +80,19 @@ const surfaces = [
     path: '/order',
     title: '4 ステップ注文 UI',
     steps: ['意図入力', '商品選択', '配送選択', '支払い確認'],
-    desc: 'ユーザーの注文意図を段階的に確定させる workflow-first UI。各ステップで AI が提案と理由を返し、ユーザーが選択・調整する。会話的な自由入力と structured workflow の組み合わせが特徴。',
+    desc: 'ユーザーの注文意図を段階的に確定させる workflow-first UI です。各ステップで AI が提案と理由を返し、ユーザーが選択・調整します。会話的な自由入力と structured workflow の組み合わせが特徴です。',
   },
   {
     path: '/support',
     title: '会話型サポート',
     steps: ['FAQ', 'キャンペーン', '稼働状況確認', '注文後フォロー'],
-    desc: '注文フローとは分離したサポート専用の会話窓口。support-service のエージェントが対話を担う。注文関連の問い合わせには [HANDOFF: order] リンクで /order に誘導できる。',
+    desc: '注文フローとは分離したサポート専用の会話窓口です。support-service のエージェントが対話を担います。注文関連の問い合わせには [HANDOFF: order] リンクで /order に誘導できます。',
   },
   {
     path: '/agents',
     title: 'サービスビューワー',
     steps: ['サービス一覧', 'プロンプト確認', 'スキル一覧', 'OpenAPI 仕様'],
-    desc: 'registry-service の GET /registry/services を使い、登録済みサービスのカード一覧を表示する。各カードからシステムプロンプト・スキル・OpenAPI 仕様（x-ai-prompt-contract 含む）を確認できる inventory viewer。',
+    desc: 'registry-service の GET /registry/services を使い、登録済みサービスのカード一覧を表示します。各カードからシステムプロンプト・スキル・OpenAPI 仕様（x-ai-prompt-contract 含む）を確認できます。',
   },
 ];
 ---
@@ -108,7 +108,7 @@ const surfaces = [
     <p class="panel__eyebrow">デモを読む上での視点</p>
     <p>
       このデモで重要なのはエージェントの数ではなく、<strong>エージェントを持つサービスと持たないサービスの対比</strong>です。
-      menu / delivery / support はエージェントが自然言語の解釈を担い、payment / customer / registry は決定論的コードで責務を果たす。
+      menu / delivery / support はエージェントが自然言語の解釈を担い、payment / customer / registry は決定論的コードで責務を果たします。
       この設計の違いが「自然言語フロントドア」という仮説の実装上の答えです。
     </p>
   </section>

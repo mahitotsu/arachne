@@ -5,15 +5,15 @@ import SiteLayout from '../layouts/SiteLayout.astro';
 const pillars = [
   {
     title: '仮説',
-    body: 'AI エージェントはサービスを置き換えるのではなく、既存サービスの自然言語フロントドアとして追加する。従来の API は機械間連携の正本として残し、金額計算・課金・認可といった正確性が要る処理はコードで守る。',
+    body: 'AI エージェントはサービスを置き換えるのではなく、既存サービスの自然言語フロントドアとして追加します。従来の API は機械間連携の正本として残し、金額計算・課金・認可といった正確性が要る処理はコードで守ります。',
   },
   {
     title: 'Arachne',
-    body: 'AWS Strands Agents の Python SDK を Java に移植し、Spring Boot 統合を加えたエージェント実行フレームワーク。Spring の DI・Bean・Actuator・Security 資産をそのまま活かしながら、既存の Spring アプリにエージェントを組み込める。',
+    body: 'AWS Strands Agents の Python SDK を Java に移植し、Spring Boot 統合を加えたエージェント実行フレームワークです。Spring の DI・Bean・Actuator・Security 資産をそのまま活かしながら、既存の Spring アプリにエージェントを組み込めます。',
   },
   {
     title: 'food-delivery-demo',
-    body: 'クラウドキッチンの注文・配送システムを 10 サービスで実装した実証環境。どのサービスにエージェントを置き、どのサービスには置かないかを意図的に設計し、仮説の正否を動くコードで示す。',
+    body: 'クラウドキッチンの注文・配送システムを 10 サービスで実装した実証環境です。どのサービスにエージェントを置き、どのサービスには置かないかを意図的に設計し、仮説の正否を動くコードで示します。',
   },
 ];
 
@@ -22,17 +22,17 @@ const routes = [
   {
     href: `${base}/essay`,
     label: 'Essay',
-    body: '仮説の論拠、Arachne の設計意図、demo の読み方を長文で整理する。',
+    body: '仮説の論拠、Arachne の設計意図、demo の読み方を長文で整理します。',
   },
   {
     href: `${base}/demo`,
     label: 'Demo',
-    body: 'food-delivery-demo のサービス構成、設計上の判断、3 つの UI 公開面を解説する。',
+    body: 'food-delivery-demo のサービス構成、設計上の判断、3 つの UI 公開面を解説します。',
   },
   {
     href: `${base}/appendix`,
     label: 'Appendix',
-    body: '設計仮説と実装の対応関係、および OpenAPI・メトリクス・実行履歴といった技術的証拠をまとめる。',
+    body: '設計仮説と実装の対応関係、および OpenAPI・メトリクス・実行履歴といった技術的証拠をまとめます。',
   },
 ];
 ---
@@ -59,9 +59,9 @@ const routes = [
       <h2>仮説・実装・検証の 3 ステップが、このサイトの論理構造です</h2>
     </div>
     <ol class="story-band__list">
-      <li><strong>Essay</strong> でエージェント活用の失敗パターンを整理し、「自然言語フロントドア」という設計仮説を立てる。</li>
-      <li><strong>Demo</strong> で food-delivery-demo の構成を確認し、どの設計判断がどの仮説に対応しているかを読む。</li>
-      <li><strong>Appendix</strong> で OpenAPI・実行履歴・メトリクスといった技術的証拠から、仮説が実装されていることを確認する。</li>
+      <li><strong>Essay</strong> でエージェント活用の失敗パターンを整理し、「自然言語フロントドア」という設計仮説を立てます。</li>
+      <li><strong>Demo</strong> で food-delivery-demo の構成を確認し、どの設計判断がどの仮説に対応しているかを読みます。</li>
+      <li><strong>Appendix</strong> で OpenAPI・実行履歴・メトリクスといった技術的証拠から、仮説が実装されていることを確認します。</li>
     </ol>
   </section>
 

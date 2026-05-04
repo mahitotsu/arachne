@@ -5,66 +5,66 @@ import SiteLayout from '../../layouts/SiteLayout.astro';
 const designRows = [
   {
     principle: 'AI エージェントは自然言語フロントドアとして追加する',
-    impl: 'menu-service・delivery-service・support-service にエージェントを置き、ユーザーの曖昧な入力を解釈する責務を担わせる',
-    check: 'order-service の suggest API がユーザー入力を menu-service に渡し、menu-service のエージェントが商品提案を返す流れで確認できる',
+    impl: 'menu-service・delivery-service・support-service にエージェントを置き、ユーザーの曖昧な入力を解釈する責務を担わせます',
+    check: 'order-service の suggest API がユーザー入力を menu-service に渡し、menu-service のエージェントが商品提案を返す流れで確認できます',
   },
   {
     principle: '従来の API は機械間連携の正本契約として残す',
-    impl: '全サービスが REST API と OpenAPI 仕様を公開し、エージェントはその API をツールとして呼び出す形を維持する',
-    check: '/agents の API 仕様タブから各サービスの OpenAPI を確認できる。エージェントのツール定義も同じ API 上に乗っている',
+    impl: '全サービスが REST API と OpenAPI 仕様を公開し、エージェントはその API をツールとして呼び出す形を維持します',
+    check: '/agents の API 仕様タブから各サービスの OpenAPI を確認できます。エージェントのツール定義も同じ API 上に乗っています',
   },
   {
     principle: '金額計算・課金・認可は決定論的コードで処理する',
-    impl: 'payment-service はエージェントを持たず、支払い準備と課金確定をコードで完結させる',
-    check: 'payment-service の /v3/api-docs で intent.rawMessage を受け取り、PaymentProfileRepository が決定論的に処理することを確認できる',
+    impl: 'payment-service はエージェントを持たず、支払い準備と課金確定をコードで完結させます',
+    check: 'payment-service の /v3/api-docs で intent.rawMessage を受け取り、PaymentProfileRepository が決定論的に処理することを確認できます',
   },
   {
     principle: 'system prompt はエンジニアが管理するシステム制約として書く',
-    impl: '各エージェントの system prompt はソースコード中に置き、役割・制約・ツール利用方針・言語設定を明示する',
-    check: '/agents のサービスカードを開くと、登録済みの system prompt をそのまま読める',
+    impl: '各エージェントの system prompt はソースコード中に置き、役割・制約・ツール利用方針・言語設定を明示します',
+    check: '/agents のサービスカードを開くと、登録済みの system prompt をそのまま読めます',
   },
   {
     principle: 'skill は業務知識の公開面として分離する',
-    impl: 'menu-service と kitchen-service は商品説明・推薦ロジック・仕込みスケジュール方針を SKILL.md に分離し、ResourceLoader で読み込む。さらに menu-service はスキル発動条件も SKILL.md の activationHint フロントマターに記述し、MenuServiceConfiguration が起動時にパースしてシステムプロンプトへ動的に注入する。スキル内容だけでなくスキル選択条件自体が SKILL.md に集約されており、業務担当者がコード変更なしにメンテできる構造になっている',
-    check: '/agents のスキルタブで system prompt とは別に管理されているスキルドキュメントを確認できる。proactive-recommendation と family-order-guide の SKILL.md に activationHint が定義されており、これがそのままエージェントのスキル発動セクションに変換される',
+    impl: 'menu-service と kitchen-service は商品説明・推薦ロジック・仕込みスケジュール方針を SKILL.md に分離し、ResourceLoader で読み込みます。さらに menu-service はスキル発動条件も SKILL.md の activationHint フロントマターに記述し、MenuServiceConfiguration が起動時にパースしてシステムプロンプトへ動的に注入します。スキル内容だけでなくスキル選択条件自体が SKILL.md に集約されており、業務担当者がコード変更なしにメンテできる構造になっています',
+    check: '/agents のスキルタブで system prompt とは別に管理されているスキルドキュメントを確認できます。proactive-recommendation と family-order-guide の SKILL.md に activationHint が定義されており、これがそのままエージェントのスキル発動セクションに変換されます',
   },
   {
     principle: 'サービス間の collaborator 解決は capability ベースで動的に行う',
-    impl: 'order / kitchen / menu / support / delivery が起動時に registry-service へ自己登録し、ダウンストリーム解決は POST /registry/discover で行う',
-    check: 'delivery-service が hermes-adapter と idaten-adapter を discover 経由で発見し、ETA を比較して推奨を返すフローで確認できる',
+    impl: 'order / kitchen / menu / support / delivery が起動時に registry-service へ自己登録し、ダウンストリーム解決は POST /registry/discover で行います',
+    check: 'delivery-service が hermes-adapter と idaten-adapter を discover 経由で発見し、ETA を比較して推奨を返すフローで確認できます',
   },
   {
     principle: '会話責務・workflow 責務・仕様閲覧責務は UI レベルでも分離する',
-    impl: 'カスタマー UI を /order（workflow）・/support（会話）・/agents（viewer）の 3 ページに分け、責務を混在させない',
-    check: '/support は注文フローと独立しており、/order での workflow 処理中でも別タブでサポートに問い合わせできる',
+    impl: 'カスタマー UI を /order（workflow）・/support（会話）・/agents（viewer）の 3 ページに分け、責務を混在させません',
+    check: '/support は注文フローと独立しており、/order での workflow 処理中でも別タブでサポートに問い合わせできます',
   },
 ];
 
 const artifactRows = [
   {
     artifact: 'OpenAPI（/v3/api-docs）',
-    location: '全 10 サービスが各自 /v3/api-docs と /swagger-ui.html を公開。認証が必要なサービスも /v3/api-docs は匿名アクセスを許可',
-    purpose: 'エージェントのツール定義と REST API 仕様を同一の contract として管理し、実装と説明が乖離しない状態を保つ',
+    location: '全 10 サービスが各自 /v3/api-docs と /swagger-ui.html を公開しています。認証が必要なサービスも /v3/api-docs は匿名アクセスを許可しています',
+    purpose: 'エージェントのツール定義と REST API 仕様を同一の contract として管理し、実装と説明が乖離しない状態を保ちます',
   },
   {
     artifact: 'x-ai-prompt-contract',
-    location: 'order・delivery・payment 等の AI 向け operation に OpenAPI extension として付与。requiredInputs / optionalInputs / serviceBehavior を持つ',
-    purpose: 'prompt を黒箱のままにせず、エージェントが期待する入力構造とサービスの振る舞いを OpenAPI 上で読めるようにする',
+    location: 'order・delivery・payment 等の AI 向け operation に OpenAPI extension として付与しています。requiredInputs / optionalInputs / serviceBehavior を持ちます',
+    purpose: 'prompt を黒箱のままにせず、エージェントが期待する入力構造とサービスの振る舞いを OpenAPI 上で読めるようにします',
   },
   {
     artifact: '実行履歴（/execution-history/{sessionId}）',
-    location: 'order / menu / kitchen / delivery / support の 5 サービスが /execution-history/{sessionId} を公開。カスタマー UI がファンアウトして時系列集約',
-    purpose: 'エージェントがどのツールをどの順序で呼び出し、どの結果を受け取ったかを利用者が追える。開発者向けトレースではなくユーザー向け証跡として設計',
+    location: 'order / menu / kitchen / delivery / support の 5 サービスが /execution-history/{sessionId} を公開しています。カスタマー UI がファンアウトして時系列集約します',
+    purpose: 'エージェントがどのツールをどの順序で呼び出し、どの結果を受け取ったかを利用者が追えます。開発者向けトレースではなくユーザー向け証跡として設計しています',
   },
   {
     artifact: 'Micrometer メトリクス（/actuator/metrics）',
-    location: 'delivery.order.workflow（ワークフロー入口）・delivery.order.downstream（各ゲートウェイ呼び出し）・delivery.order.registry.lookup・delivery.agent.* を計測',
-    purpose: 'エージェント経由の処理でも「どこで時間がかかるか」「registry lookup は何回成功しているか」を数値で観測できる',
+    location: 'delivery.order.workflow（ワークフロー入口）・delivery.order.downstream（各ゲートウェイ呼び出し）・delivery.order.registry.lookup・delivery.agent.* を計測しています',
+    purpose: 'エージェント経由の処理でも「どこで時間がかかるか」「registry lookup は何回成功しているか」を数値で観測できます',
   },
   {
     artifact: 'Registry API の 2 分割',
-    location: 'POST /registry/discover がランタイムの collaborator resolution 用。GET /registry/services が viewer / inventory 用',
-    purpose: 'サービスメッシュの経路解決と UI の棚卸し表示を別 API に分けることで、設計意図がそのまま API 構造に見える',
+    location: 'POST /registry/discover がランタイムの collaborator resolution 用。GET /registry/services が viewer / inventory 用です',
+    purpose: 'サービスメッシュの経路解決と UI の棚卸し表示を別 API に分けることで、設計意図がそのまま API 構造に見えます',
   },
 ];
 ---
