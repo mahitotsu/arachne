@@ -1,0 +1,111 @@
+---
+title: capability-based discovery と service mesh はなにが違うのか
+summary: サービスメッシュと capability-based discovery を混同したまま設計を進めると、解かれる問題が噛み合わなくなります。food-delivery-demo の registry-service を題材に、この 2 つが解く問いの違いと、capability query 駆動の collaborator 解決がどう動くかを整理します。
+publishDate: 2026-05-05
+order: 2
+tags:
+  - architecture
+  - food-delivery-demo
+  - registry
+  - service-mesh
+---
+
+## service mesh が解く問いと、解かない問い
+
+service mesh（Istio、Linkerd など）が解決するのは、L4/L7 レベルの通信管理です。「order-service が menu-service に HTTP でリクエストを送るとき、TLS を確立して、リトライを制御して、トレースを収集する」という問いに答えます。
+
+ただし、service mesh が答えない問いがあります。
+
+**「このリクエストを処理できる capability を持つサービスは、いま誰か」**
+
+service mesh は、あらかじめ定義されたルーティング設定に基づいて通信を制御します。つまり、呼び出し先のサービス名を呼び出し側が知っていることが前提です。注文サービスが「menu-service」というサービス名を静的に設定ファイルに書き、mesh がその名前に基づいて通信を管理する、という構造です。
+
+この前提は「サービスの名前と役割が事前に確定している」ときには問題ありません。しかし、食材不足のときに代替候補を提案できるサービスが誰かとか、外部 ETA を提供できるパートナーサービスが今いくつ稼働しているかといった、**実行時に初めて解決すべき問い**には答えられません。
+
+## capability-based discovery という発想
+
+food-delivery-demo に実装した registry-service の POST /registry/discover は、この問いに答えるための API です。
+
+呼び出し方は次のようになります。
+
+```json
+POST /registry/discover
+{
+  "query": "曖昧な注文意図を具体的な商品提案に変換",
+  "availableOnly": true
+}
+```
+
+レスポンスには、そのクエリに最もマッチするサービスの descriptor（エンドポイント URL、requestPath、capability 説明、ヘルス状態）が返ります。呼び出し側は、サービス名を一切知らずにクエリだけを送れます。
+
+このクエリは英語のキーワードではなく、**日本語の自然言語で書かれた業務能力の記述**です。「外部 ETA を提供するサービスは？」「欠品時の代替候補提示ができるサービスを教えて」という形で問い合わせます。
+
+## registry-service の内側
+
+registry-service は POST /registry/discover を受け取ると、それを capability-registry-agent に委ねます。このエージェントは `capability_match` ツールを呼び出して、登録済みサービスの capability 説明と自然言語クエリを照合します。その後 `RegistryDiscoveryDecision`（selectedServiceNames、summary）を structured output として返し、サービス側がその結果でレスポンスを組み立てます。
+
+```java
+public RegistryDiscoverResponse discover(RegistryDiscoverRequest request) {
+    List<RegistryServiceDescriptor> matches =
+        repository.discover(request.query(), availableOnly);
+    AgentResult decisionResult = agentFactory.builder()
+        .systemPrompt(DISCOVERY_PROMPT)
+        .tools(capabilityMatchTool)
+        .build()
+        .run("問い合わせ: " + request.query(), RegistryDiscoveryDecision.class);
+    RegistryDiscoveryDecision decision =
+        decisionResult.structuredOutput(RegistryDiscoveryDecision.class);
+    List<RegistryServiceDescriptor> selectedMatches =
+        selectMatches(matches, decision.selectedServiceNames());
+    return new RegistryDiscoverResponse(
+        "registry-service", "capability-registry-agent",
+        decision.summary(), selectedMatches);
+}
+```
+
+`RegistryApplicationService.java` の実装がそのままこの流れを示しています。
+
+## 呼び出し側の実装 ── capabilityQuery と RegistryServiceEndpointResolver
+
+呼び出し側のサービスは、ダウンストリームごとに `capabilityQuery` を設定として持ちます。order-service では `OrderRegistryProperties.ServiceTarget` がクエリ文字列を保持し、`RegistryServiceEndpointResolver.resolveUrl(capabilityQuery, fallbackRequestPath)` が POST /registry/discover を叩いて実際の URL を返します。
+
+```java
+// RegistryBackedMenuGateway.java
+.uri(endpointResolver.resolveUrl(menuCapabilityQuery, "/internal/menu/suggest"))
+```
+
+`menuCapabilityQuery` は `OrderRegistryProperties` から取得します。値は「曖昧な注文意図を具体的な商品提案に変換」のような文字列です。この文字列を見れば、なぜそのサービスを呼ぶのかが自然言語で説明されています。
+
+menu-service、kitchen-service、support-service でも同様の構造です。kitchen-service は欠品代替を問い合わせるために「欠品時の代替候補提示」という capability query を持ち、delivery-service は外部 ETA 業者を見つけるために「外部 ETA を提供するサービス」を query として使います。
+
+## GET /registry/services との使い分け
+
+POST /registry/discover と GET /registry/services は意図が異なります。
+
+**POST /registry/discover** は実行時の collaborator 解決用です。「今、このリクエストを処理できるのは誰か」を問います。エージェントが自然言語クエリで呼び出す、ランタイムパスの API です。
+
+**GET /registry/services** は棚卸し・閲覧用です。登録済みの全サービスを返します。customer-ui の `/agents` ページが呼び出し、サービスカード・system prompt・スキル一覧を表示するために使います。ランタイムの協調ではなく、人間や監視ツールが「今どんなサービスが登録されているか」を確認するための API です。
+
+この 2 つを同一 API にしなかった理由は、アクセスパターンが根本的に異なるからです。discover はクエリ引数つきで呼ばれ、エージェントが LLM を使って結果を絞り込みます。services は全件を返す読み取り専用のリストです。同一 API にすると、discover 側の「LLM が選ぶ」という振る舞いを viewer 側にも強制することになります。
+
+## service mesh との関係
+
+capability-based discovery は service mesh の代替ではありません。
+
+service mesh は通信の信頼性と可観測性を担います。capability-based discovery は「誰に送るか」を決めます。food-delivery-demo でも、もし本番を想定するなら registry-service の resolve 結果で得た endpoint URL に対して service mesh 経由でリクエストを送ることは十分ありえます。
+
+ただし、AI エージェントが協調する構造では、**呼び出し先のサービス名を設計時に確定することが難しいケース**があります。delivery-service が ETA 比較のために呼ぶべき外部パートナーの数は、運用中に変わります。kitchen-service が欠品代替を委ねる先が「menu-service」という固定名でよいのか、将来別のサービスが担うかもしれない。そういう構造に対して、「設定ファイルにサービス名を書く」という前提は脆くなります。
+
+capability-based discovery が解くのは、この**設計時には確定できない協調関係**の部分です。mesh が解くレイヤーより上位で、「誰が担当するか」の解決を業務能力の記述に委ねる、という役割分担です。
+
+## この設計のトレードオフ
+
+正直に書いておくと、この設計にはコストがあります。
+
+POST /registry/discover のたびに LLM が動きます。food-delivery-demo では `RegistryServiceEndpointResolver` 側でキャッシュしているため、起動後しばらくすると registry への問い合わせは減ります。しかし、キャッシュが切れるたびにエージェントが走ります。
+
+また、capability の記述と query の文言が食い違うと、発見が失敗します。テキストマッチングだけであれば意図した文言を書けば済みますが、LLM が解釈する余地が入ると、意図していないサービスが選ばれる可能性があります。このため `RegistryServiceApiTest` では「外部 ETA を提供するサービスは？」「メニュー代替を扱うサービスは？」といった自然言語クエリで期待サービスが返ることを回帰テストしています。
+
+さらに、registry-service が単一障害点になります。food-delivery-demo では registry が落ちると resolve が止まります。本番化するなら、キャッシュ戦略と registry の冗長化が必要です。
+
+これらのコストを受け入れてでもこの設計を採用したのは、**動的に変化する協調関係を宣言的に記述できる**という利点を優先したからです。呼び出し側のコードに「menu-service」という文字列を書くのではなく、「曖昧な注文意図を具体的な商品提案に変換できるサービス」と書く。その文字列が、システム設計の意図の記述でもあります。

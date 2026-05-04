@@ -1,0 +1,112 @@
+---
+title: Arachne の実装判断 ── blocking runtime とセッション永続化
+summary: Strands Agents Python SDK を Java に移植するとき、非同期・ストリーミング・セッション管理・interrupt の設計でいくつかの判断を迫られました。そのうち決着したものと、まだ未解決のコーナーがあるものを整理します。
+publishDate: 2026-05-05
+order: 5
+tags:
+  - arachne
+  - architecture
+  - session
+  - interrupt
+---
+
+## なぜ Arachne を作ったか
+
+Python 版の Strands Agents SDK を Java + Spring Boot の業務システムに持ち込もうとしたとき、いくつかの障壁があります。
+
+まず言語の壁。Python の async/await モデルと Java のスレッドモデルは根本的に異なります。Python 版がそのまま動く JVM ラッパーはありません。
+
+次に Spring との統合。Spring Security のスレッドコンテキスト、Micrometer によるメトリクス収集、Spring Session による永続化、`@Bean` による DI ── これらは Spring エコシステムの中で初めてスムーズに機能します。外部ライブラリをそこに接続するアダプターを自前で書くコストは、移植を書くコストと大差ありません。
+
+そこで Python 版を**行動仕様のリファレンス**として扱い、Java に移植したのが Arachne です。コアフローの `Agent → EventLoop → Model / Tool` は Python 版と同じ考え方を踏まえていますが、実装は Java と Spring に合わせて書き直しています。
+
+## blocking runtime という選択
+
+最初の設計判断は「同期 blocking runtime を基本にする」ことです。
+
+Python 版は async を前提としていますが、Spring MVC / Spring Boot の業務アプリケーションは多くの場合、同期リクエスト処理モデルで書かれています。Servlet スレッドが処理を完結させ、レスポンスを返す、というモデルです。ここに async/reactive を混在させると、Spring Security のスレッドローカルコンテキスト伝播や、既存のトランザクション境界と噛み合わなくなります。
+
+`Agent.run(prompt)` は blocking で最終回答を返します。`EventLoop` が内部でツール呼び出しのループを回しますが、呼び出し元スレッドはその完了を待ちます。
+
+blocking runtime の上にストリーミングを重ねるという構造にしました。`Agent.stream(prompt, eventConsumer)` はストリーミングのオーバーロードです。エージェントが内部で LLM レスポンスをチャンク単位で処理しながら `AgentStreamEvent` を `Consumer` コールバックに渡し、最終的には `AgentResult` を返します。ストリーミングを使わない既存のコードは一切影響を受けません。
+
+この設計を採用したのは「sync ユーザーを reactive や streaming の経路に強制しない」という原則からです。
+
+## セッション管理 ── Spring Session に乗る
+
+エージェントをマルチターン会話に対応させるには、会話履歴（`messages`）をリクエストをまたいで保持する必要があります。`DefaultAgent` はメッセージリストをインスタンスに持ちますが、HTTP サーバーでは 1 リクエストごとに新しい `Agent` インスタンスが作られます。
+
+Arachne のセッション管理は `SessionManager` インターフェースで抽象化し、`ArachneAutoConfiguration` が Spring Session の `SessionRepository` を検出したときは `SpringSessionManager` を使います。
+
+```java
+// ArachneAutoConfiguration.java
+@Bean
+@ConditionalOnMissingBean
+public SessionManager sessionManager(...) {
+    if (/* file-based mode */) {
+        return new FileSessionManager(Path.of(directory), objectMapper);
+    }
+    if (sessionRepository != null) {
+        return new SpringSessionManager(
+            asSessionRepository(sessionRepository), objectMapper);
+    }
+    return new SpringSessionManager(
+        new MapSessionRepository(new ConcurrentHashMap<>()), objectMapper);
+}
+```
+
+Spring Session の Redis 実装（`spring-session-data-redis`）を依存に追加するだけで、会話履歴が Redis に永続化されます。food-delivery-demo ではこれが既定値になっており、Redis が常にセッションストアです（`matchIfMissing=true`）。
+
+`AgentSession` に保存されるのは、メッセージリスト・エージェント状態（`AgentState`）・会話管理状態・保留中の interrupt リストです。`DefaultAgent.restoreSession()` が `run()` の冒頭で呼ばれ、セッション ID が設定されていれば前回の状態を復元します。
+
+## interrupt ── human-in-the-loop の仕組み
+
+`Agent.interrupt(AgentInterrupt...)` を呼ぶと、実行中のエージェントループが次のツール呼び出しの前に一時停止します。停止した状態（`pendingInterrupts`）はセッションに永続化されます。
+
+HTTP 経路では「一時停止してレスポンスを返し、次のリクエストで `resume()` する」という使い方を想定しています。order-service の 4 ステップワークフローはこの仕組みを使っており、各ステップの間でユーザーの確認を待ちます。
+
+```java
+// DefaultAgent.java
+private List<AgentInterrupt> pendingInterrupts = List.of();
+
+public AgentResult resume(List<InterruptResponse> responses) {
+    return resumeInternal(responses);
+}
+
+public List<AgentInterrupt> getPendingInterrupts() {
+    return List.copyOf(pendingInterrupts);
+}
+```
+
+セッションをまたいで interrupt が保持できるため、「今日注文を中断して、明日再開する」という使い方も可能です。
+
+## 未解決のコーナー ── interrupt + structured output
+
+現状で意図的に未解決のままにしているコーナーケースがあります。
+
+**`Agent.run(prompt, StructuredOutputType.class)` の実行中に interrupt が発生したとき**です。
+
+interrupt が起きると、`DefaultAgent` は `pendingInterrupts` をセッションに保存します。resume 後は `resumeInternal()` がツール結果を送り返してループを続けます。このとき通常の `run(String)` であれば問題ありません。
+
+しかし、`run(prompt, MenuSelectionDecision.class)` のように structured output type を指定した呼び出しの場合、型付きの invocation メタデータ（`structuredOutputType`・`structuredOutputPrompt`）がセッションには保存されていません。`restoreSession()` でメッセージ履歴と `pendingInterrupts` は戻りますが、resume 後に「どの型で structured output を取り出すべきか」という情報がありません。
+
+この問題は `DefaultAgent.java` のコメントに明示されています。
+
+```java
+// DefaultAgent.java
+if (loopResult.interrupted()) {
+    throw new UnsupportedOperationException(
+        "Structured output invocation was interrupted. " +
+        "Use Agent#run(String) and AgentResult.resume(...) instead.");
+}
+```
+
+現時点での回避策は、interrupt を使うフローでは `run(String)` を使い、resume 後に structured output が必要なら `AgentResult.resume(...)` の戻り値から型安全でない方法で取り出すというものです。
+
+food-delivery-demo の 4 ステップワークフローは、interrupt を使う各ステップを独立した `run()` 呼び出しに分け、structured output は各ステップの末尾でのみ取り出す設計にしているため、このコーナーケースを回避しています。
+
+## 残る実装課題
+
+interrupt + structured output の問題を解決するには、セッション保存時に typed invocation のメタデータも含める必要があります。`AgentSession` のスキーマを拡張し、`structuredOutputType` の完全クラス名を保存・復元するという方向が考えられます。ただし、この変更はセッションのシリアライゼーションスキーマに影響するため、後方互換性の扱いが必要です。
+
+この課題は意図的に deferred にしています。food-delivery-demo の範囲では現状の回避策で十分であり、より一般的な解決（任意の型でセッションをまたいだ interrupt + structured output を使いたいケース）が具体的なユースケースとして確定するまで、設計を固定しないことを選んでいます。

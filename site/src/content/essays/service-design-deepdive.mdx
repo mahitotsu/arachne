@@ -1,0 +1,109 @@
+---
+title: food-delivery-demo 各サービスの設計を掘り下げる
+summary: どのサービスにエージェントを置き、どこには置かないか。menu-service・kitchen-service・delivery-service・order-service それぞれの設計判断と、サービス間の協調構造を実装から整理します。
+publishDate: 2026-05-05
+order: 4
+tags:
+  - architecture
+  - food-delivery-demo
+  - service-design
+---
+
+## サービス設計の出発点 ── 「エージェントを置くかどうか」
+
+food-delivery-demo を設計するとき、最初に決めたことは「どのサービスにエージェントを置くか、置かないか」です。
+
+エージェントを置く基準はひとつです。**自然言語の入力を解釈して、業務上の判断を下す責務があるかどうか**。この責務がなければ、エージェントを置いても複雑さが増すだけです。
+
+結果として、エージェントを持つのは `menu-service`・`kitchen-service`・`delivery-service`・`support-service`・`registry-service` の 5 サービスです。`payment-service` と `customer-service` はエージェントを持ちません。以下でそれぞれの設計を見ていきます。
+
+---
+
+## menu-service ── 単一エージェント、構造化出力、スキル駆動
+
+menu-service はこのデモで最も設計の変遷が大きかったサービスです。初期は「order-service から kitchen-service への経由点」という位置づけでしたが、最終的に「曖昧な注文意図を具体的な商品提案に変換する責務を一手に担う単一エージェント」に落ち着きました。
+
+**単一エージェント、1 ターン完結**という設計が鍵です。`MenuApplicationService.suggest()` が呼ばれると、`menu-agent` が 1 回の実行で `MenuSelectionDecision` を返します。このオブジェクトは `explicitItemIds`（ユーザーが明示したアイテム）・`additionalItemIds`（エージェントが追加提案したアイテム）・`skillTag`（発動したスキル名）・`recommendationReason` の 4 フィールドを持ちます。
+
+2 フィールドを分けた理由があります。「明示指定されたアイテムは必ず含む」「追加提案は断ることができる」という UI 上の分岐を、型レベルで保証するためです。文字列の自然言語出力だけだと、「ユーザーが言ったか、エージェントが言ったか」を後から解析しなければなりません。
+
+**activationHint による動的スキル発動**も menu-service 固有の設計です。`proactive-recommendation.md` と `family-order-guide.md` という 2 つのスキルファイルがあり、それぞれの YAML フロントマターに `activationHint` フィールドが書かれています。`MenuServiceConfiguration` が起動時にこれをパースして `skillActivationHints` ビーンとして提供し、`MenuApplicationService` がシステムプロンプトのスキル発動セクションを動的に組み立てます。
+
+```java
+// MenuApplicationService.java
+String skillActivationSection = skillActivationHints.entrySet().stream()
+    .map(e -> "- " + e.getKey() + ": " + e.getValue())
+    .collect(Collectors.joining("\n"));
+```
+
+スキルの内容だけでなく、**スキルを選ぶ条件も SKILL.md に書く**という設計です。エンジニアがコードを変更しなくても、業務担当者がスキルファイルを編集するだけでエージェントの発動条件を変えられます。
+
+---
+
+## kitchen-service ── 3 ツール連鎖と代替品承認
+
+kitchen-service のエージェントは「調理ラインが実際に対応できるかを確認する」責務を持ちます。注文候補を受け取り、在庫・調理キュー・代替品の 3 段階でチェックします。
+
+ツールの構成は `kitchen_inventory_lookup`・`prep_scheduler`・`menu_substitution_lookup` の 3 種類です。
+
+1. `kitchen_inventory_lookup` — 在庫を確認する。欠品アイテムを特定する
+2. `prep_scheduler` — 調理ラインのキュー状態を見て ETA を計算する
+3. `menu_substitution_lookup` — 欠品時だけ使う。menu-service に代替候補を問い合わせる
+
+「欠品時だけ代替品クエリを送る」という条件分岐がシステムプロンプトに書いてあります。`menu_substitution_lookup` は menu-service の `/internal/menu/substitutes` を呼び出しますが、そのエンドポイント URL は `POST /registry/discover` で「欠品時の代替候補提示」という capability query で解決します。kitchen-service は menu-service の存在を直接知りません。
+
+**kitchen-service が承認するのは、自分が提供できる代替品だけ**というルールもシステムプロンプトで定義されています。menu-service が候補を返しても、調理ラインが対応できないものは承認しません。この「承認する側と提案する側を分ける」という構造が、2 サービスにまたがる責務分離の形です。
+
+---
+
+## delivery-service ── 外部 ETA 比較とリスク評価
+
+delivery-service は「最適な配送オプションを選ぶ」判断をエージェントに委ねます。選択肢は「自社急配（In-house Express）」と「外部パートナー（Partner Standard）」です。
+
+外部パートナーの探索に `discover_eta_services` ツールを使います。このツールは内部で `POST /registry/discover` を呼び出し、`"外部ETAを提供するサービスは？"` というクエリで現在 AVAILABLE なパートナーサービスを返します。サービス名ではなく capability で探索するため、パートナーが増減しても delivery-service のコードは変わりません。
+
+```java
+// DeliveryArachneConfiguration.java
+String query = String.valueOf(
+    inputValues.getOrDefault("query", "外部ETAを提供するサービスは？"));
+List<Map<String, Object>> services =
+    gateway.discoverAvailableEtaServices(query).stream()
+    // ... endpoint URL と serviceName のリストを返す
+```
+
+続けて `call_eta_service` ツールで各パートナーに ETA・混雑度・料金を問い合わせます。このとき URL は `discover_eta_services` が返したものをそのまま使います。エージェントが URL を自前で組み立てることはありません。また、このエンドポイントには SSRF ガードが入っており、registry-backed の allowlist に載っている URL しか呼べません。
+
+エージェントは最終的に `recommendedTier`（`"IN_HOUSE_EXPRESS"` か `"PARTNER_STANDARD"`）と `recommendationReason` を structured output として返します。「外部パートナーが全員 NOT_AVAILABLE のとき」は自社急配を推奨するという fallback もシステムプロンプトに書いてあります。
+
+hermes-adapter は 15 秒サイクルで周期的に停止し、idaten-adapter は常時 AVAILABLE というテスト用の振る舞いを持ちます。この設定により、「外部パートナーが 1 件しか取れないとき」「2 件取れるとき」の比較動作を実際に確認できます。
+
+---
+
+## order-service ── 4 ステップ workflow コーディネーター
+
+order-service はエージェントを持ちますが、その役割は「ユーザーの自然言語を解釈する」ではなく「4 ステップのワークフローを調整する」です。
+
+4 ステップは `suggest`・`confirm-items`・`confirm-delivery`・`confirm-payment` です。各ステップで別のサービスを呼び出し、結果をユーザーに返します。
+
+- `suggest` → menu-service に商品提案を依頼
+- `confirm-items` → kitchen-service に在庫・調理確認を依頼
+- `confirm-delivery` → delivery-service に ETA・配送オプション比較を依頼
+- `confirm-payment` → payment-service に支払い処理を依頼
+
+各ダウンストリームの URL 解決は `RegistryServiceEndpointResolver` が `POST /registry/discover` を使って行います。`capabilityQuery` に「曖昧な注文意図を具体的な商品提案に変換」のような文字列を設定し、registry から endpoint を受け取ります。
+
+**order-service のエージェントは各ステップの入力を整形・意図分類する役割**を担います。ユーザーが「やっぱりデザートも追加したい」と言ったときに、それが `suggest` の再実行なのか `confirm-items` の変更なのかを `RoutingDecision` として typed に分類します。
+
+`payment-service` は意図的にエージェントを持ちません。支払い処理は決定論的コードで実行します。「課金という正確性が必要な処理は LLM に渡さない」という原則の体現です。
+
+---
+
+## 設計全体のパターン
+
+各サービスの設計を横断して見ると、共通するパターンが浮かびます。
+
+**エージェントは解釈と判断を担い、状態変更はコードが担う**。menu-agent が商品を選んでも、在庫を減らすのは kitchen-service のリポジトリです。delivery-agent が配送業者を選んでも、支払いは payment-service の決定論的コードが処理します。
+
+**サービス間の協調は capability query で記述する**。kitchen-service のコードに `"menu-service"` という文字列はありません。`"欠品時の代替候補提示"` という capability の記述があるだけです。これはコードの中に設計意図を残す方法でもあります。
+
+**structured output でサービス間の契約を型として定義する**。`MenuSelectionDecision`・`KitchenCheckDecision`・`DeliveryQuoteDecision` は Java の record として定義されており、フィールド名と型がサービス間の契約です。自然言語のテキストをパースして後から構造を取り出すという処理はありません。

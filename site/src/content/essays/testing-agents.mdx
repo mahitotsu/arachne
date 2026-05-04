@@ -1,0 +1,102 @@
+---
+title: エージェントの振る舞いをどうテストするか ── 非決定性との向き合い方
+summary: LLM を呼び出すエージェントのテストは「出力が毎回変わる」という問題に直面します。food-delivery-demo が採用した DeterministicModel パターンは、ツール呼び出しシーケンスと構造化出力を固定することで、LLM なしにエージェントの振る舞いを検証します。
+publishDate: 2026-05-05
+order: 3
+tags:
+  - testing
+  - food-delivery-demo
+  - arachne
+---
+
+## 非決定性というテストの難しさ
+
+エージェントのテストで最初に直面するのは非決定性の問題です。同じ入力を LLM に渡しても、出力は毎回変わります。温度パラメータを 0 にしても、モデルのバージョンが変われば変化します。自然言語の出力を `assertThat(response).contains("おすすめ")` で検証しても、フレーズが変わっただけで落ちます。
+
+かといって「LLM を呼ばないから Agent のテストはしない」という判断は問題を先送りにするだけです。ツール呼び出しの順序が正しいか、structured output のフィールドが期待通りか、skill 発動のロジックが機能しているか、これらはコードの振る舞いであり、テスト対象です。
+
+## DeterministicModel パターン
+
+food-delivery-demo では、エージェントを持つ全サービスが `*DeterministicModel` クラスを持っています。`MenuDeterministicModel`、`KitchenDeterministicModel`、`DeliveryDeterministicModel`、`SupportDeterministicModel`、`CapabilityRegistryDeterministicModel` の 5 種類です。
+
+これらはすべて Arachne の `Model` インターフェースを実装します。`BedrockModel` と同じインターフェースです。テスト用のプロパティ（`delivery.model.mode=deterministic`）を設定すると、DI コンテナが本物の `BedrockModel` の代わりにこのクラスを使います。
+
+```java
+// MenuArachneConfiguration.java
+@Bean
+@ConditionalOnProperty(name = "delivery.model.mode", havingValue = "deterministic")
+Model menuDeterministicModel() {
+    return new MenuDeterministicModel();
+}
+```
+
+`DeterministicModel` は `converse(messages, tools, systemPrompt, toolSelection)` を受け取り、受け取ったメッセージ内容を見て固定シーケンスを返します。実際の LLM は一切呼ばれません。
+
+## ツール呼び出しシーケンスを固定する
+
+`MenuDeterministicModel` を例にとると、ツール呼び出しシーケンスは次の順に固定されています。
+
+1. ファミリー注文と判定されたとき → まず `activate_skill("family-order-guide")` を返す
+2. スキル発動確認後 → `catalog_lookup` を返す
+3. カタログ結果がメッセージに入ったら → `calculate_total` を返す
+4. 合計計算後 → `MenuSelectionDecision` を structured output として返す
+
+この「次に何を返すか」の判断は、渡ってきた `messages` の内容を見て行います。`catalog_lookup` のツール結果がメッセージ中にあるかどうか、スキル発動済みかどうか、といったフラグを確認します。
+
+```java
+// MenuDeterministicModel.java の単一エージェントフロー概略
+if (isFamilyQuery && !hasSkillActivation(messages)) {
+    return List.of(
+        new ModelEvent.ToolUse("skill-family", "activate_skill",
+            Map.of("name", "family-order-guide")),
+        new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
+}
+// catalog_lookup → calculate_total → MenuSelectionDecision の順で続く
+```
+
+## テストが検証するのは「何を呼んだか」と「何を返したか」
+
+`MenuServiceApiTest` は `MockWebServer` を立てて実際の HTTP リクエストを捌きます。テストで確認するのは次の点です。
+
+- レスポンスの `agent` フィールドが `"menu-agent"` であること
+- `items` が空ではないこと（ファミリーモードなら Kids 系アイテムを含むこと）
+- registry へのリクエストが `/registry/discover` に飛んでいること
+- メトリクスエンドポイントに `delivery.agent.invocation` が存在すること
+
+自然言語のフレーズは一切検証しません。「おすすめ理由が自然な日本語かどうか」はテストしません。エージェントがツールを正しい順序で使い、型として定義された出力を正しいフィールドで返したか、を確認します。
+
+```java
+// MenuServiceApiTest.java 抜粋
+assertThat(response.agent()).isEqualTo("menu-agent");
+assertThat(response.items()).extracting(MenuItem::name)
+    .anyMatch(name -> name.contains("Kids"));
+assertThat(registryRequest.getPath()).isEqualTo("/registry/discover");
+```
+
+## system prompt とスキル発動条件のテスト
+
+`MenuApplicationService` は system prompt を動的に組み立てます。skill ファイルの `activationHint` を読み取り、システムプロンプトのスキル発動セクションに差し込む処理です。
+
+この組み立て結果が `DeterministicModel` に渡される `systemPrompt` 引数に含まれています。テスト側では `DeterministicModel` がそのシステムプロンプトを受け取っていることを `MenuDeterministicModelTest` で確認できます。`activationHint` フィールドの有無と値は SKILL.md を読めば確認できます。
+
+`MenuDeterministicModelTest` にはさらに、代替品クエリのときに `menu_substitution_lookup` ツールを最初に呼び出すことと、呼び出し引数の `message` フィールド名が正しいことを確認するテストが入っています。
+
+```java
+// MenuDeterministicModelTest.java
+assertThat(toolUse.name()).isEqualTo("menu_substitution_lookup");
+assertThat(toolUse.input()).isEqualTo(Map.of(
+    "unavailableItemId", "combo-kids",
+    "message", "子ども向けにしたい"));
+```
+
+このテストが価値を持ったのは、フィールド名を `customerMessage` から `message` に変更したときです。契約（ToolSpec の inputSchema）と実装（DeterministicModel が生成する入力マップ）のずれをこのテストが検出しました。
+
+## 非決定性とどう向き合うか
+
+DeterministicModel パターンが解くのは「ツール呼び出し構造のテスト」です。LLM の判断そのものは対象外です。
+
+この分担は意図的です。エージェントに期待するのは「曖昧な自然言語を解釈して適切なツールを選ぶ」という振る舞いです。しかし、どのフレーズを使うかは LLM に委ねます。テストが守るべきなのは、**ツールの呼び出し契約**と**structured output の型とフィールド**です。
+
+実際の LLM との接続は、Bedrock を使ったインテグレーションテスト（`*IntegrationTest`）に分離します。こちらは CI では常時実行せず、AWS 環境があるときだけ走らせます。非決定性を含む検証はそこに委ねることで、ユニットテストとインテグレーションテストの役割を分けられます。
+
+この設計はつまり「LLM の判断を信頼する範囲を限定し、コードで制御できる部分はコードでテストする」という考え方です。エージェントを業務システムに組み込むとき、テストの信頼性を確保するためにこの分担線は不可欠です。
