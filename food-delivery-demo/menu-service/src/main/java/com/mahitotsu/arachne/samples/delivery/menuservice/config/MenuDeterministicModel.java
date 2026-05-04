@@ -1,7 +1,5 @@
 package com.mahitotsu.arachne.samples.delivery.menuservice.config;
 
-import static com.mahitotsu.arachne.samples.delivery.menuservice.domain.MenuTypes.*;
-
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,75 +30,119 @@ final class MenuDeterministicModel implements Model {
             List<ToolSpec> tools,
             String systemPrompt,
             ToolSelection toolSelection) {
+        boolean isStep1 = systemPrompt != null && systemPrompt.contains("Step 1:");
+        boolean isStep2 = systemPrompt != null && systemPrompt.contains("Step 2:");
+
         Map<String, String> requestArgs = latestRequestArgs(messages);
         String userText = requestArgs.getOrDefault("query", latestUserText(messages));
         boolean substitutionQuery = requestArgs.containsKey("unavailableItemId");
         boolean isFamilyQuery = isFamilyQuery(userText);
 
-        if (!substitutionQuery && isFamilyQuery && !hasSkillActivation(messages)) {
-            return List.of(
-                    new ModelEvent.ToolUse("skill-family", "activate_skill", Map.of("name", "family-order-guide")),
-                    new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
-        }
-
-        String toolUseId = substitutionQuery ? "menu-substitution-lookup" : "menu-lookup";
-        Map<String, Object> toolContent = latestToolContent(messages, toolUseId);
-        if (toolContent == null) {
-            if (substitutionQuery) {
-            String substitutionMessage = requestArgs.getOrDefault("message", requestArgs.getOrDefault("customerMessage", ""));
+        // --- Substitution path (2段階フローには関与しない) ---
+        if (substitutionQuery) {
+            Map<String, Object> subContent = latestToolContent(messages, "menu-substitution-lookup");
+            if (subContent == null) {
+                String substitutionMessage = requestArgs.getOrDefault("message", requestArgs.getOrDefault("customerMessage", ""));
                 return List.of(
                         new ModelEvent.ToolUse(
                                 "menu-substitution-lookup",
                                 "menu_substitution_lookup",
                                 Map.of(
                                         "unavailableItemId", requestArgs.getOrDefault("unavailableItemId", ""),
-                        "message", substitutionMessage)),
+                                        "message", substitutionMessage)),
                         new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
             }
+            if (structuredOutputRequested(tools)) {
+                return List.of(
+                    new ModelEvent.ToolUse(
+                        "structured-menu-substitution",
+                        StructuredOutputTool.DEFAULT_NAME,
+                        Map.of(
+                            "selectedItemIds", subContent.getOrDefault("itemIds", List.of()),
+                            "summary", "menu-agent が kitchen-agent に検証させる代替品として "
+                                + subContent.getOrDefault("substitutionSummary", "最も近い代替品")
+                                + " を提案しました。")),
+                    new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
+            }
+            return List.of(
+                    new ModelEvent.TextDelta("menu-agent が kitchen-agent に検証させる代替品として "
+                            + subContent.getOrDefault("substitutionSummary", "最も近い代替品")
+                            + " を提案しました。"),
+                    new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
+        }
+
+        // --- Step 1: 明示指定検出 ---
+        // カタログを確認した後、明示指定 selectedItemIds を返す。テスト用モデルは常に空を返し
+        // 実際の明示検出は本番 AI モデルに委ねる。
+        if (isStep1) {
+            Map<String, Object> catalogContent = latestToolContent(messages, "menu-lookup");
+            if (catalogContent == null) {
+                return List.of(
+                        new ModelEvent.ToolUse("menu-lookup", "catalog_lookup_tool", Map.of("query", userText)),
+                        new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
+            }
+            if (structuredOutputRequested(tools)) {
+                return List.of(
+                    new ModelEvent.ToolUse(
+                        "structured-explicit-items",
+                        StructuredOutputTool.DEFAULT_NAME,
+                        Map.of("selectedItemIds", List.of())),
+                    new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
+            }
+            return List.of(
+                    new ModelEvent.TextDelta("explicit items: none"),
+                    new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
+        }
+
+        // --- Step 2 / Legacy: 潜在要望への追加提案 ---
+        // Step 1 の agentState を引き継ぐので catalog_lookup_tool 結果が既にある場合がある。
+        if (isFamilyQuery && !hasSkillActivation(messages)) {
+            return List.of(
+                    new ModelEvent.ToolUse("skill-family", "activate_skill", Map.of("name", "family-order-guide")),
+                    new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
+        }
+
+        Map<String, Object> toolContent = latestToolContent(messages, "menu-lookup");
+        if (toolContent == null) {
             return List.of(
                     new ModelEvent.ToolUse("menu-lookup", "catalog_lookup_tool", Map.of("query", userText)),
                     new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
         }
 
-                if (!substitutionQuery && latestToolContent(messages, "menu-total") == null) {
-                    Object itemIds = toolContent.getOrDefault("itemIds", List.of());
+        if (latestToolContent(messages, "menu-total") == null) {
+            Object itemIds = toolContent.getOrDefault("itemIds", List.of());
             return List.of(
                     new ModelEvent.ToolUse("menu-total", "calculate_total_tool", Map.of("itemIds", itemIds)),
                     new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
         }
 
-                if (structuredOutputRequested(tools)) {
-                    if (substitutionQuery) {
-                    return List.of(
-                        new ModelEvent.ToolUse(
-                            "structured-menu-substitution",
-                            StructuredOutputTool.DEFAULT_NAME,
-                            Map.of(
-                                "selectedItemIds", toolContent.getOrDefault("itemIds", List.of()),
-                                "summary", "menu-agent が kitchen-agent に検証させる代替品として "
-                                    + toolContent.getOrDefault("substitutionSummary", "最も近い代替品")
-                                    + " を提案しました。")),
-                        new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
-                    }
-                    return List.of(
-                        new ModelEvent.ToolUse(
-                            "structured-menu-suggestion",
-                            StructuredOutputTool.DEFAULT_NAME,
-                            Map.of(
-                                "selectedItemIds", toolContent.getOrDefault("itemIds", List.of()),
-                                "skillTag", isFamilyQuery ? "family-order-guide" : "",
-                                "recommendationReason", isFamilyQuery
-                                    ? "人数と予算に合う構成を優先しました。"
-                                    : "リクエストに最も近い候補を選びました。")),
-                        new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
-                }
-
-        if (substitutionQuery) {
+        if (structuredOutputRequested(tools)) {
+            if (isStep2) {
+                // ContextualAdditionsDecision: additionalItemIds フィールドを使う
+                return List.of(
+                    new ModelEvent.ToolUse(
+                        "structured-contextual-additions",
+                        StructuredOutputTool.DEFAULT_NAME,
+                        Map.of(
+                            "additionalItemIds", toolContent.getOrDefault("itemIds", List.of()),
+                            "skillTag", isFamilyQuery ? "family-order-guide" : "",
+                            "recommendationReason", isFamilyQuery
+                                ? "人数と予算に合う構成を優先しました。"
+                                : "リクエストに最も近い候補を選びました。")),
+                    new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
+            }
+            // Legacy: MenuSuggestionDecision
             return List.of(
-                    new ModelEvent.TextDelta("menu-agent が kitchen-agent に検証させる代替品として "
-                            + toolContent.getOrDefault("substitutionSummary", "最も近い代替品")
-                            + " を提案しました。"),
-                    new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
+                new ModelEvent.ToolUse(
+                    "structured-menu-suggestion",
+                    StructuredOutputTool.DEFAULT_NAME,
+                    Map.of(
+                        "selectedItemIds", toolContent.getOrDefault("itemIds", List.of()),
+                        "skillTag", isFamilyQuery ? "family-order-guide" : "",
+                        "recommendationReason", isFamilyQuery
+                            ? "人数と予算に合う構成を優先しました。"
+                            : "リクエストに最も近い候補を選びました。")),
+                new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
         }
 
         String prefix = isFamilyQuery ? "[family-order-guide] " : "";

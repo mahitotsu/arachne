@@ -43,6 +43,18 @@ public final class MenuTypes {
     public record MenuSuggestionDecision(List<String> selectedItemIds, String skillTag, String recommendationReason) {
     }
 
+    /**
+     * Step 1: ユーザーが明示的に指定した商品の ID リスト。指定がなければ空リスト。
+     */
+    public record ExplicitItemsDecision(List<String> selectedItemIds) {
+    }
+
+    /**
+     * Step 2: 明示指定以外の潜在的要望に応える追加アイテムと推薦理由。
+     */
+    public record ContextualAdditionsDecision(List<String> additionalItemIds, String skillTag, String recommendationReason) {
+    }
+
     public record MenuSubstitutionDecision(List<String> selectedItemIds, String summary) {
     }
 

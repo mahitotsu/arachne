@@ -14,7 +14,7 @@ delivery:
     endpoint: ${DELIVERY_KITCHEN_ENDPOINT:http://kitchen-service:8080}
   downstream:
     menu:
-      capability-query: ${MENU_CAPABILITY_QUERY:欠品時の代替候補提示}
+      capability-query: ${MENU_CAPABILITY_QUERY:欠品代替候補の準備と提案}
 
 management:
   endpoints:

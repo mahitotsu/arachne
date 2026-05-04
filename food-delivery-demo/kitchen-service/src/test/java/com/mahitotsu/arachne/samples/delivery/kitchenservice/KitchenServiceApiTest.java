@@ -3,12 +3,9 @@ package com.mahitotsu.arachne.samples.delivery.kitchenservice;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
-import static com.mahitotsu.arachne.samples.delivery.kitchenservice.domain.KitchenTypes.*;
-import static com.mahitotsu.arachne.samples.delivery.testsupport.MockWebServerTestSupport.drainRequests;
-import static com.mahitotsu.arachne.samples.delivery.testsupport.MockWebServerTestSupport.trimTrailingSlash;
 import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -25,6 +22,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
+import com.mahitotsu.arachne.samples.delivery.kitchenservice.domain.KitchenTypes.KitchenCheckRequest;
+import com.mahitotsu.arachne.samples.delivery.kitchenservice.domain.KitchenTypes.KitchenCheckResponse;
+import com.mahitotsu.arachne.samples.delivery.kitchenservice.infrastructure.KitchenRepository;
+import com.mahitotsu.arachne.samples.delivery.kitchenservice.infrastructure.RegistryServiceEndpointResolver;
+import static com.mahitotsu.arachne.samples.delivery.testsupport.MockWebServerTestSupport.drainRequests;
+import static com.mahitotsu.arachne.samples.delivery.testsupport.MockWebServerTestSupport.trimTrailingSlash;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.JWSAlgorithm;
@@ -35,8 +38,6 @@ import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.gen.RSAKeyGenerator;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
-import com.mahitotsu.arachne.samples.delivery.kitchenservice.infrastructure.KitchenRepository;
-import com.mahitotsu.arachne.samples.delivery.kitchenservice.infrastructure.RegistryServiceEndpointResolver;
 
 import okhttp3.mockwebserver.Dispatcher;
 import okhttp3.mockwebserver.MockResponse;
@@ -170,7 +171,7 @@ class KitchenServiceApiTest {
         assertThat(registryRequest).isNotNull();
         assertThat(registryRequest.getPath()).isEqualTo("/registry/discover");
         assertThat(lastRegistryDiscoverRequestBody.get())
-            .contains("\"query\":\"欠品時の代替候補提示\"")
+            .contains("\"query\":\"欠品代替候補の準備と提案\"")
             .contains("\"availableOnly\":true");
         RecordedRequest menuRequest = menuServer.takeRequest(1, TimeUnit.SECONDS);
         assertThat(menuRequest).isNotNull();

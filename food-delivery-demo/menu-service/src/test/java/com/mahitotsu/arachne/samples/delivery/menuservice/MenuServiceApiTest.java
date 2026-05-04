@@ -6,9 +6,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static com.mahitotsu.arachne.samples.delivery.menuservice.domain.MenuTypes.*;
-import static com.mahitotsu.arachne.samples.delivery.testsupport.MockWebServerTestSupport.drainRequests;
-import static com.mahitotsu.arachne.samples.delivery.testsupport.MockWebServerTestSupport.trimTrailingSlash;
 import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -26,6 +23,14 @@ import org.springframework.test.context.DynamicPropertySource;
 
 import com.mahitotsu.arachne.samples.delivery.menuservice.domain.MenuExecutionHistoryTypes.MenuExecutionHistoryEvent;
 import com.mahitotsu.arachne.samples.delivery.menuservice.domain.MenuExecutionHistoryTypes.MenuExecutionHistoryResponse;
+import com.mahitotsu.arachne.samples.delivery.menuservice.domain.MenuTypes.MenuItem;
+import com.mahitotsu.arachne.samples.delivery.menuservice.domain.MenuTypes.MenuSubstitutionRequest;
+import com.mahitotsu.arachne.samples.delivery.menuservice.domain.MenuTypes.MenuSubstitutionResponse;
+import com.mahitotsu.arachne.samples.delivery.menuservice.domain.MenuTypes.MenuSuggestionRequest;
+import com.mahitotsu.arachne.samples.delivery.menuservice.domain.MenuTypes.MenuSuggestionResponse;
+import com.mahitotsu.arachne.samples.delivery.menuservice.infrastructure.RegistryServiceEndpointResolver;
+import static com.mahitotsu.arachne.samples.delivery.testsupport.MockWebServerTestSupport.drainRequests;
+import static com.mahitotsu.arachne.samples.delivery.testsupport.MockWebServerTestSupport.trimTrailingSlash;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.JWSAlgorithm;
@@ -36,7 +41,6 @@ import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.gen.RSAKeyGenerator;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
-import com.mahitotsu.arachne.samples.delivery.menuservice.infrastructure.RegistryServiceEndpointResolver;
 
 import okhttp3.mockwebserver.Dispatcher;
 import okhttp3.mockwebserver.MockResponse;
@@ -192,9 +196,8 @@ class MenuServiceApiTest {
             .contains("agent", "model", "tool");
         assertThat(historyResponse.getBody().events())
             .filteredOn(event -> "agent".equals(event.category()) && "success".equals(event.outcome()))
-            .singleElement()
-            .satisfies(event -> {
-                    assertThat(event.component()).isEqualTo("menu-agent");
+            .anySatisfy(event -> {
+                assertThat(event.component()).isEqualTo("menu-agent-step2");
                 assertThat(event.skills()).contains("family-order-guide");
             });
         }

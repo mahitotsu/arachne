@@ -26,6 +26,7 @@ import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.Con
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.ConfirmPaymentRequest;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.ConfirmPaymentResponse;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.DeliveryOptionChoice;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.DeliveryOptionView;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.DeliveryQuoteRequest;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.DeliveryQuoteResponse;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.MenuSuggestionRequest;
@@ -122,6 +123,10 @@ public class OrderApplicationService {
             OrderSession existing = sessionStore.load(sessionId).orElse(emptySession(sessionId));
             String accessToken = SecurityAccessors.requiredAccessToken();
             String menuQuery = MenuSuggestionPromptRequestFactory.resolveQuery(request, existing);
+            if (menuQuery.isBlank()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "注文意図が必要です。rawMessage または partySize などの構造化フィールドを指定してください。");
+            }
             MenuSuggestionRequest menuSuggestionRequest = MenuSuggestionPromptRequestFactory.build(
                     sessionId,
                     request,
@@ -471,15 +476,43 @@ public class OrderApplicationService {
         String recommendedCode = firstNonBlank(
                 response.recommendedTier(),
                 response.options().isEmpty() ? "" : response.options().get(0).code());
+        int minEta = response.options().stream().mapToInt(o -> o.etaMinutes()).min().orElse(0);
+        BigDecimal minFee = response.options().stream()
+                .map(o -> o.fee())
+                .min(BigDecimal::compareTo)
+                .orElse(BigDecimal.ZERO);
         return response.options().stream()
-                .map(option -> new DeliveryOptionChoice(
-                        option.code(),
-                        option.label(),
-                        option.etaMinutes(),
-                        option.fee(),
-                        response.summary(),
-                        option.code().equals(recommendedCode)))
+                .map(option -> {
+                    boolean recommended = option.code().equals(recommendedCode);
+                    String reason = recommended
+                            ? firstNonBlank(response.recommendationReason(), response.summary())
+                            : buildNonRecommendedReason(option, minEta, minFee);
+                    return new DeliveryOptionChoice(
+                            option.code(),
+                            option.label(),
+                            option.etaMinutes(),
+                            option.fee(),
+                            reason,
+                            recommended);
+                })
                 .toList();
+    }
+
+    private String buildNonRecommendedReason(DeliveryOptionView option, int minEta, BigDecimal minFee) {
+        List<String> parts = new java.util.ArrayList<>();
+        if (option.etaMinutes() > minEta) {
+            parts.add("最短より " + (option.etaMinutes() - minEta) + " 分長い");
+        }
+        int feeDiff = option.fee().subtract(minFee).intValue();
+        if (feeDiff > 0) {
+            parts.add("最安より " + feeDiff + " 円高い");
+        } else if (feeDiff < 0) {
+            parts.add("配送料は " + option.fee().intValue() + " 円で最安");
+        }
+        if (parts.isEmpty()) {
+            return option.label() + ": ETA " + option.etaMinutes() + "分、配送料 " + option.fee().intValue() + "円。";
+        }
+        return option.label() + ": " + String.join("、", parts) + "。";
     }
 
     private DeliveryOptionChoice selectDelivery(List<DeliveryOptionChoice> options, String deliveryCode) {

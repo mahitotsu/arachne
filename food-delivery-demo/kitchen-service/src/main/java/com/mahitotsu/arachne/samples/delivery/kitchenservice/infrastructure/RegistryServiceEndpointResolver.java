@@ -1,7 +1,5 @@
 package com.mahitotsu.arachne.samples.delivery.kitchenservice.infrastructure;
 
-import static com.mahitotsu.arachne.samples.delivery.kitchenservice.domain.KitchenTypes.*;
-
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -11,6 +9,8 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 
 import com.mahitotsu.arachne.samples.delivery.kitchenservice.config.KitchenServiceProperties;
+import com.mahitotsu.arachne.samples.delivery.kitchenservice.domain.KitchenTypes.RegistryDiscoverRequestPayload;
+import com.mahitotsu.arachne.samples.delivery.kitchenservice.domain.KitchenTypes.RegistryDiscoverResponsePayload;
 
 @Component
 public class RegistryServiceEndpointResolver implements ServiceEndpointResolver {

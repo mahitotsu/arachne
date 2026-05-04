@@ -79,6 +79,27 @@ class MenuServiceConfiguration {
                             Map.entry("status", "AVAILABLE")))
                     .retrieve()
                     .toBodilessEntity();
+
+            // substitution 専用エントリ: kitchen-service が欠品代替候補を問い合わせるためのエントリ。
+            // capability クエリで /internal/menu/substitutes に直接解決させる。
+            restClientBuilder.baseUrl(registryBaseUrl).build().post()
+                    .uri("/registry/register")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.ofEntries(
+                            Map.entry("serviceName", "menu-service-substitution"),
+                            Map.entry("endpoint", serviceEndpoint),
+                            Map.entry("capability", "欠品代替候補の準備と提案。カタログから代替品を選定して kitchen-service に返す。"),
+                            Map.entry("agentName", "menu-agent"),
+                            Map.entry("systemPrompt", "substitution-support-boundary を有効化し、menu_substitution_lookup で代替候補を準備する。"),
+                            Map.entry("skills", List.of()),
+                            Map.entry("tools", List.of(
+                                    Map.of("name", "menu_substitution_lookup", "content", "欠品時に代替候補を準備する"))),
+                            Map.entry("requestMethod", "POST"),
+                            Map.entry("requestPath", "/internal/menu/substitutes"),
+                            Map.entry("healthEndpoint", serviceEndpoint + "/actuator/health"),
+                            Map.entry("status", "AVAILABLE")))
+                    .retrieve()
+                    .toBodilessEntity();
         };
     }
 
