@@ -197,7 +197,7 @@ class MenuServiceApiTest {
         assertThat(historyResponse.getBody().events())
             .filteredOn(event -> "agent".equals(event.category()) && "success".equals(event.outcome()))
             .anySatisfy(event -> {
-                assertThat(event.component()).isEqualTo("menu-agent-step2");
+                assertThat(event.component()).isEqualTo("menu-agent");
                 assertThat(event.skills()).contains("family-order-guide");
             });
         }

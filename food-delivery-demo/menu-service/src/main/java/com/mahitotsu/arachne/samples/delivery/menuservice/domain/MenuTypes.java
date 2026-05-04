@@ -44,15 +44,15 @@ public final class MenuTypes {
     }
 
     /**
-     * Step 1: ユーザーが明示的に指定した商品の ID リスト。指定がなければ空リスト。
+     * 単一エージェント呼び出しで得られるメニュー選択決定。
+     * explicitItemIds はユーザーが明示した商品、additionalItemIds は潜在ニーズへの追加提案。
+     * 重複除外は Java 側で行うため、additionalItemIds に explicitItemIds の ID を含んでもよい。
      */
-    public record ExplicitItemsDecision(List<String> selectedItemIds) {
-    }
-
-    /**
-     * Step 2: 明示指定以外の潜在的要望に応える追加アイテムと推薦理由。
-     */
-    public record ContextualAdditionsDecision(List<String> additionalItemIds, String skillTag, String recommendationReason) {
+    public record MenuSelectionDecision(
+            List<String> explicitItemIds,
+            List<String> additionalItemIds,
+            String skillTag,
+            String recommendationReason) {
     }
 
     public record MenuSubstitutionDecision(List<String> selectedItemIds, String summary) {

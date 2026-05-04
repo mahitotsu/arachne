@@ -10,13 +10,12 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 import com.mahitotsu.arachne.samples.delivery.menuservice.config.SecurityAccessors;
-import com.mahitotsu.arachne.samples.delivery.menuservice.domain.MenuTypes.ContextualAdditionsDecision;
-import com.mahitotsu.arachne.samples.delivery.menuservice.domain.MenuTypes.ExplicitItemsDecision;
 import com.mahitotsu.arachne.samples.delivery.menuservice.domain.MenuTypes.KitchenCheckRequest;
 import com.mahitotsu.arachne.samples.delivery.menuservice.domain.MenuTypes.KitchenCheckResponse;
 import com.mahitotsu.arachne.samples.delivery.menuservice.domain.MenuTypes.KitchenItemStatus;
 import com.mahitotsu.arachne.samples.delivery.menuservice.domain.MenuTypes.KitchenTrace;
 import com.mahitotsu.arachne.samples.delivery.menuservice.domain.MenuTypes.MenuItem;
+import com.mahitotsu.arachne.samples.delivery.menuservice.domain.MenuTypes.MenuSelectionDecision;
 import com.mahitotsu.arachne.samples.delivery.menuservice.domain.MenuTypes.MenuSubstitutionDecision;
 import com.mahitotsu.arachne.samples.delivery.menuservice.domain.MenuTypes.MenuSubstitutionRequest;
 import com.mahitotsu.arachne.samples.delivery.menuservice.domain.MenuTypes.MenuSubstitutionResponse;
@@ -42,6 +41,7 @@ public class MenuApplicationService {
     private final Tool menuSubstitutionLookupTool;
     private final KitchenCheckGateway kitchenCheckGateway;
     private final AgentObservationSupport agentObservationSupport;
+    private final Map<String, String> skillActivationHints;
 
     MenuApplicationService(
             AgentFactory agentFactory,
@@ -50,7 +50,8 @@ public class MenuApplicationService {
             @Qualifier("calculateTotalTool") Tool calculateTotalTool,
             @Qualifier("menuSubstitutionLookupTool") Tool menuSubstitutionLookupTool,
             KitchenCheckGateway kitchenCheckGateway,
-            AgentObservationSupport agentObservationSupport) {
+            AgentObservationSupport agentObservationSupport,
+            @Qualifier("skillActivationHints") Map<String, String> skillActivationHints) {
         this.agentFactory = agentFactory;
         this.repository = repository;
         this.catalogLookupTool = catalogLookupTool;
@@ -58,88 +59,38 @@ public class MenuApplicationService {
         this.menuSubstitutionLookupTool = menuSubstitutionLookupTool;
         this.kitchenCheckGateway = kitchenCheckGateway;
         this.agentObservationSupport = agentObservationSupport;
+        this.skillActivationHints = skillActivationHints;
     }
 
     public MenuSuggestionResponse suggest(MenuSuggestionRequest request) {
         String accessToken = SecurityAccessors.requiredAccessToken();
         MenuAgentUserPrompt userPrompt = MenuAgentUserPrompt.from(request);
         AgentState agentState = agentState(request.sessionId());
-        // --- Step 1: 明示指定アイテム検出 ---
-        // ユーザーが商品名を具体的に指定した場合のみ selectedItemIds に含める。
-        // 「チキン系」「おすすめ」など曖昧表現は空リストを返す。
-        AgentResult explicitResult = agentObservationSupport.observe(
-                "menu-service", "menu-agent-step1", request.sessionId(), userPrompt.render(), agentState,
+
+        // 単一エージェント呼び出し: カタログ確認・明示指定検出・潜在ニーズへの追加提案を 1 ターンで完結させる。
+        // explicitItemIds / additionalItemIds の分離は structured output フィールドで型レベルに保証する。
+        AgentResult result = agentObservationSupport.observe(
+                "menu-service", "menu-agent", request.sessionId(), userPrompt.render(), agentState,
                 () -> agentFactory.builder()
                     .sessionId(request.sessionId())
                     .state(agentState)
-                    .systemPrompt("""
-                    あなたは単一ブランドのクラウドキッチンアプリの menu-agent です（Step 1: 明示指定検出）。
-
-                    まず catalog_lookup_tool を呼んでカタログを確認してください。
-                    ユーザーが商品名・通称を明示的に指定した場合、それぞれの名前に対応するカタログの itemId を selectedItemIds に含めてください。
-
-                    【ルール】
-                    - "〜と〜を1つずつ" のように複数の名前が列挙されたときは、それぞれを別アイテムとして扱い、全部を selectedItemIds に含めてください。
-                    - 1つの名前に対して1つの itemId を対応させてください。1つのアイテムで複数名前をまとめて満たそうとしてはいけません。
-                    - 「おすすめ」「何かいいもの」「チキン系」「家族向け」など曖昧な表現は明示指定ではありません。その場合は selectedItemIds を空リストで返してください。
-
-                    【例】
-                    - "テリヤキとクリスピーを1つずつ" → selectedItemIds: ["combo-teriyaki", "combo-crispy"]
-                    - "スマッシュバーガーを2人分" → selectedItemIds: ["combo-smash"]
-                    - "おすすめを見せて" → selectedItemIds: []
-
-                    提案に使ってよい itemId は catalog_lookup_tool が返したものだけです。
-                    最終回答は structured_output を使い、selectedItemIds だけを返してください。""")
-                    .tools(catalogLookupTool)
-                    .build()
-                    .run(userPrompt.render(), ExplicitItemsDecision.class));
-        ExplicitItemsDecision explicitDecision = explicitResult.structuredOutput(ExplicitItemsDecision.class);
-        List<String> explicitIds = explicitDecision.selectedItemIds() != null
-                ? explicitDecision.selectedItemIds() : List.of();
-
-        // --- Step 2: 潜在的要望への追加提案 ---
-        // 明示指定済みアイテムを伝えた上で、人数・好み・場面などの潜在ニーズに応える追加を提案する。
-        String step2Prompt = explicitIds.isEmpty()
-                ? userPrompt.render()
-                : userPrompt.render() + "\nexplicit_selected=" + String.join(", ", explicitIds)
-                    + "  ※これらはすでに確定済みです。additionalItemIds に重複して含めないでください。";
-        AgentResult contextualResult = agentObservationSupport.observe(
-                "menu-service", "menu-agent-step2", request.sessionId(), step2Prompt, agentState,
-                () -> agentFactory.builder()
-                    .sessionId(request.sessionId())
-                    .state(agentState)
-                    .systemPrompt("""
-                    あなたは単一ブランドのクラウドキッチンアプリの menu-agent です（Step 2: 潜在要望への追加提案）。
-
-                    このビジネスは1つのキッチンのみです。現在のメニューからのみアイテムを推奨してください。
-                    「おすすめ」「何がいい？」のように広く相談されたときは proactive-recommendation を有効化してください。
-                    家族・複数人・子ども向けの相談では family-order-guide を有効化してください。
-
-                    ユーザープロンプトに explicit_selected が含まれる場合、それらはすでに Step 1 で確定済みです。
-                    あなたのタスクは、人数・好み・場面・組み合わせなど明示指定以外の潜在的要望に応える追加アイテムを提案することです。
-                    explicit_selected に含まれる itemId を additionalItemIds に重複して含めないでください。
-                    追加が不要と判断した場合は additionalItemIds を空リストで返してください。
-
-                    まず catalog_lookup_tool を呼んでカタログを確認してください。提案に使ってよい itemId は catalog_lookup_tool が返したものだけです。
-                    最終回答は structured_output を使い、additionalItemIds, skillTag, recommendationReason を返してください。
-                    recommendationReason には価格・合計金額を含めず、商品の特徴・人数・予算適合の根拠のみ記載してください。
-                    欠品・提供可否・調理 ETA は kitchen-service 側で行われます。在庫や提供時間を約束しないでください。""")
+                    .systemPrompt(buildSuggestionSystemPrompt())
                     .tools(catalogLookupTool, calculateTotalTool)
                     .build()
-                    .run(step2Prompt, ContextualAdditionsDecision.class));
-        ContextualAdditionsDecision contextualDecision = contextualResult.structuredOutput(ContextualAdditionsDecision.class);
-        List<String> additionalIds = contextualDecision.additionalItemIds() != null
-                ? contextualDecision.additionalItemIds() : List.of();
+                    .run(userPrompt.render(), MenuSelectionDecision.class));
 
-        // explicit を先頭に、contextual の追加分(重複除外)を後ろに結合
+        MenuSelectionDecision selection = result.structuredOutput(MenuSelectionDecision.class);
+        List<String> explicitIds = selection.explicitItemIds() != null ? selection.explicitItemIds() : List.of();
+        List<String> additionalIds = selection.additionalItemIds() != null ? selection.additionalItemIds() : List.of();
+
+        // explicit を先頭に、additional の重複を除外して結合する
         List<String> mergedIds = Stream.concat(
                 explicitIds.stream(),
                 additionalIds.stream().filter(id -> !explicitIds.contains(id)))
                 .toList();
 
-        // Step 2 の skillTag・recommendationReason を採用し、downstream の型を統一する
         MenuSuggestionDecision decision = new MenuSuggestionDecision(
-                mergedIds, contextualDecision.skillTag(), contextualDecision.recommendationReason());
+                mergedIds, selection.skillTag(), selection.recommendationReason());
 
         List<MenuItem> items = resolveSuggestedItems(request.query(), decision.selectedItemIds());
         KitchenCheckResponse kitchenResponse = kitchenCheckGateway.check(
@@ -156,6 +107,35 @@ public class MenuApplicationService {
                 resolvedItems,
                 kitchenResponse.readyInMinutes(),
                 new KitchenTrace(kitchenResponse.summary(), kitchenTraceNotes(kitchenResponse)));
+    }
+
+    private String buildSuggestionSystemPrompt() {
+        // SKILL.md の activationHint フィールドからスキル有効化条件を動的に組み立てる。
+        // 条件の真実源は各 SKILL.md であり、このメソッドはそれを参照するだけ。
+        String skillActivationSection = skillActivationHints.entrySet().stream()
+                .map(e -> "- " + e.getValue() + " は **" + e.getKey() + "** を有効化してください。")
+                .reduce((a, b) -> a + "\n" + b)
+                .map(s -> "\n\n【スキル有効化】\n" + s + "\n")
+                .orElse("\n");
+        return """
+                あなたは単一ブランドのクラウドキッチンアプリの menu-agent です。
+                このビジネスは1つのキッチンのみです。現在のメニューからのみアイテムを推奨してください。
+                まず catalog_lookup_tool を呼んでカタログを確認してください。
+
+                あなたのタスクは以下の 2 種類のリストを同時に返すことです:
+                1. explicitItemIds: ユーザーが商品名・通称を明示的に指定した場合、それぞれの名前に対応する itemId のリスト。明示指定がなければ空リスト。
+                2. additionalItemIds: 人数・好み・場面など潜在的なニーズに応える追加アイテムの itemId のリスト。explicitItemIds に含まれる itemId を重複して含めないでください。
+
+                【ルール】
+                - "〇〇と△△を1つずつ" のように複数の名前が列挙されたときは、それぞれを explicitItemIds に含めてください。
+                - 1つの名前に対して1つの itemId を対応させてください。1つのアイテムで複数名前をまとめて満たそうとしてはいけません。
+                - 「おすすめ」「何かいいもの」「チキン系」「家族向け」など曖昧な表現は明示指定ではありません。explicitItemIds は空リストにしてください。
+                - 追加提案が不要と判断した場合は additionalItemIds を空リストで返してください。
+                - 提案に使ってよい itemId は catalog_lookup_tool が返したものだけです。\
+                """ + skillActivationSection + """
+                recommendationReason には価格・合計金額を含めず、商品の特徴・人数・予算適合の根拠のみ記載してください。
+                欠品・提供可否・調理 ETA は kitchen-service 側で行われます。在庫や提供時間を約束しないでください。
+                最終回答は structured_output を使い、explicitItemIds, additionalItemIds, skillTag, recommendationReason を返してください。""";
     }
 
     public MenuSubstitutionResponse suggestSubstitutes(MenuSubstitutionRequest request) {

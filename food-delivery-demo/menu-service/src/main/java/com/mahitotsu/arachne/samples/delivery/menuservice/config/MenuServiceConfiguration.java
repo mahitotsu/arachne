@@ -2,6 +2,7 @@ package com.mahitotsu.arachne.samples.delivery.menuservice.config;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -101,6 +102,40 @@ class MenuServiceConfiguration {
                     .retrieve()
                     .toBodilessEntity();
         };
+    }
+
+    @Bean
+    Map<String, String> skillActivationHints(ResourceLoader resourceLoader) {
+        Map<String, String> hints = new LinkedHashMap<>();
+        for (String name : new String[] { "proactive-recommendation", "family-order-guide" }) {
+            try {
+                var resource = resourceLoader.getResource("classpath:skills/" + name + "/SKILL.md");
+                String raw = new String(resource.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+                String hint = extractFrontmatterField(raw, "activationHint");
+                if (hint != null && !hint.isBlank()) {
+                    hints.put(name, hint);
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return hints;
+    }
+
+    private static String extractFrontmatterField(String raw, String field) {
+        if (!raw.startsWith("---")) {
+            return null;
+        }
+        int end = raw.indexOf("---", 3);
+        if (end == -1) {
+            return null;
+        }
+        String frontmatter = raw.substring(3, end);
+        for (String line : frontmatter.split("\n")) {
+            if (line.startsWith(field + ":")) {
+                return line.substring(field.length() + 1).strip();
+            }
+        }
+        return null;
     }
 
     private static List<Map<String, String>> loadSkillsFromClasspath(ResourceLoader loader, String... skillNames) {

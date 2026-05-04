@@ -30,16 +30,14 @@ final class MenuDeterministicModel implements Model {
             List<ToolSpec> tools,
             String systemPrompt,
             ToolSelection toolSelection) {
-        boolean isStep1 = systemPrompt != null && systemPrompt.contains("Step 1:");
-        boolean isStep2 = systemPrompt != null && systemPrompt.contains("Step 2:");
-
         Map<String, String> requestArgs = latestRequestArgs(messages);
         String userText = requestArgs.getOrDefault("query", latestUserText(messages));
         boolean substitutionQuery = requestArgs.containsKey("unavailableItemId");
         boolean isFamilyQuery = isFamilyQuery(userText);
+        boolean isSubstitutionQuery = substitutionQuery;
 
-        // --- Substitution path (2段階フローには関与しない) ---
-        if (substitutionQuery) {
+        // --- Substitution path ---
+        if (isSubstitutionQuery) {
             Map<String, Object> subContent = latestToolContent(messages, "menu-substitution-lookup");
             if (subContent == null) {
                 String substitutionMessage = requestArgs.getOrDefault("message", requestArgs.getOrDefault("customerMessage", ""));
@@ -71,31 +69,9 @@ final class MenuDeterministicModel implements Model {
                     new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
         }
 
-        // --- Step 1: 明示指定検出 ---
-        // カタログを確認した後、明示指定 selectedItemIds を返す。テスト用モデルは常に空を返し
-        // 実際の明示検出は本番 AI モデルに委ねる。
-        if (isStep1) {
-            Map<String, Object> catalogContent = latestToolContent(messages, "menu-lookup");
-            if (catalogContent == null) {
-                return List.of(
-                        new ModelEvent.ToolUse("menu-lookup", "catalog_lookup_tool", Map.of("query", userText)),
-                        new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
-            }
-            if (structuredOutputRequested(tools)) {
-                return List.of(
-                    new ModelEvent.ToolUse(
-                        "structured-explicit-items",
-                        StructuredOutputTool.DEFAULT_NAME,
-                        Map.of("selectedItemIds", List.of())),
-                    new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
-            }
-            return List.of(
-                    new ModelEvent.TextDelta("explicit items: none"),
-                    new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
-        }
-
-        // --- Step 2 / Legacy: 潜在要望への追加提案 ---
-        // Step 1 の agentState を引き継ぐので catalog_lookup_tool 結果が既にある場合がある。
+        // --- 単一エージェント提案フロー ---
+        // テスト用モデルは明示指定検出を行わず explicitItemIds を常に空にする。
+        // catalog_lookup → calculate_total → MenuSelectionDecision の順で応答する。
         if (isFamilyQuery && !hasSkillActivation(messages)) {
             return List.of(
                     new ModelEvent.ToolUse("skill-family", "activate_skill", Map.of("name", "family-order-guide")),
@@ -117,27 +93,14 @@ final class MenuDeterministicModel implements Model {
         }
 
         if (structuredOutputRequested(tools)) {
-            if (isStep2) {
-                // ContextualAdditionsDecision: additionalItemIds フィールドを使う
-                return List.of(
-                    new ModelEvent.ToolUse(
-                        "structured-contextual-additions",
-                        StructuredOutputTool.DEFAULT_NAME,
-                        Map.of(
-                            "additionalItemIds", toolContent.getOrDefault("itemIds", List.of()),
-                            "skillTag", isFamilyQuery ? "family-order-guide" : "",
-                            "recommendationReason", isFamilyQuery
-                                ? "人数と予算に合う構成を優先しました。"
-                                : "リクエストに最も近い候補を選びました。")),
-                    new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
-            }
-            // Legacy: MenuSuggestionDecision
+            // MenuSelectionDecision: explicitItemIds (空) + additionalItemIds
             return List.of(
                 new ModelEvent.ToolUse(
-                    "structured-menu-suggestion",
+                    "structured-menu-selection",
                     StructuredOutputTool.DEFAULT_NAME,
                     Map.of(
-                        "selectedItemIds", toolContent.getOrDefault("itemIds", List.of()),
+                        "explicitItemIds", List.of(),
+                        "additionalItemIds", toolContent.getOrDefault("itemIds", List.of()),
                         "skillTag", isFamilyQuery ? "family-order-guide" : "",
                         "recommendationReason", isFamilyQuery
                             ? "人数と予算に合う構成を優先しました。"
