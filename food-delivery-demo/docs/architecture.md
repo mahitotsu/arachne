@@ -19,7 +19,7 @@
 - `registry-service`
   全サービスのケイパビリティ登録、自然言語 discover、集約ヘルス、仕様一覧を管理。`POST /registry/discover` は collaborator resolution、`GET /registry/services` は inventory / viewer を担う。
 - `menu-service`
-  `menu-agent` を通じた同一ブランドのメニュー検索と代替提案を管理。
+  `menu-agent` を通じた同一ブランドのメニュー検索と代替提案を管理。エージェント呼び出しは 1 ターンで完結し、`MenuSelectionDecision`（explicitItemIds・additionalItemIds・skillTag・recommendationReason）を返す単一エージェントフローを採用している。スキルの発動条件は `activationHint` フロントマターフィールドとして SKILL.md 内に記述し、`MenuServiceConfiguration` が起動時にパースして `skillActivationHints` ビーンとして提供する。`MenuApplicationService` はこのヒントを元にシステムプロンプト内のスキル発動セクションを動的に組み立てるため、SKILL.md がスキル選択条件の唯一の管理場所となる。
 - `kitchen-service`
   `kitchen-agent` を通じた単一キッチンの在庫・調理時間の解釈を管理。
 - `delivery-service`

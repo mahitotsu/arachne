@@ -25,8 +25,8 @@ const designRows = [
   },
   {
     principle: 'skill は業務知識の公開面として分離する',
-    impl: 'menu-service と kitchen-service は商品説明・推薦ロジック・仕込みスケジュール方針を SKILL.md に分離し、ResourceLoader で読み込む',
-    check: '/agents のスキルタブで、system prompt とは別に管理されているスキルドキュメントの内容を確認できる',
+    impl: 'menu-service と kitchen-service は商品説明・推薦ロジック・仕込みスケジュール方針を SKILL.md に分離し、ResourceLoader で読み込む。さらに menu-service はスキル発動条件も SKILL.md の activationHint フロントマターに記述し、MenuServiceConfiguration が起動時にパースしてシステムプロンプトへ動的に注入する。スキル内容だけでなくスキル選択条件自体が SKILL.md に集約されており、業務担当者がコード変更なしにメンテできる構造になっている',
+    check: '/agents のスキルタブで system prompt とは別に管理されているスキルドキュメントを確認できる。proactive-recommendation と family-order-guide の SKILL.md に activationHint が定義されており、これがそのままエージェントのスキル発動セクションに変換される',
   },
   {
     principle: 'サービス間の collaborator 解決は capability ベースで動的に行う',

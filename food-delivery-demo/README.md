@@ -15,7 +15,7 @@
 - `support-service`: FAQ、問い合わせ受付、キャンペーン一覧、registry 連携の稼働状況集約
 - `order-service`: 公開ワークフロー API、Redis バックドのセッション継続、PostgreSQL バックドの注文永続化
 - `registry-service`: サービスのケイパビリティ登録、自然言語 discover、稼働状況集約
-- `menu-service`: `menu-agent` によるメニュー検索と代替提案
+- `menu-service`: `menu-agent` による単一エージェントフローのメニュー検索と代替提案。スキルの発動条件は SKILL.md の `activationHint` フロントマターで管理し、起動時にシステムプロンプトへ動的注入される
 - `kitchen-service`: `kitchen-agent` による在庫確認と調理時間
 - `delivery-service`: `delivery-agent` による ETA 推定とクーリエ計画
 - `payment-service`: 決定論的な支払い準備と課金実行
