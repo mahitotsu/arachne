@@ -4,6 +4,10 @@ import PageHero from '../../components/PageHero.astro';
 import SiteLayout from '../../layouts/SiteLayout.astro';
 
 const essays = (await getCollection('essays')).sort((left, right) => left.data.order - right.data.order);
+const mainEssay = essays.find((e) => e.data.order === 1)!;
+const derivedEssays = essays.filter((e) => e.data.order > 1);
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 ---
 
 <SiteLayout title="Essay | Arachne Field Notes">
@@ -14,19 +18,37 @@ const essays = (await getCollection('essays')).sort((left, right) => left.data.o
   />
 
   <section class="stacked-list">
-    {essays.map((essay) => (
-      <article class="essay-card">
-        <div>
-          <p class="panel__eyebrow">{essay.data.publishDate.toLocaleDateString('ja-JP')}</p>
-          <h2><a href={`${import.meta.env.BASE_URL.replace(/\/$/, '')}/essay/${essay.slug}`}>{essay.data.title}</a></h2>
-          <p>{essay.data.summary}</p>
-        </div>
-        <div class="tag-row">
-          {essay.data.tags.map((tag) => (
-            <span class="tag-chip">{tag}</span>
-          ))}
-        </div>
-      </article>
-    ))}
+    <article class="essay-card essay-card--main">
+      <div>
+        <p class="panel__eyebrow">本編 · {mainEssay.data.publishDate.toLocaleDateString('ja-JP')}</p>
+        <h2><a href={`${base}/essay/${mainEssay.slug}`}>{mainEssay.data.title}</a></h2>
+        <p>{mainEssay.data.summary}</p>
+      </div>
+      <div class="tag-row">
+        {mainEssay.data.tags.map((tag) => (
+          <span class="tag-chip">{tag}</span>
+        ))}
+      </div>
+    </article>
+
+    <div class="derived-index">
+      <p class="derived-index__label">深掘り記事</p>
+      <div class="stacked-list">
+        {derivedEssays.map((essay) => (
+          <article class="essay-card essay-card--derived">
+            <div>
+              <p class="panel__eyebrow">{essay.data.publishDate.toLocaleDateString('ja-JP')}</p>
+              <h2><a href={`${base}/essay/${essay.slug}`}>{essay.data.title}</a></h2>
+              <p>{essay.data.summary}</p>
+            </div>
+            <div class="tag-row">
+              {essay.data.tags.map((tag) => (
+                <span class="tag-chip">{tag}</span>
+              ))}
+            </div>
+          </article>
+        ))}
+      </div>
+    </div>
   </section>
 </SiteLayout>
