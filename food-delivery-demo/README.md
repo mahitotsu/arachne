@@ -15,7 +15,7 @@
 - `support-service`: FAQ、問い合わせ受付、キャンペーン一覧、registry 連携の稼働状況集約
 - `order-service`: 公開ワークフロー API、`order-intake-agent` による注文意図の正規化、Redis バックドのセッション継続、PostgreSQL バックドの注文永続化
 - `registry-service`: サービスのケイパビリティ登録、自然言語 discover、稼働状況集約
-- `menu-service`: `menu-agent` による単一エージェントフローの catalog grounding、no-match handling、menu-side alternatives。`order-service` が正規化した意図を受け、同一ブランドの現行メニューに grounded な候補へ落とし込む。スキルの発動条件は SKILL.md の `activationHint` フロントマターで管理し、起動時にシステムプロンプトへ動的注入される
+- `menu-service`: `menu-agent` による単一エージェントフローの catalog grounding、no-match handling、menu-side alternatives。`order-service` が正規化した意図を受け、同一ブランドの現行メニューに grounded な候補へ落とし込む。direct item request では alias-based explicit match を最優先で採り、exact match がない場合は「現行メニュー側の代替候補」であることを summary に明示する。スキルの発動条件は SKILL.md の `activationHint` フロントマターで管理し、起動時にシステムプロンプトへ動的注入される
 - `kitchen-service`: `kitchen-agent` による在庫確認と調理時間
 - `delivery-service`: `delivery-agent` による ETA 推定とクーリエ計画
 - `payment-service`: 決定論的な支払い準備と課金実行
@@ -35,7 +35,7 @@
 2. ブラウザは `customer-ui` のリライトで同一オリジンを維持: `/api/customer/*` は `customer-service` へ、`/api/backend/*` は `order-service` へ転送される。
 3. UI はそのベアラートークンを `order-service` へ送信する。
 4. `order-service` は suggest ステップで `order-intake-agent` を実行し、raw/structured な注文入力を正規化したうえで、catalog grounding 用の handoff を `menu-service` へ渡す。アクティブな注文セッション自体は引き続き Redis に保持する。
-5. `menu-service`、`kitchen-service`、`delivery-service` は同じアクセストークンを検証したうえで service-local agent を通じた提案や調整を返し、`payment-service` は決定論的ロジックで支払い準備と課金を処理する。`menu-service` は一次解釈をやり直さず、catalog grounding と menu-side alternatives に集中する。
+5. `menu-service`、`kitchen-service`、`delivery-service` は同じアクセストークンを検証したうえで service-local agent を通じた提案や調整を返し、`payment-service` は決定論的ロジックで支払い準備と課金を処理する。`menu-service` は一次解釈をやり直さず、catalog grounding と menu-side alternatives に集中する。direct item request では明示指定を優先して grounded し、exact match がない場合は menu 側の代替提案だと明示して返す。
 6. `support-service` は FAQ、キャンペーン、問い合わせ事例を返し、必要に応じて registry-service の稼働状況と order-service の注文履歴を参照する。
 7. 唯一のキッチンがリクエストされたアイテムを提供できない場合、`kitchen-agent` は `menu-agent` に同一ブランドのフォールバックアイテムを問い合わせることができる。
 8. UI の `/order` はステップ別の構造化レスポンスを表示し、step 1 以降は execution history をユーザー向け proof surface として表示する。

@@ -27,11 +27,11 @@
 `/order` ページはチャット UI を廃止し、4ステップのワークフロー UI になっています。
 
 1. **初期入力** — 自然言語でリクエストを入力 → `POST /api/backend/order/suggest`
-2. **アイテム選択** — menu-agent の提案カード一覧 + 削除/復元 + フィードバックして再提案（`refinement`） → `POST /api/backend/order/confirm-items`
+2. **アイテム選択** — menu-agent の提案カード一覧（direct item request では明示指定を最優先で grounded し、exact match がない候補は menu 側の代替提案として表示） + 削除/復元 + フィードバックして再提案（`refinement`） → `POST /api/backend/order/confirm-items`
 3. **配送選択** — delivery-agent の選択肢カード（推奨マーク付き） → `POST /api/backend/order/confirm-delivery`
 4. **支払い承認** — 注文サマリー（アイテム・配送料・合計・支払い方法） + 承認前なら前ステップへ戻る導線 → `POST /api/backend/order/confirm-payment`
 
-注文セッションが確立すると、step 1 以降の `/order` 下部に実行履歴パネルが表示されます。パネルは order/menu/delivery/payment/support の 5 サービスへ BFF 経由で並行取得した履歴を時系列で統合表示し、ステップ遷移時の自動再取得と手動「↺ 更新」に対応します。`order-intake-agent` による意図正規化と `menu-agent` による catalog grounding は component ラベルと補足ノートで見分けられます。
+注文セッションが確立すると、step 1 以降の `/order` 下部に実行履歴パネルが表示されます。パネルは order/menu/delivery/payment/support の 5 サービスへ BFF 経由で並行取得した履歴を時系列で統合表示し、ステップ遷移時の自動再取得と手動「↺ 更新」に対応します。`order-intake-agent` による意図正規化と `menu-agent` による catalog grounding は component ラベルと補足ノートで見分けられ、direct item 優先 grounding と no-exact-match の menu-side alternatives もこの段で説明されます。
 
 認証トークン、注文セッション、サポート会話セッション、注文スナップショットは customer-ui のサーバー側セッションに保持されます。ブラウザ側には `HttpOnly` Cookie の BFF セッション ID のみを置き、注文復元は `GET /api/backend/order/session` で行います。
 

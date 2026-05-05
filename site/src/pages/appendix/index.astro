@@ -5,8 +5,8 @@ import SiteLayout from '../../layouts/SiteLayout.astro';
 const designRows = [
   {
     principle: 'AI エージェントは自然言語フロントドアとして追加する',
-    impl: 'menu-service・delivery-service・support-service にエージェントを置き、ユーザーの曖昧な入力を解釈する責務を担わせます',
-    check: 'order-service の suggest API がユーザー入力を menu-service に渡し、menu-service のエージェントが商品提案を返す流れで確認できます',
+    impl: 'order-service に order-intake-agent を置いてユーザー入力の一次解釈を担わせ、menu-service・delivery-service・support-service は service-local agent として catalog grounding、ETA 判断、サポート対話を担わせます',
+    check: 'order-service の suggest API が direct item request / recommendation request を正規化し、その handoff を受けた menu-service が明示指定優先で grounded な候補を返す流れで確認できます',
   },
   {
     principle: '従来の API は機械間連携の正本契約として残す',

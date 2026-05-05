@@ -19,7 +19,7 @@
 - `registry-service`
   全サービスのケイパビリティ登録、自然言語 discover、集約ヘルス、仕様一覧を管理。`POST /registry/discover` は collaborator resolution、`GET /registry/services` は inventory / viewer を担う。
 - `menu-service`
-  `menu-agent` を通じた同一ブランドの catalog grounding と代替提案を管理。`order-service` が正規化した `query` と `groundingContext` を受け、エージェント呼び出しは 1 ターンで完結し、`MenuSelectionDecision`（explicitItemIds・additionalItemIds・skillTag・recommendationReason）を返す単一エージェントフローを採用している。責務は live menu への grounding、no-exact-match handling、menu-side alternatives に限定し、direct request / recommendation request の一次分類は担わない。スキルの発動条件は `activationHint` フロントマターフィールドとして SKILL.md 内に記述し、`MenuServiceConfiguration` が起動時にパースして `skillActivationHints` ビーンとして提供する。`MenuApplicationService` はこのヒントを元にシステムプロンプト内のスキル発動セクションを動的に組み立てるため、SKILL.md がスキル選択条件の唯一の管理場所となる。
+  `menu-agent` を通じた同一ブランドの catalog grounding と代替提案を管理。`order-service` が正規化した `query` と `groundingContext` を受け、エージェント呼び出しは 1 ターンで完結し、`MenuSelectionDecision`（explicitItemIds・additionalItemIds・skillTag・recommendationReason）を返す単一エージェントフローを採用している。責務は live menu への grounding、no-exact-match handling、menu-side alternatives に限定し、direct request / recommendation request の一次分類は担わない。direct item request では alias-based explicit match を最優先で採り、exact match がない場合は summary で menu-side alternatives だと明示する。スキルの発動条件は `activationHint` フロントマターフィールドとして SKILL.md 内に記述し、`MenuServiceConfiguration` が起動時にパースして `skillActivationHints` ビーンとして提供する。`MenuApplicationService` はこのヒントを元にシステムプロンプト内のスキル発動セクションを動的に組み立てるため、SKILL.md がスキル選択条件の唯一の管理場所となる。
 - `kitchen-service`
   `kitchen-agent` を通じた単一キッチンの在庫・調理時間の解釈を管理。
 - `delivery-service`
@@ -44,7 +44,7 @@
 5. `order-service` が現在ステップに応じて `menu-service`、`delivery-service`、`payment-service` へファンアウトする。suggest では `menu-service` へ正規化済み query と groundingContext を渡す。
 6. `support-service` は認証済みのサポート問い合わせに対して FAQ、キャンペーン、類似問い合わせを返し、registry-service の集約ヘルスと order-service の注文履歴を必要に応じて参照する。
 7. 各ダウンストリーム API は返答前にサービスローカルの Arachne エージェント、または決定論的ロジックを実行する。
-8. `menu-service` は内部で `kitchen-service` を呼び、grounded な候補に対する在庫、ETA、欠品代替、混雑提案をまとめて返す。
+8. `menu-service` は内部で `kitchen-service` を呼び、grounded な候補に対する在庫、ETA、欠品代替、混雑提案をまとめて返す。direct item request では明示指定を優先して返し、exact match がないときだけ menu-side alternatives を明示する。
 9. `kitchen-agent` がアイテムを提供できない場合、同一ブランドのメニューから代替候補を `menu-agent` に問い合わせ、単一キッチンで実際に対応できる代替品のみを承認する。
 10. `registry-service` は `GET /registry/services` でエージェント仕様ビューワー向け inventory を返し、`POST /registry/discover` で動的 collaborator discovery を返す。`delivery-service` は discover を通じて `hermes-adapter`、`idaten-adapter`、停止中の `icarus-adapter` を問い合わせる。
 11. `order-service` は結果をワークフロー用の構造化レスポンスへ整形して返し、UI は session を使って execution history をユーザー向け証跡として再取得する。execution history と `/agents` は `order-intake-agent` と `menu-agent` の分担を別イベント・別契約として可視化する。

@@ -6,16 +6,16 @@ const services = [
   {
     name: 'order-service',
     port: '8080',
-    role: '注文ワークフロー coordinator',
+    role: '注文ワークフロー coordinator / intent front door',
     agent: true,
-    note: '4 ステップの workflow API（suggest → confirm-items → confirm-delivery → confirm-payment）を持ちます。menu / delivery / payment / support をダウンストリームに持ち、registry 経由で動的に解決します。',
+    note: '4 ステップの workflow API（suggest → confirm-items → confirm-delivery → confirm-payment）を持ちます。order-intake-agent が suggest の自然言語 front door となり、direct item request / recommendation request を正規化したうえで menu / delivery / payment / support を registry 経由で動的に解決します。',
   },
   {
     name: 'menu-service',
     port: '8081',
-    role: 'メニュー提案・合計計算',
+    role: 'catalog grounding・代替候補提示',
     agent: true,
-    note: '曘昧な注文意図を具体的な商品提案に変換します。catalog_lookup・calculate_total ツールを持ち、欠品時は kitchen-service と連携して代替候補を提示します。',
+    note: 'order-service から受け取った正規化済み意図を live catalog に grounded な提案へ落とし込みます。direct item request では alias-based explicit match を優先し、exact match がない場合は menu-side alternatives だと明示します。欠品時は kitchen-service と連携して代替候補を提示します。',
   },
   {
     name: 'kitchen-service',
@@ -56,8 +56,8 @@ const services = [
     name: 'registry-service',
     port: '8087',
     role: 'サービス登録・capability 検索',
-    agent: false,
-    note: '各サービスが起動時に自己登録します。POST /registry/discover がランタイムの collaborator resolution、GET /registry/services が viewer/inventory 用と、2 つの API を意図的に分けています。',
+    agent: true,
+    note: '各サービスが起動時に自己登録します。capability-registry-agent が POST /registry/discover で collaborator resolution を行い、GET /registry/services は viewer/inventory 用として意図的に分離されています。',
   },
   {
     name: 'hermes-adapter',
@@ -108,7 +108,7 @@ const surfaces = [
     <p class="panel__eyebrow">デモを読む上での視点</p>
     <p>
       このデモで重要なのはエージェントの数ではなく、<strong>エージェントを持つサービスと持たないサービスの対比</strong>です。
-      menu / delivery / support はエージェントが自然言語の解釈を担い、payment / customer / registry は決定論的コードで責務を果たします。
+      order / menu / delivery / support / registry は agent-backed ですが、その責務は同じではありません。order は自然言語 front door、menu は catalog grounding、delivery と support は service-local judgment、registry は capability discovery を担い、payment / customer は決定論的コードで責務を果たします。
       この設計の違いが「自然言語フロントドア」という仮説の実装上の答えです。
     </p>
   </section>
