@@ -13,13 +13,13 @@
 ## サービス
 
 - `order-service`
-  公開ワークフロー API、Redis バックドのセッション復元、PostgreSQL バックドの確定注文。
+  公開ワークフロー API、`order-intake-agent` による注文意図の正規化、Redis バックドのセッション復元、PostgreSQL バックドの確定注文。suggest ステップでは raw/structured 入力を `NormalizedOrderIntent` に落とし込み、`menu-service` へ catalog grounding 用 handoff を渡す front door を担う。
 - `support-service`
   `support-agent` を通じた FAQ、問い合わせ受付、キャンペーン一覧、稼働状況集約を管理。`/support` の conversational surface と、注文完了後の事後サポート導線を担う公開境界。
 - `registry-service`
   全サービスのケイパビリティ登録、自然言語 discover、集約ヘルス、仕様一覧を管理。`POST /registry/discover` は collaborator resolution、`GET /registry/services` は inventory / viewer を担う。
 - `menu-service`
-  `menu-agent` を通じた同一ブランドのメニュー検索と代替提案を管理。エージェント呼び出しは 1 ターンで完結し、`MenuSelectionDecision`（explicitItemIds・additionalItemIds・skillTag・recommendationReason）を返す単一エージェントフローを採用している。スキルの発動条件は `activationHint` フロントマターフィールドとして SKILL.md 内に記述し、`MenuServiceConfiguration` が起動時にパースして `skillActivationHints` ビーンとして提供する。`MenuApplicationService` はこのヒントを元にシステムプロンプト内のスキル発動セクションを動的に組み立てるため、SKILL.md がスキル選択条件の唯一の管理場所となる。
+  `menu-agent` を通じた同一ブランドの catalog grounding と代替提案を管理。`order-service` が正規化した `query` と `groundingContext` を受け、エージェント呼び出しは 1 ターンで完結し、`MenuSelectionDecision`（explicitItemIds・additionalItemIds・skillTag・recommendationReason）を返す単一エージェントフローを採用している。責務は live menu への grounding、no-exact-match handling、menu-side alternatives に限定し、direct request / recommendation request の一次分類は担わない。スキルの発動条件は `activationHint` フロントマターフィールドとして SKILL.md 内に記述し、`MenuServiceConfiguration` が起動時にパースして `skillActivationHints` ビーンとして提供する。`MenuApplicationService` はこのヒントを元にシステムプロンプト内のスキル発動セクションを動的に組み立てるため、SKILL.md がスキル選択条件の唯一の管理場所となる。
 - `kitchen-service`
   `kitchen-agent` を通じた単一キッチンの在庫・調理時間の解釈を管理。
 - `delivery-service`
@@ -40,24 +40,26 @@
 1. ブラウザの `/order` が注文ステップ入力を `order-service` の公開 API へ送信する。
 2. 各バックエンドサービスは起動時に `registry-service` へ自分のケイパビリティとヘルス URL を登録する。
 3. `order-service` が Redis から現在の注文セッションを復元する。
-4. `order-service` が現在ステップに応じて `menu-service`、`delivery-service`、`payment-service` へファンアウトする。
-5. `support-service` は認証済みのサポート問い合わせに対して FAQ、キャンペーン、類似問い合わせを返し、registry-service の集約ヘルスと order-service の注文履歴を必要に応じて参照する。
-6. 各ダウンストリーム API は返答前にサービスローカルの Arachne エージェント、または決定論的ロジックを実行する。
-7. `menu-service` は内部で `kitchen-service` を呼び、在庫、ETA、欠品代替、混雑提案をまとめて返す。
-8. `kitchen-agent` がアイテムを提供できない場合、同一ブランドのメニューから代替候補を `menu-agent` に問い合わせ、単一キッチンで実際に対応できる代替品のみを承認する。
-9. `registry-service` は `GET /registry/services` でエージェント仕様ビューワー向け inventory を返し、`POST /registry/discover` で動的 collaborator discovery を返す。`delivery-service` は discover を通じて `hermes-adapter`、`idaten-adapter`、停止中の `icarus-adapter` を問い合わせる。
-10. `order-service` は結果をワークフロー用の構造化レスポンスへ整形して返し、UI は session を使って execution history をユーザー向け証跡として再取得する。
-11. 利用可能な候補が複数ある場合、カスタマーは自社エクスプレス、Hermes、Idaten の中から選択する。`delivery-agent` は「急いで」なら最短 ETA を、「安く」なら最安料金を優先して推奨する。
-12. `/support` では `support-service` が FAQ、問い合わせ、キャンペーン、稼働状況を会話的に返し、必要に応じて注文履歴や事後フィードバック導線につなぐ。
-13. `/agents` では `registry-service` の inventory と各 service の OpenAPI を使い、プロンプト、ツール、スキル、API 契約を説明面として表示する。service-to-service collaborator 解決はここではなく `POST /registry/discover` が担う。
-14. 確定時に `payment-service` が課金を実行し、`order-service` が最終注文を PostgreSQL に保存する。
-15. 注文保存後、`order-service` は `support-service` の `/api/support/feedback` へ事後サポート受付を通知し、問い合わせ導線を準備する。
+4. `order-service` は suggest ステップで `order-intake-agent` を実行し、ユーザー入力を direct item request / recommendation request / reorder / refinement のいずれかとして正規化する。
+5. `order-service` が現在ステップに応じて `menu-service`、`delivery-service`、`payment-service` へファンアウトする。suggest では `menu-service` へ正規化済み query と groundingContext を渡す。
+6. `support-service` は認証済みのサポート問い合わせに対して FAQ、キャンペーン、類似問い合わせを返し、registry-service の集約ヘルスと order-service の注文履歴を必要に応じて参照する。
+7. 各ダウンストリーム API は返答前にサービスローカルの Arachne エージェント、または決定論的ロジックを実行する。
+8. `menu-service` は内部で `kitchen-service` を呼び、grounded な候補に対する在庫、ETA、欠品代替、混雑提案をまとめて返す。
+9. `kitchen-agent` がアイテムを提供できない場合、同一ブランドのメニューから代替候補を `menu-agent` に問い合わせ、単一キッチンで実際に対応できる代替品のみを承認する。
+10. `registry-service` は `GET /registry/services` でエージェント仕様ビューワー向け inventory を返し、`POST /registry/discover` で動的 collaborator discovery を返す。`delivery-service` は discover を通じて `hermes-adapter`、`idaten-adapter`、停止中の `icarus-adapter` を問い合わせる。
+11. `order-service` は結果をワークフロー用の構造化レスポンスへ整形して返し、UI は session を使って execution history をユーザー向け証跡として再取得する。execution history と `/agents` は `order-intake-agent` と `menu-agent` の分担を別イベント・別契約として可視化する。
+12. 利用可能な候補が複数ある場合、カスタマーは自社エクスプレス、Hermes、Idaten の中から選択する。`delivery-agent` は「急いで」なら最短 ETA を、「安く」なら最安料金を優先して推奨する。
+13. `/support` では `support-service` が FAQ、問い合わせ、キャンペーン、稼働状況を会話的に返し、必要に応じて注文履歴や事後フィードバック導線につなぐ。
+14. `/agents` では `registry-service` の inventory と各 service の OpenAPI を使い、`order-service` の intent-understanding surface と `menu-service` の grounding surface を含むプロンプト、ツール、スキル、API 契約を説明面として表示する。service-to-service collaborator 解決はここではなく `POST /registry/discover` が担う。
+15. 確定時に `payment-service` が課金を実行し、`order-service` が最終注文を PostgreSQL に保存する。
+16. 注文保存後、`order-service` は `support-service` の `/api/support/feedback` へ事後サポート受付を通知し、問い合わせ導線を準備する。
 
 ## Arachne との親和性
 
 - フロントエンドは1つの形に閉じない: 注文は workflow-first、サポートは会話型、`/agents` は説明面として分離できる
 - サービス分解は引き続き通常の Spring Boot エンジニアリング
 - マルチエージェント動作はバックエンドの接合点で自然に生まれ、バックエンド全体を巨大なチャットプロンプトに置き換えるものではない
+- `order-service` を intent-understanding surface、`menu-service` を catalog-grounding surface として分離できるため、エージェント境界と Spring の責務境界を同時に説明しやすい
 - エージェント間コラボレーションはサービスメッシュを反映できる: `kitchen-agent` は代替ヘルプのために `menu-agent` に一時的に相談できる
 - 設定は理解しやすいまま: 1つのクラウドキッチン、1つのブランドメニュー、代替ブランチルーティングなし、明確なオーナーシップを持つ2つの配送レーン
 - ユーザーは回答が変わった理由を確認できる: 在庫、ETA、メニュー代替、支払い準備状況は execution history と `/agents` の両面から特定のサービスとエージェントへ辿れる
@@ -65,6 +67,7 @@
 ## Observation / Micrometer
 
 - `order-service` は workflow entrypoint を `delivery.order.workflow` として観測し、`operation` / `outcome` tag でステップ別の count / latency を出す
+- `order-service` は `order-intake-agent` の suggest 前段実行も `delivery.agent.invocation` として観測し、注文意図の正規化と downstream fan-out を別の event / metric として追える
 - `order-service` からの主要 downstream 呼び出しは `delivery.order.downstream` として観測し、`target=menu-service|delivery-service|payment-service|support-service` と `operation` tag で service-to-service 呼び出しを追える
 - registry 解決は `delivery.order.registry.lookup` として分離し、service discovery の待ち時間と失敗を注文 workflow 本体とは別に見られるようにする
 - `menu-service` / `delivery-service` / `support-service` は Arachne agent 実行を `delivery.agent.invocation` として観測し、`service` / `agent` / `outcome` tag で service-local agent の count / latency を出す

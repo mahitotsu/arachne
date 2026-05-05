@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.TimeUnit;
 
@@ -17,6 +19,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -24,8 +27,13 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
+
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderExecutionHistoryTypes.OrderExecutionHistoryEntry;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderExecutionHistoryTypes.OrderExecutionHistoryResponse;
+import com.mahitotsu.arachne.samples.delivery.orderservice.application.OrderIntentPlanner;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.ConfirmDeliveryRequest;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.ConfirmDeliveryResponse;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.ConfirmItemsRequest;
@@ -33,10 +41,13 @@ import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.Con
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.ConfirmPaymentRequest;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.ConfirmPaymentResponse;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.DeliveryOptionChoice;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.NormalizedOrderIntent;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.OrderIntentInput;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.OrderLineItem;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.OrderSession;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.ProposalItem;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.ServiceTrace;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.StoredOrder;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.StoredOrderSummary;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.SuggestOrderRequest;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.SuggestOrderResponse;
@@ -63,6 +74,8 @@ import okhttp3.mockwebserver.RecordedRequest;
         webEnvironment = WebEnvironment.RANDOM_PORT,
         properties = {
                 "delivery.order.session-store=in-memory",
+                "DELIVERY_ORDER_SESSION_STORE=in-memory",
+                "spring.session.store-type=none",
                 "spring.datasource.url=jdbc:h2:mem:orders;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
                 "spring.datasource.driver-class-name=org.h2.Driver",
                 "spring.datasource.username=sa",
@@ -89,6 +102,9 @@ class OrderServiceApiTest {
 
     @Autowired
     private TestRestTemplate restTemplate;
+
+        @MockBean
+        private OrderIntentPlanner orderIntentPlanner;
 
         @Autowired
         private RegistryServiceEndpointResolver endpointResolver;
@@ -141,6 +157,10 @@ class OrderServiceApiTest {
         drainRequests(deliveryServer);
         drainRequests(paymentServer);
                 drainRequests(supportServer);
+        when(orderIntentPlanner.plan(anyString(), any(), any(), any())).thenAnswer(invocation -> normalizedIntent(
+                invocation.getArgument(1),
+                invocation.getArgument(2),
+                invocation.getArgument(3)));
         restTemplate.getRestTemplate().setInterceptors(List.of((request, body, execution) -> {
             request.getHeaders().setBearerAuth(accessToken);
             return execution.execute(request, body);
@@ -172,6 +192,7 @@ class OrderServiceApiTest {
                                 .contains("/api/order/suggest")
                                 .contains("/api/order/confirm-items")
                                 .contains("x-ai-prompt-contract")
+                                .contains("order-intake-agent")
                                 .contains("intent")
                                 .contains("partySize")
                                 .contains("workflowStep");
@@ -252,6 +273,8 @@ class OrderServiceApiTest {
                 .contains("\"availableOnly\":true");
         assertThat(response.trace()).extracting(ServiceTrace::service)
                 .contains("menu-service", "kitchen-service/support", "order-service");
+        assertThat(response.trace()).extracting(ServiceTrace::agent)
+                .contains("order-intake-agent");
     }
 
     @Test
@@ -808,4 +831,96 @@ class OrderServiceApiTest {
             throw new ExceptionInInitializerError(exception);
         }
     }
+
+        private static NormalizedOrderIntent normalizedIntent(
+                        SuggestOrderRequest request,
+                        OrderSession existing,
+                        Optional<StoredOrder> recentOrder) {
+                String customerMessage = firstNonBlank(
+                                request.intent() == null ? null : request.intent().rawMessage(),
+                                structuredSummary(request.intent()),
+                                existing.pendingProposal() == null ? null : existing.pendingProposal().customerMessage());
+                String intentMode = intentMode(request, existing, customerMessage);
+                return new NormalizedOrderIntent(
+                                customerMessage,
+                                intentMode,
+                                customerMessage,
+                                "DIRECT_ITEM".equals(intentMode) ? customerMessage : null,
+                                request.intent() == null ? null : request.intent().partySize(),
+                                request.intent() == null ? null : request.intent().budgetUpperBound(),
+                                request.intent() == null ? null : request.intent().childCount(),
+                                needsRecentOrderContext(customerMessage) ? recentOrder.map(StoredOrder::itemSummary).orElse(null) : null,
+                                rationale(intentMode));
+        }
+
+        private static String intentMode(SuggestOrderRequest request, OrderSession existing, String customerMessage) {
+                if (request.refinement() != null && !request.refinement().isBlank() && existing.pendingProposal() != null) {
+                        return "REFINEMENT";
+                }
+                if (needsRecentOrderContext(customerMessage)) {
+                        return "REORDER";
+                }
+                if (looksLikeDirectItemRequest(customerMessage)) {
+                        return "DIRECT_ITEM";
+                }
+                return "RECOMMENDATION";
+        }
+
+        private static boolean needsRecentOrderContext(String message) {
+                String normalized = message == null ? "" : message.toLowerCase(Locale.ROOT);
+                return normalized.contains("前回") || normalized.contains("いつもの") || normalized.contains("same as last time");
+        }
+
+        private static boolean looksLikeDirectItemRequest(String message) {
+                if (message == null || message.isBlank()) {
+                        return false;
+                }
+                String normalized = message.toLowerCase(Locale.ROOT);
+                if (normalized.contains("おすすめ") || normalized.contains("何か") || normalized.contains("向け") || normalized.contains("いつもの")) {
+                        return false;
+                }
+                return List.of("セット", "box", "ボックス", "burger", "バーガー", "wrap", "ラップ", "soda", "ソーダ",
+                                "latte", "ラテ", "フライ", "fries", "チキン", "chicken", "サーモン", "salmon", "bowl", "dessert")
+                                .stream()
+                                .anyMatch(normalized::contains);
+        }
+
+        private static String structuredSummary(OrderIntentInput intent) {
+                if (intent == null) {
+                        return "";
+                }
+                StringBuilder builder = new StringBuilder();
+                appendClause(builder, intent.partySize() == null ? null : intent.partySize() + "人");
+                appendClause(builder, intent.budgetUpperBound() == null ? null : intent.budgetUpperBound().stripTrailingZeros().toPlainString() + "円以内");
+                appendClause(builder, intent.childCount() == null ? null : "子ども" + intent.childCount() + "人");
+                return builder.toString();
+        }
+
+        private static void appendClause(StringBuilder builder, String clause) {
+                if (clause == null || clause.isBlank()) {
+                        return;
+                }
+                if (!builder.isEmpty()) {
+                        builder.append('、');
+                }
+                builder.append(clause);
+        }
+
+        private static String firstNonBlank(String... values) {
+                for (String value : values) {
+                        if (value != null && !value.isBlank()) {
+                                return value.trim();
+                        }
+                }
+                return "";
+        }
+
+        private static String rationale(String intentMode) {
+                return switch (intentMode) {
+                        case "DIRECT_ITEM" -> "商品名らしい指定があるため catalog grounding に直接渡します。";
+                        case "REORDER" -> "再注文の文脈があるため前回注文を参照する形に正規化しました。";
+                        case "REFINEMENT" -> "既存提案の再調整として扱います。";
+                        default -> "人数や予算などの条件から recommendation planning として扱います。";
+                };
+        }
 }

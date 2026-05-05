@@ -62,10 +62,12 @@ class OrderServiceConfiguration {
                     .body(Map.of(
                             "serviceName", "order-service",
                             "endpoint", serviceEndpoint,
-                            "capability", "注文ワークフロー管理、メニュー提案、配送選択、支払い確認、注文履歴参照を扱う。",
-                            "agentName", "order-service",
-                            "systemPrompt", "注文ワークフローを段階的に進める。",
-                            "skills", List.of(Map.of("name", "order-workflow", "content", "注文の提案から確定までの段階進行")),
+                            "capability", "注文ワークフロー管理、注文意図の正規化、メニュー grounding 起動、配送選択、支払い確認、注文履歴参照を扱う。",
+                            "agentName", "order-intake-agent",
+                            "systemPrompt", "注文意図を正規化し、menu-service への catalog grounding を起動する。",
+                            "skills", List.of(
+                                Map.of("name", "order-intake", "content", "customer の注文意図を正規化する"),
+                                Map.of("name", "order-workflow", "content", "注文の提案から確定までの段階進行")),
                             "requestMethod", "POST",
                             "requestPath", "/api/order/suggest",
                             "healthEndpoint", serviceEndpoint + "/actuator/health",

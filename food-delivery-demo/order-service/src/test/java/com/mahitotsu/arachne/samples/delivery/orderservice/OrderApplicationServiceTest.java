@@ -22,6 +22,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
 import com.mahitotsu.arachne.samples.delivery.orderservice.application.OrderApplicationService;
+import com.mahitotsu.arachne.samples.delivery.orderservice.application.OrderIntentPlanner;
 import com.mahitotsu.arachne.samples.delivery.orderservice.config.AuthenticatedCustomerResolver;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.ConfirmItemsRequest;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.ConfirmItemsResponse;
@@ -32,8 +33,10 @@ import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.Del
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.DeliveryQuoteResponse;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.KitchenTraceView;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.MenuItemView;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.MenuGroundingContext;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.MenuSuggestionRequest;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.MenuSuggestionResponse;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.NormalizedOrderIntent;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.OrderDraft;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.OrderLineItem;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.OrderSession;
@@ -81,12 +84,24 @@ class OrderApplicationServiceTest {
         DeliveryGateway deliveryGateway = mock(DeliveryGateway.class);
         PaymentGateway paymentGateway = mock(PaymentGateway.class);
         SupportGateway supportGateway = mock(SupportGateway.class);
+        OrderIntentPlanner orderIntentPlanner = mock(OrderIntentPlanner.class);
         AuthenticatedCustomerResolver customerResolver = mock(AuthenticatedCustomerResolver.class);
 
         when(sessionStore.load(anyString())).thenReturn(Optional.empty());
         when(customerResolver.currentCustomerId()).thenReturn("demo-user");
         when(orderRepository.findLatestOrderForUser("demo-user"))
                 .thenReturn(Optional.of(new StoredOrder("ord-1", "2x Teriyaki Chicken Box", BigDecimal.TEN, BigDecimal.TEN, "18 min", "CHARGED")));
+        when(orderIntentPlanner.plan(anyString(), any(), any(), any()))
+                .thenReturn(new NormalizedOrderIntent(
+                        "いつものやつで",
+                        "REORDER",
+                        "いつものやつで",
+                        null,
+                        null,
+                        null,
+                        null,
+                        "2x Teriyaki Chicken Box",
+                        "再注文の文脈があるため前回注文を参照する形に正規化しました。"));
         when(menuGateway.suggest(any(), anyString())).thenReturn(new MenuSuggestionResponse(
                 "menu-service",
                 "menu-agent",
@@ -104,6 +119,7 @@ class OrderApplicationServiceTest {
                 deliveryGateway,
                 paymentGateway,
                 supportGateway,
+                orderIntentPlanner,
                 customerResolver,
                 ObservationRegistry.NOOP);
 
@@ -113,6 +129,13 @@ class OrderApplicationServiceTest {
         verify(menuGateway).suggest(captor.capture(), anyString());
         assertThat(captor.getValue().query()).isEqualTo("いつものやつで");
         assertThat(captor.getValue().recentOrderSummary()).isEqualTo("2x Teriyaki Chicken Box");
+        assertThat(captor.getValue().groundingContext()).isEqualTo(new MenuGroundingContext(
+                "REORDER",
+                null,
+                null,
+                null,
+                null,
+                "再注文の文脈があるため前回注文を参照する形に正規化しました。"));
     }
 
     @Test
@@ -123,6 +146,7 @@ class OrderApplicationServiceTest {
         DeliveryGateway deliveryGateway = mock(DeliveryGateway.class);
         PaymentGateway paymentGateway = mock(PaymentGateway.class);
         SupportGateway supportGateway = mock(SupportGateway.class);
+        OrderIntentPlanner orderIntentPlanner = mock(OrderIntentPlanner.class);
         AuthenticatedCustomerResolver customerResolver = mock(AuthenticatedCustomerResolver.class);
 
         when(customerResolver.currentCustomerId()).thenReturn("demo-user");
@@ -157,6 +181,7 @@ class OrderApplicationServiceTest {
                 deliveryGateway,
                 paymentGateway,
                 supportGateway,
+                orderIntentPlanner,
                 customerResolver,
                 ObservationRegistry.NOOP);
 
@@ -178,6 +203,7 @@ class OrderApplicationServiceTest {
         DeliveryGateway deliveryGateway = mock(DeliveryGateway.class);
         PaymentGateway paymentGateway = mock(PaymentGateway.class);
         SupportGateway supportGateway = mock(SupportGateway.class);
+        OrderIntentPlanner orderIntentPlanner = mock(OrderIntentPlanner.class);
         AuthenticatedCustomerResolver customerResolver = mock(AuthenticatedCustomerResolver.class);
 
         when(customerResolver.currentCustomerId()).thenReturn("demo-user");
@@ -222,6 +248,7 @@ class OrderApplicationServiceTest {
                 deliveryGateway,
                 paymentGateway,
                 supportGateway,
+                orderIntentPlanner,
                 customerResolver,
                 ObservationRegistry.NOOP);
 
@@ -246,6 +273,7 @@ class OrderApplicationServiceTest {
         DeliveryGateway deliveryGateway = mock(DeliveryGateway.class);
         PaymentGateway paymentGateway = mock(PaymentGateway.class);
         SupportGateway supportGateway = mock(SupportGateway.class);
+        OrderIntentPlanner orderIntentPlanner = mock(OrderIntentPlanner.class);
         AuthenticatedCustomerResolver customerResolver = mock(AuthenticatedCustomerResolver.class);
 
         when(customerResolver.currentCustomerId()).thenReturn("demo-user");
@@ -282,6 +310,7 @@ class OrderApplicationServiceTest {
                 deliveryGateway,
                 paymentGateway,
                 supportGateway,
+                orderIntentPlanner,
                 customerResolver,
                 ObservationRegistry.NOOP);
 

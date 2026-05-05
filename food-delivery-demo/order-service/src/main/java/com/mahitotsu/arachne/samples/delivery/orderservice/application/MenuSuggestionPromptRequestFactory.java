@@ -2,12 +2,12 @@ package com.mahitotsu.arachne.samples.delivery.orderservice.application;
 
 import java.math.BigDecimal;
 import java.util.Locale;
-import java.util.Optional;
 
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.MenuGroundingContext;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.MenuSuggestionRequest;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.NormalizedOrderIntent;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.OrderIntentInput;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.OrderSession;
-import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.StoredOrder;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.SuggestOrderRequest;
 
 final class MenuSuggestionPromptRequestFactory {
@@ -15,25 +15,32 @@ final class MenuSuggestionPromptRequestFactory {
     private MenuSuggestionPromptRequestFactory() {
     }
 
-    static MenuSuggestionRequest build(String sessionId, SuggestOrderRequest request, OrderSession existing, Optional<StoredOrder> recentOrder) {
-        String query = resolveQuery(request, existing);
+    static MenuSuggestionRequest build(String sessionId, SuggestOrderRequest request, NormalizedOrderIntent normalizedIntent) {
         String refinement = request.refinement() == null || request.refinement().isBlank()
                 ? null
                 : request.refinement().trim();
-        String recentOrderSummary = needsRecentOrderContext(query)
-                ? recentOrder.map(StoredOrder::itemSummary).orElse("none")
-                : null;
-        return new MenuSuggestionRequest(sessionId, query, refinement, recentOrderSummary);
+        return new MenuSuggestionRequest(
+                sessionId,
+                normalizedIntent.menuQuery(),
+                refinement,
+                normalizedIntent.recentOrderSummary(),
+                new MenuGroundingContext(
+                        normalizedIntent.intentMode(),
+                        normalizedIntent.directItemHint(),
+                        normalizedIntent.partySize(),
+                        normalizedIntent.budgetUpperBound(),
+                        normalizedIntent.childCount(),
+                        normalizedIntent.rationale()));
     }
 
-        static String resolveQuery(SuggestOrderRequest request, OrderSession existing) {
+    static String resolveCustomerMessage(SuggestOrderRequest request, OrderSession existing) {
         return firstNonBlank(
             rawMessage(request.intent()),
             structuredIntentSummary(request.intent()),
             existing.pendingProposal() == null ? null : existing.pendingProposal().customerMessage());
         }
 
-    private static boolean needsRecentOrderContext(String message) {
+    static boolean needsRecentOrderContext(String message) {
         String normalized = message == null ? "" : message.toLowerCase(Locale.ROOT);
         return normalized.contains("前回") || normalized.contains("いつもの") || normalized.contains("same as last time");
     }
@@ -56,7 +63,7 @@ final class MenuSuggestionPromptRequestFactory {
         return intent == null ? null : intent.rawMessage();
     }
 
-    private static String structuredIntentSummary(OrderIntentInput intent) {
+    static String structuredIntentSummary(OrderIntentInput intent) {
         if (intent == null) {
             return "";
         }

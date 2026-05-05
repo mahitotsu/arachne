@@ -15,13 +15,23 @@ public final class MenuTypes {
         @Schema(description = "menu-service へ送る menu 提案要求です。")
         public record MenuSuggestionRequest(
                                 @Schema(description = "呼び出し元ワークフローの相関 ID。") String sessionId,
-                                @Schema(description = "このターンにおける主たる customer の注文意図。", example = "2人で子ども向けのセットを見せて") String query,
+                                @Schema(description = "order-service が正規化した catalog grounding 用 query。", example = "2人で子ども向けのセットを見せて") String query,
                                 @Schema(description = "追加入力による再提案のための任意制約。") String refinement,
-                                @Schema(description = "再注文提案を補助するための任意の最近の注文要約。") String recentOrderSummary) {
+                                @Schema(description = "再注文提案を補助するための任意の最近の注文要約。") String recentOrderSummary,
+                                @Schema(description = "order-service が付与する catalog grounding 向けの構造化コンテキスト。") MenuGroundingContext groundingContext) {
 
                 public MenuSuggestionRequest(String sessionId, String query) {
-                        this(sessionId, query, null, null);
+                        this(sessionId, query, null, null, null);
                 }
+    }
+
+    public record MenuGroundingContext(
+            @Schema(description = "DIRECT_ITEM / RECOMMENDATION / REORDER / REFINEMENT のいずれか。") String intentMode,
+            @Schema(description = "直接指定された商品名や通称がある場合の要約。") String directItemHint,
+            @Schema(description = "想定している人数。") Integer partySize,
+            @Schema(description = "許容する予算上限。") BigDecimal budgetUpperBound,
+            @Schema(description = "子どもの人数。") Integer childCount,
+            @Schema(description = "order-service がこの grounding 形を選んだ理由。") String rationale) {
     }
 
     @Schema(description = "欠品 menu item に対する代替候補要求です。")

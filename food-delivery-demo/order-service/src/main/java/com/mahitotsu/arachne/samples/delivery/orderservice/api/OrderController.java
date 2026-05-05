@@ -32,8 +32,8 @@ public class OrderController {
             summary = "Suggest order items",
             description = "現在の注文意図または追加要望を受け取り、提案商品、ETA、ワークフロー状態、サービス trace を返します。",
             extensions = @Extension(name = "x-ai-prompt-contract", properties = {
-                    @ExtensionProperty(name = "agent", value = "menu-agent"),
-                @ExtensionProperty(name = "contract", value = "{\"requiredInputs\":[{\"field\":\"intent\",\"meaning\":\"注文意図。rawMessage または partySize / budgetUpperBound / childCount などの構造化情報を含みます。\"}],\"optionalInputs\":[{\"field\":\"refinement\",\"meaning\":\"前回提案に対する追加制約。\"},{\"field\":\"locale\",\"meaning\":\"応答言語のヒント。\"}],\"serviceBehavior\":\"intent から再注文意図が読み取れる場合、order-service は downstream の menu prompt に最近の注文コンテキストを補うことがあります。\"}", parseValue = true)
+                    @ExtensionProperty(name = "agent", value = "order-intake-agent"),
+                @ExtensionProperty(name = "contract", value = "{\"requiredInputs\":[{\"field\":\"intent\",\"meaning\":\"注文意図。rawMessage または partySize / budgetUpperBound / childCount などの構造化情報を含みます。\"}],\"optionalInputs\":[{\"field\":\"refinement\",\"meaning\":\"前回提案に対する追加制約。\"},{\"field\":\"locale\",\"meaning\":\"応答言語のヒント。\"}],\"serviceBehavior\":\"order-service は order-intake-agent で注文意図を正規化し、必要に応じて最近の注文要約を補ってから menu-service へ catalog grounding を委譲します。\"}", parseValue = true)
             }))
     @PostMapping(path = "/suggest", consumes = MediaType.APPLICATION_JSON_VALUE)
     SuggestOrderResponse suggest(@RequestBody SuggestOrderRequest request) {

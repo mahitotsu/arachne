@@ -32,6 +32,34 @@ function categoryLabel(category: string): string {
   }
 }
 
+function componentLabel(component: string): string {
+  switch (component) {
+    case 'order-intake-agent':
+      return 'intent-understanding';
+    case 'menu-agent':
+      return 'catalog-grounding';
+    case 'order-workflow':
+      return 'workflow';
+    default:
+      return component;
+  }
+}
+
+function boundaryHint(events: HistoryEvent[]): string | null {
+  const hasOrderIntent = events.some(event => event.component === 'order-intake-agent');
+  const hasMenuGrounding = events.some(event => event.service === 'menu-service' && event.component === 'menu-agent');
+  if (hasOrderIntent && hasMenuGrounding) {
+    return 'order-service が order-intake-agent で注文意図を正規化し、その後 menu-service の menu-agent が catalog grounding を担当しました。';
+  }
+  if (hasOrderIntent) {
+    return 'order-service の order-intake-agent がこのセッションの注文意図を正規化しました。';
+  }
+  if (hasMenuGrounding) {
+    return 'menu-service の menu-agent が catalog grounding を担当したイベントが含まれています。';
+  }
+  return null;
+}
+
 // ── Duration label ────────────────────────────────────────────────────────────
 
 function durationLabel(ms: number): string {
@@ -71,6 +99,7 @@ function EventRow({ event, index }: { event: HistoryEvent; index: number }) {
           <span className="eh-event-service" style={{ color: colour }}>
             {event.service}
           </span>
+          <span className="eh-event-component">{componentLabel(event.component)}</span>
           <span className={`eh-event-category eh-event-category--${event.category}`}>
             {categoryLabel(event.category)}
           </span>
@@ -195,6 +224,9 @@ export default function ExecutionHistoryPanel({ refreshKey }: Props) {
           )}
           {!loading && !error && events !== null && events.length > 0 && (
             <div className="eh-timeline">
+              {boundaryHint(events) && (
+                <p className="eh-note">{boundaryHint(events)}</p>
+              )}
               {events.map((ev, i) => (
                 <EventRow key={`${ev.service}-${ev.sequence}`} event={ev} index={i} />
               ))}

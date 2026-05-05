@@ -70,6 +70,7 @@ function getApiOperations(spec: OpenApiSpec): Array<{ method: string; path: stri
 }
 
 const AGENT_ICONS: Record<string, string> = {
+  'order-intake-agent':      '🧭',
   'delivery-agent':          '🚚',
   'menu-agent':              '🍱',
   'kitchen-agent':           '🍳',
@@ -79,6 +80,40 @@ const AGENT_ICONS: Record<string, string> = {
 
 function agentIcon(agentName: string): string {
   return AGENT_ICONS[agentName] ?? '🤖';
+}
+
+function isVisibleAgentSurface(service: AgentServiceDescriptor): boolean {
+  const hasTools = Array.isArray(service.tools) && service.tools.length > 0;
+  const hasSkills = Array.isArray(service.skills) && service.skills.length > 0;
+  return hasTools || hasSkills;
+}
+
+function boundaryLabel(service: AgentServiceDescriptor): string {
+  if (service.agentName === 'order-intake-agent') return 'intent front door';
+  if (service.serviceName === 'menu-service') return 'catalog grounding';
+  if (service.serviceName === 'delivery-service') return 'delivery planning';
+  if (service.serviceName === 'support-service') return 'support surface';
+  if (service.serviceName === 'registry-service') return 'capability inventory';
+  return 'service-local agent';
+}
+
+function boundaryRank(service: AgentServiceDescriptor): number {
+  switch (service.serviceName) {
+    case 'order-service':
+      return 0;
+    case 'menu-service':
+      return 1;
+    case 'kitchen-service':
+      return 2;
+    case 'delivery-service':
+      return 3;
+    case 'support-service':
+      return 4;
+    case 'registry-service':
+      return 5;
+    default:
+      return 10;
+  }
 }
 
 function parseSkillContent(content: string): string {
@@ -110,9 +145,13 @@ export default function AgentsPage() {
         fetch('/api/registry/services')
           .then(r => (r.ok ? (r.json() as Promise<AgentServiceDescriptor[]>) : []))
           .then(data => {
-            const aiAgents = (data as AgentServiceDescriptor[]).filter(
-              s => Array.isArray(s.tools) && s.tools.length > 0,
-            );
+            const aiAgents = (data as AgentServiceDescriptor[])
+              .filter(isVisibleAgentSurface)
+              .sort((left, right) => {
+                const rankDiff = boundaryRank(left) - boundaryRank(right);
+                if (rankDiff !== 0) return rankDiff;
+                return left.agentName.localeCompare(right.agentName);
+              });
             setAgents(aiAgents);
           })
           .catch(() => setError('エージェント一覧の取得に失敗しました')),
@@ -154,7 +193,7 @@ export default function AgentsPage() {
       <PageHeader
         icon="🤖"
         title="AI エージェント一覧"
-        lead="この画面は registry-service の一覧 API を使って、稼働中の Arachne AI エージェントの仕様を表示します。サービス間 collaborator 解決は別途 POST /registry/discover で行われます。"
+        lead="この画面は registry-service の一覧 API を使って、稼働中の Arachne AI エージェントの仕様を表示します。現在の注文境界では、order-service が order-intake-agent で意図を正規化し、その後 menu-service が catalog grounding を担当します。サービス間 collaborator 解決は別途 POST /registry/discover で行われます。"
       />
 
       <div className="ag-content">
@@ -183,6 +222,7 @@ export default function AgentsPage() {
                   </span>
                 </div>
                 <p className="ag-card-service">via {agent.serviceName}</p>
+                <span className="ag-boundary-chip">{boundaryLabel(agent)}</span>
                 <p className="ag-card-capability">{agent.capability}</p>
                 <div className="ag-card-chips">
                   {agent.tools.slice(0, 3).map(t => (
@@ -255,6 +295,10 @@ export default function AgentsPage() {
                       <span className="ag-modal-method">{selected.requestMethod}</span>
                       <span>{selected.requestPath}</span>
                     </span>
+                  </div>
+                  <div className="ag-modal-section">
+                    <span className="ag-modal-section-title">Boundary Role</span>
+                    <span className="ag-boundary-chip ag-boundary-chip--modal">{boundaryLabel(selected)}</span>
                   </div>
                   <div className="ag-modal-section">
                     <span className="ag-modal-section-title">ケイパビリティ</span>

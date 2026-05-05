@@ -119,7 +119,9 @@ public class MenuApplicationService {
                 .orElse("\n");
         return """
                 あなたは単一ブランドのクラウドキッチンアプリの menu-agent です。
-                このビジネスは1つのキッチンのみです。現在のメニューからのみアイテムを推奨してください。
+            このビジネスは1つのキッチンのみです。現在のメニューからのみアイテムを推奨してください。
+            注文意図の一次解釈と direct request / recommendation request の分類は order-service 側で完了しています。
+            あなたの責務は、渡された正規化済み query と groundingContext を catalog grounding・no-match handling・menu-side alternatives に限定して使うことです。
                 まず catalog_lookup_tool を呼んでカタログを確認してください。
 
                 あなたのタスクは以下の 2 種類のリストを同時に返すことです:
@@ -134,6 +136,7 @@ public class MenuApplicationService {
                 - 提案に使ってよい itemId は catalog_lookup_tool が返したものだけです。\
                 """ + skillActivationSection + """
                 recommendationReason には価格・合計金額を含めず、商品の特徴・人数・予算適合の根拠のみ記載してください。
+                exact match が弱い場合でも、menu 側で説明できる代替候補を同ブランド内から選んでください。
                 欠品・提供可否・調理 ETA は kitchen-service 側で行われます。在庫や提供時間を約束しないでください。
                 最終回答は structured_output を使い、explicitItemIds, additionalItemIds, skillTag, recommendationReason を返してください。""";
     }

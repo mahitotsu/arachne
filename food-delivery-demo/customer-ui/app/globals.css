@@ -494,6 +494,8 @@ p,h1,h2,h3,h4,h5,h6 { margin: 0; }
 .ag-card-capability { font-size: 0.8rem; color: var(--ink-muted); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .ag-card-icon   { font-size: 1.9rem; line-height: 1; margin-bottom: 2px; }
 .ag-card-service{ font-size: 0.73rem; color: var(--ink-subtle); font-weight: 500; }
+.ag-boundary-chip { display: inline-flex; align-items: center; width: fit-content; padding: 3px 10px; border-radius: var(--r-pill); background: var(--surface-2); color: var(--ink); font-size: 0.69rem; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; }
+.ag-boundary-chip--modal { font-size: 0.72rem; }
 .ag-card-chips  { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 2px; }
 .ag-card-detail-hint { margin-top: auto; font-size: 0.76rem; font-weight: 700; color: var(--accent); }
 
@@ -615,6 +617,7 @@ p,h1,h2,h3,h4,h5,h6 { margin: 0; }
 
 .eh-event-header { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 5px; }
 .eh-event-service { font-size: 0.72rem; font-weight: 800; font-family: ui-monospace,monospace; }
+.eh-event-component { font-size: 0.66rem; font-weight: 700; padding: 1px 7px; border-radius: var(--r-pill); background: var(--surface-2); color: var(--ink-muted); border: 1px solid var(--border); }
 .eh-event-duration { font-size: 0.7rem; color: var(--ink-subtle); font-family: ui-monospace,monospace; margin-left: auto; }
 .eh-event-time     { font-size: 0.7rem; color: var(--ink-subtle); white-space: nowrap; }
 
@@ -631,6 +634,7 @@ p,h1,h2,h3,h4,h5,h6 { margin: 0; }
 .eh-event-outcome--error   { background: var(--p-rose);  color: var(--p-rose-t);  border-color: rgba(220,38,38,0.18); }
 
 .eh-event-headline { margin: 0; font-size: 0.84rem; font-weight: 600; color: var(--ink); line-height: 1.45; }
+.eh-note { margin: 0 0 14px; padding: 11px 14px; border-radius: var(--r-md); background: var(--p-amber); color: var(--p-amber-t); border: 1px solid rgba(180,83,9,0.18); font-size: 0.8rem; line-height: 1.55; }
 
 .eh-expand-btn { margin-top: 5px; padding: 2px 0; background: none; border: none; font-size: 0.74rem; color: var(--accent); cursor: pointer; font-weight: 600; }
 .eh-expand-btn:hover { text-decoration: underline; }

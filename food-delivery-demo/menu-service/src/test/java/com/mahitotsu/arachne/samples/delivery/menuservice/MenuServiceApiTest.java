@@ -23,6 +23,7 @@ import org.springframework.test.context.DynamicPropertySource;
 
 import com.mahitotsu.arachne.samples.delivery.menuservice.domain.MenuExecutionHistoryTypes.MenuExecutionHistoryEvent;
 import com.mahitotsu.arachne.samples.delivery.menuservice.domain.MenuExecutionHistoryTypes.MenuExecutionHistoryResponse;
+import com.mahitotsu.arachne.samples.delivery.menuservice.domain.MenuTypes.MenuGroundingContext;
 import com.mahitotsu.arachne.samples.delivery.menuservice.domain.MenuTypes.MenuItem;
 import com.mahitotsu.arachne.samples.delivery.menuservice.domain.MenuTypes.MenuSubstitutionRequest;
 import com.mahitotsu.arachne.samples.delivery.menuservice.domain.MenuTypes.MenuSubstitutionResponse;
@@ -134,7 +135,8 @@ class MenuServiceApiTest {
                 .contains("/internal/menu/suggest")
                 .contains("/api/menu/catalog")
                 .contains("x-ai-prompt-contract")
-            .contains("主たる customer の注文意図");
+            .contains("catalog grounding")
+            .contains("groundingContext");
     }
 
     @Test
@@ -154,6 +156,29 @@ class MenuServiceApiTest {
         assertThat(lastRegistryDiscoverRequestBody.get())
             .contains("\"query\":\"在庫確認 調理ライン別 ETA 欠品時の代替承認 混雑時の別ライン提案\"")
             .contains("\"availableOnly\":true");
+    }
+
+    @Test
+    void acceptsNormalizedGroundingContextFromOrderService() {
+        MenuSuggestionResponse response = restTemplate.postForObject(
+                "/internal/menu/suggest",
+                new MenuSuggestionRequest(
+                        "session-grounded",
+                        "照り焼きセットで",
+                        null,
+                        null,
+                        new MenuGroundingContext(
+                                "DIRECT_ITEM",
+                                "照り焼きセット",
+                                2,
+                                null,
+                                null,
+                                "商品名らしい指定があるため catalog grounding に直接渡します。")),
+                MenuSuggestionResponse.class);
+
+        assertThat(response).isNotNull();
+        assertThat(response.items()).isNotEmpty();
+        assertThat(response.agent()).isEqualTo("menu-agent");
     }
 
     @Test

@@ -5,7 +5,6 @@ import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -31,6 +30,7 @@ import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.Del
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.DeliveryQuoteResponse;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.MenuSuggestionRequest;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.MenuSuggestionResponse;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.NormalizedOrderIntent;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.OrderDraft;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.OrderLineItem;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.OrderSession;
@@ -70,6 +70,7 @@ public class OrderApplicationService {
     private final DeliveryGateway deliveryGateway;
     private final PaymentGateway paymentGateway;
     private final SupportGateway supportGateway;
+        private final OrderIntentPlanner orderIntentPlanner;
     private final AuthenticatedCustomerResolver authenticatedCustomerResolver;
     private final ObservationRegistry observationRegistry;
         private final OrderExecutionHistoryStore executionHistoryStore;
@@ -82,6 +83,7 @@ public class OrderApplicationService {
             DeliveryGateway deliveryGateway,
             PaymentGateway paymentGateway,
             SupportGateway supportGateway,
+            OrderIntentPlanner orderIntentPlanner,
             AuthenticatedCustomerResolver authenticatedCustomerResolver,
                         ObservationRegistry observationRegistry,
                         OrderExecutionHistoryStore executionHistoryStore) {
@@ -91,6 +93,7 @@ public class OrderApplicationService {
         this.deliveryGateway = deliveryGateway;
         this.paymentGateway = paymentGateway;
         this.supportGateway = supportGateway;
+        this.orderIntentPlanner = orderIntentPlanner;
         this.authenticatedCustomerResolver = authenticatedCustomerResolver;
         this.observationRegistry = observationRegistry;
                 this.executionHistoryStore = executionHistoryStore;
@@ -103,6 +106,7 @@ public class OrderApplicationService {
                         DeliveryGateway deliveryGateway,
                         PaymentGateway paymentGateway,
                         SupportGateway supportGateway,
+                        OrderIntentPlanner orderIntentPlanner,
                         AuthenticatedCustomerResolver authenticatedCustomerResolver,
                         ObservationRegistry observationRegistry) {
                 this(
@@ -112,6 +116,7 @@ public class OrderApplicationService {
                                 deliveryGateway,
                                 paymentGateway,
                                 supportGateway,
+                                orderIntentPlanner,
                                 authenticatedCustomerResolver,
                                 observationRegistry,
                                 new OrderExecutionHistoryStore());
@@ -122,18 +127,24 @@ public class OrderApplicationService {
                 return observeWorkflow(sessionId, "suggest", () -> {
             OrderSession existing = sessionStore.load(sessionId).orElse(emptySession(sessionId));
             String accessToken = SecurityAccessors.requiredAccessToken();
-            String menuQuery = MenuSuggestionPromptRequestFactory.resolveQuery(request, existing);
-            if (menuQuery.isBlank()) {
+            String customerMessage = MenuSuggestionPromptRequestFactory.resolveCustomerMessage(request, existing);
+            if (customerMessage.isBlank()) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                         "注文意図が必要です。rawMessage または partySize などの構造化フィールドを指定してください。");
             }
+            Optional<com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.StoredOrder> recentOrder =
+                    MenuSuggestionPromptRequestFactory.needsRecentOrderContext(customerMessage)
+                                    ? orderRepository.findLatestOrderForUser(authenticatedCustomerResolver.currentCustomerId())
+                                    : Optional.empty();
+            NormalizedOrderIntent normalizedIntent = orderIntentPlanner.plan(sessionId, request, existing, recentOrder);
             MenuSuggestionRequest menuSuggestionRequest = MenuSuggestionPromptRequestFactory.build(
                     sessionId,
                     request,
-                    existing,
-                    needsRecentOrderContext(menuQuery)
-                                    ? orderRepository.findLatestOrderForUser(authenticatedCustomerResolver.currentCustomerId())
-                                    : Optional.empty());
+                    normalizedIntent);
+            if (menuSuggestionRequest.query() == null || menuSuggestionRequest.query().isBlank()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "menu-service に渡す正規化済みの注文意図を解決できませんでした。");
+            }
 
             MenuSuggestionResponse menuResponse = menuGateway.suggest(
                     menuSuggestionRequest,
@@ -162,7 +173,7 @@ public class OrderApplicationService {
                     "item-selection",
                     draft,
                     new PendingProposal(
-                            menuSuggestionRequest.query(),
+                            normalizedIntent.customerMessage(),
                             request.locale(),
                             menuResponse.summary(),
                             proposals,
@@ -180,7 +191,7 @@ public class OrderApplicationService {
                     menuResponse.etaMinutes(),
                     proposals,
                     draft,
-                    buildSuggestTrace(menuResponse));
+                                        buildSuggestTrace(normalizedIntent, menuResponse));
         });
     }
 
@@ -419,45 +430,46 @@ public class OrderApplicationService {
                 + " eta=" + selectedDelivery.etaMinutes() + " min";
     }
 
-    private boolean needsRecentOrderContext(String message) {
-        String normalized = message == null ? "" : message.toLowerCase(Locale.ROOT);
-        return normalized.contains("前回") || normalized.contains("いつもの") || normalized.contains("same as last time");
-    }
-
     private String proposalReason(MenuSuggestionResponse menuResponse) {
         return "";
     }
 
-    private List<ServiceTrace> buildSuggestTrace(MenuSuggestionResponse menuResponse) {
+    private List<ServiceTrace> buildSuggestTrace(NormalizedOrderIntent normalizedIntent, MenuSuggestionResponse menuResponse) {
+        List<ServiceTrace> trace = new ArrayList<>();
+        trace.add(new ServiceTrace(
+                "order-service",
+                ArachneOrderIntentPlanner.AGENT_NAME,
+                "order-service が注文意図を正規化しました",
+                normalizedIntent.rationale() + " intentMode=" + normalizedIntent.intentMode()));
         if (menuResponse.kitchenTrace() == null) {
-            return List.of(
-                    new ServiceTrace(
-                            menuResponse.service(),
-                            menuResponse.agent(),
-                            menuResponse.headline(),
-                            menuResponse.summary()),
-                    new ServiceTrace(
-                            "order-service",
-                            "order-workflow",
-                            "order-service が提案ステップを開始しました",
-                            "メニュー提案 capability を1回解決して協業先を呼び出しました。"));
+            trace.add(new ServiceTrace(
+                    menuResponse.service(),
+                    menuResponse.agent(),
+                    menuResponse.headline(),
+                    menuResponse.summary()));
+            trace.add(new ServiceTrace(
+                    "order-service",
+                    "order-workflow",
+                    "order-service が提案ステップを開始しました",
+                    "正規化済み query を menu-service の catalog grounding へ渡しました。"));
+            return List.copyOf(trace);
         }
-        return List.of(
-                new ServiceTrace(
-                        menuResponse.service(),
-                        menuResponse.agent(),
-                        menuResponse.headline(),
-                        menuResponse.summary()),
-                new ServiceTrace(
-                        "kitchen-service/support",
-                        "kitchen-agent",
-                        "kitchen-service が提供可否を返しました",
-                        menuResponse.kitchenTrace().summary()),
-                new ServiceTrace(
-                        "order-service",
-                        "order-workflow",
-                        "order-service が提案ステップを開始しました",
-                        "メニュー提案 capability を1回解決して協業先を呼び出しました。"));
+        trace.add(new ServiceTrace(
+                menuResponse.service(),
+                menuResponse.agent(),
+                menuResponse.headline(),
+                menuResponse.summary()));
+        trace.add(new ServiceTrace(
+                "kitchen-service/support",
+                "kitchen-agent",
+                "kitchen-service が提供可否を返しました",
+                menuResponse.kitchenTrace().summary()));
+        trace.add(new ServiceTrace(
+                "order-service",
+                "order-workflow",
+                "order-service が提案ステップを開始しました",
+                "正規化済み query を menu-service の catalog grounding へ渡しました。"));
+        return List.copyOf(trace);
     }
 
     private List<ProposalItem> selectProposalItems(List<ProposalItem> proposals, List<SelectedProposalItem> selectedItems) {

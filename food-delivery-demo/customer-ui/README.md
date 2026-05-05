@@ -8,7 +8,7 @@
 - `support-service` から取得するキャンペーンバナー（ホームダッシュボード上部）
 - ホームの主要 CTA 直下に置かれたサポートセンター導線（`/support`）
 - サポートページで表示するサービス稼働状況インジケーター
-- エージェント仕様ビューワー（`/agents`）: `registry-service` の一覧 API から AI エージェントのシステムプロンプト・利用ツール・スキルを取得してカード一覧＋モーダル表示。モーダルは「概要」「ツール・スキル」「API仕様」の3タブに整理されており、「API仕様」タブは当該サービスの OpenAPI (`/v3/api-docs`) を遅延ロードし、各エンドポイントのメソッドバッジ・summary・`x-ai-prompt-contract`（必須入力 / 任意入力 / サービス動作）を表示します
+- エージェント仕様ビューワー（`/agents`）: `registry-service` の一覧 API から AI エージェントのシステムプロンプト・利用ツール・スキルを取得してカード一覧＋モーダル表示。`order-service` の `order-intake-agent` は intent front door、`menu-service` の `menu-agent` は catalog grounding として表示されます。モーダルは「概要」「ツール・スキル」「API仕様」の3タブに整理されており、「API仕様」タブは当該サービスの OpenAPI (`/v3/api-docs`) を遅延ロードし、各エンドポイントのメソッドバッジ・summary・`x-ai-prompt-contract`（必須入力 / 任意入力 / サービス動作）を表示します
 
 `/agents` で使う `GET /registry/services` は仕様一覧・参照用です。サービス間 collaborator 解決は backend services 側で `POST /registry/discover` を使って行います。
 
@@ -31,7 +31,7 @@
 3. **配送選択** — delivery-agent の選択肢カード（推奨マーク付き） → `POST /api/backend/order/confirm-delivery`
 4. **支払い承認** — 注文サマリー（アイテム・配送料・合計・支払い方法） + 承認前なら前ステップへ戻る導線 → `POST /api/backend/order/confirm-payment`
 
-注文セッションが確立すると、step 1 以降の `/order` 下部に実行履歴パネルが表示されます。パネルは order/menu/delivery/payment/support の 5 サービスへ BFF 経由で並行取得した履歴を時系列で統合表示し、ステップ遷移時の自動再取得と手動「↺ 更新」に対応します。
+注文セッションが確立すると、step 1 以降の `/order` 下部に実行履歴パネルが表示されます。パネルは order/menu/delivery/payment/support の 5 サービスへ BFF 経由で並行取得した履歴を時系列で統合表示し、ステップ遷移時の自動再取得と手動「↺ 更新」に対応します。`order-intake-agent` による意図正規化と `menu-agent` による catalog grounding は component ラベルと補足ノートで見分けられます。
 
 認証トークン、注文セッション、サポート会話セッション、注文スナップショットは customer-ui のサーバー側セッションに保持されます。ブラウザ側には `HttpOnly` Cookie の BFF セッション ID のみを置き、注文復元は `GET /api/backend/order/session` で行います。
 

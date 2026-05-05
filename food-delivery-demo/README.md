@@ -2,7 +2,7 @@
 
 このディレクトリは、旧マーケットプレイスワークフローサンプルに代わるデモを提供します。
 
-デモは単一ブランドのクラウドキッチン向けデリバリーアプリです。注文体験は `/order` の 4 ステップ workflow-first UI、問い合わせは `/support` の会話面、エージェント説明は `/agents` の registry-backed viewer が担います。キッチンは1つのみ、店内飲食フローなし、ブランチ切り替えなし。フロントエンドは通常のデリバリーアプリのように見えますが、バックエンドは一様な agent-fronted API 群ではありません。`order-service` は公開ワークフロー API の front door、`payment-service` は決定論的な契約面、`menu-service`・`delivery-service`・`support-service` は会話的または agent-fronted な公開面を担います。普通のマイクロサービストラフィックに見えるものの一部が、マルチエージェントコラボレーションパスでもあります。
+デモは単一ブランドのクラウドキッチン向けデリバリーアプリです。注文体験は `/order` の 4 ステップ workflow-first UI、問い合わせは `/support` の会話面、エージェント説明は `/agents` の registry-backed viewer が担います。キッチンは1つのみ、店内飲食フローなし、ブランチ切り替えなし。フロントエンドは通常のデリバリーアプリのように見えますが、バックエンドは一様な agent-fronted API 群ではありません。`order-service` は `order-intake-agent` を持つ公開ワークフロー front door、`payment-service` は決定論的な契約面、`menu-service`・`delivery-service`・`support-service` は会話的または agent-fronted な公開面を担います。普通のマイクロサービストラフィックに見えるものの一部が、マルチエージェントコラボレーションパスでもあります。
 
 これは意図的に実行可能な `samples/` カタログには含めていません。ここでのゴールは、Arachne が Spring Boot マイクロサービスにいかに自然に溶け込めるかを示す、構成された実用的なアプリケーションスライスです。
 
@@ -13,9 +13,9 @@
 - `customer-ui`: カスタマー向けの Next.js UI。`/order` は 4 ステップ注文ワークフロー、`/support` は会話型サポート、`/agents` は registry-backed なエージェント仕様ビューワー
 - `customer-service`: デモカスタマーディレクトリ、サインイン API、JWT 発行、JWKS 公開
 - `support-service`: FAQ、問い合わせ受付、キャンペーン一覧、registry 連携の稼働状況集約
-- `order-service`: 公開ワークフロー API、Redis バックドのセッション継続、PostgreSQL バックドの注文永続化
+- `order-service`: 公開ワークフロー API、`order-intake-agent` による注文意図の正規化、Redis バックドのセッション継続、PostgreSQL バックドの注文永続化
 - `registry-service`: サービスのケイパビリティ登録、自然言語 discover、稼働状況集約
-- `menu-service`: `menu-agent` による単一エージェントフローのメニュー検索と代替提案。スキルの発動条件は SKILL.md の `activationHint` フロントマターで管理し、起動時にシステムプロンプトへ動的注入される
+- `menu-service`: `menu-agent` による単一エージェントフローの catalog grounding、no-match handling、menu-side alternatives。`order-service` が正規化した意図を受け、同一ブランドの現行メニューに grounded な候補へ落とし込む。スキルの発動条件は SKILL.md の `activationHint` フロントマターで管理し、起動時にシステムプロンプトへ動的注入される
 - `kitchen-service`: `kitchen-agent` による在庫確認と調理時間
 - `delivery-service`: `delivery-agent` による ETA 推定とクーリエ計画
 - `payment-service`: 決定論的な支払い準備と課金実行
@@ -34,13 +34,13 @@
 1. カスタマーがデモ ID/パスワードで `customer-service` にサインインし、JWT アクセストークンを受け取る。
 2. ブラウザは `customer-ui` のリライトで同一オリジンを維持: `/api/customer/*` は `customer-service` へ、`/api/backend/*` は `order-service` へ転送される。
 3. UI はそのベアラートークンを `order-service` へ送信する。
-4. `order-service` がステップ別ワークフロー API を通じてダウンストリームサービスを調整し、アクティブな注文セッションを Redis に保持する。
-5. `menu-service`、`kitchen-service`、`delivery-service` は同じアクセストークンを検証したうえで service-local agent を通じた提案や調整を返し、`payment-service` は決定論的ロジックで支払い準備と課金を処理する。
+4. `order-service` は suggest ステップで `order-intake-agent` を実行し、raw/structured な注文入力を正規化したうえで、catalog grounding 用の handoff を `menu-service` へ渡す。アクティブな注文セッション自体は引き続き Redis に保持する。
+5. `menu-service`、`kitchen-service`、`delivery-service` は同じアクセストークンを検証したうえで service-local agent を通じた提案や調整を返し、`payment-service` は決定論的ロジックで支払い準備と課金を処理する。`menu-service` は一次解釈をやり直さず、catalog grounding と menu-side alternatives に集中する。
 6. `support-service` は FAQ、キャンペーン、問い合わせ事例を返し、必要に応じて registry-service の稼働状況と order-service の注文履歴を参照する。
 7. 唯一のキッチンがリクエストされたアイテムを提供できない場合、`kitchen-agent` は `menu-agent` に同一ブランドのフォールバックアイテムを問い合わせることができる。
 8. UI の `/order` はステップ別の構造化レスポンスを表示し、step 1 以降は execution history をユーザー向け proof surface として表示する。
 9. UI の `/support` は `support-service` の FAQ、問い合わせ、キャンペーン、稼働状況を会話面として表示し、注文後のサポート導線も受け持つ。
-10. UI の `/agents` は `GET /registry/services` と各 service の OpenAPI を使って、ケイパビリティ、システムプロンプト、ツール、スキル、API 契約を説明面として表示する。
+10. UI の `/agents` は `GET /registry/services` と各 service の OpenAPI を使って、`order-service` の intent front door と `menu-service` の catalog grounding を含むケイパビリティ、システムプロンプト、ツール、スキル、API 契約を説明面として表示する。
 11. 配送見積もりでは `delivery-agent` が自社エクスプレスに加え、registry-service で動的発見した `Hermes` / `Idaten` の外部 ETA 候補を比較し、文脈に応じて推奨を返す。
 12. ユーザーが下書きを確定すると、`payment-service` が決定論的課金を実行し、`order-service` が注文を PostgreSQL に記録したうえで `support-service` に事後フィードバック受付を通知する。
 
@@ -107,6 +107,9 @@ curl 'http://localhost:8080/actuator/metrics/delivery.order.downstream?tag=targe
 curl 'http://localhost:8080/actuator/metrics/delivery.order.registry.lookup' \
 	-H 'Authorization: Bearer <access-token>'
 
+curl 'http://localhost:8080/actuator/metrics/delivery.agent.invocation?tag=service:order-service&tag=agent:order-intake-agent&tag=outcome:success' \
+	-H 'Authorization: Bearer <access-token>'
+
 curl 'http://localhost:8081/actuator/metrics/delivery.agent.invocation?tag=service:menu-service&tag=agent:menu-agent&tag=outcome:success' \
 	-H 'Authorization: Bearer <access-token>'
 
@@ -122,7 +125,7 @@ curl 'http://localhost:8086/actuator/metrics/delivery.agent.tool.call?tag=servic
 - `delivery.order.workflow`: 注文 workflow entrypoint (`suggest`, `confirm-items`, `confirm-delivery`, `confirm-payment`, `session`, `recent-order-history`) の count / latency
 - `delivery.order.downstream`: `menu-service` / `delivery-service` / `payment-service` / `support-service` への主要 downstream HTTP 呼び出しの count / latency
 - `delivery.order.registry.lookup`: `registry-service` への endpoint 解決呼び出しの count / latency
-- `delivery.agent.invocation`: `menu-service` / `delivery-service` / `support-service` の service-local agent 実行 count / latency
+- `delivery.agent.invocation`: `order-service` / `menu-service` / `delivery-service` / `support-service` の service-local agent 実行 count / latency
 - `delivery.agent.model.call`: `ArachneLifecycleApplicationEvent` の model call event をもとにした model 応答 count
 - `delivery.agent.tool.call`: `ArachneLifecycleApplicationEvent` の tool call event をもとにした tool 実行 count
 - `delivery.agent.usage.tokens`: Bedrock 利用時の token usage (`type=input|output`)

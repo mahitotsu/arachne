@@ -38,6 +38,19 @@ public final class OrderTypes {
                         @Schema(description = "子どもの人数。", example = "1") Integer childCount) {
     }
 
+            @Schema(description = "order-service が suggest ステップで解釈した正規化済み注文意図です。")
+            public record NormalizedOrderIntent(
+                    @Schema(description = "後続ワークフローで保持する customer 意図の要約。") String customerMessage,
+                    @Schema(description = "DIRECT_ITEM / RECOMMENDATION / REORDER / REFINEMENT のいずれか。") String intentMode,
+                    @Schema(description = "menu-service へ渡す catalog grounding 用の query。") String menuQuery,
+                    @Schema(description = "直接指定された商品名や通称がある場合の要約。") String directItemHint,
+                    @Schema(description = "想定している人数。") Integer partySize,
+                    @Schema(description = "許容する予算上限。") BigDecimal budgetUpperBound,
+                    @Schema(description = "子どもの人数。") Integer childCount,
+                    @Schema(description = "再注文文脈が有効な場合の最近の注文要約。") String recentOrderSummary,
+                    @Schema(description = "order-service がこの正規化を選んだ理由。") String rationale) {
+            }
+
     @Schema(description = "配送選択へ進めるために選択した提案商品です。")
     public record ConfirmItemsRequest(
             @Schema(description = "suggest ステップで返されたワークフローのセッション ID。") String sessionId,
@@ -198,10 +211,21 @@ public final class OrderTypes {
             @Schema(description = "確定済み注文の作成タイムスタンプ。") String createdAt) {
     }
 
-        public record MenuSuggestionRequest(String sessionId, String query, String refinement, String recentOrderSummary) {
+    @Schema(description = "menu-service が catalog grounding に使う構造化コンテキストです。")
+    public record MenuGroundingContext(
+            @Schema(description = "DIRECT_ITEM / RECOMMENDATION / REORDER / REFINEMENT のいずれか。") String intentMode,
+            @Schema(description = "直接指定された商品名や通称がある場合の要約。") String directItemHint,
+            @Schema(description = "想定している人数。") Integer partySize,
+            @Schema(description = "許容する予算上限。") BigDecimal budgetUpperBound,
+            @Schema(description = "子どもの人数。") Integer childCount,
+            @Schema(description = "呼び出し元がこの grounding 形を選んだ理由。") String rationale) {
+    }
+
+        public record MenuSuggestionRequest(String sessionId, String query, String refinement, String recentOrderSummary,
+                MenuGroundingContext groundingContext) {
 
                 public MenuSuggestionRequest(String sessionId, String query) {
-                        this(sessionId, query, null, null);
+                        this(sessionId, query, null, null, null);
                 }
     }
 

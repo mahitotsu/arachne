@@ -35,10 +35,10 @@ public class MenuController {
     @PostMapping("/suggest")
     @Operation(
             summary = "Suggest menu candidates",
-            description = "現在の customer の注文意図を受け取り、agent 要約と ETA を伴う menu 候補を返します。",
+            description = "order-service が正規化した catalog grounding 要求を受け取り、agent 要約と ETA を伴う menu 候補を返します。",
             extensions = @Extension(name = "x-ai-prompt-contract", properties = {
                     @ExtensionProperty(name = "agent", value = "menu-agent"),
-                @ExtensionProperty(name = "contract", value = "{\"requiredInputs\":[{\"field\":\"query\",\"meaning\":\"好み、人数、予算、欲しい商品を含む主たる注文意図。\"}],\"optionalInputs\":[{\"field\":\"refinement\",\"meaning\":\"再提案のための追加制約。\"},{\"field\":\"recentOrderSummary\",\"meaning\":\"利用可能な場合に呼び出し元が注入する再注文コンテキスト。\"},{\"field\":\"sessionId\",\"meaning\":\"提案ワークフローの相関 ID。\"}]}", parseValue = true)
+                @ExtensionProperty(name = "contract", value = "{\"requiredInputs\":[{\"field\":\"query\",\"meaning\":\"order-service が正規化した catalog grounding 用 query。\"}],\"optionalInputs\":[{\"field\":\"groundingContext\",\"meaning\":\"intentMode・人数・予算・directItemHint など、order-service が付与した構造化コンテキスト。\"},{\"field\":\"refinement\",\"meaning\":\"再提案のための追加制約。\"},{\"field\":\"recentOrderSummary\",\"meaning\":\"利用可能な場合に呼び出し元が注入する再注文コンテキスト。\"},{\"field\":\"sessionId\",\"meaning\":\"提案ワークフローの相関 ID。\"}],\"serviceBehavior\":\"menu-service は一次解釈をやり直さず、受け取った正規化コンテキストを catalog grounding・no-match handling・menu-side alternatives に使います。\"}", parseValue = true)
             }))
     MenuSuggestionResponse suggest(@RequestBody MenuSuggestionRequest request) {
         return applicationService.suggest(request);
