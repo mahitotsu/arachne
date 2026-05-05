@@ -177,9 +177,24 @@ class MenuServiceApiTest {
                 MenuSuggestionResponse.class);
 
         assertThat(response).isNotNull();
-        assertThat(response.items()).isNotEmpty();
+            assertThat(response.items()).extracting(MenuItem::id)
+                .containsExactly("combo-teriyaki");
         assertThat(response.agent()).isEqualTo("menu-agent");
+            assertThat(response.summary()).contains("明示された商品指定を最優先で grounded しました。");
     }
+
+            @Test
+            void noExactMatchResponseExplicitlyMentionsMenuSideAlternatives() {
+            MenuSuggestionResponse response = restTemplate.postForObject(
+                "/internal/menu/suggest",
+                new MenuSuggestionRequest("session-no-match", "寿司みたいなさっぱりしたものある？"),
+                MenuSuggestionResponse.class);
+
+            assertThat(response).isNotNull();
+            assertThat(response.items()).isNotEmpty();
+            assertThat(response.summary()).contains("ぴったり一致するメニューは見つからなかったため");
+            assertThat(response.summary()).contains("代替");
+            }
 
     @Test
     void actuatorMetricsExposeAgentInvocationAndToolCallsAfterSuggest() {

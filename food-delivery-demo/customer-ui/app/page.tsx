@@ -65,7 +65,7 @@ export default function SignInPage() {
           <p className="si-subtitle">single-kitchen · cloud delivery</p>
           <div className="si-arch">
             <p className="si-arch-lead">
-              一つの注文の裏で、<br />複数の AI エージェントが協働します。
+              一つの注文の裏で、<br />複数の AI エージェントとサービスが協働します。
             </p>
             <ul className="si-service-list">
               <li><span className="si-dot si-dot--customer" />customer-service</li>
@@ -73,7 +73,7 @@ export default function SignInPage() {
               <li><span className="si-dot si-dot--menu" />menu-agent</li>
               <li><span className="si-dot si-dot--kitchen" />kitchen-agent</li>
               <li><span className="si-dot si-dot--delivery" />delivery-agent</li>
-              <li><span className="si-dot si-dot--payment" />payment-agent</li>
+              <li><span className="si-dot si-dot--payment" />payment-service</li>
             </ul>
           </div>
         </div>

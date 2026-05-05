@@ -109,8 +109,8 @@ class MenuArachneConfiguration {
 
     @Bean
     @ConditionalOnProperty(name = "delivery.model.mode", havingValue = "deterministic", matchIfMissing = false)
-    Model menuDeterministicModel() {
-        return new MenuDeterministicModel();
+    Model menuDeterministicModel(MenuRepository repository) {
+        return new MenuDeterministicModel(repository);
     }
 
     private static ObjectNode schema() {

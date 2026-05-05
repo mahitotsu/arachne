@@ -45,16 +45,16 @@ final class OrderDeterministicModel implements Model {
         String directItemHint = "DIRECT_ITEM".equals(intentMode) ? customerMessage : "";
         String menuQuery = buildMenuQuery(customerMessage, directItemHint, structuredSummary);
         String recentOrderSummary = needsRecentOrderContext(customerMessage) ? args.getOrDefault("recent_order", "") : "";
-        Map<String, Object> content = Map.of(
-                "customerMessage", customerMessage,
-                "intentMode", intentMode,
-                "menuQuery", menuQuery,
-                "directItemHint", directItemHint,
-                "partySize", parseInteger(args.get("party_size")),
-                "budgetUpperBound", parseBigDecimal(args.get("budget_upper_bound")),
-                "childCount", parseInteger(args.get("child_count")),
-                "recentOrderSummary", recentOrderSummary.isBlank() ? null : recentOrderSummary,
-                "rationale", rationale(intentMode));
+        Map<String, Object> content = new LinkedHashMap<>();
+        content.put("customerMessage", customerMessage);
+        content.put("intentMode", intentMode);
+        content.put("menuQuery", menuQuery);
+        content.put("directItemHint", directItemHint);
+        content.put("partySize", parseInteger(args.get("party_size")));
+        content.put("budgetUpperBound", parseBigDecimal(args.get("budget_upper_bound")));
+        content.put("childCount", parseInteger(args.get("child_count")));
+        content.put("recentOrderSummary", recentOrderSummary.isBlank() ? null : recentOrderSummary);
+        content.put("rationale", rationale(intentMode));
         if (structuredOutputRequested(tools)) {
             return List.of(
                     new ModelEvent.ToolUse("structured-order-intent", StructuredOutputTool.DEFAULT_NAME, content),

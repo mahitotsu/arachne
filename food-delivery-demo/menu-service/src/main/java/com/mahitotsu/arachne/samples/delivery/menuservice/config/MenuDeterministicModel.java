@@ -4,6 +4,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.mahitotsu.arachne.samples.delivery.menuservice.infrastructure.MenuRepository;
 import com.mahitotsu.arachne.strands.model.Model;
 import com.mahitotsu.arachne.strands.model.ModelEvent;
 import com.mahitotsu.arachne.strands.model.ToolSelection;
@@ -13,6 +14,16 @@ import com.mahitotsu.arachne.strands.types.ContentBlock;
 import com.mahitotsu.arachne.strands.types.Message;
 
 final class MenuDeterministicModel implements Model {
+
+    private final MenuRepository repository;
+
+    MenuDeterministicModel() {
+        this(new MenuRepository());
+    }
+
+    MenuDeterministicModel(MenuRepository repository) {
+        this.repository = repository;
+    }
 
     @Override
     public Iterable<ModelEvent> converse(List<Message> messages, List<ToolSpec> tools) {
@@ -35,6 +46,7 @@ final class MenuDeterministicModel implements Model {
         boolean substitutionQuery = requestArgs.containsKey("unavailableItemId");
         boolean isFamilyQuery = isFamilyQuery(userText);
         boolean isSubstitutionQuery = substitutionQuery;
+        boolean isDirectItemQuery = "DIRECT_ITEM".equals(requestArgs.getOrDefault("intent_mode", ""));
 
         // --- Substitution path ---
         if (isSubstitutionQuery) {
@@ -70,7 +82,7 @@ final class MenuDeterministicModel implements Model {
         }
 
         // --- 単一エージェント提案フロー ---
-        // テスト用モデルは明示指定検出を行わず explicitItemIds を常に空にする。
+        // deterministic path でも direct item を先頭固定し、no-match は代替提案だと明示する。
         // catalog_lookup → calculate_total → MenuSelectionDecision の順で応答する。
         if (isFamilyQuery && !hasSkillActivation(messages)) {
             return List.of(
@@ -93,18 +105,25 @@ final class MenuDeterministicModel implements Model {
         }
 
         if (structuredOutputRequested(tools)) {
+            List<String> suggestedIds = stringList(toolContent.get("itemIds"));
+            List<String> explicitItemIds = isDirectItemQuery
+                    ? repository.findDirectMatches(firstNonBlank(requestArgs.get("direct_item_hint"), userText)).stream()
+                            .map(com.mahitotsu.arachne.samples.delivery.menuservice.domain.MenuTypes.MenuItem::id)
+                            .toList()
+                    : List.of();
+            List<String> additionalItemIds = (isDirectItemQuery && !explicitItemIds.isEmpty())
+                    ? List.of()
+                    : suggestedIds.stream().filter(id -> !explicitItemIds.contains(id)).toList();
             // MenuSelectionDecision: explicitItemIds (空) + additionalItemIds
             return List.of(
                 new ModelEvent.ToolUse(
                     "structured-menu-selection",
                     StructuredOutputTool.DEFAULT_NAME,
                     Map.of(
-                        "explicitItemIds", List.of(),
-                        "additionalItemIds", toolContent.getOrDefault("itemIds", List.of()),
+                        "explicitItemIds", explicitItemIds,
+                        "additionalItemIds", additionalItemIds,
                         "skillTag", isFamilyQuery ? "family-order-guide" : "",
-                        "recommendationReason", isFamilyQuery
-                            ? "人数と予算に合う構成を優先しました。"
-                            : "リクエストに最も近い候補を選びました。")),
+                        "recommendationReason", recommendationReason(userText, isFamilyQuery, isDirectItemQuery, !explicitItemIds.isEmpty()))),
                 new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
         }
 
@@ -113,6 +132,19 @@ final class MenuDeterministicModel implements Model {
                 new ModelEvent.TextDelta(prefix + "menu-agent が " + toolContent.getOrDefault("matchSummary", "本日の人気コンボ")
                         + " をおすすめします。現在のメニューに沿った内容でチャットで簡単に確認できます。"),
                 new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
+    }
+
+    private String recommendationReason(String userText, boolean isFamilyQuery, boolean isDirectItemQuery, boolean hasExplicitItem) {
+        if (isFamilyQuery) {
+            return "人数と予算に合う構成を優先しました。";
+        }
+        if (isDirectItemQuery && hasExplicitItem) {
+            return "明示された商品指定を最優先で grounded しました。";
+        }
+        if (repository.usesFallbackAlternatives(userText)) {
+            return "ぴったり一致するメニューは見つからなかったため、近い候補を menu 側の代替として提案しました。";
+        }
+        return "リクエストに最も近い候補を選びました。";
     }
 
     private boolean isFamilyQuery(String text) {
@@ -182,5 +214,21 @@ final class MenuDeterministicModel implements Model {
 
     private boolean structuredOutputRequested(List<ToolSpec> tools) {
         return tools.stream().anyMatch(tool -> StructuredOutputTool.DEFAULT_NAME.equals(tool.name()));
+    }
+
+    private List<String> stringList(Object value) {
+        if (value instanceof List<?> list) {
+            return list.stream().map(String::valueOf).toList();
+        }
+        return List.of();
+    }
+
+    private String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return "";
     }
 }

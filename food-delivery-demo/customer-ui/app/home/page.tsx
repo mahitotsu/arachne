@@ -193,7 +193,8 @@ export default function HomePage() {
           </h1>
           <p className="h-hero-lead">
             メニューをチェックしてから、AI エージェントとの会話で注文しましょう。
-            menu-agent · kitchen-agent · delivery-agent · payment-agent が裏で協働します。
+            order-service / order-intake-agent が入口となり、
+            menu-agent · kitchen-agent · delivery-agent と payment-service が裏で協働します。
           </p>
           <Link href="/order" className="h-cta-btn">
             <span>🗨</span>

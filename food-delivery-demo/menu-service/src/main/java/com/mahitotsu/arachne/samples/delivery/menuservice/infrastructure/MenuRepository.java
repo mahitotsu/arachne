@@ -19,6 +19,23 @@ public class MenuRepository {
 
     private static final Pattern YEN_BUDGET_PATTERN = Pattern.compile("(\\d{3,5})\\s*円");
     private static final Pattern CHILD_COUNT_PATTERN = Pattern.compile("(?:子ども|子供|kids?)\\s*(\\d+)人?");
+    private static final Map<String, List<String>> DIRECT_ITEM_ALIASES = Map.ofEntries(
+            Map.entry("combo-crispy", List.of("crispy chicken box", "crispy chicken", "クリスピーチキン", "クリスピーチキンボックス")),
+            Map.entry("combo-smash", List.of("smash burger combo", "smash burger", "スマッシュバーガー", "バーガーコンボ")),
+            Map.entry("combo-kids", List.of("kids cheeseburger set", "kids cheeseburger", "キッズチーズバーガー", "キッズセット")),
+            Map.entry("combo-teriyaki", List.of("teriyaki chicken box", "teriyaki", "照り焼き", "照り焼きチキン", "照り焼きチキンボックス", "照り焼きセット")),
+            Map.entry("combo-spicy-tuna", List.of("spicy tuna rice box", "spicy tuna", "スパイシーツナ", "スパイシーツナライス", "ツナライス")),
+            Map.entry("side-fries", List.of("curly fries", "fries", "カーリーフライ", "ポテト")),
+            Map.entry("side-nuggets", List.of("nugget share box", "nugget", "nuggets", "ナゲット", "ナゲットボックス")),
+            Map.entry("side-onion-rings", List.of("crispy onion rings", "onion rings", "オニオンリング")),
+            Map.entry("drink-lemon", List.of("lemon soda", "レモンソーダ")),
+            Map.entry("drink-latte", List.of("iced latte", "latte", "アイスラテ", "ラテ")),
+            Map.entry("drink-matcha-latte", List.of("hot matcha latte", "matcha latte", "抹茶ラテ", "マッチャラテ")),
+            Map.entry("wrap-garden", List.of("garden wrap", "ガーデンラップ", "ラップ")),
+            Map.entry("bowl-salmon", List.of("salmon rice bowl", "salmon bowl", "サーモンライスボウル", "サーモン丼")),
+            Map.entry("bowl-veggie", List.of("veggie grain bowl", "grain bowl", "veggie bowl", "グレインボウル", "ベジボウル")),
+            Map.entry("dessert-choco", List.of("chocolate fondant", "fondant", "チョコフォンダン")),
+            Map.entry("dessert-matcha", List.of("matcha soft serve", "soft serve", "抹茶ソフト")));
 
     private static final List<MenuItem> ITEMS = List.of(
             menuItem("combo-crispy", "Crispy Chicken Box", "クリスピーチキン、フライドポテト、レモンソーダのセット。", "980.00", "combo", "chicken", "fry", "popular"),
@@ -54,15 +71,15 @@ public class MenuRepository {
         if (isFamilyQuery(normalized)) {
             return buildFamilySelection(query, normalized);
         }
-        List<MenuItem> matches = ITEMS.stream()
-                .filter(item -> matches(normalized, item))
-                .toList();
+        List<MenuItem> directMatches = directMatches(normalized);
+        if (!directMatches.isEmpty()) {
+            return tuneQuantities(directMatches, query);
+        }
+        List<MenuItem> matches = naturalMatches(normalized);
         if (!matches.isEmpty()) {
             return tuneQuantities(matches, query);
         }
-        return tuneQuantities(ITEMS.stream()
-                .filter(item -> List.of("combo-crispy", "combo-smash", "side-fries", "drink-lemon").contains(item.id()))
-                .toList(), query);
+        return fallbackAlternatives(query);
     }
 
     public String headline(List<MenuItem> items) {
@@ -70,8 +87,31 @@ public class MenuRepository {
     }
 
     public String describeSearch(String query) {
-        List<MenuItem> matches = search(query);
-        return matches.stream().map(MenuItem::name).limit(3).reduce((left, right) -> left + ", " + right).orElse("本日の人気コンボ");
+        String normalized = normalize(query);
+        if (isFamilyQuery(normalized)) {
+            return summarizeItems(buildFamilySelection(query, normalized));
+        }
+        List<MenuItem> directMatches = directMatches(normalized);
+        if (!directMatches.isEmpty()) {
+            return summarizeItems(directMatches);
+        }
+        List<MenuItem> naturalMatches = naturalMatches(normalized);
+        if (!naturalMatches.isEmpty()) {
+            return summarizeItems(naturalMatches);
+        }
+        return "ぴったり一致するメニューがないため、近い候補を代替提案しました";
+    }
+
+    public List<MenuItem> findDirectMatches(String query) {
+        return tuneQuantities(directMatches(normalize(query)), query);
+    }
+
+    public boolean usesFallbackAlternatives(String query) {
+        String normalized = normalize(query);
+        if (isFamilyQuery(normalized)) {
+            return false;
+        }
+        return directMatches(normalized).isEmpty() && naturalMatches(normalized).isEmpty();
     }
 
     public BigDecimal calculateTotal(List<MenuItem> items) {
@@ -176,6 +216,38 @@ public class MenuRepository {
         return normalized.contains("家族") || normalized.contains("子ども") || normalized.contains("子供")
                 || normalized.contains("kids") || normalized.contains("2人") || normalized.contains("3人")
                 || normalized.contains("4人");
+    }
+
+    private List<MenuItem> directMatches(String normalized) {
+        if (normalized.isBlank()) {
+            return List.of();
+        }
+        return ITEMS.stream()
+                .filter(item -> DIRECT_ITEM_ALIASES.getOrDefault(item.id(), List.of()).stream().anyMatch(normalized::contains))
+                .toList();
+    }
+
+    private List<MenuItem> naturalMatches(String normalized) {
+        if (normalized.isBlank()) {
+            return List.of();
+        }
+        return ITEMS.stream()
+                .filter(item -> matches(normalized, item))
+                .toList();
+    }
+
+    private List<MenuItem> fallbackAlternatives(String query) {
+        return tuneQuantities(ITEMS.stream()
+                .filter(item -> List.of("combo-crispy", "combo-smash", "side-fries", "drink-lemon").contains(item.id()))
+                .toList(), query);
+    }
+
+    private String summarizeItems(List<MenuItem> items) {
+        return items.stream()
+                .map(MenuItem::name)
+                .limit(3)
+                .reduce((left, right) -> left + ", " + right)
+                .orElse("本日の人気コンボ");
     }
 
     private int affordableAdultComboQuantity(
