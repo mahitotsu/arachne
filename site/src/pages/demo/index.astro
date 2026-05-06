@@ -2,6 +2,44 @@
 import PageHero from '../../components/PageHero.astro';
 import SiteLayout from '../../layouts/SiteLayout.astro';
 
+const designRows = [
+  {
+    principle: 'AI エージェントは自然言語フロントドアとして追加する',
+    impl: 'order-service に order-intake-agent を置いてユーザー入力の一次解釈を担わせ、menu-service・delivery-service・support-service は service-local agent として catalog grounding、ETA 判断、サポート対話を担わせます',
+    check: 'order-service の suggest API が direct item request / recommendation request を正規化し、その handoff を受けた menu-service が明示指定優先で grounded な候補を返す流れで確認できます',
+  },
+  {
+    principle: '従来の API は機械間連携の正本契約として残す',
+    impl: '全サービスが REST API と OpenAPI 仕様を公開し、エージェントはその API をツールとして呼び出す形を維持します',
+    check: '/agents の API 仕様タブから各サービスの OpenAPI を確認できます。エージェントのツール定義も同じ API 上に乗っています',
+  },
+  {
+    principle: '金額計算・課金・認可は決定論的コードで処理する',
+    impl: 'payment-service はエージェントを持たず、支払い準備と課金確定をコードで完結させます',
+    check: 'payment-service の /v3/api-docs で、エージェント経由ではなく決定論的に処理されることを確認できます',
+  },
+  {
+    principle: 'system prompt はエンジニアが管理するシステム制約として書く',
+    impl: '各エージェントの system prompt はソースコード中に置き、役割・制約・ツール利用方針・言語設定を明示します',
+    check: '/agents のサービスカードを開くと、登録済みの system prompt をそのまま読めます',
+  },
+  {
+    principle: 'skill は業務知識の公開面として分離する',
+    impl: 'menu-service と kitchen-service は商品説明・推薦ロジック・仕込みスケジュール方針を SKILL.md に分離します。スキルの発動条件も SKILL.md のフロントマターに記述し、サービスが起動時に動的に注入します',
+    check: '/agents のスキルタブで system prompt とは別に管理されているスキルドキュメントを確認できます',
+  },
+  {
+    principle: 'サービス間の collaborator 解決は capability ベースで動的に行う',
+    impl: 'order / kitchen / menu / support / delivery が起動時に registry-service へ自己登録し、ダウンストリーム解決は POST /registry/discover で行います',
+    check: 'delivery-service が外部 ETA アダプターを discover 経由で発見し、ETA を比較して推奨を返すフローで確認できます',
+  },
+  {
+    principle: '会話責務・workflow 責務・仕様閲覧責務は UI レベルでも分離する',
+    impl: 'カスタマー UI を /order（workflow）・/support（会話）・/agents（viewer）の 3 ページに分け、責務を混在させません',
+    check: '/support は注文フローと独立しており、/order での workflow 処理中でも別タブでサポートに問い合わせできます',
+  },
+];
+
 const principles = [
   {
     label: 'Organized around Business Capabilities',
@@ -19,13 +57,13 @@ const principles = [
     label: 'Smart Endpoints and Dumb Pipes',
     tension: '複数サービスが同じ LLM バックエンドを使うとき、LLM がパイプになってサービス間ロジックを横断するリスクがある。また「正解が必要な処理」をエージェントに任せると非決定的になる。',
     evidence: 'payment-service はエージェントを持たない。課金確定は決定論的コードで実行する。各サービスの LLM 呼び出しは独自の system prompt と tool 定義で行われ、推論コンテキストはサービス境界に閉じている。サービス間通信は HTTP のみ。',
-    where: 'サービス一覧の payment-service 行、/appendix の x-ai-prompt-contract',
+    where: 'サービス一覧の payment-service 行、/agents の API 仕様タブ（x-ai-prompt-contract）',
   },
   {
     label: 'Decentralized Governance / Decentralized Data Management',
     tension: 'サービス間で collaborator を直接参照すると、デプロイの独立性が失われる。registry を置いても、使い方次第で中央集権的な依存になりうる。',
     evidence: 'サービス間の collaborator 解決は POST /registry/discover（capability クエリ駆動）で行う。GET /registry/services は viewer 用途に分離し、サービス間の直接依存には使わない。各サービスは起動時に自己登録し、registry が落ちても既存の接続は維持される。',
-    where: 'registry-service 行、capability-discovery Essay、/appendix の discover vs services 区別',
+    where: 'registry-service 行、capability-discovery Essay、/agents のサービスカード',
   },
 ];
 
@@ -151,6 +189,30 @@ const surfaces = [
         </div>
       </article>
     ))}
+  </section>
+
+  <section>
+    <h2 style="font-size:1.05rem; font-weight:700; margin-bottom:16px; color:var(--text-muted); letter-spacing:0.02em; text-transform:uppercase; font-family:var(--font-mono)">設計原則と実装の対応</h2>
+    <div class="table-shell">
+      <table>
+        <thead>
+          <tr>
+            <th>設計原則</th>
+            <th>food-delivery-demo での実装</th>
+            <th>どこで確認できるか</th>
+          </tr>
+        </thead>
+        <tbody>
+          {designRows.map((row) => (
+            <tr>
+              <td>{row.principle}</td>
+              <td>{row.impl}</td>
+              <td>{row.check}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   </section>
 
   <section class="table-shell">

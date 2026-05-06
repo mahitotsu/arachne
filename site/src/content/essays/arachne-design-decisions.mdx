@@ -28,57 +28,21 @@ Python 版の Strands Agents SDK を Java + Spring Boot の業務システムに
 
 Python 版は async を前提としていますが、Spring MVC / Spring Boot の業務アプリケーションは多くの場合、同期リクエスト処理モデルで書かれています。Servlet スレッドが処理を完結させ、レスポンスを返す、というモデルです。ここに async/reactive を混在させると、Spring Security のスレッドローカルコンテキスト伝播や、既存のトランザクション境界と噛み合わなくなります。
 
-`Agent.run(prompt)` は blocking で最終回答を返します。`EventLoop` が内部でツール呼び出しのループを回しますが、呼び出し元スレッドはその完了を待ちます。
-
-blocking runtime の上にストリーミングを重ねるという構造にしました。`Agent.stream(prompt, eventConsumer)` はストリーミングのオーバーロードです。エージェントが内部で LLM レスポンスをチャンク単位で処理しながら `AgentStreamEvent` を `Consumer` コールバックに渡し、最終的には `AgentResult` を返します。ストリーミングを使わない既存のコードは一切影響を受けません。
+エージェントの `run` メソッドは blocking で最終回答を返します。内部でツール呼び出しのループを回しますが、呼び出し元スレッドはその完了を待ちます。ストリーミングは blocking runtime の上に追加的に乗せた構造です。ストリーミング API はエージェントが内部で LLM レスポンスをチャンク単位で処理しながらイベントをコールバックに渡し、最終的には通常の結果を返します。ストリーミングを使わない既存のコードは一切影響を受けません。
 
 この設計を採用したのは「sync ユーザーを reactive や streaming の経路に強制しない」という原則からです。
 
 ## セッション管理 ── Spring Session に乗る
 
-エージェントをマルチターン会話に対応させるには、会話履歴（`messages`）をリクエストをまたいで保持する必要があります。`DefaultAgent` はメッセージリストをインスタンスに持ちますが、HTTP サーバーでは 1 リクエストごとに新しい `Agent` インスタンスが作られます。
+エージェントをマルチターン会話に対応させるには、会話履歴をリクエストをまたいで保持する必要があります。HTTP サーバーでは 1 リクエストごとに新しいエージェントインスタンスが作られるため、状態の保持はインスタンスの外に出さなければなりません。
 
-Arachne のセッション管理は `SessionManager` インターフェースで抽象化し、`ArachneAutoConfiguration` が Spring Session の `SessionRepository` を検出したときは `SpringSessionManager` を使います。
+Arachne のセッション管理は `SessionManager` インターフェースで抽象化されています。Spring Session のセッションリポジトリが検出されれば自動的に Spring Session バックエンドを使い、そうでなければインメモリのデフォルトを使います。Spring Session の Redis 実装を依存に追加するだけで、会話履歴が Redis に永続化されます。food-delivery-demo ではこれが既定値であり、Redis が常にセッションストアです。
 
-```java
-// ArachneAutoConfiguration.java
-@Bean
-@ConditionalOnMissingBean
-public SessionManager sessionManager(...) {
-    if (/* file-based mode */) {
-        return new FileSessionManager(Path.of(directory), objectMapper);
-    }
-    if (sessionRepository != null) {
-        return new SpringSessionManager(
-            asSessionRepository(sessionRepository), objectMapper);
-    }
-    return new SpringSessionManager(
-        new MapSessionRepository(new ConcurrentHashMap<>()), objectMapper);
-}
-```
-
-Spring Session の Redis 実装（`spring-session-data-redis`）を依存に追加するだけで、会話履歴が Redis に永続化されます。food-delivery-demo ではこれが既定値になっており、Redis が常にセッションストアです（`matchIfMissing=true`）。
-
-`AgentSession` に保存されるのは、メッセージリスト・エージェント状態（`AgentState`）・会話管理状態・保留中の interrupt リストです。`DefaultAgent.restoreSession()` が `run()` の冒頭で呼ばれ、セッション ID が設定されていれば前回の状態を復元します。
+セッションに保存されるのは、メッセージリスト・エージェント状態・保留中の interrupt リストです。エージェントは `run` の冒頭でセッション ID が設定されていれば前回の状態を復元します。
 
 ## interrupt ── human-in-the-loop の仕組み
 
-`Agent.interrupt(AgentInterrupt...)` を呼ぶと、実行中のエージェントループが次のツール呼び出しの前に一時停止します。停止した状態（`pendingInterrupts`）はセッションに永続化されます。
-
-HTTP 経路では「一時停止してレスポンスを返し、次のリクエストで `resume()` する」という使い方を想定しています。order-service の 4 ステップワークフローはこの仕組みを使っており、各ステップの間でユーザーの確認を待ちます。
-
-```java
-// DefaultAgent.java
-private List<AgentInterrupt> pendingInterrupts = List.of();
-
-public AgentResult resume(List<InterruptResponse> responses) {
-    return resumeInternal(responses);
-}
-
-public List<AgentInterrupt> getPendingInterrupts() {
-    return List.copyOf(pendingInterrupts);
-}
-```
+エージェントは実行途中で一時停止することができます。停止した状態はセッションに永続化されます。HTTP 経路では「一時停止してレスポンスを返し、次のリクエストで再開する」という使い方を想定しています。order-service の 4 ステップワークフローはこの仕組みを使っており、各ステップの間でユーザーの確認を待ちます。
 
 セッションをまたいで interrupt が保持できるため、「今日注文を中断して、明日再開する」という使い方も可能です。
 
@@ -86,29 +50,20 @@ public List<AgentInterrupt> getPendingInterrupts() {
 
 現状で意図的に未解決のままにしているコーナーケースがあります。
 
-**`Agent.run(prompt, StructuredOutputType.class)` の実行中に interrupt が発生したとき**です。
+**structured output を指定した実行中に interrupt が発生したとき**です。
 
-interrupt が起きると、`DefaultAgent` は `pendingInterrupts` をセッションに保存します。resume 後は `resumeInternal()` がツール結果を送り返してループを続けます。このとき通常の `run(String)` であれば問題ありません。
+interrupt が起きると、エージェントは中断状態をセッションに保存します。resume 後はツール結果を送り返してループを続けます。通常のテキスト出力であれば問題ありません。
 
-しかし、`run(prompt, MenuSelectionDecision.class)` のように structured output type を指定した呼び出しの場合、型付きの invocation メタデータ（`structuredOutputType`・`structuredOutputPrompt`）がセッションには保存されていません。`restoreSession()` でメッセージ履歴と `pendingInterrupts` は戻りますが、resume 後に「どの型で structured output を取り出すべきか」という情報がありません。
+しかし、特定の出力型を指定した呼び出しの場合、「どの型で structured output を取り出すべきか」という型付きの invocation メタデータがセッションには保存されていません。セッション復元後に resume しても、出力型の情報が失われています。
 
-この問題は `DefaultAgent.java` のコメントに明示されています。
+現時点での回避策は、interrupt を使うフローでは型指定なしの呼び出しを使い、resume 後に structured output が必要なら型安全でない方法で取り出すというものです。
 
-```java
-// DefaultAgent.java
-if (loopResult.interrupted()) {
-    throw new UnsupportedOperationException(
-        "Structured output invocation was interrupted. " +
-        "Use Agent#run(String) and AgentResult.resume(...) instead.");
-}
-```
+food-delivery-demo の 4 ステップワークフローは、interrupt を使う各ステップを独立した呼び出しに分け、structured output は各ステップの末尾でのみ取り出す設計にしているため、このコーナーケースを回避しています。
 
-現時点での回避策は、interrupt を使うフローでは `run(String)` を使い、resume 後に structured output が必要なら `AgentResult.resume(...)` の戻り値から型安全でない方法で取り出すというものです。
+## 意図的な deferred
 
-food-delivery-demo の 4 ステップワークフローは、interrupt を使う各ステップを独立した `run()` 呼び出しに分け、structured output は各ステップの末尾でのみ取り出す設計にしているため、このコーナーケースを回避しています。
+interrupt + structured output の問題を解決するには、セッション保存時に型付きの invocation メタデータも含める必要があります。ただし、この変更はセッションのシリアライゼーションスキーマに影響するため、後方互換性の扱いが必要です。
 
-## 残る実装課題
+この課題は意図的に deferred にしています。food-delivery-demo の範囲では現状の回避策で十分であり、より一般的なユースケースが具体化するまで設計を固定しないことを選んでいます。
 
-interrupt + structured output の問題を解決するには、セッション保存時に typed invocation のメタデータも含める必要があります。`AgentSession` のスキーマを拡張し、`structuredOutputType` の完全クラス名を保存・復元するという方向が考えられます。ただし、この変更はセッションのシリアライゼーションスキーマに影響するため、後方互換性の扱いが必要です。
-
-この課題は意図的に deferred にしています。food-delivery-demo の範囲では現状の回避策で十分であり、より一般的な解決（任意の型でセッションをまたいだ interrupt + structured output を使いたいケース）が具体的なユースケースとして確定するまで、設計を固定しないことを選んでいます。
+**設計の判断を deferred として記録する**ことそれ自体も、ひとつのベストプラクティスです。「後で解決する」という意思決定は、「今は解決しない」という積極的な選択です。未解決の問題を放置しているのではなく、解決の条件を明示して保留しているという違いは、チームの認識と文書化に影響します。Arachne の未解決コーナーはこの考え方で整理されています。

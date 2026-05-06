@@ -30,9 +30,9 @@ const routes = [
     body: 'food-delivery-demo のサービス構成、設計上の判断、3 つの UI 公開面を解説します。',
   },
   {
-    href: `${base}/appendix`,
-    label: 'Appendix',
-    body: '設計仮説と実装の対応関係、および OpenAPI・メトリクス・実行履歴といった技術的証拠をまとめます。',
+    href: `${base}/observations`,
+    label: 'Observations',
+    body: '実際に food-delivery-demo を動かして確かめた振る舞いの記録です。原則ごとに仮説・観察・確認場所を整理します。',
   },
 ];
 ---
@@ -61,7 +61,7 @@ const routes = [
     <ol class="story-band__list">
       <li><strong>Essay</strong> でマイクロサービスの原則を起点に、AI エージェントをどう融合するかという問いを立て、「自然言語フロントドア」という設計仮説を整理します。</li>
       <li><strong>Demo</strong> で food-delivery-demo の構成を確認し、どの設計判断がどの仮説に対応しているかを読みます。</li>
-      <li><strong>Appendix</strong> で OpenAPI・実行履歴・メトリクスといった技術的証拠から、仮説が実装されていることを確認します。</li>
+      <li><strong>Observations</strong> で実際に動かしたときの振る舞いを確認し、仮説が成立しているかを観察記録から追います。</li>
     </ol>
   </section>
 

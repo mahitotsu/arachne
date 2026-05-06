@@ -17,81 +17,34 @@ tags:
 
 かといって「LLM を呼ばないから Agent のテストはしない」という判断は問題を先送りにするだけです。ツール呼び出しの順序が正しいか、structured output のフィールドが期待通りか、skill 発動のロジックが機能しているか、これらはコードの振る舞いであり、テスト対象です。
 
-## DeterministicModel パターン
+## テスト可能なモデル境界を設ける
 
-food-delivery-demo では、エージェントを持つ全サービスが `*DeterministicModel` クラスを持っています。`MenuDeterministicModel`、`KitchenDeterministicModel`、`DeliveryDeterministicModel`、`SupportDeterministicModel`、`CapabilityRegistryDeterministicModel` の 5 種類です。
+food-delivery-demo が採用したのは、**LLM を差し替え可能な境界として設計する**というパターンです。本物の LLM プロバイダーと同じ Model インターフェースを実装した決定論的なモデルをテスト用に用意し、プロパティの切り替えで DI コンテナが差し替えます。
 
-これらはすべて Arachne の `Model` インターフェースを実装します。`BedrockModel` と同じインターフェースです。テスト用のプロパティ（`delivery.model.mode=deterministic`）を設定すると、DI コンテナが本物の `BedrockModel` の代わりにこのクラスを使います。
-
-```java
-// MenuArachneConfiguration.java
-@Bean
-@ConditionalOnProperty(name = "delivery.model.mode", havingValue = "deterministic")
-Model menuDeterministicModel() {
-    return new MenuDeterministicModel();
-}
-```
-
-`DeterministicModel` は `converse(messages, tools, systemPrompt, toolSelection)` を受け取り、受け取ったメッセージ内容を見て固定シーケンスを返します。実際の LLM は一切呼ばれません。
+この決定論的モデル（DeterministicModel）は、渡ってきたメッセージの内容を見て固定シーケンスを返します。実際の LLM は一切呼ばれません。LLM に任せている「自然言語の解釈と判断」の代わりに、テストシナリオとして意図した一連のツール呼び出しと構造化出力を返す、という役割です。エージェントを持つ全サービスが対応する DeterministicModel を持ち、CI はすべてこのモデルで実行します。
 
 ## ツール呼び出しシーケンスを固定する
 
-`MenuDeterministicModel` を例にとると、ツール呼び出しシーケンスは次の順に固定されています。
+DeterministicModel は、渡ってきた会話履歴を見て「次に何を呼ぶか」を決めます。スキル発動の確認→カタログ検索→合計計算→構造化出力という順序を、メッセージ状態を確認しながら一ステップずつ返します。
 
-1. ファミリー注文と判定されたとき → まず `activate_skill("family-order-guide")` を返す
-2. スキル発動確認後 → `catalog_lookup` を返す
-3. カタログ結果がメッセージに入ったら → `calculate_total` を返す
-4. 合計計算後 → `MenuSelectionDecision` を structured output として返す
-
-この「次に何を返すか」の判断は、渡ってきた `messages` の内容を見て行います。`catalog_lookup` のツール結果がメッセージ中にあるかどうか、スキル発動済みかどうか、といったフラグを確認します。
-
-```java
-// MenuDeterministicModel.java の単一エージェントフロー概略
-if (isFamilyQuery && !hasSkillActivation(messages)) {
-    return List.of(
-        new ModelEvent.ToolUse("skill-family", "activate_skill",
-            Map.of("name", "family-order-guide")),
-        new ModelEvent.Metadata("tool_use", new ModelEvent.Usage(1, 1)));
-}
-// catalog_lookup → calculate_total → MenuSelectionDecision の順で続く
-```
+この「次に何を返すか」の判断は、どのツール結果がすでにメッセージ中にあるか、スキルが発動済みかといった状態から決定します。実際の LLM がやることを、固定的な条件分岐で模候するというアプローチです。
 
 ## テストが検証するのは「何を呼んだか」と「何を返したか」
 
-`MenuServiceApiTest` は `MockWebServer` を立てて実際の HTTP リクエストを捌きます。テストで確認するのは次の点です。
+各サービスのテストは実際の HTTP リクエストを捧く形で動作します。テストで確認するのは次の点です。
 
-- レスポンスの `agent` フィールドが `"menu-agent"` であること
-- `items` が空ではないこと（ファミリーモードなら Kids 系アイテムを含むこと）
-- registry へのリクエストが `/registry/discover` に飛んでいること
-- メトリクスエンドポイントに `delivery.agent.invocation` が存在すること
+- 正しいエージェント名でレスポンスが返ること
+- 下流サービスへのリクエストが正しいエンドポイントに飛んでいること（capability クエリ経由の discover を含む）
+- structured output が期待した型・フィールドで返ってくること
+- メトリクスが正しく記録されていること
 
 自然言語のフレーズは一切検証しません。「おすすめ理由が自然な日本語かどうか」はテストしません。エージェントがツールを正しい順序で使い、型として定義された出力を正しいフィールドで返したか、を確認します。
 
-```java
-// MenuServiceApiTest.java 抜粋
-assertThat(response.agent()).isEqualTo("menu-agent");
-assertThat(response.items()).extracting(MenuItem::name)
-    .anyMatch(name -> name.contains("Kids"));
-assertThat(registryRequest.getPath()).isEqualTo("/registry/discover");
-```
+## スキル発動条件のテストと、契約ドリフトの検出
 
-## system prompt とスキル発動条件のテスト
+サービスは system prompt を動的に組み立てます。スキルドキュメントに書かれた発動条件をパースして、システムプロンプトのスキル発動セクションを生成する処理です。この動的な組み立て結果が DeterministicModel に渡るため、スキルの発動条件を変えたときにエージェントの振る舞いが変わることをテストとして表現できます。
 
-`MenuApplicationService` は system prompt を動的に組み立てます。skill ファイルの `activationHint` を読み取り、システムプロンプトのスキル発動セクションに差し込む処理です。
-
-この組み立て結果が `DeterministicModel` に渡される `systemPrompt` 引数に含まれています。テスト側では `DeterministicModel` がそのシステムプロンプトを受け取っていることを `MenuDeterministicModelTest` で確認できます。`activationHint` フィールドの有無と値は SKILL.md を読めば確認できます。
-
-`MenuDeterministicModelTest` にはさらに、代替品クエリのときに `menu_substitution_lookup` ツールを最初に呼び出すことと、呼び出し引数の `message` フィールド名が正しいことを確認するテストが入っています。
-
-```java
-// MenuDeterministicModelTest.java
-assertThat(toolUse.name()).isEqualTo("menu_substitution_lookup");
-assertThat(toolUse.input()).isEqualTo(Map.of(
-    "unavailableItemId", "combo-kids",
-    "message", "子ども向けにしたい"));
-```
-
-このテストが価値を持ったのは、フィールド名を `customerMessage` から `message` に変更したときです。契約（ToolSpec の inputSchema）と実装（DeterministicModel が生成する入力マップ）のずれをこのテストが検出しました。
+また、ツールの入力スキーマ（フィールド名と型）と、DeterministicModel が生成する入力マップのずれも検出できます。フィールド名を変更したとき、契約（ToolSpec の inputSchema）と実装の間のドリフトをこのテストが検出します。型として定義された境界を DeterministicModel が通過することで、ツール契約の回帰テストになる、という構造です。
 
 ## 非決定性とどう向き合うか
 

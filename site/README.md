@@ -23,10 +23,9 @@ npm run dev
 npm run build
 ```
 
-## 想定ページ
+## ページ構成
 
 - `/`: サイトトップと論旨の入口
-- `/essay`: 仮説と設計原則の本編
-- `/demo`: food-delivery-demo の見せ方
-- `/mapping`: 仮説と実装の対応表
-- `/appendix`: OpenAPI、prompt contract、execution history、metrics、registry boundary をまとめる証拠面
+- `/essay`: 仮説と設計原則の本編（ハブ記事 + 4 本のサブ記事）
+- `/demo`: food-delivery-demo のサービス構成・設計原則と実装の対応表
+- `/observations`: 実際に動かして確かめた振る舞いの記録（原則ごとに仮説・観察・確認場所）

@@ -26,59 +26,19 @@ service mesh は、あらかじめ定義されたルーティング設定に基�
 
 ## capability-based discovery という発想
 
-food-delivery-demo に実装した registry-service の POST /registry/discover は、この問いに答えるための API です。
+food-delivery-demo に実装した registry-service の `POST /registry/discover` は、この問いに答えるための API です。
 
-呼び出し方は次のようになります。
+呼び出し側は、サービス名を一切知らずに**業務能力の記述**をクエリとして送ります。「外部 ETA を提供するサービスは？」「欠品時の代替候補提示ができるサービスを教えて」という形です。英語のキーワードではなく、日本語の自然言語で書かれた業務上の役割の記述です。
 
-```json
-POST /registry/discover
-{
-  "query": "曖昧な注文意図を具体的な商品提案に変換",
-  "availableOnly": true
-}
-```
+レスポンスには、そのクエリに最もマッチするサービスのエンドポイント URL と capability 説明が返ります。呼び出し側はそのエンドポイントに対してリクエストを送るだけです。
 
-レスポンスには、そのクエリに最もマッチするサービスの descriptor（エンドポイント URL、requestPath、capability 説明、ヘルス状態）が返ります。呼び出し側は、サービス名を一切知らずにクエリだけを送れます。
+このクエリ文字列は、コードの中に設計意図を残す方法でもあります。設定ファイルにサービス名を書くのではなく、「曖昧な注文意図を具体的な商品提案に変換できるサービス」と書くことで、**なぜそのサービスを呼ぶのか**がコードから読めます。
 
-このクエリは英語のキーワードではなく、**日本語の自然言語で書かれた業務能力の記述**です。「外部 ETA を提供するサービスは？」「欠品時の代替候補提示ができるサービスを教えて」という形で問い合わせます。
+## registry の内側とクライアントパターン
 
-## registry-service の内側
+`POST /registry/discover` を受け取った registry は、内部でエージェントを使って照合を行います。登録済みサービスの capability 説明と送られてきた自然言語クエリを照合し、最もマッチするサービスを選択結果として返します。registry そのものがエージェントを内包している、という構造です。
 
-registry-service は POST /registry/discover を受け取ると、それを capability-registry-agent に委ねます。このエージェントは `capability_match` ツールを呼び出して、登録済みサービスの capability 説明と自然言語クエリを照合します。その後 `RegistryDiscoveryDecision`（selectedServiceNames、summary）を structured output として返し、サービス側がその結果でレスポンスを組み立てます。
-
-```java
-public RegistryDiscoverResponse discover(RegistryDiscoverRequest request) {
-    List<RegistryServiceDescriptor> matches =
-        repository.discover(request.query(), availableOnly);
-    AgentResult decisionResult = agentFactory.builder()
-        .systemPrompt(DISCOVERY_PROMPT)
-        .tools(capabilityMatchTool)
-        .build()
-        .run("問い合わせ: " + request.query(), RegistryDiscoveryDecision.class);
-    RegistryDiscoveryDecision decision =
-        decisionResult.structuredOutput(RegistryDiscoveryDecision.class);
-    List<RegistryServiceDescriptor> selectedMatches =
-        selectMatches(matches, decision.selectedServiceNames());
-    return new RegistryDiscoverResponse(
-        "registry-service", "capability-registry-agent",
-        decision.summary(), selectedMatches);
-}
-```
-
-`RegistryApplicationService.java` の実装がそのままこの流れを示しています。
-
-## 呼び出し側の実装 ── capabilityQuery と RegistryServiceEndpointResolver
-
-呼び出し側のサービスは、ダウンストリームごとに `capabilityQuery` を設定として持ちます。order-service では `OrderRegistryProperties.ServiceTarget` がクエリ文字列を保持し、`RegistryServiceEndpointResolver.resolveUrl(capabilityQuery, fallbackRequestPath)` が POST /registry/discover を叩いて実際の URL を返します。
-
-```java
-// RegistryBackedMenuGateway.java
-.uri(endpointResolver.resolveUrl(menuCapabilityQuery, "/internal/menu/suggest"))
-```
-
-`menuCapabilityQuery` は `OrderRegistryProperties` から取得します。値は「曖昧な注文意図を具体的な商品提案に変換」のような文字列です。この文字列を見れば、なぜそのサービスを呼ぶのかが自然言語で説明されています。
-
-menu-service、kitchen-service、support-service でも同様の構造です。kitchen-service は欠品代替を問い合わせるために「欠品時の代替候補提示」という capability query を持ち、delivery-service は外部 ETA 業者を見つけるために「外部 ETA を提供するサービス」を query として使います。
+呼び出し側のサービスは、ダウンストリームごとに capability query を設定として保持します。この文字列は「曖昧な注文意図を具体的な商品提案に変換できるサービス」「欠品時の代替候補提示ができるサービス」のような自然言語の役割記述です。サービス名ではなく能力の記述を設定として持つ、という逆転がここにあります。
 
 ## GET /registry/services との使い分け
 
@@ -106,7 +66,7 @@ capability-based discovery が解くのは、この**設計時には確定でき
 
 POST /registry/discover のたびに LLM が動きます。food-delivery-demo では `RegistryServiceEndpointResolver` 側でキャッシュしているため、起動後しばらくすると registry への問い合わせは減ります。しかし、キャッシュが切れるたびにエージェントが走ります。
 
-また、capability の記述と query の文言が食い違うと、発見が失敗します。テキストマッチングだけであれば意図した文言を書けば済みますが、LLM が解釈する余地が入ると、意図していないサービスが選ばれる可能性があります。このため `RegistryServiceApiTest` では「外部 ETA を提供するサービスは？」「メニュー代替を扱うサービスは？」といった自然言語クエリで期待サービスが返ることを回帰テストしています。
+また、capability の記述と query の文言が食い違うと、発見が失敗します。LLM が解釈する余地が入ると、意図していないサービスが選ばれる可能性があります。このため、capability クエリが期待するサービスを正しく返すことは回帰テストで保護する必要があります。
 
 さらに、registry-service が単一障害点になります。food-delivery-demo では registry が落ちると resolve が止まります。本番化するなら、キャッシュ戦略と registry の冗長化が必要です。
 
