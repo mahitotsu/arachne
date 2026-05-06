@@ -10,6 +10,8 @@ tags:
   - service-mesh
 ---
 
+> この記事は _Decentralized Governance_ および _Organized around Business Capabilities_ の観点から food-delivery-demo の registry 設計を掘り下げます。capability-based discovery は、サービスが互いを直接知らなくても協調できる構造を作り、チームの自律性とサービスの疎結合を両立させます。
+
 ## service mesh が解く問いと、解かない問い
 
 service mesh（Istio、Linkerd など）が解決するのは、L4/L7 レベルの通信管理です。「order-service が menu-service に HTTP でリクエストを送るとき、TLS を確立して、リトライを制御して、トレースを収集する」という問いに答えます。

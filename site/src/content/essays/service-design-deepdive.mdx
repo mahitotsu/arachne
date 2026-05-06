@@ -1,6 +1,6 @@
 ---
 title: food-delivery-demo 各サービスの設計を掘り下げる
-summary: どのサービスにエージェントを置き、どこには置かないか。menu-service・kitchen-service・delivery-service・order-service それぞれの設計判断と、サービス間の協調構造を実装から整理します。
+summary: どのサービスにエージェントを置き、どこには置かないか。order-service・menu-service・kitchen-service・delivery-service・support-service・registry-service の設計判断と、エージェントを持たない payment-service・customer-service との対比を実装から整理します。
 publishDate: 2026-05-05
 order: 4
 tags:
@@ -8,6 +8,8 @@ tags:
   - food-delivery-demo
   - service-design
 ---
+
+> この記事は 5 つの設計原則すべてを横断しながら、food-delivery-demo の各サービスでどのように原則間の緊張を解消したかを実装から整理します。_Organized around Business Capabilities_ に従いながらエージェントを配置するとはどういう設計判断か、その具体例です。
 
 ## サービス設計の出発点 ── 「エージェントを置くかどうか」
 
