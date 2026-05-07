@@ -190,6 +190,85 @@ const surfaces = [
     </p>
   </section>
 
+  <section class="panel">
+    <p class="panel__eyebrow">サービス構成図</p>
+    <p style="font-size:0.9rem; color:var(--text-muted); margin:0 0 20px">全サービスの依存関係。実線は通常の HTTP 呼び出し、点線はオプショナルまたは非同期の呼び出しを示します。</p>
+    <pre class="mermaid">flowchart LR
+    UI[customer-ui]
+    CS[customer-service]
+    OS[order-service]
+    MS[menu-service]
+    KS[kitchen-service]
+    DS[delivery-service]
+    PS[payment-service]
+    SS[support-service]
+    RS[registry-service]
+    HA[hermes-adapter]
+    IA[idaten-adapter]
+    IC([icarus-adapter])
+    DB[(PostgreSQL)]
+    RD[(Redis)]
+
+    UI --> CS
+    UI --> OS
+    OS --> MS
+    OS --> DS
+    OS --> PS
+    OS -.->|post-order| SS
+    MS --> KS
+    OS -->|discover| RS
+    DS -->|discover| RS
+    RS --> HA
+    RS --> IA
+    RS -. not available .-> IC
+    OS --> DB
+    OS --> RD
+    </pre>
+  </section>
+
+  <section class="panel">
+    <p class="panel__eyebrow">注文フロー（4 ステップ）</p>
+    <p style="font-size:0.9rem; color:var(--text-muted); margin:0 0 20px">カスタマーが注文を確定するまでの 4 ステップと、各ステップでのサービス間通信を示します。</p>
+    <pre class="mermaid">sequenceDiagram
+    actor B as Browser
+    participant OS as order-service
+    participant OA as order-intake-agent
+    participant MS as menu-service
+    participant KS as kitchen-service
+    participant DS as delivery-service
+    participant RS as registry-service
+    participant PS as payment-service
+
+    Note over B,PS: Step 1 — suggest
+    B->>OS: POST /api/order/suggest
+    OS->>OA: normalize intent
+    OA-->>OS: NormalizedOrderIntent
+    OS->>MS: grounding handoff
+    MS->>KS: inventory check
+    KS-->>MS: stock + ETA
+    MS-->>OS: MenuSelectionDecision
+    OS-->>B: suggested items
+
+    Note over B,PS: Step 2 — confirm-items
+    B->>OS: POST /api/order/confirm-items
+    OS-->>B: items confirmed
+
+    Note over B,PS: Step 3 — confirm-delivery
+    B->>OS: POST /api/order/confirm-delivery
+    OS->>DS: delivery options
+    DS->>RS: discover ETA services
+    RS-->>DS: hermes + idaten
+    DS-->>OS: DeliveryPlan
+    OS-->>B: delivery options
+
+    Note over B,PS: Step 4 — confirm-payment
+    B->>OS: POST /api/order/confirm-payment
+    OS->>PS: charge
+    PS-->>OS: charged
+    OS-->>B: order confirmed
+    </pre>
+  </section>
+
   <section class="stacked-list">
     <h2 style="font-size:1.1rem; color:var(--text-muted); font-weight:600; margin-bottom:-8px">原則ごとの緊張と証拠</h2>
     {principles.map((p) => (
@@ -299,3 +378,27 @@ const surfaces = [
     </article>
   </section>
 </SiteLayout>
+
+<style is:global>
+  pre.mermaid {
+    background: var(--surface-soft);
+    border-radius: var(--radius-md);
+    overflow-x: auto;
+    padding: 16px;
+    margin: 0;
+  }
+  pre.mermaid svg {
+    display: block;
+    margin: 0 auto;
+    max-width: 100%;
+  }
+</style>
+
+<script is:inline type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'neutral',
+    fontFamily: 'system-ui, -apple-system, "Helvetica Neue", sans-serif',
+  });
+</script>
