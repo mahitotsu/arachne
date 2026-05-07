@@ -1,0 +1,9 @@
+---
+interface Props {
+  diagram: string;
+  caption?: string;
+}
+const { diagram, caption } = Astro.props;
+---
+{caption && <p style="font-size:0.9rem; color:var(--text-muted); margin:0 0 12px">{caption}</p>}
+<pre class="mermaid" set:text={diagram} />

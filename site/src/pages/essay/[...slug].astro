@@ -56,3 +56,27 @@ const derivedEssays = essays
     )}
   </article>
 </SiteLayout>
+
+<style is:global>
+  pre.mermaid {
+    background: var(--surface-soft);
+    border-radius: var(--radius-md);
+    overflow-x: auto;
+    padding: 16px;
+    margin: 0;
+  }
+  pre.mermaid svg {
+    display: block;
+    margin: 0 auto;
+    max-width: 100%;
+  }
+</style>
+
+<script is:inline type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'neutral',
+    fontFamily: 'system-ui, -apple-system, "Helvetica Neue", sans-serif',
+  });
+</script>

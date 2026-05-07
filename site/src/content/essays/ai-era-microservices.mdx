@@ -10,6 +10,41 @@ tags:
   - food-delivery-demo
 ---
 
+import MermaidDiagram from '../../components/MermaidDiagram.astro'
+
+export const layerDiagram = `graph TD
+  U["ユーザー（自然言語）"] --> A["エージェント（自然言語フロントドア）"]
+  SP["system prompt / skill"] -. 制約・業務知識 .-> A
+  A --> API["サービス API（REST）"]
+  API --> BL["業務ロジック / 決定論的コード"]
+  BL --> D[("データ")]
+`
+
+export const mappingDiagram = `graph LR
+  subgraph 設計方針
+    P1["capability を所有する"]
+    P2["API を公開し続ける"]
+    P3["NL IF として追加する"]
+    P4["system prompt を管理する"]
+    P5["skill を分離する"]
+    P6["正解はコードに残す"]
+  end
+  subgraph FL["Fowler / Lewis"]
+    FL1["Organized around Business Capabilities"]
+    FL2["Smart Endpoints, Dumb Pipes"]
+    FL3["Products not Projects"]
+    FL4["Decentralized Governance"]
+  end
+  P1 --> FL1
+  P2 --> FL2
+  P3 --> FL1
+  P3 --> FL2
+  P4 --> FL3
+  P4 --> FL4
+  P5 --> FL3
+  P6 --> FL2
+`
+
 ## マイクロサービスの原則を参照軸にする
 
 マイクロサービスについては「サービスを小さく分割する」という技術的な説明が広まっています。しかしこの定義は表面だけを捉えており、AI エージェントとの共存を論じるには不十分です。
@@ -42,6 +77,8 @@ Fowler と Lewis（2014）が提唱したマイクロサービスの定義には
 
 そして、**AI エージェントをその上に自然言語インターフェースとして追加する**。「追加」という言葉を意図的に使っています。エージェントは API の代わりではなく、API の手前に置く会話インターフェースです。自然言語の入力を解釈し、サービスが提供する capability へ橋渡しする——それがエージェントの役割であり、既存の API 契約は変わりません。
 
+<MermaidDiagram diagram={layerDiagram} caption="エージェントは API の代わりではなく、API の手前に追加する層として位置づけます。" />
+
 **system prompt はエンジニアが管理する**（_Products not Projects / Decentralized Governance_）。役割・制約・ツール利用方針・エラー時の振る舞いを system prompt に書きます。これはソースコードと同じ扱いで、レビューとバージョン管理の対象です。
 
 **skill は業務知識の公開面として、業務側がメンテできる形で分離する**（_Products not Projects_）。商品の特徴・調理時間の目安・配達エリアの注意事項といった業務用語や判断の観点は、skill ドキュメントに書きます。エンジニアでなくてもメンテナンスできる形にしておくことで、業務知識の陳腐化を防ぎます。
@@ -49,6 +86,8 @@ Fowler と Lewis（2014）が提唱したマイクロサービスの定義には
 そして最も重要なポイントがあります。**金額計算・在庫確定・課金・認可のような「正解が必要な処理」はコードに残す**（_Smart Endpoints and Dumb Pipes_）。LLM は曖昧さの解釈や文脈の補完が得意ですが、べき等性や整合性の保証は苦手です。ここを LLM に任せると、再現性のない障害と監査不能な状態が生まれます。この分担を守ることが、エージェントを業務システムに組み込む上での最大の安全弁になります。
 
 要するに、**agent-first ではあっても API-less ではなく、知識駆動ではあっても rule-in-prompt ではない**、というのがこの仮説の中心です。
+
+<MermaidDiagram diagram={mappingDiagram} caption="5 つの設計方針と Fowler/Lewis 4 特性の対応。各方針はいずれかの特性に根拠を持ちます。" />
 
 ### エージェントは「スマートエンドポイント」を破壊しないか
 
