@@ -13,42 +13,48 @@ const principles = [
     fl: 'Smart Endpoints and Dumb Pipes',
     result: '成立',
     evidence:
-      'order-intake-agent は自然言語入力を正規化して menu-service に渡した。menu-service の REST API 契約は変わらず、エージェントは API の手前に置かれた。direct item request と recommendation request の両方で API 契約が維持されることを確認した。',
+      '「テリヤキバーガーください」という直接指定では order-intake-agent が explicit match 優先で menu-service に渡し、menu-service は alias-based マッチでカタログ内の該当商品を返した。「子ども向けにいくつか」というあいまいな依頼では推薦ロジックが走り Kids 系メニューが提案された。menu-service が exact match できない場合は「menu 側の代替として提案しています」と出力に明示されており、AI が勝手に決定したとユーザーに見えない設計になっていた。どちらの経路でも menu-service の REST API 契約は変わらなかった。',
+    artifact: 'order-service の実行履歴（/execution-history/{sessionId}）',
   },
   {
     name: '従来の API は機械間連携の正本契約として残す',
     fl: 'Smart Endpoints and Dumb Pipes',
     result: '成立',
     evidence:
-      '全サービスが REST API と OpenAPI 仕様を公開し続けた。x-ai-prompt-contract 拡張によりエージェントが期待する入力構造が API の上で読める形になった。エージェントのツール定義と REST API 仕様は同一契約として管理されており、prompt の黒箱化を避けるコミットメントが API として観察できた。',
+      '/agents ページの API 仕様タブで各サービスの OpenAPI を取得できた。order-service の suggest 操作には x-ai-prompt-contract 拡張が付与されており、エージェントが期待する入力構造（intent.rawMessage, partySize, childCount など）とサービスの振る舞いが API の上で人間にも機械にも読める形になっていた。エージェントのツール定義とその REST API 仕様は同一契約として管理されており、prompt を読まなくても契約が確認できる状態だった。',
+    artifact: '/agents の API 仕様タブ（x-ai-prompt-contract）',
   },
   {
     name: '金額計算・課金・認可は決定論的コードで処理する',
     fl: 'Smart Endpoints and Dumb Pipes',
     result: '成立',
     evidence:
-      'payment-service からエージェントを除いたとき、起動時例外が消え安定性が向上した。4 ステップのフロー全体を通じて payment-service は一貫して動作した。この判断はパフォーマンスや実装コストの都合ではなく、「正確性が必要な処理は LLM に渡さない」という原則の体現として機能した。',
+      'payment-service にエージェントを置いていた当初、起動時に ArachneAutoConfiguration がモデルプロバイダー未設定を検出して例外を投げ、compose 起動が不安定だった。agent を除いてコードに戻したとき、この起動時例外が同時に消えた。4 ステップのフロー全体を通じて payment-service は一貫して動作し、confirm-payment ステップの実行履歴には agent 関連の出力は一切なく支払い確定の決定論的な記録のみが残った。',
+    artifact: 'payment-service の /v3/api-docs、order-service の実行履歴（confirm-payment ステップ）',
   },
   {
     name: 'system prompt はエンジニアが管理するシステム制約として書く',
     fl: 'Products not Projects',
     result: '成立',
     evidence:
-      'system prompt はソースコードとして管理され、/agents ページから読める。order-service の prompt にはロケールを反映した言語設定が含まれ、デプロイ環境ごとに振る舞いが変わることが git 上で追えた。変更はレビューとバージョン管理の対象として扱われた。',
+      '/agents ページの「概要」タブで各サービスの system prompt がそのまま読めた。order-service の prompt にはサーバーロケールを参照した言語設定が含まれており、デプロイ環境の Locale.getDefault() によって返答言語が変わることが Java ソースコードから直接追えた。system prompt の変更は git diff に現れ、いつ・どの理由で変わったかがレビュー可能な形で残っていた。',
+    artifact: '/agents の概要タブ、OrderApplicationService.java',
   },
   {
     name: 'skill は業務知識の公開面として分離する',
     fl: 'Products not Projects / Decentralized Governance',
     result: '成立',
     evidence:
-      'family-order-guide と proactive-recommendation は system prompt とは別ドキュメントとして管理された。各スキルの activationHint フロントマターがそのまま発動条件として使われ、スキルドキュメントを編集するだけでコード変更なしに発動条件を変えられることを確認した。',
+      '/agents のスキルタブで family-order-guide と proactive-recommendation がシステムプロンプトとは別ドキュメントとして確認できた。各スキルの YAML フロントマター（activationHint）がそのままエージェントのスキル選択条件として使われており、SKILL.md を編集してデプロイするだけでコード変更なしに発動条件を変えられることを確認した。MenuServiceConfiguration がサービス起動時にフロントマターを解析して動的にスキルセクションを注入しており、SKILL.md が条件と内容の単一ソースとして機能していた。',
+    artifact: '/agents のスキルタブ、MenuServiceConfiguration.java',
   },
   {
     name: 'サービス間の collaborator 解決は capability ベースで動的に行う',
     fl: 'Decentralized Governance',
     result: '成立',
     evidence:
-      'order / kitchen / menu / support / delivery が POST /registry/discover で能力の記述によって collaborator を解決した。hermes-adapter が 15 秒サイクルで停止・復帰する設定で、停止中は discover が稼働中のアダプターのみを返し、推奨理由も変化した。delivery-service のコードは一切変わらなかった。',
+      'hermes-adapter は 15 秒サイクルで停止と復帰を繰り返す設定にしてある。停止中のタイミングで注文フローの配送ステップを踏むと、delivery-agent は POST /registry/discover で稼働中のアダプター（idaten-adapter）のみを得て、「外部パートナーは 1 社のみ確認できました」という理由を添えて推奨を返した。アダプターが復帰すると次の discover から再び両方が候補に入り、推奨理由も変化した。この挙動の変化を通じて delivery-service のコードには一切触れなかった。',
+    artifact: 'delivery-service の実行履歴（配送ステップ）',
   },
 ];
 
@@ -56,17 +62,17 @@ const tensions = [
   {
     question: '複数サービスが同じ LLM バックエンドを共有すると、LLM がパイプになるのか',
     resolution:
-      '各サービスは独自の system prompt・tool 定義・skill ドキュメントで LLM を呼び出し、推論のコンテキストはサービス境界に閉じた。あるサービスの LLM 呼び出しが別サービスの内部状態に直接影響することはなかった。LLM はインフラであり、パイプではないことが動くシステムで示された。',
+      'order-service の実行履歴と menu-service の実行履歴を並べると、それぞれが独立した system prompt・tool 定義で LLM を呼び出しており、一方の呼び出し結果が他方の内部状態に流れ込む経路がないことが確認できた。order-intake-agent が生成した grounding context は HTTP リクエストのペイロードとして menu-service に渡され、menu-service はそれを自分の system prompt と tool で受け取る。LLM がパイプになっているのではなく、LLM が各サービスの endpoint の内部処理として使われている形だった。',
   },
   {
     question: 'payment-service にエージェントを置かない判断は原則の逃げか',
     resolution:
-      '逃げではなく、原則の直接的な体現だった。「正確性が必要な処理はコードに残す」という原則は AI を排除する方向に作用することがある。この判断の結果として起動時例外が消え、安定性が向上した。原則は「すべてにエージェントを置く」を推奨しない。',
+      '逃げではなく原則の直接的な体現だった。当初エージェントを置いていた payment-service では、ArachneAutoConfiguration がモデルプロバイダー未設定を検出して起動時例外を投げ続けた。agent を除いてコードに戻した瞬間にその例外が消えた。「正確性が必要な処理はコードに残す」という原則は、AI を追加する方向だけでなく AI を除く方向にも等しく作用する。',
   },
   {
     question: 'capability-based discovery は Decentralized Governance を維持するか、新たな中央集権点を生み出すか',
     resolution:
-      'GET /registry/services（棚卸し・閲覧）と POST /registry/discover（実行時 collaborator 解決）を明示的に分けた。サービス間の直接依存に棚卸し API を使わないことで、registry が管理の中央集権点ではなく協調の仲介点として機能した。',
+      'GET /registry/services（棚卸し・閲覧用）と POST /registry/discover（実行時 collaborator 解決用）を明示的に分けた。サービス間の実行時依存を discover 一本に絞ることで、registry がサービス一覧を「知っている」存在ではなく「capability の記述に応じて照合する」仲介点として機能した。order-service が menu-service を「サービス名で指定する」コードは書かれていない。',
   },
 ];
 
@@ -111,7 +117,11 @@ const implementationConstraints = [
             {p.name}
             <span style="margin-left:10px; font-size:0.8rem; font-weight:500; color:var(--accent); background:var(--accent-soft,#e8f5e9); padding:2px 8px; border-radius:4px">{p.result}</span>
           </h3>
-          <p style="color:var(--text-muted); font-size:0.95rem">{p.evidence}</p>
+          <p style="color:var(--text-muted); font-size:0.95rem; margin-bottom:8px">{p.evidence}</p>
+          <p style="font-size:0.82rem; color:var(--text-muted)">
+            <strong>確認できる場所：</strong>{p.artifact}
+            {' '}—{' '}<a href="/observations" style="color:var(--accent)">観察記録を見る →</a>
+          </p>
         </div>
       </article>
     ))}
