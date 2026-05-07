@@ -7,31 +7,42 @@ const designRows = [
     principle: 'AI エージェントは自然言語フロントドアとして追加する',
     impl: 'order-service に order-intake-agent を置いてユーザー入力の一次解釈を担わせ、menu-service・delivery-service・support-service は service-local agent として catalog grounding、ETA 判断、サポート対話を担わせます',
     check: 'order-service の suggest API が direct item request / recommendation request を正規化し、その handoff を受けた menu-service が明示指定優先で grounded な候補を返す流れで確認できます',
+    obs: '01-natural-language-front-door',
   },
   {
     principle: '従来の API は機械間連携の正本契約として残す',
     impl: '全サービスが REST API と OpenAPI 仕様を公開し、エージェントはその API をツールとして呼び出す形を維持します',
     check: '/agents の API 仕様タブから各サービスの OpenAPI を確認できます。エージェントのツール定義も同じ API 上に乗っています',
+    obs: '02-api-as-contract',
   },
   {
     principle: '金額計算・課金・認可は決定論的コードで処理する',
     impl: 'payment-service はエージェントを持たず、支払い準備と課金確定をコードで完結させます',
     check: 'payment-service の /v3/api-docs で、エージェント経由ではなく決定論的に処理されることを確認できます',
+    obs: '03-deterministic-code',
   },
   {
     principle: 'system prompt はエンジニアが管理するシステム制約として書く',
     impl: '各エージェントの system prompt はソースコード中に置き、役割・制約・ツール利用方針・言語設定を明示します',
     check: '/agents のサービスカードを開くと、登録済みの system prompt をそのまま読めます',
+    obs: '04-system-prompt-as-code',
   },
   {
     principle: 'skill は業務知識の公開面として分離する',
     impl: 'menu-service と kitchen-service は商品説明・推薦ロジック・仕込みスケジュール方針を SKILL.md に分離します。スキルの発動条件も SKILL.md のフロントマターに記述し、サービスが起動時に動的に注入します',
     check: '/agents のスキルタブで system prompt とは別に管理されているスキルドキュメントを確認できます',
+    obs: '05-skill-separation',
+    snippet: `# family-order-guide/SKILL.md（フロントマター抜粋）
+---
+name: family-order-guide
+activationHint: 家族・複数人・子ども向けの相談のとき
+---`,
   },
   {
     principle: 'サービス間の collaborator 解決は capability ベースで動的に行う',
     impl: 'order / kitchen / menu / support / delivery が起動時に registry-service へ自己登録し、ダウンストリーム解決は POST /registry/discover で行います',
     check: 'delivery-service が外部 ETA アダプターを discover 経由で発見し、ETA を比較して推奨を返すフローで確認できます',
+    obs: '06-capability-discovery',
   },
   {
     principle: '会話責務・workflow 責務・仕様閲覧責務は UI レベルでも分離する',
@@ -207,7 +218,15 @@ const surfaces = [
             <tr>
               <td>{row.principle}</td>
               <td>{row.impl}</td>
-              <td>{row.check}</td>
+              <td>
+                <span>{row.check}</span>
+                {row.snippet && (
+                  <pre style="margin-top:8px; font-size:0.78rem; background:var(--surface-2, #f5f5f5); padding:8px 10px; border-radius:6px; overflow-x:auto; white-space:pre-wrap;"><code>{row.snippet}</code></pre>
+                )}
+                {row.obs && (
+                  <a href={`/observations/${row.obs}`} style="display:inline-block; margin-top:6px; font-size:0.82rem; color:var(--accent);">→ 観測ログ</a>
+                )}
+              </td>
             </tr>
           ))}
         </tbody>
