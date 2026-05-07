@@ -1,7 +1,5 @@
 package com.mahitotsu.arachne.samples.delivery.deliveryservice.infrastructure;
 
-import static com.mahitotsu.arachne.samples.delivery.deliveryservice.domain.DeliveryTypes.*;
-
 import java.util.List;
 import java.util.Objects;
 
@@ -11,6 +9,9 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 
 import com.mahitotsu.arachne.samples.delivery.deliveryservice.config.DeliveryServiceProperties;
+import com.mahitotsu.arachne.samples.delivery.deliveryservice.domain.DeliveryTypes.EtaServiceTarget;
+import com.mahitotsu.arachne.samples.delivery.deliveryservice.domain.DeliveryTypes.RegistryDiscoverRequestPayload;
+import com.mahitotsu.arachne.samples.delivery.deliveryservice.domain.DeliveryTypes.RegistryDiscoverResponsePayload;
 
 @Component
 public class RegistryBackedEtaServiceDiscoveryGateway implements EtaServiceDiscoveryGateway {
@@ -32,6 +33,7 @@ public class RegistryBackedEtaServiceDiscoveryGateway implements EtaServiceDisco
         if (restClient == null) {
             return List.of();
         }
+        // observationSupport.observe() は REST 呼び出しを実行履歴に記録するラッパー
         RegistryDiscoverResponsePayload response = observationSupport.observe(
             "delivery.delivery.registry.lookup",
             "registry-service",

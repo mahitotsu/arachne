@@ -1,94 +1,55 @@
 ---
+import { getCollection } from 'astro:content';
 import PageHero from '../../components/PageHero.astro';
 import SiteLayout from '../../layouts/SiteLayout.astro';
 
-const observations = [
-  {
-    principle: 'エージェントは自然言語フロントドアとして追加する',
-    fl: 'Smart Endpoints and Dumb Pipes',
-    hypothesis: '自然言語の入力を解釈してサービスの API に橋渡しできる。この変換を経由しても API の契約は変わらない。',
-    observed: '「テリヤキバーガーください」という直接指定と「子ども向けにいくつか」というあいまいな依頼では、order-intake-agent が異なるコンテキストを menu-service に渡した。前者では explicit match 優先で menu-service がカタログから該当商品を特定し、後者では推薦ロジックが走って Kids 系メニューが返った。menu-service が exact match できない場合は「menu 側の代替として提案しています」と出力に明示され、AI が勝手に決めたとユーザーに見えないよう設計されていた。',
-    artifacts: 'order-service の実行履歴（/execution-history/{sessionId}）、/agents の system prompt タブ',
-  },
-  {
-    principle: '従来の API は機械間連携の正本契約として残す',
-    fl: 'Smart Endpoints and Dumb Pipes',
-    hypothesis: 'REST API と OpenAPI 仕様は廃止されず、エージェントはその API をツールとして呼び出す。',
-    observed: '/agents ページの API 仕様タブを開くと、各サービスの OpenAPI が取得できた。suggest 操作には x-ai-prompt-contract が付与されており、エージェントが期待する入力構造とサービスの振る舞いが API の上で読める形になっていた。エージェントのツール定義と REST API 仕様が同一契約として管理されており、prompt の黒箱化を避けるコミットメントが API として観察できた。',
-    artifacts: '/agents の API 仕様タブ（x-ai-prompt-contract）',
-  },
-  {
-    principle: '金額計算・課金・認可は決定論的コードで処理する',
-    fl: 'Smart Endpoints and Dumb Pipes',
-    hypothesis: 'payment-service はエージェントを持たず、支払い確定を決定論的コードで実行できる。',
-    observed: 'payment-service から agent を除いたとき、起動時に投げていたプロバイダー未設定例外が同時に消え、サービスの安定性が向上した。4 ステップの注文フロー全体を通じて payment-service は一貫して動作した。同じ sessionId に対する実行履歴を確認すると、payment-service の記録には agent 関連の出力は一切なく、支払い確定の決定論的な記録のみが残っていた。',
-    artifacts: 'payment-service の /v3/api-docs、order-service の実行履歴（confirm-payment ステップ）',
-  },
-  {
-    principle: 'system prompt はエンジニアが管理するシステム制約として書く',
-    fl: 'Products not Projects',
-    hypothesis: 'system prompt はソースコードとして管理され、変更はレビューとバージョン管理の対象になる。',
-    observed: '/agents ページの「概要」タブで、各サービスに登録されている system prompt がそのまま読めた。order-service の prompt にはサーバーロケールを反映した言語設定が含まれており、デプロイ環境によって返答言語が変わることがコードから追えた。system prompt の変更は git diff で確認でき、いつ・誰が・なぜ変えたかがレビュー可能な形になっていた。',
-    artifacts: '/agents の概要タブ',
-  },
-  {
-    principle: 'skill は業務知識の公開面として分離する',
-    fl: 'Products not Projects / Decentralized Governance',
-    hypothesis: '業務担当者がエンジニアのコード変更なしに skill の内容と発動条件を変更できる。',
-    observed: '/agents のスキルタブで、family-order-guide と proactive-recommendation がシステムプロンプトとは別のドキュメントとして確認できた。各スキルのフロントマターに記載された発動条件がそのままエージェントのスキル選択に使われており、スキルドキュメントを更新してデプロイすると、コード変更なしにエージェントの知識と発動条件が変わることを確認した。',
-    artifacts: '/agents のスキルタブ',
-  },
-];
+const allObservations = await getCollection('observations');
+const observations = allObservations.sort((a, b) => a.data.order - b.data.order);
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 ---
 
 <SiteLayout title="Observations | Arachne Field Notes">
   <PageHero
     eyebrow="Observations"
-    title="動かして確かめたこと"
-    summary="設計仮説が動くコードで成立するかを、food-delivery-demo を実際に動かして確かめた記録です。各原則が立てた仮説に対して、何が観察されたかを記述します。"
+    title="証拠を見る"
+    summary="設計仮説に対して実際のソースコードと動作ログを証拠として示します。各観察は独立したページとして記録されています。"
   />
 
   <section class="panel">
-    <p class="panel__eyebrow">この記録の読み方</p>
+    <p class="panel__eyebrow">この証拠記録の読み方</p>
     <p>
-      各項目は「仮説 → 観察された振る舞い → 確認できるアーティファクト」の構造を持ちます。
-      設計原則が正しいかどうかを主張するのではなく、<strong>実際に動かしたときに何が起きたか</strong>を記録することが目的です。
-      期待通りでなかった点や既知の制約も含めて記述しています。
+      各ページは「検証した仮説 → ソースコードの証拠 → 観察された振る舞い」の構造を持ちます。
+      観察から導かれる論証（なぜ仮説が実証されるか）は <a href={`${base}/conclusions`}><strong>Conclusions</strong></a> で展開します。
+      証拠を示すことがこのページ群の目的です。
     </p>
   </section>
 
   <section class="stacked-list">
-    <h2 style="font-size:1.1rem; color:var(--text-muted); font-weight:600; margin-bottom:-8px">5 つの設計原則に対する観察</h2>
     {observations.map((obs) => (
       <article class="essay-card">
         <div>
-          <p class="panel__eyebrow">{obs.fl}</p>
-          <h2 style="font-size:1rem; font-weight:700; margin-bottom:8px">{obs.principle}</h2>
-          <p style="margin-bottom:6px"><strong>仮説：</strong>{obs.hypothesis}</p>
-          <p style="margin-bottom:6px"><strong>観察：</strong>{obs.observed}</p>
-          <p style="font-size:0.85rem; color:var(--text-muted)"><strong>確認できる場所：</strong>{obs.artifacts}</p>
+          <p class="panel__eyebrow">{obs.data.fl}</p>
+          <h2 style="font-size:1rem; font-weight:700; margin-bottom:6px">
+            <a href={`${base}/observations/${obs.slug}`} style="color: inherit; text-decoration: none;">
+              {obs.data.title}
+            </a>
+          </h2>
+          <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 8px">
+            原則：{obs.data.principle}
+          </p>
+          <p style="font-size: 0.875rem; color: var(--text-muted); margin-bottom: 10px">
+            <strong>仮説：</strong>{obs.data.hypothesis}
+          </p>
+          <a href={`${base}/observations/${obs.slug}`} style="font-size: 0.85rem; color: var(--accent);">
+            ソースコードと観察記録を見る →
+          </a>
         </div>
       </article>
     ))}
   </section>
 
-  <section class="panel">
-    <p class="panel__eyebrow">Decentralized Governance ── capability-based discovery の動的な協調</p>
-    <p>
-      <strong>仮説：</strong>呼び出し先を能力の記述で解決することで、サービスが互いを直接知らなくても協調できる。
-    </p>
-    <p style="margin-top:12px">
-      <strong>観察：</strong>外部 ETA アダプターの一方は 15 秒サイクルで停止と復帰を繰り返す設定にしてある。
-      そのアダプターが停止中のタイミングで注文フローの配送ステップを踏むと、delivery-agent は discover で稼働中のアダプターのみを得て、「外部パートナーは 1 社のみ確認できました」という理由を添えて推奨を返した。
-      アダプターが復帰すると次の discover から再び両方が候補に入り、推奨理由も変化した。
-      delivery-service のコードは一切変わっていない。
-    </p>
-    <p style="font-size:0.85rem; color:var(--text-muted); margin-top:8px">
-      <strong>確認できる場所：</strong>delivery-service の実行履歴（配送ステップ）
-    </p>
-  </section>
-
   <section class="panel" style="text-align:center">
-    <p>各観察から導かれた評決は <a href="/conclusions"><strong>Conclusions</strong></a> にまとめています。</p>
+    <p>各観察が仮説をどう実証しているかは <a href={`${base}/conclusions`}><strong>Conclusions</strong></a> で論じています。</p>
   </section>
 </SiteLayout>

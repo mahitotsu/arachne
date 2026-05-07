@@ -1,0 +1,135 @@
+---
+title: SKILL.md の activationHint による業務知識の分離
+principle: skill は業務知識の公開面として分離する
+fl: Products not Projects / Decentralized Governance
+hypothesis: 業務知識と発動条件を SKILL.md に分離することで、コード変更なしに内容と発動条件を更新できる。
+order: 5
+---
+
+## activationHint フロントマター（family-order-guide/SKILL.md）
+
+`menu-service` には `family-order-guide` と `proactive-recommendation` の 2 つのスキルが SKILL.md として配置されています。各スキルの YAML フロントマターに `activationHint` フィールドがあり、どのような状況でスキルを有効化すべきかが記述されています。
+
+```yaml
+# food-delivery-demo/menu-service/src/main/resources/skills/family-order-guide/SKILL.md
+---
+name: family-order-guide
+description: 家族、複数人、子ども向けの注文で、人数と予算に合わせて提案数を整えるためのスキル。
+activationHint: 家族・複数人・子ども向けの相談のとき
+---
+お客様がファミリーやグループ向けに注文する場合、以下の手順を適用してください:
+
+1. catalog_lookup_tool が返した候補だけを使って構成します。
+2. お子様向けでは、辛さの弱いものや食べやすい名前のアイテムを優先します。
+3. 大人向けと子ども向けの両方をカバーする組み合わせを作り、
+   人数に合わせて数量を調整します。
+   ...
+```
+
+`activationHint` の値「家族・複数人・子ども向けの相談のとき」が、menu-agent がスキルを発動する条件そのものです。この一行を SKILL.md で変えるだけで発動条件が変わります。
+
+## フロントマターの解析と注入（MenuServiceConfiguration.java）
+
+`MenuServiceConfiguration` はサービス起動時に SKILL.md を読み込み、`activationHint` フィールドを抽出して `skillActivationHints` Bean として登録します。
+
+```java
+// MenuServiceConfiguration.java
+@Bean
+Map<String, String> skillActivationHints(ResourceLoader resourceLoader) {
+    Map<String, String> hints = new LinkedHashMap<>();
+    for (String name : new String[] { "proactive-recommendation", "family-order-guide" }) {
+        try {
+            var resource = resourceLoader.getResource("classpath:skills/" + name + "/SKILL.md");
+            String raw = new String(resource.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            String hint = extractFrontmatterField(raw, "activationHint");
+            if (hint != null && !hint.isBlank()) {
+                hints.put(name, hint);
+            }
+        } catch (Exception ignored) {
+            // SKILL.md が読み込めない場合はそのスキルをスキップする
+        }
+    }
+    return hints;
+}
+
+// YAML フロントマターから指定フィールドを抽出する
+private static String extractFrontmatterField(String raw, String field) {
+    if (!raw.startsWith("---")) return null;
+    int end = raw.indexOf("---", 3);
+    if (end == -1) return null;
+    String frontmatter = raw.substring(3, end);
+    for (String line : frontmatter.split("\n")) {
+        if (line.startsWith(field + ":")) {
+            return line.substring(field.length() + 1).strip();
+        }
+    }
+    return null;
+}
+```
+
+## system prompt への動的注入（MenuApplicationService.java）
+
+`MenuApplicationService` は `skillActivationHints` を受け取り、起動時に組み立てた条件リストを system prompt のスキル有効化セクションとして注入します。
+
+```java
+// MenuApplicationService.java
+private String buildSuggestionSystemPrompt() {
+    // SKILL.md の activationHint フィールドからスキル有効化条件を動的に組み立てる。
+    // 条件の真実源は各 SKILL.md であり、このメソッドはそれを参照するだけ。
+    String skillActivationSection = skillActivationHints.entrySet().stream()
+            .map(e -> "- " + e.getValue() + " は **" + e.getKey() + "** を有効化してください。")
+            .reduce((a, b) -> a + "\n" + b)
+            .map(s -> "\n\n【スキル有効化】\n" + s + "\n")
+            .orElse("\n");
+    return """
+            あなたは menu-agent です。まず catalog_lookup_tool を呼んでカタログを確認してください。
+            （他のルール: explicitItemIds / additionalItemIds の返却方法等は省略）
+            """ + skillActivationSection + """
+            exact match が弱い場合でも、menu 側で代替候補を同ブランド内から選んでください。
+            最終回答は structured_output を使い、explicitItemIds と additionalItemIds を返してください。
+            """;
+}
+```
+
+コード内にスキル名や発動条件の文字列は書かれていません。`MenuApplicationService.java` を変更することなく、SKILL.md のフロントマターだけ変えれば system prompt に反映されます。
+
+## 観察された振る舞い
+
+- `/agents` ページの「ツール・スキル」タブで、`family-order-guide` と `proactive-recommendation` がシステムプロンプトとは別のドキュメントとして確認できた。
+- 各スキルの `activationHint` がそのままエージェントの有効化条件に使われていることが、コードを追うことで確認できた。
+- SKILL.md の `activationHint` 行を変更してデプロイすると、`MenuApplicationService.java` を変えることなく menu-agent の発動条件が変わることを確認した。
+- SKILL.md が「条件（activationHint）」と「内容（markdown body）」の単一の情報源として機能していた。
+
+## ランタイムでのスキル発動確認
+
+「子ども向けにいくつか見繕ってください」を `POST /api/order/suggest` に送信したときのレスポンスです。
+
+```json
+{
+  "sessionId": "session-cfd3e1d1",
+  "headline": "menu-agent が 2 件のメニューオプションをマッチしました",
+  "summary": "[family-order-guide] menu-agent が Kids Cheeseburger Set x1, Lemon Soda x1 をおすすめします。 子ども向けとして「Kids Cheeseburger Set」と「Lemon Soda」を提供可能。キッズセットはミニチーズバーガー、コーンカップ、アップルジュースが含まれ、子ども向けに最適。また生レモンソーダは甘さ控えめなので子どもにも人気。",
+  "proposals": [
+    { "itemId": "combo-kids", "name": "Kids Cheeseburger Set", "quantity": 1, "unitPrice": 720.0 },
+    { "itemId": "drink-lemon", "name": "Lemon Soda", "quantity": 1, "unitPrice": 240.0 }
+  ],
+  "trace": [
+    {
+      "service": "menu-service",
+      "agent": "menu-agent",
+      "detail": "[family-order-guide] menu-agent が Kids Cheeseburger Set x1, Lemon Soda x1 をおすすめします。 子ども向けとして「Kids Cheeseburger Set」と「Lemon Soda」を提供可能。"
+    }
+  ]
+}
+```
+
+`summary` と `trace[1].detail` の冒頭に `[family-order-guide]` タグが付いています。menu-agent がどのスキルを有効化したかを明示しているのです。このタグは SKILL.md に定義されたスキル名と一致します。
+
+「テリヤキバーガーください」（DIRECT_ITEM パス）のレスポンスでは `[family-order-guide]` タグは現れません。「子ども向け」「おすすめ」などの文脈がある場合だけスキルが有効化されます。
+
+## 確認できる場所
+
+- `/agents` ページの「ツール・スキル」タブ（family-order-guide、proactive-recommendation の内容）
+- `menu-service/src/main/resources/skills/*/SKILL.md`（activationHint フロントマター）
+- `MenuServiceConfiguration.java`（skillActivationHints Bean）
+- `MenuApplicationService.java`（buildSuggestionSystemPrompt メソッド）

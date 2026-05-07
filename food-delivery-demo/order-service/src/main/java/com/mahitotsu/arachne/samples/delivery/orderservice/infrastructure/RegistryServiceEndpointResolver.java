@@ -11,7 +11,6 @@ import org.springframework.web.client.RestClient;
 import com.mahitotsu.arachne.samples.delivery.orderservice.config.OrderRegistryProperties;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.RegistryDiscoverRequestPayload;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.RegistryDiscoverResponsePayload;
-import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.RegistryServiceDescriptorPayload;
 
 @Component
 public class RegistryServiceEndpointResolver implements ServiceEndpointResolver {
@@ -63,6 +62,7 @@ public class RegistryServiceEndpointResolver implements ServiceEndpointResolver 
             return null;
         }
         try {
+            // observationSupport.observe() は REST 呼び出しを実行履歴に記録するラッパー
             RegistryDiscoverResponsePayload response = observationSupport.observe(
                     "delivery.order.registry.lookup",
                     "registry-service",

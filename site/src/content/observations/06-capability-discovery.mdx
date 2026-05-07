@@ -1,0 +1,175 @@
+---
+title: POST /registry/discover による capability ベースの動的 collaborator 解決
+principle: サービス間の collaborator 解決は capability ベースで動的に行う
+fl: Decentralized Governance
+hypothesis: 呼び出し先を能力の記述で解決することで、サービスが互いを直接知らなくても協調できる。アダプターの可用性が変わっても呼び出し元のコードは変わらない。
+order: 6
+---
+
+## capability クエリの設定（order-service/application.yml）
+
+`order-service` が各 downstream サービスを解決するために使う capability クエリは、application.yml に記述されています。サービス名やエンドポイント URL は一切ありません。
+
+```yaml
+# order-service/src/main/resources/application.yml
+downstream:
+  menu:
+    capability-query: ${MENU_CAPABILITY_QUERY:メニュー提案 在庫付き提案 注文候補}
+  delivery:
+    capability-query: ${DELIVERY_CAPABILITY_QUERY:配送候補 ETA 比較 配送選択肢}
+  payment:
+    capability-query: ${PAYMENT_CAPABILITY_QUERY:支払い準備 合計確認 課金確定}
+  support:
+    capability-query: ${SUPPORT_CAPABILITY_QUERY:注文後フィードバック受付 問い合わせ受付 サポート連携}
+```
+
+`order-service` のコードには「menu-service」「delivery-service」という文字列は現れません。クエリを受け取って一致するサービスを返すのは `registry-service` です。
+
+## POST /registry/discover 呼び出し（RegistryServiceEndpointResolver.java）
+
+各サービスの `RegistryServiceEndpointResolver` は capability クエリを使って `POST /registry/discover` を呼び、稼働中のサービスの endpoint と requestPath を取得します。
+
+```java
+// order-service: RegistryServiceEndpointResolver.java
+private RegistryEndpointMetadata discoverEndpoint(String capabilityQuery) {
+    // observationSupport.observe() は REST 呼び出しを実行履歴に記録するラッパー
+    RegistryDiscoverResponsePayload response = observationSupport.observe(
+            "delivery.order.registry.lookup",
+            "registry-service",
+            "resolve-endpoint",
+            () -> registryRestClient.post()
+                    .uri("/registry/discover")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(new RegistryDiscoverRequestPayload(capabilityQuery, true))
+                    .retrieve()
+                    .body(RegistryDiscoverResponsePayload.class));
+    if (response == null || response.matches() == null) {
+        return null;
+    }
+    // status が AVAILABLE なものだけを使う
+    return response.matches().stream()
+            .filter(service -> "AVAILABLE".equalsIgnoreCase(service.status()))
+            .findFirst()
+            .map(service -> new RegistryEndpointMetadata(service.endpoint(), service.requestPath()))
+            .orElse(null);
+}
+```
+
+`availableOnly: true` で discover を呼ぶため、停止中のサービスは結果から除外されます。
+
+## ETA アダプターの動的選択（RegistryBackedEtaServiceDiscoveryGateway.java）
+
+`delivery-service` は `discover_eta_services` ツールで外部 ETA アダプターを discover します。`hermes-adapter` は 15 秒サイクルで停止と復帰を繰り返す設定になっており、この動的な可用性を反映した discover が行われます。
+
+```java
+// delivery-service: RegistryBackedEtaServiceDiscoveryGateway.java
+public List<EtaServiceTarget> discoverAvailableEtaServices(String query) {
+    // observationSupport.observe() は REST 呼び出しを実行履歴に記録するラッパー
+    RegistryDiscoverResponsePayload response = observationSupport.observe(
+            "delivery.delivery.registry.lookup",
+            "registry-service",
+            "discover-eta-services",
+            () -> restClient.post()
+                    .uri("/registry/discover")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(new RegistryDiscoverRequestPayload(query, true))
+                    .retrieve()
+                    .body(RegistryDiscoverResponsePayload.class));
+    return response.matches().stream()
+            .filter(match -> "AVAILABLE".equalsIgnoreCase(match.status()))
+            .map(match -> new EtaServiceTarget(match.serviceName(), match.endpoint(), match.requestPath()))
+            .toList();
+}
+```
+
+## 観察された振る舞い
+
+- `hermes-adapter` が停止中のタイミングで注文フローの配送ステップを実行すると、`delivery-agent` は discover で稼働中の `idaten-adapter` のみを取得し、「外部パートナーは 1 社のみ確認できました」という理由を添えて推奨を返した。
+- `hermes-adapter` が復帰すると、次の discover から再び両アダプターが候補に入り、推奨理由も変化した。
+- `delivery-service` のコードには一切触れなかった。
+- `GET /registry/services`（棚卸し用）と `POST /registry/discover`（実行時解決用）を別エンドポイントに分けたことで、registry が「サービス一覧を返す」存在でなく「capability の記述に応じて照合する」仲介点として機能した。
+- `order-service` のコード内に "menu-service" という文字列は現れず、クエリの意味だけでサービスを見つけた。
+
+## ランタイム観察: hermes 停止と復帰による discover 変化
+
+delivery-agent が使う capability クエリは `"外部ETAを提供するサービスは？"` です。hermes-adapter の停止前後で discover の結果がどう変わるかを観察しました。
+
+### hermes-adapter 停止中の discover
+
+`POST /registry/discover` に `{"query":"外部ETAを提供するサービスは？","availableOnly":true}` を送信：
+
+```json
+{
+  "service": "registry-service",
+  "agent": "capability-registry-agent",
+  "summary": "候補: delivery-service、idaten-adapter",
+  "matches": [
+    { "serviceName": "delivery-service", "status": "AVAILABLE" },
+    { "serviceName": "idaten-adapter",   "status": "AVAILABLE" }
+  ]
+}
+```
+
+hermes-adapter は `availableOnly: true` により結果から除外されます。
+
+### hermes-adapter 停止中の delivery quote
+
+```json
+{
+  "service": "delivery-service",
+  "agent": "delivery-agent",
+  "headline": "delivery-agent が 自社エクスプレス を推奨しました",
+  "summary": "自社エクスプレス配送は2分で準備可能。IdatenのETAは35分と明らかに遅い。",
+  "options": [
+    { "code": "express", "label": "自社エクスプレス", "etaMinutes": 18, "fee": 300.0 },
+    { "code": "idaten",  "label": "Idaten エコノミー", "etaMinutes": 35, "fee": 180.0 }
+  ],
+  "recommendedTier": "express",
+  "recommendationReason": "「急ぎ」指定かつETA最短の自社エクスプレス配送が最適。IdatenのETAは35分と明らかに遅く、料金も高額です。"
+}
+```
+
+hermes オプションが存在しません。delivery-agent は discover で返ってきた AVAILABLE な候補だけを比較します。
+
+### hermes-adapter 復帰後の discover
+
+```json
+{
+  "service": "registry-service",
+  "agent": "capability-registry-agent",
+  "summary": "候補: delivery-service、hermes-adapter、idaten-adapter",
+  "matches": [
+    { "serviceName": "delivery-service", "status": "AVAILABLE" },
+    { "serviceName": "hermes-adapter",   "status": "AVAILABLE" },
+    { "serviceName": "idaten-adapter",   "status": "AVAILABLE" }
+  ]
+}
+```
+
+hermes-adapter が復帰すると、次の discover から再び 3 候補が返ります。
+
+### hermes-adapter 復帰後の delivery quote
+
+```json
+{
+  "service": "delivery-service",
+  "agent": "delivery-agent",
+  "headline": "delivery-agent が Hermes スピード便 を推奨しました",
+  "summary": "自社エクスプレス配送は現在利用できません。外部サービスとして Hermes と Idaten が利用可能です。Hermes は ETA 23 分で料金 350 円、Idaten は ETA 35 分で料金 180 円です。",
+  "options": [
+    { "code": "hermes", "label": "Hermes スピード便",  "etaMinutes": 23, "fee": 350.0 },
+    { "code": "idaten", "label": "Idaten エコノミー", "etaMinutes": 35, "fee": 180.0 }
+  ],
+  "recommendedTier": "hermes",
+  "recommendationReason": "「急いで」の文脈なので最短 ETA の Hermes スピード便 を優先しました。"
+}
+```
+
+hermes-adapter が復帰すると options に `hermes` が追加され、`recommendedTier` と `recommendationReason` が変わりました。`delivery-service` のコードには一切触れていません。
+
+## 確認できる場所
+
+- `delivery-service` の実行履歴（配送ステップ、discover の結果と推奨理由）
+- `registry-service` の `GET /registry/services`（hermes-adapter の status 変化）
+- `registry-service` の `POST /registry/discover`（クエリ→マッチの様子）
+- `/agents` ページのサービス一覧（各サービスの capability 記述）

@@ -1,0 +1,211 @@
+---
+title: 自然言語フロントドアと API 契約の分離
+principle: エージェントは自然言語フロントドアとして追加する
+fl: Smart Endpoints and Dumb Pipes
+hypothesis: 自然言語の入力を解釈してサービスの API に橋渡しできる。この変換を経由しても API の契約は変わらない。
+order: 1
+---
+
+## 意図分類ロジック（ArachneOrderIntentPlanner.java）
+
+`order-service` の `order-intake-agent` は、自然言語メッセージを `DIRECT_ITEM` / `RECOMMENDATION` / `REORDER` / `REFINEMENT` の 4 種類に分類します。メッセージに商品名らしきキーワードが含まれているかどうかをヒューリスティックで先に判定し、その結果を LLM の structured output とあわせて正規化します。
+
+```java
+// ArachneOrderIntentPlanner.java
+private static final List<String> DIRECT_ITEM_KEYWORDS = List.of(
+    "セット", "box", "ボックス", "burger", "バーガー", "wrap", "ラップ", "soda", "ソーダ",
+    "latte", "ラテ", "フライ", "fries", "チキン", "chicken", "サーモン", "salmon", "bowl", "dessert");
+
+private boolean looksLikeDirectItemRequest(String message) {
+    String normalized = message.toLowerCase(Locale.ROOT);
+    // 「おすすめ」「向け」を含む場合は RECOMMENDATION に倒す
+    if (normalized.contains("おすすめ") || normalized.contains("向け")) {
+        return false;
+    }
+    return DIRECT_ITEM_KEYWORDS.stream().anyMatch(normalized::contains);
+}
+```
+
+「テリヤキバーガーください」は "バーガー" にマッチして `DIRECT_ITEM` に、「子ども向けにいくつか」は "向け" を含むため `RECOMMENDATION` に分類されます。
+
+## grounding context の受け渡し（MenuSuggestionPromptRequestFactory.java）
+
+分類された `intentMode` と `directItemHint` は HTTP リクエストのペイロード（`MenuGroundingContext`）として `menu-service` の `POST /internal/menu/suggest` に渡されます。
+
+```java
+// MenuSuggestionPromptRequestFactory.java
+static MenuSuggestionRequest build(String sessionId, SuggestOrderRequest request,
+        NormalizedOrderIntent normalizedIntent) {
+    // request.refinement() が空白なら null として渡す（menu-agent への追加制約）
+    String refinement = request.refinement() == null || request.refinement().isBlank()
+            ? null : request.refinement().trim();
+    return new MenuSuggestionRequest(
+            sessionId,
+            normalizedIntent.menuQuery(),
+            refinement,
+            normalizedIntent.recentOrderSummary(),
+            new MenuGroundingContext(
+                    normalizedIntent.intentMode(),      // "DIRECT_ITEM" or "RECOMMENDATION"
+                    normalizedIntent.directItemHint(),  // 商品名（DIRECT_ITEM の場合のみ）
+                    normalizedIntent.partySize(),
+                    normalizedIntent.budgetUpperBound(),
+                    normalizedIntent.childCount(),
+                    normalizedIntent.rationale()));
+}
+```
+
+`order-service` が呼ぶ URL は `POST /internal/menu/suggest` のまま変わりません。grounding context は既存フィールドへの追記であり、エンドポイント自体のシグネチャは不変です。
+
+## 明示指定と追加提案の型レベル分離（MenuApplicationService.java）
+
+`menu-agent` は structured output で `explicitItemIds`（明示指定）と `additionalItemIds`（潜在ニーズ）を別フィールドで返します。コード側でそれを先頭固定にマージするため、AI の判断と型定義が整合しています。
+
+```java
+// MenuApplicationService.java
+List<String> explicitIds = selection.explicitItemIds() != null
+        ? selection.explicitItemIds() : List.of();
+List<String> additionalIds = selection.additionalItemIds() != null
+        ? selection.additionalItemIds() : List.of();
+
+// explicit を先頭に、additional の重複を除外して結合する
+List<String> mergedIds = Stream.concat(
+        explicitIds.stream(),
+        additionalIds.stream().filter(id -> !explicitIds.contains(id)))
+        .toList();
+```
+
+## no-match を明示するシステムプロンプト（MenuApplicationService.java）
+
+`menu-agent` の system prompt には、exact match が弱い場合でも「menu 側の代替として提案している」と summary に明示するよう指示が含まれています。
+
+```text
+exact match が弱い場合でも、menu 側で説明できる代替候補を同ブランド内から選んでください。
+```
+
+AI が「勝手に選んだ」とユーザーに見えないための設計上のコミットメントが、system prompt の文言として表現されています。
+
+## 観察された振る舞い
+
+- 「テリヤキバーガーください」→ `DIRECT_ITEM` → menu-service が alias-based explicit match で該当 ID を返した。
+- 「子ども向けにいくつか」→ `RECOMMENDATION` → family-order-guide スキルが有効化され、Kids 系メニューと大人向けメインが提案された。
+- menu-service が exact match できない場合、summary に「現行メニュー側の代替候補として提案しています」と明示された。
+- どちらの経路でも `menu-service` は同じ `POST /internal/menu/suggest` を受け取り、API 契約は変わらなかった。
+
+## ランタイム API 応答
+
+### DIRECT_ITEM パス: 「テリヤキバーガーください」
+
+`POST /api/order/suggest` に `{"intent":{"rawMessage":"テリヤキバーガーください"},"locale":"ja"}` を送信したときの実際のレスポンスです。
+
+```json
+{
+  "sessionId": "session-405162fd",
+  "workflowStep": "item-selection",
+  "headline": "menu-agent が 1 件のメニューオプションをマッチしました",
+  "summary": "menu-agent が Smash Burger Combo x1 をおすすめします。 「テリヤキバーガー」の明示指定に対して、カタログに該当する「Smash Burger Combo」を返却しました。 キッチン確認後の提供目安は約16分。",
+  "etaMinutes": 16,
+  "proposals": [
+    { "itemId": "combo-smash", "name": "Smash Burger Combo", "quantity": 1, "unitPrice": 1050.0 }
+  ],
+  "trace": [
+    {
+      "service": "order-service",
+      "agent": "order-intake-agent",
+      "detail": "明示的な商品指定「テリヤキバーガー」があるためDIRECT_ITEMモード。構造化制約はデフォルト値。 intentMode=DIRECT_ITEM"
+    },
+    {
+      "service": "menu-service",
+      "agent": "menu-agent",
+      "detail": "menu-agent が Smash Burger Combo x1 をおすすめします。 「テリヤキバーガー」の明示指定に対して、カタログに該当する「Smash Burger Combo」を返却しました。"
+    }
+  ]
+}
+```
+
+`trace[0].detail` に `intentMode=DIRECT_ITEM` が明示されています。
+
+### RECOMMENDATION パス: 「子ども向けにいくつか見繕ってください」
+
+```json
+{
+  "sessionId": "session-cfd3e1d1",
+  "workflowStep": "item-selection",
+  "headline": "menu-agent が 2 件のメニューオプションをマッチしました",
+  "summary": "[family-order-guide] menu-agent が Kids Cheeseburger Set x1, Lemon Soda x1 をおすすめします。 子ども向けとして「Kids Cheeseburger Set」と「Lemon Soda」を提供可能。キッズセットはミニチーズバーガー、コーンカップ、アップルジュースが含まれ、子ども向けに最適。また生レモンソーダは甘さ控えめなので子どもにも人気。 キッチン確認後の提供目安は約9分。",
+  "etaMinutes": 9,
+  "proposals": [
+    { "itemId": "combo-kids", "name": "Kids Cheeseburger Set", "quantity": 1, "unitPrice": 720.0 },
+    { "itemId": "drink-lemon", "name": "Lemon Soda", "quantity": 1, "unitPrice": 240.0 }
+  ],
+  "trace": [
+    {
+      "service": "order-service",
+      "agent": "order-intake-agent",
+      "detail": "ユーザーが子ども向けのメニューをリクエストしているが、具体的な数や予算、参加人数などの詳細は提供されていない。そのため、子ども向けのメニューを検索するためのクエリを作成し、詳細な情報を得るためにメニューサービスにリクエストする。 intentMode=DIRECT_ITEM"
+    },
+    {
+      "service": "menu-service",
+      "agent": "menu-agent",
+      "detail": "[family-order-guide] menu-agent が Kids Cheeseburger Set x1, Lemon Soda x1 をおすすめします。 子ども向けとして「Kids Cheeseburger Set」と「Lemon Soda」を提供可能。キッズセットはミニチーズバーガー、コーンカップ、アップルジュースが含まれ、子ども向けに最適。また生レモンソーダは甘さ控えめなので子どもにも人気。"
+    }
+  ]
+}
+```
+
+`summary` と `trace[1].detail` 冒頭の `[family-order-guide]` タグが、family-order-guide スキルが有効化されたことを示しています。
+
+### order-service 実行履歴（session-405162fd）
+
+```json
+{
+  "sessionId": "session-405162fd",
+  "events": [
+    {
+      "sequence": 9,
+      "category": "agent",
+      "service": "order-service",
+      "component": "order-intake-agent",
+      "operation": "invoke",
+      "outcome": "started",
+      "durationMs": 0,
+      "detail": "raw_message=テリヤキバーガーください"
+    },
+    {
+      "sequence": 10,
+      "category": "agent",
+      "service": "order-service",
+      "component": "order-intake-agent",
+      "operation": "invoke",
+      "outcome": "success",
+      "durationMs": 2631
+    },
+    {
+      "sequence": 11,
+      "category": "downstream",
+      "service": "order-service",
+      "component": "menu-service",
+      "operation": "suggest",
+      "outcome": "success",
+      "durationMs": 7419,
+      "detail": "query=テリヤキバーガー => menu-agent が 1 件のメニューオプションをマッチしました / items=1 / eta=16min"
+    },
+    {
+      "sequence": 12,
+      "category": "workflow",
+      "service": "order-service",
+      "component": "order-workflow",
+      "operation": "suggest",
+      "outcome": "success",
+      "durationMs": 10057
+    }
+  ]
+}
+```
+
+`category: "agent"` のイベントが order-intake-agent の LLM 呼び出しに対応し、durationMs: 2631 (約 2.6 秒) が LLM のレイテンシです。
+
+## 確認できる場所
+
+- `/api/order/suggest` → order-service の実行履歴（`/execution-history/{sessionId}`）
+- `/agents` ページの「概要」タブ（order-intake-agent の system prompt）
+- `/agents` ページの「API 仕様」タブ（menu-service の `x-ai-prompt-contract`）

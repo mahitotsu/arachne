@@ -2,59 +2,73 @@
 import PageHero from '../../components/PageHero.astro';
 import SiteLayout from '../../layouts/SiteLayout.astro';
 
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+
 const verdict = {
   statement: '5 つの設計原則は互いに矛盾せず、Fowler/Lewis の 4 特性とも整合しながら、動くシステムとして成立した。',
-  basis: 'food-delivery-demo の 10 サービスを通じて、各原則が立てた仮説に対して観察可能な振る舞いが得られた。矛盾が観察された原則はなく、原則の組み合わせが問題を引き起こしたケースもなかった。',
+  basis: 'food-delivery-demo の 10 サービスを通じ、各原則が立てた仮説に対して観察可能な振る舞いが得られた。矛盾が観察された原則はなく、原則の組み合わせが問題を引き起こしたケースもなかった。',
 };
 
-const principles = [
+const arguments_ = [
   {
     name: 'エージェントは自然言語フロントドアとして追加する',
     fl: 'Smart Endpoints and Dumb Pipes',
     result: '成立',
-    evidence:
-      '「テリヤキバーガーください」という直接指定では order-intake-agent が explicit match 優先で menu-service に渡し、menu-service は alias-based マッチでカタログ内の該当商品を返した。「子ども向けにいくつか」というあいまいな依頼では推薦ロジックが走り Kids 系メニューが提案された。menu-service が exact match できない場合は「menu 側の代替として提案しています」と出力に明示されており、AI が勝手に決定したとユーザーに見えない設計になっていた。どちらの経路でも menu-service の REST API 契約は変わらなかった。',
-    artifact: 'order-service の実行履歴（/execution-history/{sessionId}）',
+    obsSlug: '01-natural-language-front-door',
+    observationSummary:
+      'order-intake-agent は自然言語入力を DIRECT_ITEM / RECOMMENDATION の 2 経路に分類し、menu-service に渡す groundingContext を型として定義した。menu-service は explicitItemIds と additionalItemIds を structured output で区別して返す。どちらの経路でも POST /internal/menu/suggest の API 契約は変わらなかった。',
+    argument:
+      'これは仮説を実証する。自然言語の解釈は order-intake-agent が担い、その結果は HTTP ペイロードの追加フィールドとして既存 API に乗せられた。エンドポイント自体を変えずに "エージェントを追加した" という形になっており、Smart Endpoints and Dumb Pipes の文脈で言えば「エンドポイントを賢くしながらパイプを変えない」設計が成立している。',
   },
   {
     name: '従来の API は機械間連携の正本契約として残す',
     fl: 'Smart Endpoints and Dumb Pipes',
     result: '成立',
-    evidence:
-      '/agents ページの API 仕様タブで各サービスの OpenAPI を取得できた。order-service の suggest 操作には x-ai-prompt-contract 拡張が付与されており、エージェントが期待する入力構造（intent.rawMessage, partySize, childCount など）とサービスの振る舞いが API の上で人間にも機械にも読める形になっていた。エージェントのツール定義とその REST API 仕様は同一契約として管理されており、prompt を読まなくても契約が確認できる状態だった。',
-    artifact: '/agents の API 仕様タブ（x-ai-prompt-contract）',
+    obsSlug: '02-api-as-contract',
+    observationSummary:
+      'OrderController の POST /suggest と MenuController の POST /internal/menu/suggest には x-ai-prompt-contract 拡張が付与されており、エージェントが期待する入力構造・任意入力・サービス振る舞いが OpenAPI の上で人間にも機械にも読める形になっていた。',
+    argument:
+      'これは仮説を実証する。エージェントを追加した後も REST API は廃止されず、むしろ API がエージェント向け契約の公開面として機能した。x-ai-prompt-contract はエージェントの期待値を API の外部仕様として管理する手段であり、system prompt の黒箱化に対する設計上のコミットメントが API として観察できた。従来の API が "正本契約" として維持されているという仮説は、この拡張が各サービスのエンドポイントに存在することで実証された。',
   },
   {
     name: '金額計算・課金・認可は決定論的コードで処理する',
     fl: 'Smart Endpoints and Dumb Pipes',
     result: '成立',
-    evidence:
-      'payment-service にエージェントを置いていた当初、起動時に ArachneAutoConfiguration がモデルプロバイダー未設定を検出して例外を投げ、compose 起動が不安定だった。agent を除いてコードに戻したとき、この起動時例外が同時に消えた。4 ステップのフロー全体を通じて payment-service は一貫して動作し、confirm-payment ステップの実行履歴には agent 関連の出力は一切なく支払い確定の決定論的な記録のみが残った。',
-    artifact: 'payment-service の /v3/api-docs、order-service の実行履歴（confirm-payment ステップ）',
+    obsSlug: '03-deterministic-code',
+    observationSummary:
+      'PaymentApplicationService には AgentFactory も LLM 呼び出しも存在せず、支払い金額は RoundingMode.HALF_UP で端数処理、承認 ID は UUID.randomUUID() で生成されている。エージェントを除いたとき、ArachneAutoConfiguration が起動時に投げていたプロバイダー未設定例外が同時に消えた。',
+    argument:
+      'これは仮説を実証し、かつ原則が「AI を追加しない」方向にも等しく作用することを示した。当初エージェントを置いていた payment-service では起動時例外が発生していた。agent を除いた瞬間に例外が消え、安定性が向上した。「正確性が必要な処理はコードに残す」という原則は、AI を追加する方向だけでなく AI を除く方向にも作用する原則であることが確認できた。',
   },
   {
     name: 'system prompt はエンジニアが管理するシステム制約として書く',
     fl: 'Products not Projects',
     result: '成立',
-    evidence:
-      '/agents ページの「概要」タブで各サービスの system prompt がそのまま読めた。order-service の prompt にはサーバーロケールを参照した言語設定が含まれており、デプロイ環境の Locale.getDefault() によって返答言語が変わることが Java ソースコードから直接追えた。system prompt の変更は git diff に現れ、いつ・どの理由で変わったかがレビュー可能な形で残っていた。',
-    artifact: '/agents の概要タブ、OrderApplicationService.java',
+    obsSlug: '04-system-prompt-as-code',
+    observationSummary:
+      'order-intake-agent の system prompt は ArachneOrderIntentPlanner の private メソッドとして Java 文字列リテラルで実装されており、"やること / やってはいけないこと" を明示した構造を持つ。Locale.getDefault() を参照してデプロイ環境の言語設定を動的に注入する部分もコードで制御されている。',
+    argument:
+      'これは仮説を実証する。system prompt がソースコードのメソッドとして書かれているため、変更は git diff に現れ、いつ・誰が・なぜ変えたかがレビュー可能になる。"やってはいけないこと" のリストは、エンジニアがエージェントに課すシステム制約そのものであり、自然言語で書かれていても管理の性格はコードと同じだった。Products not Projects の文脈で言えば、system prompt の変更をリリースプロセスに乗せる基盤が整っていた。',
   },
   {
     name: 'skill は業務知識の公開面として分離する',
     fl: 'Products not Projects / Decentralized Governance',
     result: '成立',
-    evidence:
-      '/agents のスキルタブで family-order-guide と proactive-recommendation がシステムプロンプトとは別ドキュメントとして確認できた。各スキルの YAML フロントマター（activationHint）がそのままエージェントのスキル選択条件として使われており、SKILL.md を編集してデプロイするだけでコード変更なしに発動条件を変えられることを確認した。MenuServiceConfiguration がサービス起動時にフロントマターを解析して動的にスキルセクションを注入しており、SKILL.md が条件と内容の単一ソースとして機能していた。',
-    artifact: '/agents のスキルタブ、MenuServiceConfiguration.java',
+    obsSlug: '05-skill-separation',
+    observationSummary:
+      'family-order-guide/SKILL.md の YAML フロントマターに activationHint フィールドが存在し、MenuServiceConfiguration がそれを読み込んで skillActivationHints Bean に変換、MenuApplicationService が system prompt のスキル有効化セクションに動的注入する。コード内にスキル名や発動条件の文字列は書かれていない。',
+    argument:
+      'これは仮説を実証する。activationHint の文字列が SKILL.md の単一の情報源として機能しており、SKILL.md を変えてデプロイするだけでコード変更なしにエージェントの発動条件が変わる。これは業務知識をエンジニアリングの変更サイクルから分離するための設計であり、Decentralized Governance の文脈で言えば「業務ルールの所有権を業務担当者に移せる」基盤が実装として示された。',
   },
   {
     name: 'サービス間の collaborator 解決は capability ベースで動的に行う',
     fl: 'Decentralized Governance',
     result: '成立',
-    evidence:
-      'hermes-adapter は 15 秒サイクルで停止と復帰を繰り返す設定にしてある。停止中のタイミングで注文フローの配送ステップを踏むと、delivery-agent は POST /registry/discover で稼働中のアダプター（idaten-adapter）のみを得て、「外部パートナーは 1 社のみ確認できました」という理由を添えて推奨を返した。アダプターが復帰すると次の discover から再び両方が候補に入り、推奨理由も変化した。この挙動の変化を通じて delivery-service のコードには一切触れなかった。',
-    artifact: 'delivery-service の実行履歴（配送ステップ）',
+    obsSlug: '06-capability-discovery',
+    observationSummary:
+      'order-service の application.yml には "menu-service" という文字列は存在せず、"メニュー提案 在庫付き提案 注文候補" という capability クエリだけが設定されている。RegistryServiceEndpointResolver は POST /registry/discover を呼び、稼働中のサービスの endpoint を動的に取得する。hermes-adapter が停止中のタイミングで配送ステップを実行すると、delivery-agent は idaten-adapter のみを推奨した。',
+    argument:
+      'これは仮説を実証する。order-service は menu-service を "知らず"、capability クエリの意味だけでサービスを見つけた。hermes-adapter の停止時に delivery-service のコードは一切変わらず、推奨内容と理由だけが変化した。Decentralized Governance の文脈で言えば、サービスが互いに直接依存せず、registry を仲介とした能力の記述で協調できることが動くシステムで示された。',
   },
 ];
 
@@ -62,17 +76,20 @@ const tensions = [
   {
     question: '複数サービスが同じ LLM バックエンドを共有すると、LLM がパイプになるのか',
     resolution:
-      'order-service の実行履歴と menu-service の実行履歴を並べると、それぞれが独立した system prompt・tool 定義で LLM を呼び出しており、一方の呼び出し結果が他方の内部状態に流れ込む経路がないことが確認できた。order-intake-agent が生成した grounding context は HTTP リクエストのペイロードとして menu-service に渡され、menu-service はそれを自分の system prompt と tool で受け取る。LLM がパイプになっているのではなく、LLM が各サービスの endpoint の内部処理として使われている形だった。',
+      'order-service と menu-service の実行履歴を並べると、それぞれが独立した system prompt・tool 定義で LLM を呼び出しており、一方の呼び出し結果が他方の内部状態に流れ込む経路がない。order-intake-agent が生成した groundingContext は HTTP リクエストのペイロードとして menu-service に渡され、menu-service はそれを自分の system prompt と tool で受け取る。LLM がパイプになっているのではなく、LLM が各サービスのエンドポイントの内部処理として使われている形だった。',
+    obs: null,
   },
   {
     question: 'payment-service にエージェントを置かない判断は原則の逃げか',
     resolution:
-      '逃げではなく原則の直接的な体現だった。当初エージェントを置いていた payment-service では、ArachneAutoConfiguration がモデルプロバイダー未設定を検出して起動時例外を投げ続けた。agent を除いてコードに戻した瞬間にその例外が消えた。「正確性が必要な処理はコードに残す」という原則は、AI を追加する方向だけでなく AI を除く方向にも等しく作用する。',
+      '逃げではなく原則の直接的な体現だった。観察 3（payment-service のエージェント不在）が示すとおり、agent を除いた瞬間に起動時例外が消え、安定性が向上した。"正確性が必要な処理はコードに残す" という原則は、AI を追加する方向だけでなく AI を除く方向にも等しく作用する。',
+    obsSlug: '03-deterministic-code',
   },
   {
     question: 'capability-based discovery は Decentralized Governance を維持するか、新たな中央集権点を生み出すか',
     resolution:
-      'GET /registry/services（棚卸し・閲覧用）と POST /registry/discover（実行時 collaborator 解決用）を明示的に分けた。サービス間の実行時依存を discover 一本に絞ることで、registry がサービス一覧を「知っている」存在ではなく「capability の記述に応じて照合する」仲介点として機能した。order-service が menu-service を「サービス名で指定する」コードは書かれていない。',
+      'GET /registry/services（棚卸し・閲覧用）と POST /registry/discover（実行時 collaborator 解決用）を明示的に分けた。観察 6 が示すとおり、order-service は "menu-service" を名指しするコードを書いていない。registry がサービス一覧を "知っている" 存在ではなく "capability の記述に応じて照合する" 仲介点として機能した。',
+    obsSlug: '06-capability-discovery',
   },
 ];
 
@@ -97,8 +114,8 @@ const implementationConstraints = [
 <SiteLayout title="Conclusions | Arachne Field Notes">
   <PageHero
     eyebrow="Conclusions"
-    title="探索が問い続けた問いへの回答"
-    summary="Fowler/Lewis の 4 特性を保ちながら AI エージェントを組み込めるか。仮説・実装・観察を経て得られた評決をここに記します。"
+    title="観察は仮説を実証したか"
+    summary="6 つの観察が各仮説をどう実証しているかを論じます。証拠そのものは各 Observation ページにあります。"
   />
 
   <section class="panel">
@@ -108,31 +125,46 @@ const implementationConstraints = [
   </section>
 
   <section class="stacked-list">
-    <h2 style="font-size:1.1rem; color:var(--text-muted); font-weight:600; margin-bottom:-8px">5 つの設計原則ごとの検証結果</h2>
-    {principles.map((p) => (
+    <h2 style="font-size:1.1rem; color:var(--text-muted); font-weight:600; margin-bottom:-8px">
+      原則ごとの論証
+    </h2>
+    {arguments_.map((arg) => (
       <article class="essay-card">
         <div>
-          <p class="panel__eyebrow">{p.fl}</p>
+          <p class="panel__eyebrow">{arg.fl}</p>
           <h3 style="font-size:1rem; font-weight:700; margin-bottom:6px">
-            {p.name}
-            <span style="margin-left:10px; font-size:0.8rem; font-weight:500; color:var(--accent); background:var(--accent-soft,#e8f5e9); padding:2px 8px; border-radius:4px">{p.result}</span>
+            {arg.name}
+            <span style="margin-left:10px; font-size:0.8rem; font-weight:500; color:var(--accent); background:var(--accent-soft,#e8f5e9); padding:2px 8px; border-radius:4px">
+              {arg.result}
+            </span>
           </h3>
-          <p style="color:var(--text-muted); font-size:0.95rem; margin-bottom:8px">{p.evidence}</p>
-          <p style="font-size:0.82rem; color:var(--text-muted)">
-            <strong>確認できる場所：</strong>{p.artifact}
-            {' '}—{' '}<a href="/observations" style="color:var(--accent)">観察記録を見る →</a>
+          <p style="font-size:0.875rem; color:var(--text-muted); margin-bottom:8px">
+            <strong>観察の要約：</strong>{arg.observationSummary}
           </p>
+          <p style="font-size:0.875rem; margin-bottom:8px">
+            <strong>論証：</strong>{arg.argument}
+          </p>
+          <a href={`${base}/observations/${arg.obsSlug}`} style="font-size: 0.82rem; color: var(--accent);">
+            証拠ページ（Observation）を見る →
+          </a>
         </div>
       </article>
     ))}
   </section>
 
   <section class="stacked-list">
-    <h2 style="font-size:1.1rem; color:var(--text-muted); font-weight:600; margin-bottom:-8px">最も鋭かった緊張とその解消</h2>
+    <h2 style="font-size:1.1rem; color:var(--text-muted); font-weight:600; margin-bottom:-8px">
+      最も鋭かった緊張とその解消
+    </h2>
     {tensions.map((t) => (
       <article class="panel">
         <p style="font-weight:600; margin-bottom:8px">問い：{t.question}</p>
-        <p style="color:var(--text-muted)">{t.resolution}</p>
+        <p style="color:var(--text-muted); margin-bottom: t.obsSlug ? '8px' : '0'">{t.resolution}</p>
+        {t.obsSlug && (
+          <a href={`${base}/observations/${t.obsSlug}`} style="font-size: 0.82rem; color: var(--accent);">
+            関連 Observation を見る →
+          </a>
+        )}
       </article>
     ))}
   </section>

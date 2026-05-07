@@ -1,0 +1,58 @@
+---
+import { getCollection, render } from 'astro:content';
+import SiteLayout from '../../layouts/SiteLayout.astro';
+
+export async function getStaticPaths() {
+  const observations = await getCollection('observations');
+  return observations.map((entry) => ({
+    params: { slug: entry.slug },
+    props: { entry, observations },
+  }));
+}
+
+const { entry, observations } = Astro.props;
+const { Content } = await render(entry);
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const sorted = [...observations].sort((a, b) => a.data.order - b.data.order);
+const idx = sorted.findIndex((e) => e.slug === entry.slug);
+const prev = idx > 0 ? sorted[idx - 1] : null;
+const next = idx < sorted.length - 1 ? sorted[idx + 1] : null;
+---
+
+<SiteLayout title={`${entry.data.title} | Observations | Arachne Field Notes`}>
+  <article class="article-shell">
+    <a class="back-link" href={`${base}/observations`}>← Observations 一覧</a>
+    <header class="article-header">
+      <p class="panel__eyebrow">{entry.data.fl}</p>
+      <h1>{entry.data.title}</h1>
+      <p>{entry.data.principle}</p>
+    </header>
+
+    <div class="panel" style="margin: 0 0 32px; background: var(--surface-soft);">
+      <p class="panel__eyebrow">検証した仮説</p>
+      <p style="font-style: italic; margin: 0">{entry.data.hypothesis}</p>
+    </div>
+
+    <div class="article-body">
+      <Content />
+    </div>
+
+    <nav style="display: flex; gap: 16px; margin-top: 48px; justify-content: space-between; flex-wrap: wrap;">
+      {prev && (
+        <a href={`${base}/observations/${prev.slug}`} style="color: var(--accent); font-size: 0.9rem;">
+          ← {prev.data.title}
+        </a>
+      )}
+      {next && (
+        <a href={`${base}/observations/${next.slug}`} style="color: var(--accent); font-size: 0.9rem; margin-left: auto;">
+          {next.data.title} →
+        </a>
+      )}
+    </nav>
+
+    <section class="panel" style="text-align: center; margin-top: 32px;">
+      <p>これらの観察が仮説をどう実証しているかは <a href={`${base}/conclusions`}><strong>Conclusions</strong></a> で論じています。</p>
+    </section>
+  </article>
+</SiteLayout>

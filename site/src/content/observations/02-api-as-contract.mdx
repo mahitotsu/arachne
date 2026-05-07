@@ -1,0 +1,141 @@
+---
+title: REST API と x-ai-prompt-contract による正本契約の維持
+principle: 従来の API は機械間連携の正本契約として残す
+fl: Smart Endpoints and Dumb Pipes
+hypothesis: REST API と OpenAPI 仕様は廃止されず、エージェントはその API をツールとして呼び出す。エージェント向けの契約情報も API の上に乗せることができる。
+order: 2
+---
+
+## x-ai-prompt-contract アノテーション（OrderController.java）
+
+`order-service` の `POST /suggest` には、エージェントが期待する入力構造とサービスの振る舞いを記述した `x-ai-prompt-contract` 拡張が付与されています。これは OpenAPI の `extensions` フィールドとして実装されており、`/v3/api-docs` から取得できます。
+
+```java
+// OrderController.java
+@Operation(
+    summary = "Suggest order items",
+    description = "現在の注文意図または追加要望を受け取り、提案商品、ETA、ワークフロー状態、サービス trace を返します。",
+    extensions = @Extension(name = "x-ai-prompt-contract", properties = {
+        @ExtensionProperty(name = "agent", value = "order-intake-agent"),
+        @ExtensionProperty(name = "contract", value = """
+            {
+              "requiredInputs": [{"field": "intent", "meaning": "注文意図。rawMessage または partySize 等の構造化情報。"}],
+              "optionalInputs": [
+                {"field": "refinement", "meaning": "前回提案に対する追加制約。"},
+                {"field": "locale",     "meaning": "応答言語のヒント。"}
+              ],
+              "serviceBehavior": "order-service は order-intake-agent で注文意図を正規化し、menu-service へ catalog grounding を委譲します。"
+            }
+            """, parseValue = true)  // JSON 文字列を OpenAPI ドキュメントにオブジェクトとして展開する
+    }))
+@PostMapping(path = "/suggest", consumes = MediaType.APPLICATION_JSON_VALUE)
+SuggestOrderResponse suggest(@RequestBody SuggestOrderRequest request) {
+    return applicationService.suggest(request);
+}
+```
+
+`requiredInputs`・`optionalInputs`・`serviceBehavior` という構造で、人間にも機械にも読める形でエージェント向けの期待値が API 上に公開されています。
+
+## menu-service のアノテーション（MenuController.java）
+
+`menu-service` の `POST /internal/menu/suggest` にも同様の `x-ai-prompt-contract` が付与されています。
+
+```java
+// MenuController.java
+@PostMapping("/suggest")
+@Operation(
+    description = "order-service が正規化した catalog grounding 要求を受け取り、menu 候補を返します。",
+    extensions = @Extension(name = "x-ai-prompt-contract", properties = {
+        @ExtensionProperty(name = "agent", value = "menu-agent"),
+        @ExtensionProperty(name = "contract", value = """
+            {
+              "requiredInputs": [{"field": "query", "meaning": "order-service が正規化した catalog grounding 用 query。"}],
+              "optionalInputs": [
+                {"field": "groundingContext", "meaning": "intentMode・人数・予算・directItemHint など、order-service が付与した構造化コンテキスト。"}
+              ]
+            }
+            """, parseValue = true)
+    }))
+MenuSuggestionResponse suggest(@RequestBody MenuSuggestionRequest request) {
+    return applicationService.suggest(request);
+}
+```
+
+この `x-ai-prompt-contract` は、`registry-service` に登録された service descriptor にも含まれており、`/agents` ページが registry から取得して表示します。エージェントのツール定義と REST API 仕様は同一の情報源として管理されています。
+
+## ランタイムで確認した x-ai-prompt-contract（/v3/api-docs より抜粋）
+
+各サービスの `/v3/api-docs` から実際に取得した `x-ai-prompt-contract` フィールドです。
+
+### order-service（POST /api/order/suggest）
+
+```json
+{
+  "agent": "order-intake-agent",
+  "contract": {
+    "requiredInputs": [
+      {
+        "field": "intent",
+        "meaning": "注文意図。rawMessage または partySize / budgetUpperBound / childCount などの構造化情報を含みます。"
+      }
+    ],
+    "optionalInputs": [
+      { "field": "refinement", "meaning": "前回提案に対する追加制約。" },
+      { "field": "locale",     "meaning": "応答言語のヒント。" }
+    ],
+    "serviceBehavior": "order-service は order-intake-agent で注文意図を正規化し、必要に応じて最近の注文要約を補ってから menu-service へ catalog grounding を委譲します。"
+  }
+}
+```
+
+### menu-service（POST /internal/menu/suggest）
+
+```json
+{
+  "agent": "menu-agent",
+  "contract": {
+    "requiredInputs": [
+      { "field": "query", "meaning": "order-service が正規化した catalog grounding 用 query。" }
+    ],
+    "optionalInputs": [
+      { "field": "groundingContext", "meaning": "intentMode・人数・予算・directItemHint など、order-service が付与した構造化コンテキスト。" },
+      { "field": "refinement",       "meaning": "再提案のための追加制約。" },
+      { "field": "recentOrderSummary", "meaning": "利用可能な場合に呼び出し元が注入する再注文コンテキスト。" },
+      { "field": "sessionId",        "meaning": "提案ワークフローの相関 ID。" }
+    ],
+    "serviceBehavior": "menu-service は一次解釈をやり直さず、受け取った正規化コンテキストを catalog grounding・no-match handling・menu-side alternatives に使います。"
+  }
+}
+```
+
+### payment-service（POST /internal/payment/prepare）
+
+```json
+{
+  "agent": "payment-service",
+  "contract": {
+    "requiredInputs": [
+      { "field": "instruction", "meaning": "支払い方法の希望。requestedMethod と rawMessage を使って決定論的な支払い準備に必要な情報を渡します。" },
+      { "field": "total",       "meaning": "payment-service が準備または課金する決定論的な合計金額。" }
+    ],
+    "optionalInputs": [
+      { "field": "confirmRequested", "meaning": "支払い準備のみ行うか、実際に課金まで行うか。" },
+      { "field": "sessionId",        "meaning": "親ワークフローの相関 ID。" }
+    ]
+  }
+}
+```
+
+`agent` フィールドが `"payment-service"` であることに注目してください。`"payment-agent"` ではなく、サービス名そのものが入っています。これは payment-service がエージェントを持たない決定論的なサービスであることを示しています（obs-03 参照）。
+
+## 観察された振る舞い
+
+- `/agents` ページの「API 仕様」タブを開くと、各サービスの OpenAPI ドキュメントが取得された。
+- `POST /suggest` の操作詳細に `x-ai-prompt-contract` セクションが表示され、`requiredInputs`・`optionalInputs`・`serviceBehavior` が読める状態だった。
+- エージェントが呼び出す各 downstream サービスの REST API に同様の拡張が付与されており、system prompt を読まなくても契約が確認できた。
+- AI エージェントを追加した後も既存の REST API エンドポイントは維持され、廃止されなかった。
+
+## 確認できる場所
+
+- `/agents` ページの「API 仕様」タブ（各サービスの `x-ai-prompt-contract`）
+- 各サービスの `/v3/api-docs`（`extensions` フィールド内の `x-ai-prompt-contract`）

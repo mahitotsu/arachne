@@ -16,6 +16,7 @@ final class MenuSuggestionPromptRequestFactory {
     }
 
     static MenuSuggestionRequest build(String sessionId, SuggestOrderRequest request, NormalizedOrderIntent normalizedIntent) {
+        // request.refinement() が空白なら null として渡す（menu-agent への追加制約）
         String refinement = request.refinement() == null || request.refinement().isBlank()
                 ? null
                 : request.refinement().trim();

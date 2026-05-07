@@ -11,6 +11,18 @@ const essays = defineCollection({
   }),
 });
 
+const observations = defineCollection({
+  type: 'content',
+  schema: z.object({
+    title: z.string(),
+    principle: z.string(),
+    fl: z.string(),
+    hypothesis: z.string(),
+    order: z.number().default(0),
+  }),
+});
+
 export const collections = {
   essays,
+  observations,
 };

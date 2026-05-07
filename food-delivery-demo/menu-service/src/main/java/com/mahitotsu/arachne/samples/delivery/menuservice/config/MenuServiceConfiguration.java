@@ -116,6 +116,7 @@ class MenuServiceConfiguration {
                     hints.put(name, hint);
                 }
             } catch (Exception ignored) {
+                // SKILL.md が読み込めない場合はそのスキルをスキップする
             }
         }
         return hints;
