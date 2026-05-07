@@ -71,3 +71,5 @@ POST /registry/discover のたびに LLM が動きます。food-delivery-demo �
 さらに、registry-service が単一障害点になります。food-delivery-demo では registry が落ちると resolve が止まります。本番化するなら、キャッシュ戦略と registry の冗長化が必要です。
 
 これらのコストを受け入れてでもこの設計を採用したのは、**動的に変化する協調関係を宣言的に記述できる**という利点を優先したからです。呼び出し側のコードに「menu-service」という文字列を書くのではなく、「曖昧な注文意図を具体的な商品提案に変換できるサービス」と書く。その文字列が、システム設計の意図の記述でもあります。
+
+この断面を含む探索全体の評決は **[Conclusions](/conclusions)** にまとめています。

@@ -1,0 +1,152 @@
+---
+import PageHero from '../../components/PageHero.astro';
+import SiteLayout from '../../layouts/SiteLayout.astro';
+
+const verdict = {
+  statement: '5 つの設計原則は互いに矛盾せず、Fowler/Lewis の 4 特性とも整合しながら、動くシステムとして成立した。',
+  basis: 'food-delivery-demo の 10 サービスを通じて、各原則が立てた仮説に対して観察可能な振る舞いが得られた。矛盾が観察された原則はなく、原則の組み合わせが問題を引き起こしたケースもなかった。',
+};
+
+const principles = [
+  {
+    name: 'エージェントは自然言語フロントドアとして追加する',
+    fl: 'Smart Endpoints and Dumb Pipes',
+    result: '成立',
+    evidence:
+      'order-intake-agent は自然言語入力を正規化して menu-service に渡した。menu-service の REST API 契約は変わらず、エージェントは API の手前に置かれた。direct item request と recommendation request の両方で API 契約が維持されることを確認した。',
+  },
+  {
+    name: '従来の API は機械間連携の正本契約として残す',
+    fl: 'Smart Endpoints and Dumb Pipes',
+    result: '成立',
+    evidence:
+      '全サービスが REST API と OpenAPI 仕様を公開し続けた。x-ai-prompt-contract 拡張によりエージェントが期待する入力構造が API の上で読める形になった。エージェントのツール定義と REST API 仕様は同一契約として管理されており、prompt の黒箱化を避けるコミットメントが API として観察できた。',
+  },
+  {
+    name: '金額計算・課金・認可は決定論的コードで処理する',
+    fl: 'Smart Endpoints and Dumb Pipes',
+    result: '成立',
+    evidence:
+      'payment-service からエージェントを除いたとき、起動時例外が消え安定性が向上した。4 ステップのフロー全体を通じて payment-service は一貫して動作した。この判断はパフォーマンスや実装コストの都合ではなく、「正確性が必要な処理は LLM に渡さない」という原則の体現として機能した。',
+  },
+  {
+    name: 'system prompt はエンジニアが管理するシステム制約として書く',
+    fl: 'Products not Projects',
+    result: '成立',
+    evidence:
+      'system prompt はソースコードとして管理され、/agents ページから読める。order-service の prompt にはロケールを反映した言語設定が含まれ、デプロイ環境ごとに振る舞いが変わることが git 上で追えた。変更はレビューとバージョン管理の対象として扱われた。',
+  },
+  {
+    name: 'skill は業務知識の公開面として分離する',
+    fl: 'Products not Projects / Decentralized Governance',
+    result: '成立',
+    evidence:
+      'family-order-guide と proactive-recommendation は system prompt とは別ドキュメントとして管理された。各スキルの activationHint フロントマターがそのまま発動条件として使われ、スキルドキュメントを編集するだけでコード変更なしに発動条件を変えられることを確認した。',
+  },
+  {
+    name: 'サービス間の collaborator 解決は capability ベースで動的に行う',
+    fl: 'Decentralized Governance',
+    result: '成立',
+    evidence:
+      'order / kitchen / menu / support / delivery が POST /registry/discover で能力の記述によって collaborator を解決した。hermes-adapter が 15 秒サイクルで停止・復帰する設定で、停止中は discover が稼働中のアダプターのみを返し、推奨理由も変化した。delivery-service のコードは一切変わらなかった。',
+  },
+];
+
+const tensions = [
+  {
+    question: '複数サービスが同じ LLM バックエンドを共有すると、LLM がパイプになるのか',
+    resolution:
+      '各サービスは独自の system prompt・tool 定義・skill ドキュメントで LLM を呼び出し、推論のコンテキストはサービス境界に閉じた。あるサービスの LLM 呼び出しが別サービスの内部状態に直接影響することはなかった。LLM はインフラであり、パイプではないことが動くシステムで示された。',
+  },
+  {
+    question: 'payment-service にエージェントを置かない判断は原則の逃げか',
+    resolution:
+      '逃げではなく、原則の直接的な体現だった。「正確性が必要な処理はコードに残す」という原則は AI を排除する方向に作用することがある。この判断の結果として起動時例外が消え、安定性が向上した。原則は「すべてにエージェントを置く」を推奨しない。',
+  },
+  {
+    question: 'capability-based discovery は Decentralized Governance を維持するか、新たな中央集権点を生み出すか',
+    resolution:
+      'GET /registry/services（棚卸し・閲覧）と POST /registry/discover（実行時 collaborator 解決）を明示的に分けた。サービス間の直接依存に棚卸し API を使わないことで、registry が管理の中央集権点ではなく協調の仲介点として機能した。',
+  },
+];
+
+const openQuestions = [
+  'チームが複数あるとき、skill ドキュメントの所有権と変更権限をどう分けるか。',
+  '複数サービスが同じ LLM バックエンドを共有するとき、ガバナンスの境界（誰がモデルの選択・バージョン管理・コスト配分を決めるか）はどう定義するか。',
+  'capability クエリの記述が複数サービスにわたって統一されていない場合、discover の信頼性はどう保証するか。',
+];
+
+const implementationConstraints = [
+  {
+    item: 'interrupt と structured output の同一フローでの組み合わせ',
+    note: 'セッション復元時に型付きの structured-output invocation メタデータを永続化する機能が Arachne に未実装。これはエージェントランタイムの実装課題であり、設計仮説の検証範囲外。',
+  },
+  {
+    item: 'skill ドキュメントの変更影響の定量評価',
+    note: 'DeterministicModel パターンにより振る舞いの回帰は検出できるが、変更がエージェントの自然言語出力の質に与える影響を定量化する評価指標は未整備。',
+  },
+];
+---
+
+<SiteLayout title="Conclusions | Arachne Field Notes">
+  <PageHero
+    eyebrow="Conclusions"
+    title="探索が問い続けた問いへの回答"
+    summary="Fowler/Lewis の 4 特性を保ちながら AI エージェントを組み込めるか。仮説・実装・観察を経て得られた評決をここに記します。"
+  />
+
+  <section class="panel">
+    <p class="panel__eyebrow">評決</p>
+    <p style="font-size:1.05rem; font-weight:600; margin-bottom:12px">{verdict.statement}</p>
+    <p>{verdict.basis}</p>
+  </section>
+
+  <section class="stacked-list">
+    <h2 style="font-size:1.1rem; color:var(--text-muted); font-weight:600; margin-bottom:-8px">5 つの設計原則ごとの検証結果</h2>
+    {principles.map((p) => (
+      <article class="essay-card">
+        <div>
+          <p class="panel__eyebrow">{p.fl}</p>
+          <h3 style="font-size:1rem; font-weight:700; margin-bottom:6px">
+            {p.name}
+            <span style="margin-left:10px; font-size:0.8rem; font-weight:500; color:var(--accent); background:var(--accent-soft,#e8f5e9); padding:2px 8px; border-radius:4px">{p.result}</span>
+          </h3>
+          <p style="color:var(--text-muted); font-size:0.95rem">{p.evidence}</p>
+        </div>
+      </article>
+    ))}
+  </section>
+
+  <section class="stacked-list">
+    <h2 style="font-size:1.1rem; color:var(--text-muted); font-weight:600; margin-bottom:-8px">最も鋭かった緊張とその解消</h2>
+    {tensions.map((t) => (
+      <article class="panel">
+        <p style="font-weight:600; margin-bottom:8px">問い：{t.question}</p>
+        <p style="color:var(--text-muted)">{t.resolution}</p>
+      </article>
+    ))}
+  </section>
+
+  <section class="two-column-band">
+    <article class="panel">
+      <p class="panel__eyebrow">仮説レベルで残る問い</p>
+      <ul>
+        {openQuestions.map((q) => (
+          <li style="margin-bottom:8px">{q}</li>
+        ))}
+      </ul>
+    </article>
+    <article class="panel panel--soft">
+      <p class="panel__eyebrow">実装制約（仮説の限界ではないもの）</p>
+      <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:12px">
+        以下は設計仮説への反証ではなく、現在の実装・SDK の未完成部分として記録します。
+      </p>
+      {implementationConstraints.map((c) => (
+        <div style="margin-bottom:12px">
+          <p style="font-weight:600; font-size:0.9rem; margin-bottom:2px">{c.item}</p>
+          <p style="font-size:0.85rem; color:var(--text-muted)">{c.note}</p>
+        </div>
+      ))}
+    </article>
+  </section>
+</SiteLayout>

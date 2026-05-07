@@ -83,34 +83,12 @@ const observations = [
       アダプターが復帰すると次の discover から再び両方が候補に入り、推奨理由も変化した。
       delivery-service のコードは一切変わっていない。
     </p>
-    <p style="margin-top:12px; color:var(--text-muted); font-size:0.9rem">
-      <strong>既知の制約：</strong>registry-service が再起動した場合、他サービスが再起動するまで discover が応答しなくなる。
-      これは現状の in-memory registry の制約であり、本番化にはキャッシュ戦略と registry の冗長化が必要。
-      設計原則への反論ではなく、現在の実装の未完成部分として記録しておく。
-    </p>
     <p style="font-size:0.85rem; color:var(--text-muted); margin-top:8px">
       <strong>確認できる場所：</strong>delivery-service の実行履歴（配送ステップ）
     </p>
   </section>
 
-  <section class="two-column-band">
-    <article class="panel">
-      <p class="panel__eyebrow">5 原則の共存について</p>
-      <p>
-        5 つの設計原則が互いに矛盾したケースは観察されなかった。
-        payment-service にエージェントを置かないことはシステム全体の安定性を高め、Smart Endpoints 原則と一致した。
-        capability-based discovery は Decentralized Governance を維持しながら動的な協調を実現した。
-        skill 分離は Products not Projects の「継続的な運用」を実現する実装パターンとして機能した。
-      </p>
-    </article>
-    <article class="panel panel--soft">
-      <p class="panel__eyebrow">まだ確かめられていないこと</p>
-      <ul>
-        <li>interrupt（human-in-the-loop）と構造化出力を同一フローで組み合わせたときのセッション復元</li>
-        <li>skill ドキュメントの変更がエージェントの振る舞いに与える影響の定量評価</li>
-        <li>registry-service の in-memory 制約を解消した場合の stability への影響</li>
-        <li>複数サービスが同じ LLM バックエンドを共有するときのレイテンシ特性</li>
-      </ul>
-    </article>
+  <section class="panel" style="text-align:center">
+    <p>各観察から導かれた評決は <a href="/conclusions"><strong>Conclusions</strong></a> にまとめています。</p>
   </section>
 </SiteLayout>
