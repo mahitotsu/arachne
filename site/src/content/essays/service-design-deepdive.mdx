@@ -9,6 +9,23 @@ tags:
   - service-design
 ---
 
+import MermaidDiagram from '../../components/MermaidDiagram.astro'
+
+export const servicePlacementDiagram = `graph TB
+  subgraph yes["エージェントあり（6 サービス）"]
+    OS["order-service\\norder-intake-agent\\n意図分類・ワークフロー調整"]
+    MS["menu-service\\nmenu-agent\\ncatalog grounding"]
+    KS["kitchen-service\\nkitchen-agent\\n在庫・調理確認"]
+    DS["delivery-service\\ndelivery-agent\\nETA 比較・配送推奨"]
+    SS["support-service\\nsupport-agent\\n会話型サポート"]
+    RS["registry-service\\ncapability-registry-agent\\ncollaborator 解決"]
+  end
+  subgraph no["エージェントなし（2 サービス）"]
+    PS["payment-service\\n決定論的コード\\n課金・承認"]
+    CS["customer-service\\n決定論的コード\\n認証・JWT"]
+  end
+`
+
 > この記事では 5 つの設計原則を横断し、food-delivery-demo の各サービスで「原則がぶつかりやすい点」にどう対応したかを実装から整理します。_Organized around Business Capabilities_ を守りながらエージェントを配置する具体例です。
 
 ## サービス設計の出発点 ── 「エージェントを置くかどうか」
@@ -18,6 +35,8 @@ food-delivery-demo を設計するとき、最初に決めたことは「どの�
 エージェントを置く基準はひとつです。**自然言語の入力を解釈して、業務上の判断を下す責務があるかどうか**。この責務がなければ、エージェントを置いても複雑さが増すだけです。
 
 結果として、エージェントを持つのは `order-service`・`menu-service`・`kitchen-service`・`delivery-service`・`support-service`・`registry-service` の 6 サービスです。`payment-service` と `customer-service` はエージェントを持ちません。以下でそれぞれの設計を見ていきます。
+
+<MermaidDiagram diagram={servicePlacementDiagram} caption="8 サービスのエージェント配置。意図解釈・業務判断の責務があるサービスのみエージェントを持ちます。" />
 
 ---
 

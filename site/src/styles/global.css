@@ -615,6 +615,115 @@ tbody tr:hover {
   }
 }
 
+/* ─── verdict grid (Conclusions matrix) ──────────────────── */
+
+.verdict-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+}
+
+.verdict-cell {
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+}
+
+.verdict-cell__badge {
+  background: #dcfce7;
+  border-radius: 4px;
+  color: #166534;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 2px 8px;
+  width: fit-content;
+}
+
+.verdict-cell__fl {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  margin: 0;
+}
+
+.verdict-cell__name {
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.verdict-cell__obs {
+  color: var(--accent);
+  font-size: 0.8rem;
+  margin-top: auto;
+  text-decoration: none;
+}
+
+.verdict-cell__obs:hover {
+  text-decoration: underline;
+}
+
+/* ─── screenshot gallery ──────────────────────────────────── */
+
+.screenshot-gallery {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+}
+
+.screenshot-card {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
+}
+
+.screenshot-card__img {
+  border-bottom: 1px solid var(--border);
+  display: block;
+  height: 200px;
+  object-fit: cover;
+  object-position: top left;
+  width: 100%;
+}
+
+.screenshot-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 16px 16px;
+}
+
+.screenshot-card__path {
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.screenshot-card__title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.screenshot-card__desc {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  margin: 0;
+}
+
 @media (max-width: 640px) {
   :root {
     --content-width: calc(100vw - 24px);

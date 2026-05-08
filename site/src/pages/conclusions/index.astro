@@ -149,6 +149,25 @@ const implementationConstraints = [
     <p>{verdict.basis}</p>
   </section>
 
+  <section class="panel">
+    <p class="panel__eyebrow">原則評価サマリー</p>
+    <p style="font-size:0.875rem; color:var(--text-muted); margin-bottom:16px">
+      6 原則すべてについて、Observation 記録で仮説を支持できる振る舞いを確認しました。詳細は下の各原則の説明を参照してください。
+    </p>
+    <div class="verdict-grid">
+      {arguments_.map((arg) => (
+        <div class="verdict-cell">
+          <span class="verdict-cell__badge">成立</span>
+          <p class="verdict-cell__fl">{arg.fl}</p>
+          <p class="verdict-cell__name">{arg.name}</p>
+          <a class="verdict-cell__obs" href={`${base}/observations/${arg.obsSlug}`}>
+            Obs-{arg.obsSlug.substring(0, 2)} で証拠を見る →
+          </a>
+        </div>
+      ))}
+    </div>
+  </section>
+
   <section class="stacked-list">
     <h2 style="font-size:1.1rem; color:var(--text-muted); font-weight:600; margin-bottom:-8px">
       原則ごとの説明

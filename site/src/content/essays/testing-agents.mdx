@@ -9,6 +9,15 @@ tags:
   - arachne
 ---
 
+import MermaidDiagram from '../../components/MermaidDiagram.astro'
+
+export const modelSubstitutionDiagram = `graph LR
+  Agent["Agent\\n(EventLoop)"] -->|uses| Interface["&lt;&lt;interface&gt;&gt;\\nModel"]
+  Interface -->|本番| Bedrock["BedrockModel\\nAWS Bedrock を呼ぶ"]
+  Interface -->|テスト| Det["DeterministicModel\\n固定シーケンス · LLM なし"]
+  Props["application.properties\\nmodel.mode=deterministic"] -.->|DI で切り替え| Interface
+`
+
 > この記事は _Products not Projects_ の観点からエージェントのテスト戦略を掘り下げます。「作ったら終わり」ではなくサービスを継続的に運用・改善するには、エージェントの振る舞いを再現可能な形で検証できなければなりません。
 
 ## 非決定性というテストの難しさ
@@ -22,6 +31,8 @@ tags:
 food-delivery-demo が採用したのは、**LLM を差し替え可能な境界として設計する**というパターンです。本物の LLM プロバイダーと同じ Model インターフェースを実装した決定論的なモデルをテスト用に用意し、プロパティの切り替えで DI コンテナが差し替えます。
 
 この決定論的モデル（DeterministicModel）は、渡ってきたメッセージの内容を見て固定シーケンスを返します。実際の LLM は一切呼ばれません。LLM に任せている「自然言語の解釈と判断」の代わりに、テストシナリオとして意図した一連のツール呼び出しと構造化出力を返す、という役割です。エージェントを持つ全サービスが対応する DeterministicModel を持ち、CI はすべてこのモデルで実行します。
+
+<MermaidDiagram diagram={modelSubstitutionDiagram} caption="Agent は Model インターフェース越しに LLM を呼ぶ。本番は BedrockModel、テストは DeterministicModel に DI で切り替えます。" />
 
 ## ツール呼び出しシーケンスを固定する
 

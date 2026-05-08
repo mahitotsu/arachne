@@ -10,6 +10,37 @@ tags:
   - service-mesh
 ---
 
+import MermaidDiagram from '../../components/MermaidDiagram.astro'
+
+export const discoverFlowDiagram = `sequenceDiagram
+  actor Caller as order-service
+  participant Reg as registry-service
+  participant RA as capability-registry-agent
+  participant Target as menu-service
+
+  Caller->>Reg: POST /registry/discover
+  Note right of Caller: query: メニュー提案<br/>在庫付き提案 注文候補
+  Reg->>RA: capability マッチング（LLM）
+  RA-->>Reg: menu-service を選択
+  Reg-->>Caller: {endpoint: ".../internal/menu/suggest", ...}
+  Caller->>Target: POST /internal/menu/suggest
+  Target-->>Caller: MenuSelectionDecision
+`
+
+export const discoverVsServicesDiagram = `graph LR
+  subgraph rt["実行時 collaborator 解決（POST /registry/discover）"]
+    S1[order-service] -->|capabilityQuery| R[registry-service]
+    S2[delivery-service] -->|capabilityQuery| R
+    S3[kitchen-service] -->|capabilityQuery| R
+    R -->|endpoint URL| S1
+    R -->|endpoint URL| S2
+    R -->|endpoint URL| S3
+  end
+  subgraph vw["棚卸し・閲覧（GET /registry/services）"]
+    UI["customer-ui\\n/agents"] -->|全件取得| R
+  end
+`
+
 > この記事は _Decentralized Governance_ および _Organized around Business Capabilities_ の観点から food-delivery-demo の registry 設計を掘り下げます。capability-based discovery は、サービスが互いを直接知らなくても協調できる構造を作り、チームの自律性とサービスの疎結合を両立させます。
 
 ## service mesh が解く問いと、解かない問い
@@ -34,6 +65,8 @@ food-delivery-demo に実装した registry-service の `POST /registry/discover
 
 このクエリ文字列は、設計意図をコードに残す手段でもあります。設定にサービス名を書く代わりに「曖昧な注文意図を具体的な商品提案に変換できるサービス」と書けば、**なぜそのサービスを呼ぶのか** をコードから読めます。
 
+<MermaidDiagram diagram={discoverFlowDiagram} caption="POST /registry/discover の実行フロー。order-service は menu-service の名前を知らず、capability クエリ経由で endpoint を取得します。" />
+
 ## registry の内側とクライアントパターン
 
 `POST /registry/discover` を受け取った registry は、内部でエージェントを使って照合を行います。登録済みサービスの capability 説明と送られてきた自然言語クエリを照合し、最もマッチするサービスを選択結果として返します。registry そのものがエージェントを内包している、という構造です。
@@ -49,6 +82,8 @@ POST /registry/discover と GET /registry/services は意図が異なります�
 **GET /registry/services** は棚卸し・閲覧用です。登録済みの全サービスを返します。customer-ui の `/agents` ページが呼び出し、サービスカード・system prompt・スキル一覧を表示するために使います。ランタイムの協調ではなく、人間や監視ツールが「今どんなサービスが登録されているか」を確認するための API です。
 
 この 2 つを同じ API にしなかったのは、用途が根本的に違うためです。discover はクエリ付きで呼ばれ、エージェントが LLM で候補を絞り込みます。services は全件を返す読み取り専用 API です。同一化すると、discover 側の「LLM が選ぶ」挙動を viewer 側にも持ち込んでしまいます。
+
+<MermaidDiagram diagram={discoverVsServicesDiagram} caption="POST /registry/discover（サービス間の実行時解決）と GET /registry/services（UI 向け一覧）は意図が異なる 2 つの API です。" />
 
 ## service mesh との関係
 

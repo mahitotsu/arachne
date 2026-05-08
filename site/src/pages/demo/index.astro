@@ -359,6 +359,45 @@ const surfaces = [
     ))}
   </section>
 
+  <section class="panel">
+    <p class="panel__eyebrow">UI スクリーンショット</p>
+    <p style="font-size:0.875rem; color:var(--text-muted); margin-bottom:20px">実際に起動中の food-delivery-demo から取得したスクリーンショットです。</p>
+    <div class="screenshot-gallery">
+      <div class="screenshot-card">
+        <img class="screenshot-card__img" src={`${base}/screenshots/home.png`} alt="ホームページ：メニューカタログと注文履歴" loading="lazy" />
+        <div class="screenshot-card__body">
+          <span class="screenshot-card__path">/home</span>
+          <p class="screenshot-card__title">ホームダッシュボード</p>
+          <p class="screenshot-card__desc">メニューカタログ・注文履歴・キャンペーン情報を表示します。</p>
+        </div>
+      </div>
+      <div class="screenshot-card">
+        <img class="screenshot-card__img" src={`${base}/screenshots/order-step2-proposal.png`} alt="注文ページ：4 ステップ workflow の Step 2 で AI 提案を表示" loading="lazy" />
+        <div class="screenshot-card__body">
+          <span class="screenshot-card__path">/order</span>
+          <p class="screenshot-card__title">Step 2: AI メニュー提案</p>
+          <p class="screenshot-card__desc">4 ステップ注文 workflow の提案フェーズ。入力意図に沿って候補メニューと ETA を提示します。</p>
+        </div>
+      </div>
+      <div class="screenshot-card">
+        <img class="screenshot-card__img" src={`${base}/screenshots/support.png`} alt="サポートページ：会話型チャットとキャンペーン表示" loading="lazy" />
+        <div class="screenshot-card__body">
+          <span class="screenshot-card__path">/support</span>
+          <p class="screenshot-card__title">会話型サポート</p>
+          <p class="screenshot-card__desc">注文フローとは独立したサポート専用チャット。キャンペーン・稼働状況確認も行えます。</p>
+        </div>
+      </div>
+      <div class="screenshot-card">
+        <img class="screenshot-card__img" src={`${base}/screenshots/agents.png`} alt="エージェントビューワー：registry-service 登録サービス一覧" loading="lazy" />
+        <div class="screenshot-card__body">
+          <span class="screenshot-card__path">/agents</span>
+          <p class="screenshot-card__title">サービスビューワー</p>
+          <p class="screenshot-card__desc">registry-service に登録されたサービスのプロンプト・スキル・API 仕様を閲覧できます。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <section class="two-column-band">
     <article class="panel">
       <p class="panel__eyebrow">起動方法</p>
