@@ -8,7 +8,7 @@ order: 1
 
 ## 意図分類ロジック（ArachneOrderIntentPlanner.java）
 
-`order-service` の `order-intake-agent` は、自然言語メッセージを `DIRECT_ITEM` / `RECOMMENDATION` / `REORDER` / `REFINEMENT` の 4 種類に分類します。分類は LLM の structured output に完全に委ねられており、Java コード側ではキーワードマッチなどのヒューリスティックを一切使用しません。Java コードの役割は LLM 出力の正規化（有効な intentMode 値かどうかの検証）と、structured output が返らなかった場合のデフォルト値設定のみです。
+`order-service` の `order-intake-agent` は、自然言語メッセージを `DIRECT_ITEM` / `RECOMMENDATION` / `REORDER` / `REFINEMENT` の 4 種類に分類します。分類は LLM の structured output に委ねており、Java コード側ではキーワードマッチなどのヒューリスティックを使いません。Java コードの役割は LLM 出力の検証（有効な intentMode 値かどうか）と、structured output が返らなかった場合のデフォルト値設定のみです。
 
 ```java
 // ArachneOrderIntentPlanner.java - plan() メソッド
@@ -53,11 +53,11 @@ private String normalizeIntentMode(
 }
 ```
 
-「テリヤキバーガーください」に `DIRECT_ITEM` を付与するかどうかは LLM が判断します（`plan()` の `agentFactory.builder().run()` の部分）。Java コードはその値を検証して通過させるだけです（`normalizeIntentMode()` の検証ロジック）。また、再注文コンテキストが必要かどうかの判定も LLM に委ねるため、`recentOrder` は常に order-intake-agent に渡されます。
+「テリヤキバーガーください」に `DIRECT_ITEM` を付けるかどうかは LLM が判断します。Java コードはその値を検証するだけです。再注文コンテキストが必要かどうかも LLM に委ねるため、`recentOrder` は常に order-intake-agent に渡されます。
 
 ## grounding context の受け渡し（MenuSuggestionPromptRequestFactory.java）
 
-分類された `intentMode` と `directItemHint` は HTTP リクエストのペイロード（`MenuGroundingContext`）として `menu-service` の `POST /internal/menu/suggest` に渡されます。
+分類された `intentMode` と `directItemHint` は HTTP ペイロード（`MenuGroundingContext`）として menu-service に渡されます。
 
 ```java
 // MenuSuggestionPromptRequestFactory.java
@@ -81,11 +81,11 @@ static MenuSuggestionRequest build(String sessionId, SuggestOrderRequest request
 }
 ```
 
-`order-service` が呼ぶ URL は `POST /internal/menu/suggest` のまま変わりません。grounding context は既存フィールドへの追記であり、エンドポイント自体のシグネチャは不変です。
+`order-service` が呼ぶ URL は `POST /internal/menu/suggest` のまま変わりません。grounding context は既存フィールドへの追記であり、エンドポイントのシグネチャは変わりません。
 
 ## 明示指定と追加提案の型レベル分離（MenuApplicationService.java）
 
-`menu-agent` は structured output で `explicitItemIds`（明示指定）と `additionalItemIds`（潜在ニーズ）を別フィールドで返します。コード側でそれを先頭固定にマージするため、AI の判断と型定義が整合しています。
+`menu-agent` は structured output で `explicitItemIds`（明示指定）と `additionalItemIds`（追加提案）を別フィールドで返します。コード側でそれを先頭固定にマージします。
 
 ```java
 // MenuApplicationService.java
@@ -103,7 +103,7 @@ List<String> mergedIds = Stream.concat(
 
 ## no-match を明示するシステムプロンプト（MenuApplicationService.java）
 
-`menu-agent` の system prompt では、exact match が弱い場合でも Java コード側で代替提案の根拠を明示するよう指示が含まれています。この指示は、AI が「勝手に選んだ」とユーザーに見えないための設計上のコミットメントです。
+`menu-agent` の system prompt には、exact match が弱い場合でも代替提案の根拠を明示するよう指示があります。AI が「勝手に選んだ」とユーザーに見えないための設計です。
 
 ```java
 // MenuApplicationService.java - buildSuggestionSystemPrompt()
@@ -127,7 +127,7 @@ private String buildSuggestionSystemPrompt() {
 }
 ```
 
-AI の代替提案が「説明できる根拠」と紐付いていることで、推薦結果の透明性が保たれます。
+代替提案が根拠と一緒に返るため、推薦結果が透明になります。
 
 ## 観察された振る舞い
 

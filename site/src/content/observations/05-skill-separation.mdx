@@ -8,7 +8,7 @@ order: 5
 
 ## activationHint フロントマター（family-order-guide/SKILL.md）
 
-`menu-service` には `family-order-guide` と `proactive-recommendation` の 2 つのスキルが SKILL.md として配置されています。各スキルの YAML フロントマターに `activationHint` フィールドがあり、どのような状況でスキルを有効化すべきかが記述されています。
+`menu-service` には `family-order-guide` と `proactive-recommendation` の 2 つのスキルが SKILL.md として配置されています。各スキルの YAML フロントマターに `activationHint` フィールドがあり、どの状況でスキルを有効化するかが書かれています。
 
 ```yaml
 # food-delivery-demo/menu-service/src/main/resources/skills/family-order-guide/SKILL.md
@@ -30,7 +30,7 @@ activationHint: 家族・複数人・子ども向けの相談のとき
 
 ## フロントマターの解析と注入（MenuServiceConfiguration.java）
 
-`MenuServiceConfiguration` はサービス起動時に SKILL.md を読み込み、`activationHint` フィールドを抽出して `skillActivationHints` Bean として登録します。
+`MenuServiceConfiguration` はサービス起動時に SKILL.md を読み込み、`activationHint` フィールドを取り出して `skillActivationHints` Bean として登録します。
 
 ```java
 // MenuServiceConfiguration.java
@@ -69,7 +69,7 @@ private static String extractFrontmatterField(String raw, String field) {
 
 ## system prompt への動的注入（MenuApplicationService.java）
 
-`MenuApplicationService` は `skillActivationHints` を受け取り、起動時に組み立てた条件リストを system prompt のスキル有効化セクションとして注入します。
+`MenuApplicationService` は `skillActivationHints` を受け取り、スキル有効化条件のリストを system prompt に注入します。
 
 ```java
 // MenuApplicationService.java
@@ -91,7 +91,7 @@ private String buildSuggestionSystemPrompt() {
 }
 ```
 
-コード内にスキル名や発動条件の文字列は書かれていません。`MenuApplicationService.java` を変更することなく、SKILL.md のフロントマターだけ変えれば system prompt に反映されます。
+コード内にスキル名や発動条件の文字列は書かれていません。`MenuApplicationService.java` を変えずに、SKILL.md のフロントマターだけ更新すれば system prompt に反映されます。
 
 ## 観察された振る舞い
 
@@ -123,7 +123,7 @@ private String buildSuggestionSystemPrompt() {
 }
 ```
 
-`summary` と `trace[1].detail` の冒頭に `[family-order-guide]` タグが付いています。menu-agent がどのスキルを有効化したかを明示しているのです。このタグは SKILL.md に定義されたスキル名と一致します。
+`summary` と `trace[1].detail` の冒頭に `[family-order-guide]` タグが付いています。menu-agent がどのスキルを有効化したかを示しています。このタグは SKILL.md に定義されたスキル名と一致します。
 
 「テリヤキバーガーください」（DIRECT_ITEM パス）のレスポンスでは `[family-order-guide]` タグは現れません。「子ども向け」「おすすめ」などの文脈がある場合だけスキルが有効化されます。
 

@@ -8,7 +8,7 @@ order: 4
 
 ## system prompt の Java 文字列リテラル（ArachneOrderIntentPlanner.java）
 
-`order-intake-agent` の system prompt は `ArachneOrderIntentPlanner` クラス内の private メソッドとして実装されています。プレーンテキストの自然言語ではなく、**やること / やってはいけないこと** を明示した構造を持ち、エンジニアがレビュー可能な形で管理されています。
+`order-intake-agent` の system prompt は `ArachneOrderIntentPlanner` クラス内の private メソッドとして実装されています。**やること / やってはいけないこと** を明示した構造で書かれており、コードとして管理・レビューできます。
 
 ```java
 // ArachneOrderIntentPlanner.java
@@ -37,7 +37,7 @@ private String systemPrompt() {
 }
 ```
 
-このメソッドは git の管理下にあります。prompt に変更が加わると `git diff` に現れ、コードレビューの対象になります。
+このメソッドは git の管理下にあります。prompt を変更すると `git diff` に現れ、コードレビューで確認できます。
 
 ## リクエストの locale に応じた system prompt の構築（ArachneOrderIntentPlanner.java）
 
@@ -93,11 +93,11 @@ public NormalizedOrderIntent plan(
 }
 ```
 
-この実装により、同じセッションで複数の locale でリクエストを送ると、LLM の応答言語がリクエストごとに変わります。変更はコードとして管理されるため、どのコミットで言語対応が追加されたかが追跡できます。
+同じセッションで異なる locale を指定すると、LLM の応答言語がリクエストごとに変わります。変更はコードで管理されるため、いつ言語対応を追加したかを追跡できます。
 
 ## /agents ページでの可視性
 
-`order-service` は起動時に system prompt を含む service descriptor を `registry-service` に登録します。
+`order-service` は起動時に system prompt を含む service descriptor を registry-service に登録します。
 
 ```java
 // OrderServiceConfiguration.java（登録の抜粋）
@@ -108,7 +108,7 @@ Map.of(
 )
 ```
 
-`/agents` ページの「概要」タブはこの registry 登録内容を表示しており、デプロイ済みの system prompt をブラウザから直接確認できます。
+`/agents` ページの「概要」タブで、デプロイ済みの system prompt をブラウザから確認できます。
 
 ## 観察された振る舞い
 

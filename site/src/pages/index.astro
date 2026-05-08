@@ -5,7 +5,7 @@ import SiteLayout from '../layouts/SiteLayout.astro';
 const pillars = [
   {
     title: '問いと仮説',
-    body: 'マイクロサービスの原則（責務境界・API 公開・チームの自律性・疎結合）を崩さずに AI エージェントを組み込むとどうなるか。その答えとして浮かびあがったのが「自然言語フロントドア」──エージェントを API の代替ではなく API の手前に置く設計です。',
+    body: 'マイクロサービスの原則（責務境界・API 公開・チームの自律性・疎結合）を保ったまま、AI エージェントを組み込めるか。ここでの答えが「自然言語フロントドア」です。エージェントは API の代わりではなく、API の手前に置きます。',
   },
   {
     title: 'Arachne',
@@ -22,7 +22,7 @@ const routes = [
   {
     href: `${base}/essay`,
     label: 'Essay',
-    body: '仮説の論拠、Arachne の設計意図、demo の読み方を長文で整理します。',
+    body: '仮説の根拠、Arachne の設計意図、demo の読み方をまとめています。',
   },
   {
     href: `${base}/demo`,
@@ -45,8 +45,8 @@ const routes = [
 <SiteLayout title="Arachne Field Notes">
   <PageHero
     eyebrow="技術ブログ"
-    title="マイクロサービスと AI エージェントを共存させる設計を、実装と動くデモで探索する"
-    summary="クラウド・マイクロサービスと進化してきたバックエンド設計に、AI エージェントをどう融合するか──その問いに対して Spring 実装（Arachne）と動く実証環境（food-delivery-demo）で答えを探るブログです。"
+    title="マイクロサービスと AI エージェントを両立させる設計を、実装とデモで検証する"
+    summary="このサイトは、AI エージェントを既存のマイクロサービス設計にどう組み込むかを扱います。Spring 実装（Arachne）と実証環境（food-delivery-demo）を使って、設計の妥当性を確認します。"
   />
 
   <section class="section-grid">
@@ -61,12 +61,12 @@ const routes = [
   <section class="story-band">
     <div>
       <p class="story-band__eyebrow">読む順番</p>
-      <h2>問い・設計仮説・実証の 3 ステップが、このサイトの論理構造です</h2>
+      <h2>このサイトは「問い・設計仮説・実証」の 3 ステップで構成しています</h2>
     </div>
     <ol class="story-band__list">
-      <li><strong>Essay</strong> でマイクロサービスの原則を起点に、AI エージェントをどう融合するかという問いを立て、「自然言語フロントドア」という設計仮説を整理します。</li>
+      <li><strong>Essay</strong> で、マイクロサービス原則を起点に「自然言語フロントドア」という設計仮説を整理します。</li>
       <li><strong>Demo</strong> で food-delivery-demo の構成を確認し、どの設計判断がどの仮説に対応しているかを読みます。</li>
-      <li><strong>Observations</strong> で実際に動かしたときの振る舞いを確認し、仮説が成立しているかを観察記録から追います。</li>
+      <li><strong>Observations</strong> で実際の振る舞いを確認し、仮説が成り立つかを観察記録で検証します。</li>
       <li><strong>Conclusions</strong> で探索全体の評決と根拠、残る問いを読みます。</li>
     </ol>
   </section>

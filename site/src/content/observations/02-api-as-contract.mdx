@@ -34,7 +34,7 @@ SuggestOrderResponse suggest(@RequestBody SuggestOrderRequest request) {
 }
 ```
 
-`requiredInputs`・`optionalInputs`・`serviceBehavior` という構造で、人間にも機械にも読める形でエージェント向けの期待値が API 上に公開されています。
+`requiredInputs`・`optionalInputs`・`serviceBehavior` の構造で、エージェント向けの期待値が API 上に公開されています。
 
 ## menu-service のアノテーション（MenuController.java）
 
@@ -61,7 +61,7 @@ MenuSuggestionResponse suggest(@RequestBody MenuSuggestionRequest request) {
 }
 ```
 
-この `x-ai-prompt-contract` は、`registry-service` に登録された service descriptor にも含まれており、`/agents` ページが registry から取得して表示します。エージェントのツール定義と REST API 仕様は同一の情報源として管理されています。
+この `x-ai-prompt-contract` は registry-service の service descriptor にも含まれており、`/agents` ページで確認できます。エージェントのツール定義と REST API 仕様は同じ情報源で管理されています。
 
 ## ランタイムで確認した x-ai-prompt-contract（/v3/api-docs より抜粋）
 
@@ -126,7 +126,7 @@ MenuSuggestionResponse suggest(@RequestBody MenuSuggestionRequest request) {
 }
 ```
 
-`agent` フィールドが `"payment-service"` であることに注目してください。`"payment-agent"` ではなく、サービス名そのものが入っています。これは payment-service がエージェントを持たない決定論的なサービスであることを示しています（obs-03 参照）。
+`agent` フィールドが `"payment-service"` です。`"payment-agent"` ではなく、サービス名そのものです。payment-service がエージェントを持たないことを示しています（obs-03 参照）。
 
 ## 観察された振る舞い
 

@@ -48,11 +48,11 @@ public class PaymentApplicationService {
 }
 ```
 
-支払い金額は `RoundingMode.HALF_UP` で端数処理、承認 ID は `UUID.randomUUID()` で生成、請求判断は `request.confirmRequested()` のブール値で決定されます。AI の関与する余地はありません。
+支払い金額は `RoundingMode.HALF_UP` で端数処理、承認 ID は `UUID.randomUUID()` で生成、課金判断は `request.confirmRequested()` のブール値で行います。AI の関与はありません。
 
 ## pom.xml の構成（payment-service）
 
-現在の `payment-service/pom.xml` には `arachne` モジュールへの依存が含まれていません。
+`payment-service/pom.xml` には `arachne` モジュールへの依存がありません。
 
 ```xml
 <!-- payment-service/pom.xml （依存の抜粋） -->

@@ -8,7 +8,7 @@ order: 6
 
 ## capability クエリの設定（order-service/application.yml）
 
-`order-service` が各 downstream サービスを解決するために使う capability クエリは、application.yml に記述されています。サービス名やエンドポイント URL は一切ありません。
+`order-service` が各 downstream サービスを解決するために使う capability クエリは application.yml に記述されています。サービス名やエンドポイント URL は書かれていません。
 
 ```yaml
 # order-service/src/main/resources/application.yml
@@ -23,7 +23,7 @@ downstream:
     capability-query: ${SUPPORT_CAPABILITY_QUERY:注文後フィードバック受付 問い合わせ受付 サポート連携}
 ```
 
-`order-service` のコードには「menu-service」「delivery-service」という文字列は現れません。クエリを受け取って一致するサービスを返すのは `registry-service` です。
+`order-service` のコードに「menu-service」「delivery-service」という文字列はありません。クエリに一致するサービスを返すのは `registry-service` です。
 
 ## POST /registry/discover 呼び出し（RegistryServiceEndpointResolver.java）
 
@@ -59,7 +59,7 @@ private RegistryEndpointMetadata discoverEndpoint(String capabilityQuery) {
 
 ## ETA アダプターの動的選択（RegistryBackedEtaServiceDiscoveryGateway.java）
 
-`delivery-service` は `discover_eta_services` ツールで外部 ETA アダプターを discover します。`hermes-adapter` は 15 秒サイクルで停止と復帰を繰り返す設定になっており、この動的な可用性を反映した discover が行われます。
+`delivery-service` は `discover_eta_services` ツールで外部 ETA アダプターを discover します。`hermes-adapter` は 15 秒サイクルで停止と復帰を繰り返す設定です。その可用性の変化が discover の結果に反映されます。
 
 ```java
 // delivery-service: RegistryBackedEtaServiceDiscoveryGateway.java
@@ -87,7 +87,7 @@ public List<EtaServiceTarget> discoverAvailableEtaServices(String query) {
 - `hermes-adapter` が停止中のタイミングで注文フローの配送ステップを実行すると、`delivery-agent` は discover で稼働中の `idaten-adapter` のみを取得し、「外部パートナーは 1 社のみ確認できました」という理由を添えて推奨を返した。
 - `hermes-adapter` が復帰すると、次の discover から再び両アダプターが候補に入り、推奨理由も変化した。
 - `delivery-service` のコードには一切触れなかった。
-- `GET /registry/services`（棚卸し用）と `POST /registry/discover`（実行時解決用）を別エンドポイントに分けたことで、registry が「サービス一覧を返す」存在でなく「capability の記述に応じて照合する」仲介点として機能した。
+- `GET /registry/services`（一覧確認用）と `POST /registry/discover`（実行時解決用）を分けたことで、registry は「一覧を返す」場所ではなく「capability の記述で照合する」仲介点として機能した。
 - `order-service` のコード内に "menu-service" という文字列は現れず、クエリの意味だけでサービスを見つけた。
 
 ## ランタイム観察: hermes 停止と復帰による discover 変化

@@ -56,25 +56,25 @@ activationHint: 家族・複数人・子ども向けの相談のとき
 const principles = [
   {
     label: 'Organized around Business Capabilities',
-    tension: 'AI を導入すると「エージェントが全部やる」という方向に引力が働き、サービスの責務境界が溶けるリスクがある。',
+    tension: 'AI を追加すると「エージェントが全部やる」方向になりやすく、サービスの責務境界が曖昧になるリスクがある。',
     evidence: 'order / menu / kitchen / delivery / support はそれぞれ異なる業務責務を持つ。エージェントを持つサービス同士でも役割は重ならず、6 サービスが同じ「AI 担当」として束ねられていない。',
     where: 'サービス一覧の役割列、/agents のサービスカード',
   },
   {
     label: 'Products not Projects',
-    tension: 'system prompt や skill ドキュメントは「誰が管理するか」が曖昧になりやすい。エンジニア以外が触れない形になると陳腐化する。',
+    tension: 'system prompt や skill ドキュメントは管理責任が曖昧になりやすい。エンジニア以外が更新できない形になると内容が古くなる。',
     evidence: 'system prompt と skill は各サービスのソースコードとして管理される。skill には activationHint が YAML フロントマターで書かれ、業務担当者がコードを触らずに適用条件を変更できる。DeterministicModel パターンにより振る舞いは再現可能な形でテストされている。',
     where: '/agents のスキルタブ、testing-agents Essay',
   },
   {
     label: 'Smart Endpoints and Dumb Pipes',
-    tension: '複数サービスが同じ LLM バックエンドを使うとき、LLM がパイプになってサービス間ロジックを横断するリスクがある。また「正解が必要な処理」をエージェントに任せると非決定的になる。',
+    tension: '複数サービスで同じ LLM を使うとき、LLM が共有パイプになってサービス間の境界が崩れるリスクがある。また「正解が必要な処理」をエージェントに任せると結果が非決定的になる。',
     evidence: 'payment-service はエージェントを持たない。課金確定は決定論的コードで実行する。各サービスの LLM 呼び出しは独自の system prompt と tool 定義で行われ、推論コンテキストはサービス境界に閉じている。サービス間通信は HTTP のみ。',
     where: 'サービス一覧の payment-service 行、/agents の API 仕様タブ（x-ai-prompt-contract）',
   },
   {
     label: 'Decentralized Governance / Decentralized Data Management',
-    tension: 'サービス間で collaborator を直接参照すると、デプロイの独立性が失われる。registry を置いても、使い方次第で中央集権的な依存になりうる。',
+    tension: 'サービスが互いを直接参照すると、デプロイの独立性が失われる。registry を使っても、使い方次第で中央集権的な構造になりうる。',
     evidence: 'サービス間の collaborator 解決は POST /registry/discover（capability クエリ駆動）で行う。GET /registry/services は viewer 用途に分離し、サービス間の直接依存には使わない。各サービスは起動時に自己登録し、registry が落ちても既存の接続は維持される。',
     where: 'registry-service 行、capability-discovery Essay、/agents のサービスカード',
   },
@@ -100,7 +100,7 @@ const services = [
     port: '8082',
     role: 'キッチン状況管理',
     agent: true,
-    note: '厄房のキャパシティと仕込み状況を管理します。注文確定時に準備スケジュールを調整し、混雑時は代替提案をエージェントが生成します。',
+    note: '厨房のキャパシティと仕込み状況を管理します。注文確定時に準備スケジュールを調整し、混雑時は代替提案をエージェントが生成します。',
   },
   {
     name: 'delivery-service',
@@ -114,7 +114,7 @@ const services = [
     port: '8084',
     role: '支払い処理',
     agent: false,
-    note: 'エージェントを持ちません。支払い準備と課金確定は決定論的コードで実行します。「正解が必要な処理はコードで守る」という設計方针の体現です。',
+    note: 'エージェントを持ちません。支払い準備と課金確定は決定論的コードで実行します。「正解が必要な処理はコードで守る」という設計方針の体現です。',
   },
   {
     name: 'customer-service',
@@ -178,15 +178,15 @@ const surfaces = [
 <SiteLayout title="Demo | Arachne Field Notes">
   <PageHero
     eyebrow="Demo"
-    title="food-delivery-demo ── 原則の緊張を動くコードで解消する"
-    summary="5 つの設計原則が互いに矛盾せず Fowler/Lewis の特性とも整合しながら成立するか。food-delivery-demo はその問いに動くコードで答えるための実証環境です。"
+    title="food-delivery-demo ── 原則の両立が難しい点を動くコードで検証する"
+    summary="5 つの設計原則が矛盾せず、Fowler/Lewis の特性とも整合するか。food-delivery-demo はその問いを動くコードで確かめる実証環境です。"
   />
 
   <section class="panel">
     <p class="panel__eyebrow">このデモの読み方</p>
     <p>
-      サービスの数やエージェントの数ではなく、<strong>各原則がどこで圧力を受け、どう解消されているか</strong>を確認することがこのデモの主眼です。
-      以下に原則ごとの緊張（tension）と、デモの中でそれをどこで確認できるかを対応させています。
+      このデモの主眼は、サービス数やエージェント数ではありません。<strong>各原則で何がぶつかりやすく、どう対応したか</strong>を確認することです。
+      以下に、原則ごとの「両立が難しいポイント」と、その確認場所を対応させています。
     </p>
   </section>
 
@@ -270,12 +270,12 @@ const surfaces = [
   </section>
 
   <section class="stacked-list">
-    <h2 style="font-size:1.1rem; color:var(--text-muted); font-weight:600; margin-bottom:-8px">原則ごとの緊張と証拠</h2>
+    <h2 style="font-size:1.1rem; color:var(--text-muted); font-weight:600; margin-bottom:-8px">原則ごとの両立が難しいポイントと証拠</h2>
     {principles.map((p) => (
       <article class="essay-card">
         <div>
           <p class="panel__eyebrow">{p.label}</p>
-          <p><strong>緊張：</strong>{p.tension}</p>
+          <p><strong>両立が難しい点：</strong>{p.tension}</p>
           <p><strong>解消：</strong>{p.evidence}</p>
           <p style="font-size:0.85rem; color:var(--text-muted)"><strong>確認場所：</strong>{p.where}</p>
         </div>

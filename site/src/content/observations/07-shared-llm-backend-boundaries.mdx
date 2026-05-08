@@ -24,11 +24,11 @@ menu-service:
     ARACHNE_STRANDS_MODEL_REGION: ${ARACHNE_STRANDS_MODEL_REGION:-}
 ```
 
-この構成は「同じモデル設定を共有しうる」ことを示しますが、サービス境界の有無はこれだけでは決まりません。境界は呼び出し経路で確認する必要があります。
+この構成で同じモデル設定を共有できますが、サービス境界の有無は呼び出し経路で確認します。
 
 ## order-service 側の LLM 呼び出しは service-local（ArachneOrderIntentPlanner.java）
 
-`order-service` は `order-intake-agent` の system prompt と structured output 型を自サービス内で定義し、LLM 呼び出しを実行します。
+`order-service` は `order-intake-agent` の system prompt と structured output 型を自サービス内で定義し、独立して LLM を呼び出します。
 
 ```java
 // ArachneOrderIntentPlanner.java（抜粋）
@@ -43,7 +43,7 @@ AgentResult result = observationSupport.observe(
                 .run(prompt.render(), NormalizedOrderIntent.class));
 ```
 
-この呼び出しは `NormalizedOrderIntent.class` に閉じた形で実行され、menu-service の型や tool 定義に直接依存しません。
+この呼び出しは `NormalizedOrderIntent.class` の範囲で完結し、menu-service の型や tool 定義に依存しません。
 
 ## サービス間は HTTP ペイロードで接続（RegistryBackedMenuGateway.java）
 
@@ -60,11 +60,11 @@ Objects.requireNonNull(restClient.post()
     .body(MenuSuggestionResponse.class));
 ```
 
-この時点で境界は LLM ではなく HTTP 契約です。`order-service` は `MenuSuggestionRequest` を送信し、`MenuSuggestionResponse` を受信します。
+ここでの境界は LLM ではなく HTTP 契約です。`order-service` は `MenuSuggestionRequest` を送り、`MenuSuggestionResponse` を受け取ります。
 
 ## menu-service 側の LLM 呼び出しも service-local（MenuApplicationService.java）
 
-`menu-service` は別の system prompt と別の tool セットを使って、独立に LLM を呼び出します。
+`menu-service` は別の system prompt と別の tool セットで、独立して LLM を呼び出します。
 
 ```java
 // MenuApplicationService.java（抜粋）
@@ -79,13 +79,13 @@ AgentResult result = agentObservationSupport.observe(
             .run(userPrompt.render(), MenuSelectionDecision.class));
 ```
 
-ここでも出力型は `MenuSelectionDecision.class` であり、order-service の `NormalizedOrderIntent` とは別契約です。
+出力型は `MenuSelectionDecision.class` で、order-service の `NormalizedOrderIntent` とは別の契約です。
 
 ## 観察された振る舞い
 
 - order-service の責務は「注文意図の正規化」で、menu-service の責務は「catalog grounding と候補選定」に分離されていた。
-- 両サービスは同じモデル設定を共有しうるが、system prompt・tool・structured output 型はサービスごとに独立して定義されていた。
-- サービス間の受け渡しは `MenuSuggestionRequest` の HTTP ペイロードであり、LLM の内部状態を共有する経路はコード上に現れなかった。
+- 両サービスは同じモデル設定を共有できるが、system prompt・tool・structured output 型はサービスごとに独立して定義されていた。
+    - サービス間で渡るのは `MenuSuggestionRequest` の HTTP ペイロードのみで、LLM の内部状態を共有する経路はコード上に現れなかった。
 - obs-01 の trace 記録でも `order-intake-agent` と `menu-agent` は別サービスの別イベントとして記録されていた。
 
 ## 確認できる場所
