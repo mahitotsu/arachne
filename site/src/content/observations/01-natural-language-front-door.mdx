@@ -11,12 +11,33 @@ order: 1
 `order-service` の `order-intake-agent` は、自然言語メッセージを `DIRECT_ITEM` / `RECOMMENDATION` / `REORDER` / `REFINEMENT` の 4 種類に分類します。分類は LLM の structured output に完全に委ねられており、Java コード側ではキーワードマッチなどのヒューリスティックを一切使用しません。Java コードの役割は LLM 出力の正規化（有効な intentMode 値かどうかの検証）と、structured output が返らなかった場合のデフォルト値設定のみです。
 
 ```java
-// ArachneOrderIntentPlanner.java
+// ArachneOrderIntentPlanner.java - plan() メソッド
+@Override
+public NormalizedOrderIntent plan(
+        String sessionId,
+        SuggestOrderRequest request,
+        OrderSession existing,
+        Optional<StoredOrder> recentOrder) {
+    OrderIntentAgentUserPrompt prompt = OrderIntentAgentUserPrompt.from(request, existing, recentOrder);
+    // LLM に NormalizedOrderIntent.class で structured output を要求
+    AgentResult result = observationSupport.observe(
+            "order-service",
+            AGENT_NAME,
+            sessionId,
+            prompt.render(),
+            () -> agentFactory.builder()
+                    .systemPrompt(systemPrompt())
+                    .build()
+                    .run(prompt.render(), NormalizedOrderIntent.class));
+    // LLM 出力を Java 側で正規化
+    return normalize(result.structuredOutput(NormalizedOrderIntent.class), request, existing, recentOrder);
+}
+
+// 検証・フォールバック処理
 private String normalizeIntentMode(
         String plannedIntentMode,
         SuggestOrderRequest request,
-        OrderSession existing,
-        String customerMessage) {
+        OrderSession existing) {
     String normalized = blankToNull(plannedIntentMode);
     if (normalized != null) {
         String upper = normalized.toUpperCase(Locale.ROOT);
@@ -32,7 +53,7 @@ private String normalizeIntentMode(
 }
 ```
 
-「テリヤキバーガーください」に `DIRECT_ITEM` を付与するかどうかは LLM が判断します。Java コードはその値を検証して通過させるだけです。また、再注文コンテキストが必要かどうかの判定も LLM に委ねるため、`recentOrder` は常に order-intake-agent に渡されます。
+「テリヤキバーガーください」に `DIRECT_ITEM` を付与するかどうかは LLM が判断します（`plan()` の `agentFactory.builder().run()` の部分）。Java コードはその値を検証して通過させるだけです（`normalizeIntentMode()` の検証ロジック）。また、再注文コンテキストが必要かどうかの判定も LLM に委ねるため、`recentOrder` は常に order-intake-agent に渡されます。
 
 ## grounding context の受け渡し（MenuSuggestionPromptRequestFactory.java）
 
@@ -82,13 +103,31 @@ List<String> mergedIds = Stream.concat(
 
 ## no-match を明示するシステムプロンプト（MenuApplicationService.java）
 
-`menu-agent` の system prompt には、exact match が弱い場合でも「menu 側の代替として提案している」と summary に明示するよう指示が含まれています。
+`menu-agent` の system prompt では、exact match が弱い場合でも Java コード側で代替提案の根拠を明示するよう指示が含まれています。この指示は、AI が「勝手に選んだ」とユーザーに見えないための設計上のコミットメントです。
 
-```text
-exact match が弱い場合でも、menu 側で説明できる代替候補を同ブランド内から選んでください。
+```java
+// MenuApplicationService.java - buildSuggestionSystemPrompt()
+private String buildSuggestionSystemPrompt() {
+    String skillActivationSection = skillActivationHints.entrySet().stream()
+            .map(e -> "- " + e.getValue() + " は **" + e.getKey() + "** を有効化してください。")
+            .reduce((a, b) -> a + "\n" + b)
+            .map(s -> "\n\n【スキル有効化】\n" + s + "\n")
+            .orElse("\n");
+    return """
+            あなたは単一ブランドのクラウドキッチンアプリの menu-agent です。
+            このビジネスは1つのキッチンのみです。現在のメニューからのみアイテムを推奨してください。
+            ...
+            【ルール】
+            ...
+            
+            recommendationReason には価格・合計金額を含めず、商品の特徴・人数・予算適合の根拠のみ記載してください。
+            exact match が弱い場合でも、menu 側で説明できる代替候補を同ブランド内から選んでください。
+            欠品・提供可否・調理 ETA は kitchen-service 側で行われます。在庫や提供時間を約束しないでください。
+            最終回答は structured_output を使い、explicitItemIds, additionalItemIds, skillTag, recommendationReason を返してください。""";
+}
 ```
 
-AI が「勝手に選んだ」とユーザーに見えないための設計上のコミットメントが、system prompt の文言として表現されています。
+AI の代替提案が「説明できる根拠」と紐付いていることで、推薦結果の透明性が保たれます。
 
 ## 観察された振る舞い
 
@@ -168,50 +207,57 @@ AI が「勝手に選んだ」とユーザーに見えないための設計上�
   "events": [
     {
       "sequence": 1,
+      "occurredAt": "2026-05-08T14:32:10.100Z",
       "category": "agent",
       "service": "order-service",
       "component": "order-intake-agent",
       "operation": "invoke",
       "outcome": "started",
       "durationMs": 0,
+      "headline": "order-intake-agent を開始",
       "detail": "raw_message=テリヤキバーガーください recent_order=1x Smash Burger Combo"
     },
     {
       "sequence": 2,
+      "occurredAt": "2026-05-08T14:32:12.744Z",
       "category": "agent",
       "service": "order-service",
       "component": "order-intake-agent",
       "operation": "invoke",
       "outcome": "success",
-      "durationMs": 2644
+      "durationMs": 2644,
+      "headline": "order-intake-agent が完了",
+      "detail": "intentMode=DIRECT_ITEM menuQuery=テリヤキバーガー"
     },
     {
       "sequence": 3,
+      "occurredAt": "2026-05-08T14:32:22.014Z",
       "category": "downstream",
       "service": "order-service",
       "component": "menu-service",
       "operation": "suggest",
       "outcome": "success",
       "durationMs": 9270,
+      "headline": "menu-service が catalog grounding を完了",
       "detail": "query=テリヤキバーガー => menu-agent が 1 件のメニューオプションをマッチしました / items=1 / eta=16min"
     },
     {
       "sequence": 4,
+      "occurredAt": "2026-05-08T14:32:22.050Z",
       "category": "workflow",
       "service": "order-service",
       "component": "order-workflow",
       "operation": "suggest",
       "outcome": "success",
-      "durationMs": 12093
+      "durationMs": 12093,
+      "headline": "order-suggest ワークフローが完了",
+      "detail": "session-df8a20b9 が item-selection ステップへ遷移"
     }
   ]
 }
 ```
 
-`detail` の `recent_order=1x Smash Burger Combo` から、DIRECT_ITEM のケースでも `recentOrder` が常に渡されていることが分かります。`category: "agent"` のイベントが order-intake-agent の LLM 呼び出しに対応し、durationMs: 2644 (約 2.6 秒) が LLM のレイテンシです。
-  ]
-}
-```
+
 
 ## 確認できる場所
 

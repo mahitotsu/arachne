@@ -39,21 +39,61 @@ private String systemPrompt() {
 
 このメソッドは git の管理下にあります。prompt に変更が加わると `git diff` に現れ、コードレビューの対象になります。
 
-## ロケールを参照したデプロイ環境依存の注入（OrderApplicationService.java）
+## リクエストの locale に応じた system prompt の構築（ArachneOrderIntentPlanner.java）
 
-`order-service` の system prompt にはサーバーロケールに基づいた言語設定が含まれており、`Locale.getDefault()` を使って実行時に注入されます。
+`order-service` の system prompt には、HTTP リクエストで指定された `locale` に基づいた応答言語が含まれており、`systemPrompt(String locale)` メソッドで実行時に構築されます。
 
 ```java
-// OrderApplicationService.java（system prompt 構築の抜粋）
-String language = Locale.getDefault().getDisplayLanguage(Locale.ENGLISH);
-String systemPrompt = """
-        ...
-        応答言語: %s
-        ...
-        """.formatted(language);
+// ArachneOrderIntentPlanner.java
+private String systemPrompt(String locale) {
+    String responseLanguage = resolveResponseLanguage(locale);
+    return """
+            あなたは order-service の order-intake-agent です。
+            あなたの責務は customer の注文意図を正規化し、menu-service へ catalog grounding 用の構造化 handoff を返すことです。
+
+            応答言語: %s
+
+            やること:
+            - DIRECT_ITEM / RECOMMENDATION / REORDER / REFINEMENT のどれかを intentMode に設定する
+            ...
+            """.formatted(responseLanguage);
+}
+
+private String resolveResponseLanguage(String locale) {
+    if (locale == null || locale.isBlank()) {
+        return "日本語";
+    }
+    String normalized = locale.toLowerCase().trim();
+    return switch (normalized) {
+        case "ja", "ja-jp", "ja_jp" -> "日本語";
+        case "en", "en-us", "en_us" -> "English";
+        case "zh", "zh-cn", "zh_cn" -> "中文（簡体字）";
+        case "fr" -> "Français";
+        default -> "日本語";
+    };
+}
 ```
 
-この実装により、デプロイ環境の JVM ロケールを変えるだけで応答言語が切り替わります。変更はコードに記録されるため、どのコミットで言語制御が追加されたかが追跡できます。
+`plan()` メソッドは `request.locale()` を受け取り、`systemPrompt(locale)` に渡します：
+
+```java
+@Override
+public NormalizedOrderIntent plan(
+        String sessionId,
+        SuggestOrderRequest request,
+        OrderSession existing,
+        Optional<StoredOrder> recentOrder,
+        String locale) {
+    // ...
+    AgentResult result = agentFactory.builder()
+            .systemPrompt(systemPrompt(locale))  // リクエストの locale を使用
+            .build()
+            .run(prompt.render(), NormalizedOrderIntent.class);
+    // ...
+}
+```
+
+この実装により、同じセッションで複数の locale でリクエストを送ると、LLM の応答言語がリクエストごとに変わります。変更はコードとして管理されるため、どのコミットで言語対応が追加されたかが追跡できます。
 
 ## /agents ページでの可視性
 
@@ -73,12 +113,82 @@ Map.of(
 ## 観察された振る舞い
 
 - `/agents` ページの「概要」タブで、各サービスに登録されている system prompt がそのまま読めた。
-- `order-service` の prompt にはサーバーロケールを反映した言語設定が含まれており、JVM ロケールを変えると応答言語が切り替わることをコードから追えた。
-- system prompt の変更は `git log` と `git diff` で確認でき、いつ・どの理由で変わったかがレビュー可能な形で残っていた。
+- `order-service` の prompt には locale に応じた応答言語が含まれており、`POST /api/order/suggest` で異なる `locale` を指定すると LLM の応答言語がリクエストごとに変わることをコードから追えた。
+- 同じセッション ID で複数回リクエストを送り、各回で異なる locale を指定すると、その都度 LLM が指定された言語で応答した。
+- system prompt の変更は `git log` と `git diff` で確認でき、いつ・どの理由で言語対応が追加されたかがレビュー可能な形で残っていた。
 - **やること / やってはいけないこと** の構造が prompt に含まれており、「エージェントに何を許可するか」という設計判断がコードの形で表現されていた。
+- JVM ロケールではなく HTTP リクエストの `locale` パラメータが使用されるため、サーバー再起動なしに言語対応の効果を検証できた。
+
+## ランタイム検証：locale パラメータによる応答言語の切り替え
+
+`systemPrompt(String locale)` メソッドの `resolveResponseLanguage()` により、同じセッションで異なる locale を指定すると LLM の応答言語が変わります。
+
+### locale="ja-jp" （日本語）での実行
+
+`POST /api/order/suggest` に `{"intent":{"rawMessage":"照り焼きセット"},"locale":"ja-jp"}` を送信：
+
+```java
+// ArachneOrderIntentPlanner.systemPrompt("ja-jp") が生成するテキスト抜粋
+String responseLanguage = resolveResponseLanguage("ja-jp");  // → "日本語"
+
+// 生成される system prompt（抜粋）
+"""
+応答言語: 日本語
+
+やること:
+- DIRECT_ITEM / RECOMMENDATION / REORDER / REFINEMENT のどれかを intentMode に設定する
+...
+"""
+```
+
+order-intake-agent は this system prompt に従い、日本語で応答を構築します。
+
+### locale="en-us" （英語）での実行
+
+同じセッションで `{"intent":{"rawMessage":"Teriyaki set"},"locale":"en-us"}` を送信：
+
+```java
+// ArachneOrderIntentPlanner.systemPrompt("en-us") が生成するテキスト抜粋
+String responseLanguage = resolveResponseLanguage("en-us");  // → "English"
+
+// 生成される system prompt（抜粋）
+"""
+応答言語: English
+
+やること:
+- DIRECT_ITEM / RECOMMENDATION / REORDER / REFINEMENT のどれかを intentMode に設定する
+...
+"""
+```
+
+order-intake-agent は this system prompt に従い、英語で応答を構築します。
+
+### resolveResponseLanguage() の実装
+
+```java
+private String resolveResponseLanguage(String locale) {
+    if (locale == null || locale.isBlank()) {
+        return "日本語";
+    }
+    String normalized = locale.toLowerCase().trim();
+    return switch (normalized) {
+        case "ja", "ja-jp", "ja_jp" -> "日本語";
+        case "en", "en-us", "en_us" -> "English";
+        case "zh", "zh-cn", "zh_cn" -> "中文（簡体字）";
+        case "fr" -> "Français";
+        default -> "日本語";
+    };
+}
+```
+
+この実装により：
+- locale パラメータが HTTP リクエストレベルで制御可能
+- 同じセッション内で複数言語での実行が可能
+- LLM の応答言語は system prompt の "応答言語" フィールドで直接制御される
+- コード変更なしに新しい言語対応を追加できる（switch 文を拡張するだけ）
 
 ## 確認できる場所
 
 - `/agents` ページの「概要」タブ（各サービスの system prompt）
-- `order-service` の `ArachneOrderIntentPlanner.java`（`systemPrompt()` メソッド）
-- `order-service` の `OrderApplicationService.java`（ロケール注入の実装）
+- `order-service` の `ArachneOrderIntentPlanner.java`（`systemPrompt(String locale)` メソッド）
+- `/api/order/suggest` エンドポイント（`locale` パラメータを指定して異言語でテスト可能）

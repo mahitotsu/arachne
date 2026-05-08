@@ -157,10 +157,11 @@ class OrderServiceApiTest {
         drainRequests(deliveryServer);
         drainRequests(paymentServer);
                 drainRequests(supportServer);
-        when(orderIntentPlanner.plan(anyString(), any(), any(), any())).thenAnswer(invocation -> normalizedIntent(
+        when(orderIntentPlanner.plan(anyString(), any(), any(), any(), anyString())).thenAnswer(invocation -> normalizedIntent(
                 invocation.getArgument(1),
                 invocation.getArgument(2),
-                invocation.getArgument(3)));
+                invocation.getArgument(3),
+                invocation.getArgument(4)));
         restTemplate.getRestTemplate().setInterceptors(List.of((request, body, execution) -> {
             request.getHeaders().setBearerAuth(accessToken);
             return execution.execute(request, body);
@@ -835,7 +836,8 @@ class OrderServiceApiTest {
         private static NormalizedOrderIntent normalizedIntent(
                         SuggestOrderRequest request,
                         OrderSession existing,
-                        Optional<StoredOrder> recentOrder) {
+                        Optional<StoredOrder> recentOrder,
+                        String locale) {
                 String customerMessage = firstNonBlank(
                                 request.intent() == null ? null : request.intent().rawMessage(),
                                 structuredSummary(request.intent()),

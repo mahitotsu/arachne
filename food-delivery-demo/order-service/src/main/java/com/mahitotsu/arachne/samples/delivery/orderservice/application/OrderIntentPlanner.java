@@ -13,5 +13,6 @@ public interface OrderIntentPlanner {
             String sessionId,
             SuggestOrderRequest request,
             OrderSession existing,
-            Optional<StoredOrder> recentOrder);
+            Optional<StoredOrder> recentOrder,
+            String locale);
 }

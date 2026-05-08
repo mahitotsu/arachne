@@ -32,8 +32,8 @@ import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.Del
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.DeliveryOptionView;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.DeliveryQuoteResponse;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.KitchenTraceView;
-import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.MenuItemView;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.MenuGroundingContext;
+import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.MenuItemView;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.MenuSuggestionRequest;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.MenuSuggestionResponse;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.NormalizedOrderIntent;
@@ -91,7 +91,7 @@ class OrderApplicationServiceTest {
         when(customerResolver.currentCustomerId()).thenReturn("demo-user");
         when(orderRepository.findLatestOrderForUser("demo-user"))
                 .thenReturn(Optional.of(new StoredOrder("ord-1", "2x Teriyaki Chicken Box", BigDecimal.TEN, BigDecimal.TEN, "18 min", "CHARGED")));
-        when(orderIntentPlanner.plan(anyString(), any(), any(), any()))
+        when(orderIntentPlanner.plan(anyString(), any(), any(), any(), anyString()))
                 .thenReturn(new NormalizedOrderIntent(
                         "いつものやつで",
                         "REORDER",

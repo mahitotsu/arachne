@@ -134,7 +134,7 @@ public class OrderApplicationService {
             }
             Optional<com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.StoredOrder> recentOrder =
                     orderRepository.findLatestOrderForUser(authenticatedCustomerResolver.currentCustomerId());
-            NormalizedOrderIntent normalizedIntent = orderIntentPlanner.plan(sessionId, request, existing, recentOrder);
+            NormalizedOrderIntent normalizedIntent = orderIntentPlanner.plan(sessionId, request, existing, recentOrder, request.locale());
             MenuSuggestionRequest menuSuggestionRequest = MenuSuggestionPromptRequestFactory.build(
                     sessionId,
                     request,

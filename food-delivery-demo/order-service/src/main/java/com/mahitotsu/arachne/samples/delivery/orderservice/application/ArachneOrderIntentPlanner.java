@@ -36,7 +36,8 @@ class ArachneOrderIntentPlanner implements OrderIntentPlanner {
             String sessionId,
             SuggestOrderRequest request,
             OrderSession existing,
-            Optional<StoredOrder> recentOrder) {
+            Optional<StoredOrder> recentOrder,
+            String locale) {
         OrderIntentAgentUserPrompt prompt = OrderIntentAgentUserPrompt.from(request, existing, recentOrder);
         AgentResult result = observationSupport.observe(
                 "order-service",
@@ -44,7 +45,7 @@ class ArachneOrderIntentPlanner implements OrderIntentPlanner {
                 sessionId,
                 prompt.render(),
                 () -> agentFactory.builder()
-                        .systemPrompt(systemPrompt())
+                        .systemPrompt(systemPrompt(locale))
                         .build()
                         .run(prompt.render(), NormalizedOrderIntent.class));
         return normalize(result.structuredOutput(NormalizedOrderIntent.class), request, existing, recentOrder);
@@ -84,10 +85,13 @@ class ArachneOrderIntentPlanner implements OrderIntentPlanner {
                 rationale);
     }
 
-    private String systemPrompt() {
+    private String systemPrompt(String locale) {
+        String responseLanguage = resolveResponseLanguage(locale);
         return """
                 あなたは order-service の order-intake-agent です。
                 あなたの責務は customer の注文意図を正規化し、menu-service へ catalog grounding 用の構造化 handoff を返すことです。
+
+                応答言語: %s
 
                 やること:
                 - DIRECT_ITEM / RECOMMENDATION / REORDER / REFINEMENT のどれかを intentMode に設定する
@@ -104,7 +108,21 @@ class ArachneOrderIntentPlanner implements OrderIntentPlanner {
 
                 人数・予算・子ども人数などの構造化制約は失わずに保持してください。
                 最終回答は structured_output のみを使って返してください。
-                """;
+                """.formatted(responseLanguage);
+    }
+
+    private String resolveResponseLanguage(String locale) {
+        if (locale == null || locale.isBlank()) {
+            return "日本語";
+        }
+        String normalized = locale.toLowerCase().trim();
+        return switch (normalized) {
+            case "ja", "ja-jp", "ja_jp" -> "日本語";
+            case "en", "en-us", "en_us" -> "English";
+            case "zh", "zh-cn", "zh_cn" -> "中文（簡体字）";
+            case "fr" -> "Français";
+            default -> "日本語";
+        };
     }
 
     private String normalizeIntentMode(
