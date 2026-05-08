@@ -7,6 +7,8 @@ const allObservations = await getCollection('observations');
 const observations = allObservations.sort((a, b) => a.data.order - b.data.order);
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const verificationScope =
+  'このサイトの Observation は food-delivery-demo を対象に取得したコード断片・API 仕様・実行記録に限定されます。未掲載の環境・期間・運用条件へは一般化しません。';
 ---
 
 <SiteLayout title="Observations | Arachne Field Notes">
@@ -15,6 +17,11 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
     title="証拠を見る"
     summary="設計仮説に対して実際のソースコードと動作ログを証拠として示します。各観察は独立したページとして記録されています。"
   />
+
+  <section class="panel">
+    <p class="panel__eyebrow">検証範囲</p>
+    <p>{verificationScope}</p>
+  </section>
 
   <section class="panel">
     <p class="panel__eyebrow">この証拠記録の読み方</p>

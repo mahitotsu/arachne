@@ -1,0 +1,97 @@
+---
+title: 共有 LLM バックエンドでもサービス境界は HTTP 契約で維持される
+principle: 複数サービスで同一モデル設定を共有しても LLM はパイプにならない
+fl: Smart Endpoints and Dumb Pipes / Decentralized Governance
+hypothesis: order-service と menu-service が同じ LLM バックエンド設定を共有していても、サービス間の境界は REST 契約で維持され、LLM 呼び出しは各サービス内部の endpoint 処理として独立して実行される。
+order: 7
+---
+
+## 同一モデル設定を共有するデプロイ構成（compose.yml）
+
+`order-service` と `menu-service` は、いずれも同じ環境変数名のモデル設定を受け取ります。
+
+```yaml
+# food-delivery-demo/compose.yml（抜粋）
+order-service:
+  environment:
+    ARACHNE_STRANDS_MODEL_ID: ${ARACHNE_STRANDS_MODEL_ID:-}
+    ARACHNE_STRANDS_MODEL_REGION: ${ARACHNE_STRANDS_MODEL_REGION:-}
+
+menu-service:
+  environment:
+    ARACHNE_STRANDS_MODEL_PROVIDER: ${ARACHNE_STRANDS_MODEL_PROVIDER:-}
+    ARACHNE_STRANDS_MODEL_ID: ${ARACHNE_STRANDS_MODEL_ID:-}
+    ARACHNE_STRANDS_MODEL_REGION: ${ARACHNE_STRANDS_MODEL_REGION:-}
+```
+
+この構成は「同じモデル設定を共有しうる」ことを示しますが、サービス境界の有無はこれだけでは決まりません。境界は呼び出し経路で確認する必要があります。
+
+## order-service 側の LLM 呼び出しは service-local（ArachneOrderIntentPlanner.java）
+
+`order-service` は `order-intake-agent` の system prompt と structured output 型を自サービス内で定義し、LLM 呼び出しを実行します。
+
+```java
+// ArachneOrderIntentPlanner.java（抜粋）
+AgentResult result = observationSupport.observe(
+        "order-service",
+        AGENT_NAME,
+        sessionId,
+        prompt.render(),
+        () -> agentFactory.builder()
+                .systemPrompt(systemPrompt(locale))
+                .build()
+                .run(prompt.render(), NormalizedOrderIntent.class));
+```
+
+この呼び出しは `NormalizedOrderIntent.class` に閉じた形で実行され、menu-service の型や tool 定義に直接依存しません。
+
+## サービス間は HTTP ペイロードで接続（RegistryBackedMenuGateway.java）
+
+`order-service` から `menu-service` への接続は、`POST /internal/menu/suggest` の REST 呼び出しです。
+
+```java
+// RegistryBackedMenuGateway.java（抜粋）
+Objects.requireNonNull(restClient.post()
+    .uri(endpointResolver.resolveUrl(menuCapabilityQuery, "/internal/menu/suggest"))
+    .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+    .contentType(MediaType.APPLICATION_JSON)
+    .body(request)
+    .retrieve()
+    .body(MenuSuggestionResponse.class));
+```
+
+この時点で境界は LLM ではなく HTTP 契約です。`order-service` は `MenuSuggestionRequest` を送信し、`MenuSuggestionResponse` を受信します。
+
+## menu-service 側の LLM 呼び出しも service-local（MenuApplicationService.java）
+
+`menu-service` は別の system prompt と別の tool セットを使って、独立に LLM を呼び出します。
+
+```java
+// MenuApplicationService.java（抜粋）
+AgentResult result = agentObservationSupport.observe(
+        "menu-service", "menu-agent", request.sessionId(), userPrompt.render(), agentState,
+        () -> agentFactory.builder()
+            .sessionId(request.sessionId())
+            .state(agentState)
+            .systemPrompt(buildSuggestionSystemPrompt())
+            .tools(catalogLookupTool, calculateTotalTool)
+            .build()
+            .run(userPrompt.render(), MenuSelectionDecision.class));
+```
+
+ここでも出力型は `MenuSelectionDecision.class` であり、order-service の `NormalizedOrderIntent` とは別契約です。
+
+## 観察された振る舞い
+
+- order-service の責務は「注文意図の正規化」で、menu-service の責務は「catalog grounding と候補選定」に分離されていた。
+- 両サービスは同じモデル設定を共有しうるが、system prompt・tool・structured output 型はサービスごとに独立して定義されていた。
+- サービス間の受け渡しは `MenuSuggestionRequest` の HTTP ペイロードであり、LLM の内部状態を共有する経路はコード上に現れなかった。
+- obs-01 の trace 記録でも `order-intake-agent` と `menu-agent` は別サービスの別イベントとして記録されていた。
+
+## 確認できる場所
+
+- `food-delivery-demo/compose.yml`（モデル設定環境変数の共有）
+- `order-service/.../ArachneOrderIntentPlanner.java`（order-service 内の LLM 呼び出し）
+- `order-service/.../RegistryBackedMenuGateway.java`（service 間の HTTP 契約）
+- `menu-service/.../MenuApplicationService.java`（menu-service 内の LLM 呼び出し）
+- `site/src/content/observations/01-natural-language-front-door.mdx`（両サービスの trace 例）
