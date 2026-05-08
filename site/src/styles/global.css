@@ -674,8 +674,8 @@ tbody tr:hover {
 
 .screenshot-gallery {
   display: grid;
-  gap: 20px;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 24px;
+  grid-template-columns: repeat(2, 1fr);
 }
 
 .screenshot-card {
@@ -691,7 +691,7 @@ tbody tr:hover {
 .screenshot-card__img {
   border-bottom: 1px solid var(--border);
   display: block;
-  height: 200px;
+  height: 300px;
   object-fit: cover;
   object-position: top left;
   width: 100%;
