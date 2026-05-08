@@ -849,7 +849,7 @@ class OrderServiceApiTest {
                                 request.intent() == null ? null : request.intent().partySize(),
                                 request.intent() == null ? null : request.intent().budgetUpperBound(),
                                 request.intent() == null ? null : request.intent().childCount(),
-                                needsRecentOrderContext(customerMessage) ? recentOrder.map(StoredOrder::itemSummary).orElse(null) : null,
+                                recentOrder.map(StoredOrder::itemSummary).orElse(null),
                                 rationale(intentMode));
         }
 

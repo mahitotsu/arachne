@@ -1,7 +1,6 @@
 package com.mahitotsu.arachne.samples.delivery.orderservice.application;
 
 import java.math.BigDecimal;
-import java.util.Locale;
 
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.MenuGroundingContext;
 import com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.MenuSuggestionRequest;
@@ -40,11 +39,6 @@ final class MenuSuggestionPromptRequestFactory {
             structuredIntentSummary(request.intent()),
             existing.pendingProposal() == null ? null : existing.pendingProposal().customerMessage());
         }
-
-    static boolean needsRecentOrderContext(String message) {
-        String normalized = message == null ? "" : message.toLowerCase(Locale.ROOT);
-        return normalized.contains("前回") || normalized.contains("いつもの") || normalized.contains("same as last time");
-    }
 
     private static String firstNonBlank(String primary, String fallback) {
         if (primary != null && !primary.isBlank()) {

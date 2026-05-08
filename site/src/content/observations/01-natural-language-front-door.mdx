@@ -8,25 +8,31 @@ order: 1
 
 ## 意図分類ロジック（ArachneOrderIntentPlanner.java）
 
-`order-service` の `order-intake-agent` は、自然言語メッセージを `DIRECT_ITEM` / `RECOMMENDATION` / `REORDER` / `REFINEMENT` の 4 種類に分類します。メッセージに商品名らしきキーワードが含まれているかどうかをヒューリスティックで先に判定し、その結果を LLM の structured output とあわせて正規化します。
+`order-service` の `order-intake-agent` は、自然言語メッセージを `DIRECT_ITEM` / `RECOMMENDATION` / `REORDER` / `REFINEMENT` の 4 種類に分類します。分類は LLM の structured output に完全に委ねられており、Java コード側ではキーワードマッチなどのヒューリスティックを一切使用しません。Java コードの役割は LLM 出力の正規化（有効な intentMode 値かどうかの検証）と、structured output が返らなかった場合のデフォルト値設定のみです。
 
 ```java
 // ArachneOrderIntentPlanner.java
-private static final List<String> DIRECT_ITEM_KEYWORDS = List.of(
-    "セット", "box", "ボックス", "burger", "バーガー", "wrap", "ラップ", "soda", "ソーダ",
-    "latte", "ラテ", "フライ", "fries", "チキン", "chicken", "サーモン", "salmon", "bowl", "dessert");
-
-private boolean looksLikeDirectItemRequest(String message) {
-    String normalized = message.toLowerCase(Locale.ROOT);
-    // 「おすすめ」「向け」を含む場合は RECOMMENDATION に倒す
-    if (normalized.contains("おすすめ") || normalized.contains("向け")) {
-        return false;
+private String normalizeIntentMode(
+        String plannedIntentMode,
+        SuggestOrderRequest request,
+        OrderSession existing,
+        String customerMessage) {
+    String normalized = blankToNull(plannedIntentMode);
+    if (normalized != null) {
+        String upper = normalized.toUpperCase(Locale.ROOT);
+        if (List.of("DIRECT_ITEM", "RECOMMENDATION", "REORDER", "REFINEMENT").contains(upper)) {
+            return upper;  // LLM の判断をそのまま採用
+        }
     }
-    return DIRECT_ITEM_KEYWORDS.stream().anyMatch(normalized::contains);
+    // LLM が未回答の場合の構造的フォールバック
+    if (request.refinement() != null && !request.refinement().isBlank() && existing.pendingProposal() != null) {
+        return "REFINEMENT";
+    }
+    return "RECOMMENDATION";
 }
 ```
 
-「テリヤキバーガーください」は "バーガー" にマッチして `DIRECT_ITEM` に、「子ども向けにいくつか」は "向け" を含むため `RECOMMENDATION` に分類されます。
+「テリヤキバーガーください」に `DIRECT_ITEM` を付与するかどうかは LLM が判断します。Java コードはその値を検証して通過させるだけです。また、再注文コンテキストが必要かどうかの判定も LLM に委ねるため、`recentOrder` は常に order-intake-agent に渡されます。
 
 ## grounding context の受け渡し（MenuSuggestionPromptRequestFactory.java）
 
@@ -86,23 +92,24 @@ AI が「勝手に選んだ」とユーザーに見えないための設計上�
 
 ## 観察された振る舞い
 
-- 「テリヤキバーガーください」→ `DIRECT_ITEM` → menu-service が alias-based explicit match で該当 ID を返した。
-- 「子ども向けにいくつか」→ `RECOMMENDATION` → family-order-guide スキルが有効化され、Kids 系メニューと大人向けメインが提案された。
-- menu-service が exact match できない場合、summary に「現行メニュー側の代替候補として提案しています」と明示された。
+- 「テリヤキバーガーください」→ order-intake-agent が `DIRECT_ITEM` と分類（LLM 判断）→ menu-service が alias-based explicit match で該当 ID を返した。
+- 「子ども向けにいくつか見繕ってください」→ order-intake-agent が `RECOMMENDATION` と分類（LLM 判断）→ family-order-guide スキルが有効化され、Kids 系メニューが提案された。
+- どちらのケースでも `recentOrder` が order-intake-agent に渡される。LLM はその情報を使うかどうかを自身で判断する（DIRECT_ITEM の場合は参照しなかった）。
+- menu-service が exact match できない場合、summary に「カタログ外の要望であることを伝える必要があります」と明示された。
 - どちらの経路でも `menu-service` は同じ `POST /internal/menu/suggest` を受け取り、API 契約は変わらなかった。
 
 ## ランタイム API 応答
 
 ### DIRECT_ITEM パス: 「テリヤキバーガーください」
 
-`POST /api/order/suggest` に `{"intent":{"rawMessage":"テリヤキバーガーください"},"locale":"ja"}` を送信したときの実際のレスポンスです。
+`POST /api/order/suggest` に `{"intent":{"rawMessage":"テリヤキバーガーください"},"locale":"ja-JP"}` を送信したときの実際のレスポンスです。
 
 ```json
 {
-  "sessionId": "session-405162fd",
+  "sessionId": "session-df8a20b9",
   "workflowStep": "item-selection",
   "headline": "menu-agent が 1 件のメニューオプションをマッチしました",
-  "summary": "menu-agent が Smash Burger Combo x1 をおすすめします。 「テリヤキバーガー」の明示指定に対して、カタログに該当する「Smash Burger Combo」を返却しました。 キッチン確認後の提供目安は約16分。",
+  "summary": "menu-agent が Smash Burger Combo x1 をおすすめします。 カタログ検索では「テリヤキバーガー」という明示的なリクエストに対して該当する商品が見つかりませんでした。提供可能なメニューには「Smash Burger Combo」しか存在しないため、代替提案ができません。ただし、注文意図は明確に「テリヤキバーガー」であるため、カタログ外の要望であることを伝える必要があります。 キッチン確認後の提供目安は約16分。",
   "etaMinutes": 16,
   "proposals": [
     { "itemId": "combo-smash", "name": "Smash Burger Combo", "quantity": 1, "unitPrice": 1050.0 }
@@ -111,101 +118,103 @@ AI が「勝手に選んだ」とユーザーに見えないための設計上�
     {
       "service": "order-service",
       "agent": "order-intake-agent",
-      "detail": "明示的な商品指定「テリヤキバーガー」があるためDIRECT_ITEMモード。構造化制約はデフォルト値。 intentMode=DIRECT_ITEM"
+      "detail": "顧客が「テリヤキバーガーください」と明示的に注文意図を示しています。最近の注文はSmash Burger Comboでしたが、今回は異なるメニューをリクエストしています。構造化データとして、明示的な商品指定、参加人数1人、子ども人数0人を保持します。 intentMode=DIRECT_ITEM"
     },
     {
       "service": "menu-service",
       "agent": "menu-agent",
-      "detail": "menu-agent が Smash Burger Combo x1 をおすすめします。 「テリヤキバーガー」の明示指定に対して、カタログに該当する「Smash Burger Combo」を返却しました。"
+      "detail": "menu-agent が Smash Burger Combo x1 をおすすめします。 カタログ検索では「テリヤキバーガー」という明示的なリクエストに対して該当する商品が見つかりませんでした。"
     }
   ]
 }
 ```
 
-`trace[0].detail` に `intentMode=DIRECT_ITEM` が明示されています。
+`trace[0].detail` に `intentMode=DIRECT_ITEM` が明示されています。LLM が "バーガー" を含む商品名指定と判断し、Java コードのヒューリスティックなしに `DIRECT_ITEM` を選択しました。`recent_order` も渡されていますが、LLM は今回の注文が新規指定であると判断して参照しませんでした。
 
 ### RECOMMENDATION パス: 「子ども向けにいくつか見繕ってください」
 
 ```json
 {
-  "sessionId": "session-cfd3e1d1",
+  "sessionId": "session-2fa6498e",
   "workflowStep": "item-selection",
-  "headline": "menu-agent が 2 件のメニューオプションをマッチしました",
-  "summary": "[family-order-guide] menu-agent が Kids Cheeseburger Set x1, Lemon Soda x1 をおすすめします。 子ども向けとして「Kids Cheeseburger Set」と「Lemon Soda」を提供可能。キッズセットはミニチーズバーガー、コーンカップ、アップルジュースが含まれ、子ども向けに最適。また生レモンソーダは甘さ控えめなので子どもにも人気。 キッチン確認後の提供目安は約9分。",
+  "headline": "menu-agent が 1 件のメニューオプションをマッチしました",
+  "summary": "[family-order-guide] menu-agent が Kids Cheeseburger Set x1 をおすすめします。 子ども向けにミニチーズバーガー、コーンカップ、アップルジュースのキッズセットを提案。辛さ控えめで食べやすい構成です。単品のドリンクは人数が明記されていないため含めません。 キッチン確認後の提供目安は約9分。",
   "etaMinutes": 9,
   "proposals": [
-    { "itemId": "combo-kids", "name": "Kids Cheeseburger Set", "quantity": 1, "unitPrice": 720.0 },
-    { "itemId": "drink-lemon", "name": "Lemon Soda", "quantity": 1, "unitPrice": 240.0 }
+    { "itemId": "combo-kids", "name": "Kids Cheeseburger Set", "quantity": 1, "unitPrice": 720.0 }
   ],
   "trace": [
     {
       "service": "order-service",
       "agent": "order-intake-agent",
-      "detail": "ユーザーが子ども向けのメニューをリクエストしているが、具体的な数や予算、参加人数などの詳細は提供されていない。そのため、子ども向けのメニューを検索するためのクエリを作成し、詳細な情報を得るためにメニューサービスにリクエストする。 intentMode=DIRECT_ITEM"
+      "detail": "子どもの向けのメニューをリクエスト。再注文の文脈から予算と人数を推定。 intentMode=RECOMMENDATION"
     },
     {
       "service": "menu-service",
       "agent": "menu-agent",
-      "detail": "[family-order-guide] menu-agent が Kids Cheeseburger Set x1, Lemon Soda x1 をおすすめします。 子ども向けとして「Kids Cheeseburger Set」と「Lemon Soda」を提供可能。キッズセットはミニチーズバーガー、コーンカップ、アップルジュースが含まれ、子ども向けに最適。また生レモンソーダは甘さ控えめなので子どもにも人気。"
+      "detail": "[family-order-guide] menu-agent が Kids Cheeseburger Set x1 をおすすめします。 子ども向けにミニチーズバーガー、コーンカップ、アップルジュースのキッズセットを提案。"
     }
   ]
 }
 ```
 
-`summary` と `trace[1].detail` 冒頭の `[family-order-guide]` タグが、family-order-guide スキルが有効化されたことを示しています。
+`summary` と `trace[1].detail` 冒頭の `[family-order-guide]` タグが、family-order-guide スキルが有効化されたことを示しています。order-intake-agent は「向け」というキーワードに関わらず、LLM がコンテキストを読んで `RECOMMENDATION` を選択しました。
 
-### order-service 実行履歴（session-405162fd）
+### order-service 実行履歴（session-df8a20b9）
 
 ```json
 {
-  "sessionId": "session-405162fd",
+  "sessionId": "session-df8a20b9",
   "events": [
     {
-      "sequence": 9,
+      "sequence": 1,
       "category": "agent",
       "service": "order-service",
       "component": "order-intake-agent",
       "operation": "invoke",
       "outcome": "started",
       "durationMs": 0,
-      "detail": "raw_message=テリヤキバーガーください"
+      "detail": "raw_message=テリヤキバーガーください recent_order=1x Smash Burger Combo"
     },
     {
-      "sequence": 10,
+      "sequence": 2,
       "category": "agent",
       "service": "order-service",
       "component": "order-intake-agent",
       "operation": "invoke",
       "outcome": "success",
-      "durationMs": 2631
+      "durationMs": 2644
     },
     {
-      "sequence": 11,
+      "sequence": 3,
       "category": "downstream",
       "service": "order-service",
       "component": "menu-service",
       "operation": "suggest",
       "outcome": "success",
-      "durationMs": 7419,
+      "durationMs": 9270,
       "detail": "query=テリヤキバーガー => menu-agent が 1 件のメニューオプションをマッチしました / items=1 / eta=16min"
     },
     {
-      "sequence": 12,
+      "sequence": 4,
       "category": "workflow",
       "service": "order-service",
       "component": "order-workflow",
       "operation": "suggest",
       "outcome": "success",
-      "durationMs": 10057
+      "durationMs": 12093
     }
   ]
 }
 ```
 
-`category: "agent"` のイベントが order-intake-agent の LLM 呼び出しに対応し、durationMs: 2631 (約 2.6 秒) が LLM のレイテンシです。
+`detail` の `recent_order=1x Smash Burger Combo` から、DIRECT_ITEM のケースでも `recentOrder` が常に渡されていることが分かります。`category: "agent"` のイベントが order-intake-agent の LLM 呼び出しに対応し、durationMs: 2644 (約 2.6 秒) が LLM のレイテンシです。
+  ]
+}
+```
 
 ## 確認できる場所
 
-- `/api/order/suggest` → order-service の実行履歴（`/execution-history/{sessionId}`）
+- `/api/order/suggest` → order-service の実行履歴（`/api/order/execution-history/{sessionId}`）
 - `/agents` ページの「概要」タブ（order-intake-agent の system prompt）
 - `/agents` ページの「API 仕様」タブ（menu-service の `x-ai-prompt-contract`）

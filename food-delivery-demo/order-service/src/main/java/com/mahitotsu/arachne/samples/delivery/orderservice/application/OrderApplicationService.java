@@ -133,9 +133,7 @@ public class OrderApplicationService {
                         "注文意図が必要です。rawMessage または partySize などの構造化フィールドを指定してください。");
             }
             Optional<com.mahitotsu.arachne.samples.delivery.orderservice.domain.OrderTypes.StoredOrder> recentOrder =
-                    MenuSuggestionPromptRequestFactory.needsRecentOrderContext(customerMessage)
-                                    ? orderRepository.findLatestOrderForUser(authenticatedCustomerResolver.currentCustomerId())
-                                    : Optional.empty();
+                    orderRepository.findLatestOrderForUser(authenticatedCustomerResolver.currentCustomerId());
             NormalizedOrderIntent normalizedIntent = orderIntentPlanner.plan(sessionId, request, existing, recentOrder);
             MenuSuggestionRequest menuSuggestionRequest = MenuSuggestionPromptRequestFactory.build(
                     sessionId,

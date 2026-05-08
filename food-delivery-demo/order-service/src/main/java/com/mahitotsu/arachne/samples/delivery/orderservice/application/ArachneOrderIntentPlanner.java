@@ -1,6 +1,5 @@
 package com.mahitotsu.arachne.samples.delivery.orderservice.application;
 
-import java.math.BigDecimal;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -21,10 +20,6 @@ import com.mahitotsu.arachne.strands.spring.AgentFactory;
 class ArachneOrderIntentPlanner implements OrderIntentPlanner {
 
     static final String AGENT_NAME = "order-intake-agent";
-
-    private static final List<String> DIRECT_ITEM_KEYWORDS = List.of(
-            "セット", "box", "ボックス", "burger", "バーガー", "wrap", "ラップ", "soda", "ソーダ",
-            "latte", "ラテ", "フライ", "fries", "チキン", "chicken", "サーモン", "salmon", "bowl", "dessert");
 
     private final AgentFactory agentFactory;
     private final OrderAgentObservationSupport observationSupport;
@@ -65,9 +60,7 @@ class ArachneOrderIntentPlanner implements OrderIntentPlanner {
                 MenuSuggestionPromptRequestFactory.resolveCustomerMessage(request, existing),
                 recentOrder.map(StoredOrder::itemSummary).orElse(null));
         String intentMode = normalizeIntentMode(planned == null ? null : planned.intentMode(), request, existing, customerMessage);
-        String recentOrderSummary = MenuSuggestionPromptRequestFactory.needsRecentOrderContext(customerMessage)
-                ? firstNonBlank(planned == null ? null : planned.recentOrderSummary(), recentOrder.map(StoredOrder::itemSummary).orElse(null))
-                : null;
+        String recentOrderSummary = blankToNull(planned == null ? null : planned.recentOrderSummary());
         String directItemHint = blankToNull(planned == null ? null : planned.directItemHint());
         if (directItemHint == null && "DIRECT_ITEM".equals(intentMode)) {
             directItemHint = customerMessage;
@@ -129,24 +122,7 @@ class ArachneOrderIntentPlanner implements OrderIntentPlanner {
         if (request.refinement() != null && !request.refinement().isBlank() && existing.pendingProposal() != null) {
             return "REFINEMENT";
         }
-        if (MenuSuggestionPromptRequestFactory.needsRecentOrderContext(customerMessage)) {
-            return "REORDER";
-        }
-        if (looksLikeDirectItemRequest(customerMessage)) {
-            return "DIRECT_ITEM";
-        }
         return "RECOMMENDATION";
-    }
-
-    private boolean looksLikeDirectItemRequest(String message) {
-        if (message == null || message.isBlank()) {
-            return false;
-        }
-        String normalized = message.toLowerCase(Locale.ROOT);
-        if (normalized.contains("おすすめ") || normalized.contains("何か") || normalized.contains("向け") || normalized.contains("いつもの")) {
-            return false;
-        }
-        return DIRECT_ITEM_KEYWORDS.stream().anyMatch(normalized::contains);
     }
 
     private String buildMenuQuery(String customerMessage, String directItemHint, OrderIntentInput intent) {
