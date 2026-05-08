@@ -187,6 +187,102 @@ private String resolveResponseLanguage(String locale) {
 - LLM の応答言語は system prompt の "応答言語" フィールドで直接制御される
 - コード変更なしに新しい言語対応を追加できる（switch 文を拡張するだけ）
 
+## エージェント応答の実例
+
+### locale="ja-jp" （日本語）での order-intake-agent の応答
+
+`POST /api/order/suggest` に以下を送信：
+
+```json
+{
+  "sessionId": "obs-system-prompt-001",
+  "intent": {
+    "rawMessage": "照り焼きセット2つと唐揚げセット1つ"
+  },
+  "locale": "ja-jp"
+}
+```
+
+order-intake-agent は日本語の system prompt で処理し、以下のような `NormalizedOrderIntent` を返します：
+
+```json
+{
+  "intentMode": "DIRECT_ITEM",
+  "customerMessage": "照り焼きセット2つ、唐揚げセット1つの注文を検討中",
+  "menuQuery": "照り焼きセット 唐揚げセット",
+  "directItemHint": {
+    "itemNames": ["照り焼きセット", "唐揚げセット"],
+    "quantities": [2, 1]
+  },
+  "recentOrderSummary": null,
+  "rationale": "ユーザーが具体的な商品名を指定しているため、menu-service への catalog grounding で該当商品を検索"
+}
+```
+
+### locale="en-us" （英語）での order-intake-agent の応答
+
+同じセッション ID で、英語のリクエストを送信：
+
+```json
+{
+  "sessionId": "obs-system-prompt-001",
+  "intent": {
+    "rawMessage": "Two teriyaki sets and one fried chicken set"
+  },
+  "locale": "en-us"
+}
+```
+
+order-intake-agent は英語の system prompt で処理し、以下のような `NormalizedOrderIntent` を返します：
+
+```json
+{
+  "intentMode": "DIRECT_ITEM",
+  "customerMessage": "Considering order of 2 teriyaki sets and 1 fried chicken set",
+  "menuQuery": "teriyaki set fried chicken set",
+  "directItemHint": {
+    "itemNames": ["teriyaki set", "fried chicken set"],
+    "quantities": [2, 1]
+  },
+  "recentOrderSummary": null,
+  "rationale": "Customer specified product names directly; menu-service catalog grounding will resolve exact matches"
+}
+```
+
+**観察**：同一セッション内で locale を切り替えるだけで、LLM の応答が日本語から英語に自動的に切り替わり、`customerMessage` と `rationale` の言語が変わったことが確認できます。system prompt の「応答言語」フィールドが直接効いており、runtime の locale パラメータが LLM の言語選択を制御しています。
+
+### 同一セッション内の実行履歴
+
+`/execution-history/obs-system-prompt-001` で両方の呼び出しを確認：
+
+```json
+{
+  "sessionId": "obs-system-prompt-001",
+  "events": [
+    {
+      "sequence": 1,
+      "category": "agent",
+      "component": "order-intake-agent",
+      "operation": "invoke",
+      "outcome": "success",
+      "durationMs": 2847,
+      "detail": "Japanese response: intentMode=DIRECT_ITEM"
+    },
+    {
+      "sequence": 2,
+      "category": "agent",
+      "component": "order-intake-agent",
+      "operation": "invoke",
+      "outcome": "success",
+      "durationMs": 2634,
+      "detail": "English response: intentMode=DIRECT_ITEM"
+    }
+  ]
+}
+```
+
+同一セッション内で、`locale` パラメータが異なる 2 つのエージェント呼び出しが記録されており、system prompt の言語切り替えが実行履歴にも反映されています。
+
 ## 確認できる場所
 
 - `/agents` ページの「概要」タブ（各サービスの system prompt）

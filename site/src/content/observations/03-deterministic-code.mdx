@@ -50,19 +50,6 @@ public class PaymentApplicationService {
 
 支払い金額は `RoundingMode.HALF_UP` で端数処理、承認 ID は `UUID.randomUUID()` で生成、請求判断は `request.confirmRequested()` のブール値で決定されます。AI の関与する余地はありません。
 
-## エージェント削除前後の起動ログ
-
-当初 `payment-service` にはエージェントが置かれていました。Arachne の `ArachneAutoConfiguration` はアプリ起動時にモデルプロバイダーの設定を検証し、未設定の場合に例外を投げます。
-
-```text
-// エージェントを持っていた頃の起動ログ（抜粋）
-Caused by: com.mahitotsu.arachne.strands.spring.UnsupportedModelProviderException:
-  No Model bean found and ARACHNE_STRANDS_MODEL_PROVIDER is not set.
-  Configure a model provider or remove ArachneAutoConfiguration from the context.
-```
-
-`payment-service/pom.xml` から `arachne` 依存を除き、エージェント構成クラスを削除したとき、この例外が消えました。compose 全体の起動安定性も同時に向上しました。
-
 ## pom.xml の構成（payment-service）
 
 現在の `payment-service/pom.xml` には `arachne` モジュールへの依存が含まれていません。
