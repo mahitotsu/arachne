@@ -9,7 +9,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-
 import com.mahitotsu.arachne.strands.agent.AgentState;
 import com.mahitotsu.arachne.strands.hooks.AfterInvocationEvent;
 import com.mahitotsu.arachne.strands.hooks.AfterModelCallEvent;
