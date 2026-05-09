@@ -4,6 +4,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.mahitotsu.arachne.strands.hooks.HookRegistrar;
 import com.mahitotsu.arachne.strands.types.ContentBlock;
 import com.mahitotsu.arachne.strands.types.Message;
 
@@ -13,6 +14,7 @@ import com.mahitotsu.arachne.strands.types.Message;
 public class SlidingWindowConversationManager implements ConversationManager {
 
     private final int windowSize;
+    private final boolean proactiveCompression;
     private int removedMessageCount;
 
     public SlidingWindowConversationManager() {
@@ -20,10 +22,15 @@ public class SlidingWindowConversationManager implements ConversationManager {
     }
 
     public SlidingWindowConversationManager(int windowSize) {
-        if (windowSize <= 0) {
-            throw new IllegalArgumentException("windowSize must be greater than zero");
+        this(windowSize, false);
+    }
+
+    public SlidingWindowConversationManager(int windowSize, boolean proactiveCompression) {
+        if (windowSize < 0) {
+            throw new IllegalArgumentException("windowSize must be zero or greater");
         }
         this.windowSize = windowSize;
+        this.proactiveCompression = proactiveCompression;
     }
 
     public int getWindowSize() {
@@ -35,7 +42,21 @@ public class SlidingWindowConversationManager implements ConversationManager {
     }
 
     @Override
+    public void registerHooks(HookRegistrar registrar) {
+        if (!proactiveCompression) {
+            return;
+        }
+        registrar.beforeModelCall(event -> applyManagement(event.messages()));
+    }
+
+    @Override
     public void applyManagement(List<Message> messages) {
+        if (windowSize == 0) {
+            removedMessageCount += messages.size();
+            messages.clear();
+            return;
+        }
+
         if (messages.size() <= windowSize) {
             return;
         }
@@ -89,7 +110,8 @@ public class SlidingWindowConversationManager implements ConversationManager {
             }
             trimIndex++;
         }
-        return trimIndex;
+        // Fall back to the original candidate when no clean boundary exists in tool-heavy history.
+        return candidate;
     }
 
     private boolean containsToolUse(Message message) {

@@ -8,7 +8,7 @@ import java.util.Objects;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-
+import com.mahitotsu.arachne.strands.hooks.HookRegistrar;
 import com.mahitotsu.arachne.strands.model.Model;
 import com.mahitotsu.arachne.strands.model.ModelEvent;
 import com.mahitotsu.arachne.strands.types.ContentBlock;
@@ -27,6 +27,7 @@ public class SummarizingConversationManager implements ConversationManager {
     private final Model summaryModel;
     private final int maxMessagesBeforeSummary;
     private final int preserveRecentMessages;
+    private final boolean proactiveCompression;
     private final String systemPrompt;
     private final ObjectMapper objectMapper;
 
@@ -34,7 +35,7 @@ public class SummarizingConversationManager implements ConversationManager {
     private int summarizedMessageCount;
 
     public SummarizingConversationManager(Model summaryModel, int maxMessagesBeforeSummary, int preserveRecentMessages) {
-        this(summaryModel, maxMessagesBeforeSummary, preserveRecentMessages, DEFAULT_SYSTEM_PROMPT);
+        this(summaryModel, maxMessagesBeforeSummary, preserveRecentMessages, DEFAULT_SYSTEM_PROMPT, false);
     }
 
     public SummarizingConversationManager(
@@ -42,7 +43,16 @@ public class SummarizingConversationManager implements ConversationManager {
             int maxMessagesBeforeSummary,
             int preserveRecentMessages,
             String systemPrompt) {
-        this(summaryModel, maxMessagesBeforeSummary, preserveRecentMessages, systemPrompt, new ObjectMapper());
+        this(summaryModel, maxMessagesBeforeSummary, preserveRecentMessages, systemPrompt, false);
+    }
+
+    public SummarizingConversationManager(
+            Model summaryModel,
+            int maxMessagesBeforeSummary,
+            int preserveRecentMessages,
+            String systemPrompt,
+            boolean proactiveCompression) {
+        this(summaryModel, maxMessagesBeforeSummary, preserveRecentMessages, systemPrompt, proactiveCompression, new ObjectMapper());
     }
 
     SummarizingConversationManager(
@@ -50,6 +60,7 @@ public class SummarizingConversationManager implements ConversationManager {
             int maxMessagesBeforeSummary,
             int preserveRecentMessages,
             String systemPrompt,
+            boolean proactiveCompression,
             ObjectMapper objectMapper) {
         this.summaryModel = Objects.requireNonNull(summaryModel, "summaryModel must not be null");
         if (maxMessagesBeforeSummary < 2) {
@@ -63,6 +74,7 @@ public class SummarizingConversationManager implements ConversationManager {
         }
         this.maxMessagesBeforeSummary = maxMessagesBeforeSummary;
         this.preserveRecentMessages = preserveRecentMessages;
+        this.proactiveCompression = proactiveCompression;
         this.systemPrompt = systemPrompt == null || systemPrompt.isBlank() ? DEFAULT_SYSTEM_PROMPT : systemPrompt;
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper must not be null");
     }
@@ -81,6 +93,14 @@ public class SummarizingConversationManager implements ConversationManager {
 
     public int getSummarizedMessageCount() {
         return summarizedMessageCount;
+    }
+
+    @Override
+    public void registerHooks(HookRegistrar registrar) {
+        if (!proactiveCompression) {
+            return;
+        }
+        registrar.beforeModelCall(event -> applyManagement(event.messages()));
     }
 
     @Override
@@ -244,7 +264,8 @@ public class SummarizingConversationManager implements ConversationManager {
             }
             splitIndex++;
         }
-        return messages.size();
+        // Fall back to the original candidate so preserveRecentMessages remains effective.
+        return candidate;
     }
 
     private boolean containsToolUse(Message message) {

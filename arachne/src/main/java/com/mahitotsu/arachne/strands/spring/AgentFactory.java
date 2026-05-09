@@ -504,12 +504,13 @@ public class AgentFactory {
         }
 
         private BuilderRuntime resolveRuntime(List<Plugin> resolvedPlugins) {
-            HookRegistry hooks = resolveHooks(resolvedPlugins);
+            ConversationManager resolvedConversationManager = resolveConversationManager();
+            HookRegistry hooks = resolveHooks(resolvedPlugins, resolvedConversationManager);
             return new BuilderRuntime(
                     wrapWithRetryIfNeeded(resolveModel()),
                     resolveTools(resolvedPlugins),
                     hooks,
-                    resolveConversationManager(),
+                resolvedConversationManager,
                     resolveSessionManager(),
                     createEventLoop(hooks));
         }
@@ -602,10 +603,10 @@ public class AgentFactory {
                     .toList();
         }
 
-        private HookRegistry resolveHooks(List<? extends Plugin> resolvedPlugins) {
+        private HookRegistry resolveHooks(List<? extends Plugin> resolvedPlugins, ConversationManager conversationManager) {
             List<HookProvider> resolvedHookProviders = Stream.concat(
                     Stream.concat(discoveredHooks.stream(), hookProviders.stream()),
-                    resolvedPlugins.stream())
+                    Stream.concat(resolvedPlugins.stream(), Stream.of(conversationManager)))
                     .toList();
             if (resolvedHookProviders.isEmpty()) {
                 return new NoOpHookRegistry();

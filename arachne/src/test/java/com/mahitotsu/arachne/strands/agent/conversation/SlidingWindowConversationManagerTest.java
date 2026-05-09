@@ -7,6 +7,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import org.junit.jupiter.api.Test;
 
+import com.mahitotsu.arachne.strands.agent.AgentState;
+import com.mahitotsu.arachne.strands.hooks.BeforeModelCallEvent;
+import com.mahitotsu.arachne.strands.hooks.DispatchingHookRegistry;
 import com.mahitotsu.arachne.strands.types.ContentBlock;
 import com.mahitotsu.arachne.strands.types.Message;
 
@@ -78,8 +81,44 @@ class SlidingWindowConversationManagerTest {
     }
 
     @Test
-    void rejectsNonPositiveWindowSize() {
-        assertThatThrownBy(() -> new SlidingWindowConversationManager(0))
+    void applyManagementFallsBackToCandidateTrimForToolHeavyHistory() {
+        SlidingWindowConversationManager manager = new SlidingWindowConversationManager(1);
+        List<Message> messages = new ArrayList<>(List.of(
+                new Message(Message.Role.USER, List.of(new ContentBlock.ToolResult("tool-1", "one", "success"))),
+                new Message(Message.Role.USER, List.of(new ContentBlock.ToolResult("tool-2", "two", "success"))),
+                new Message(Message.Role.USER, List.of(new ContentBlock.ToolResult("tool-3", "three", "success")))));
+
+        manager.applyManagement(messages);
+
+        assertThat(messages).hasSize(1);
+        assertThat(messages.getFirst().content().getFirst()).isInstanceOf(ContentBlock.ToolResult.class);
+        assertThat(manager.getRemovedMessageCount()).isEqualTo(2);
+    }
+
+    @Test
+    void acceptsZeroWindowSize() {
+        SlidingWindowConversationManager manager = new SlidingWindowConversationManager(0);
+
+        assertThat(manager.getWindowSize()).isZero();
+    }
+
+    @Test
+    void windowSizeZeroClearsAllMessages() {
+        SlidingWindowConversationManager manager = new SlidingWindowConversationManager(0);
+        List<Message> messages = new ArrayList<>(List.of(
+                Message.user("first"),
+                Message.assistant("one"),
+                Message.user("second")));
+
+        manager.applyManagement(messages);
+
+        assertThat(messages).isEmpty();
+        assertThat(manager.getRemovedMessageCount()).isEqualTo(3);
+    }
+
+    @Test
+    void rejectsNegativeWindowSizeWithHelpfulMessage() {
+        assertThatThrownBy(() -> new SlidingWindowConversationManager(-1))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("windowSize");
     }
@@ -98,5 +137,22 @@ class SlidingWindowConversationManagerTest {
         assertThat(new ContextWindowOverflowException("overflow"))
                 .isInstanceOf(ConversationException.class)
                 .hasMessage("overflow");
+    }
+
+    @Test
+    void proactiveCompressionHookTrimsBeforeModelCallWhenEnabled() {
+        SlidingWindowConversationManager manager = new SlidingWindowConversationManager(2, true);
+        List<Message> messages = new ArrayList<>(List.of(
+                Message.user("first"),
+                Message.assistant("one"),
+                Message.user("second"),
+                Message.assistant("two")));
+        DispatchingHookRegistry hooks = DispatchingHookRegistry.fromProviders(List.of(manager));
+
+        hooks.onBeforeModelCall(new BeforeModelCallEvent(messages, List.of(), null, null, new AgentState()));
+
+        assertThat(messages).hasSize(2);
+        assertThat(messages.getFirst().content()).containsExactly(ContentBlock.text("second"));
+        assertThat(manager.getRemovedMessageCount()).isEqualTo(2);
     }
 }

@@ -7,6 +7,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import org.junit.jupiter.api.Test;
 
+import com.mahitotsu.arachne.strands.agent.AgentState;
+import com.mahitotsu.arachne.strands.hooks.BeforeModelCallEvent;
+import com.mahitotsu.arachne.strands.hooks.DispatchingHookRegistry;
 import com.mahitotsu.arachne.strands.model.Model;
 import com.mahitotsu.arachne.strands.model.ModelEvent;
 import com.mahitotsu.arachne.strands.types.ContentBlock;
@@ -170,6 +173,52 @@ class SummarizingConversationManagerTest {
                 new ContentBlock.ToolUse("tool-1", "weather", java.util.Map.of("city", "Tokyo")));
         assertThat(messages.get(2).content().getFirst()).isInstanceOf(ContentBlock.ToolResult.class);
         assertThat(summaryModel.prompts().getFirst()).doesNotContain("calling weather");
+        }
+
+    @Test
+    void applyManagementFallsBackToCandidateSplitForToolHeavyTail() {
+        RecordingSummaryModel summaryModel = new RecordingSummaryModel(List.of("summary one"));
+        SummarizingConversationManager manager = new SummarizingConversationManager(summaryModel, 3, 2);
+        List<Message> messages = new ArrayList<>(List.of(
+                Message.user("first"),
+                Message.assistant("one"),
+                new Message(Message.Role.USER, List.of(new ContentBlock.ToolResult("tool-1", "sunny", "success"))),
+                new Message(Message.Role.USER, List.of(new ContentBlock.ToolResult("tool-2", "cloudy", "success")))));
+
+        manager.applyManagement(messages);
+
+        assertThat(messages).hasSize(3);
+        assertThat(messages.getFirst().content()).containsExactly(
+                ContentBlock.text(SummarizingConversationManager.SUMMARY_MESSAGE_PREFIX + "summary one"));
+        assertThat(messages.get(1).content().getFirst()).isInstanceOf(ContentBlock.ToolResult.class);
+        assertThat(messages.get(2).content().getFirst()).isInstanceOf(ContentBlock.ToolResult.class);
+        assertThat(manager.getSummarizedMessageCount()).isEqualTo(2);
+    }
+
+        @Test
+        void proactiveCompressionHookSummarizesBeforeModelCallWhenEnabled() {
+        RecordingSummaryModel summaryModel = new RecordingSummaryModel(List.of("summary one"));
+        SummarizingConversationManager manager = new SummarizingConversationManager(
+            summaryModel,
+            4,
+            2,
+            SummarizingConversationManager.DEFAULT_SYSTEM_PROMPT,
+            true);
+        List<Message> messages = new ArrayList<>(List.of(
+            Message.user("first"),
+            Message.assistant("one"),
+            Message.user("second"),
+            Message.assistant("two"),
+            Message.user("third"),
+            Message.assistant("three")));
+        DispatchingHookRegistry hooks = DispatchingHookRegistry.fromProviders(List.of(manager));
+
+        hooks.onBeforeModelCall(new BeforeModelCallEvent(messages, List.of(), null, null, new AgentState()));
+
+        assertThat(messages).hasSize(3);
+        assertThat(messages.getFirst().content()).containsExactly(
+            ContentBlock.text(SummarizingConversationManager.SUMMARY_MESSAGE_PREFIX + "summary one"));
+        assertThat(manager.getSummarizedMessageCount()).isEqualTo(4);
         }
 
     private static final class RecordingSummaryModel implements Model {
