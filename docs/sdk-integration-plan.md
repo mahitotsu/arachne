@@ -162,3 +162,51 @@ Integrate high-value changes from `refs/sdk-python` commit range `566e5ada..f862
 - Keep `Agent -> EventLoop -> Model / Tool` readability unchanged.
 - Preserve opt-in behavior by default (especially streaming/steering/provider specifics).
 - Add tests in the same commit scope for each behavioral change.
+
+## Bedrock Live Smoke Evidence (2026-05-09)
+
+Status: completed with live smoke evidence after credential-source alignment and approval-resume enforcement.
+
+Executed commands (from `arachne/docs/repository-facts.md`):
+
+```bash
+cd /home/akring/arachne/arachne
+mvn -Dtest=BedrockModelIntegrationTest \
+   -Darachne.integration.bedrock=true \
+   -Darachne.integration.bedrock.region=ap-northeast-1 \
+   -Darachne.integration.bedrock.model-id=jp.amazon.nova-2-lite-v1:0 \
+   test
+
+cd /home/akring/arachne
+mvn -f samples/pom.xml -pl domain-separation \
+   -Dtest=DomainSeparationBedrockIntegrationTest \
+   -Darachne.integration.bedrock=true \
+   -Darachne.integration.bedrock.region=ap-northeast-1 \
+   -Darachne.integration.bedrock.model-id=jp.amazon.nova-2-lite-v1:0 \
+   test
+```
+
+Observed results:
+
+- Initial direct runs failed with AWS SDK credential-chain resolution (`ProfileCredentialsProvider ... Token is expired`) while `aws sts get-caller-identity` was still successful.
+- Root cause: Java SDK profile-based resolution and AWS CLI credential refresh path were not aligned in this environment.
+- Re-run with explicit short-lived credentials exported from AWS CLI JSON (`aws configure export-credentials --format process`) resolved credential failures.
+- `BedrockModelIntegrationTest`: `BUILD SUCCESS` (`Tests run: 2, Failures: 0, Errors: 0`)
+- `DomainSeparationBedrockIntegrationTest`: `BUILD SUCCESS` (`Tests run: 1, Failures: 0, Errors: 0`)
+- Root cause of the earlier sample failure: after approval resume, Bedrock occasionally produced end-turn text without issuing `execute_account_operation`, leaving workflow state as `RUNNING`.
+- Fix applied in sample workflow hook: when approval is already granted and execution is still missing, the pre-model hook now forces `ToolSelection.force("execute_account_operation")` to preserve the approval-boundary contract.
+
+Credential export pattern that worked for Java SDK execution:
+
+```bash
+CREDS_JSON="$(aws configure export-credentials --profile default --format process)"
+export AWS_ACCESS_KEY_ID="$(jq -r '.AccessKeyId' <<< "$CREDS_JSON")"
+export AWS_SECRET_ACCESS_KEY="$(jq -r '.SecretAccessKey' <<< "$CREDS_JSON")"
+export AWS_SESSION_TOKEN="$(jq -r '.SessionToken' <<< "$CREDS_JSON")"
+unset AWS_PROFILE AWS_DEFAULT_PROFILE
+```
+
+Next action:
+
+1. Keep using explicit exported session credentials (or otherwise ensure Java SDK and CLI use the same valid source) when running Bedrock smoke from non-interactive shells.
+2. Preserve the new hook regression test so approved resume cannot silently regress to `RUNNING` without execution.

@@ -8,13 +8,13 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-
 import com.mahitotsu.arachne.strands.hooks.AfterToolCallEvent;
 import com.mahitotsu.arachne.strands.hooks.BeforeInvocationEvent;
 import com.mahitotsu.arachne.strands.hooks.BeforeModelCallEvent;
 import com.mahitotsu.arachne.strands.hooks.BeforeToolCallEvent;
 import com.mahitotsu.arachne.strands.hooks.HookProvider;
 import com.mahitotsu.arachne.strands.hooks.HookRegistrar;
+import com.mahitotsu.arachne.strands.model.ToolSelection;
 import com.mahitotsu.arachne.strands.spring.ArachneHook;
 import com.mahitotsu.arachne.strands.types.ContentBlock;
 import com.mahitotsu.arachne.strands.types.Message;
@@ -68,6 +68,7 @@ public class DomainSeparationApprovalHook implements HookProvider {
     private void captureResumeApproval(BeforeModelCallEvent event) {
         Message latestMessage = event.messages().isEmpty() ? null : event.messages().getLast();
         if (latestMessage == null || latestMessage.role() != Message.Role.USER) {
+            enforceExecutionToolSelection(event);
             return;
         }
 
@@ -84,8 +85,38 @@ public class DomainSeparationApprovalHook implements HookProvider {
                     Boolean.parseBoolean(String.valueOf(response.get("approved"))),
                     String.valueOf(response.getOrDefault("approverId", "")),
                     String.valueOf(response.getOrDefault("comment", "")));
+            enforceExecutionToolSelection(event);
             return;
         }
+
+        enforceExecutionToolSelection(event);
+    }
+
+    private void enforceExecutionToolSelection(BeforeModelCallEvent event) {
+        Map<String, Object> approval = mapValue(event.state().get(DomainSeparationWorkflowState.APPROVAL));
+        if (approval == null || !Boolean.TRUE.equals(approval.get("approved"))) {
+            return;
+        }
+
+        Map<String, Object> execution = mapValue(event.state().get(DomainSeparationWorkflowState.EXECUTION));
+        if (execution != null) {
+            return;
+        }
+
+        Map<String, Object> preparation = mapValue(event.state().get(DomainSeparationWorkflowState.PREPARATION));
+        String preparedStatus = preparation == null ? null : String.valueOf(preparation.get("preparedStatus"));
+        if (!isUnlockReady(preparedStatus)) {
+            return;
+        }
+
+        boolean hasExecuteTool = event.toolSpecs().stream()
+                .map(spec -> spec.name())
+                .anyMatch("execute_account_operation"::equals);
+        if (!hasExecuteTool) {
+            return;
+        }
+
+        event.setToolSelection(ToolSelection.force("execute_account_operation"));
     }
 
     private void pauseForApproval(BeforeToolCallEvent event) {
