@@ -1,0 +1,80 @@
+---
+title: 実行履歴とメトリクスにより境界の挙動を運用時に再検証できる
+principle: 設計境界は実装時だけでなく運用時にも観測可能であるべき
+fl: Products not Projects / Smart Endpoints and Dumb Pipes
+hypothesis: エージェント導入後も、workflow・agent・downstream の挙動が execution-history と Micrometer で追跡できれば、サービス境界の責務分担を運用中に再検証できる。
+order: 8
+---
+
+## order-service の workflow 観測（OrderServiceApiTest.java）
+
+`order-service` は `delivery.order.workflow` メトリクスを公開し、`suggest` などの操作タグを確認できます。
+
+```java
+// OrderServiceApiTest.java（抜粋）
+ResponseEntity<String> workflowMetric = restTemplate.getForEntity(
+        "/actuator/metrics/delivery.order.workflow",
+        String.class);
+
+assertThat(workflowMetric.getBody()).contains("\"tag\":\"operation\"");
+assertThat(workflowMetric.getBody()).contains("\"suggest\"");
+assertThat(workflowMetric.getBody()).contains("\"tag\":\"outcome\"");
+assertThat(workflowMetric.getBody()).contains("\"success\"");
+```
+
+この確認により、「どの workflow 操作が成功・失敗したか」を運用中に追跡できます。
+
+## order-service の execution-history 観測（OrderServiceApiTest.java）
+
+同じテストで、`/api/order/execution-history/{sessionId}` が `workflow` と `downstream` のイベントを返すことも検証されています。
+
+```java
+// OrderServiceApiTest.java（抜粋）
+assertThat(historyResponse.getBody().events())
+        .extracting(OrderExecutionHistoryEntry::category, OrderExecutionHistoryEntry::operation, OrderExecutionHistoryEntry::outcome)
+        .contains(
+                tuple("downstream", "suggest", "success"),
+                tuple("workflow", "suggest", "success"));
+```
+
+これにより、UI から見える1回の操作を、内部の責務境界（workflow と downstream）に分解して確認できます。
+
+## delivery-service の agent / tool 観測（DeliveryServiceApiTest.java）
+
+`delivery-service` では、エージェント実行を `delivery.agent.invocation`、ツール呼び出しを `delivery.agent.tool.call` として公開しています。
+
+```java
+// DeliveryServiceApiTest.java（抜粋）
+assertThat(metricsIndex.getBody()).contains(
+        "delivery.agent.invocation",
+        "delivery.agent.tool.call",
+        "delivery.agent.usage.tokens");
+assertMetricWithTags("/actuator/metrics/delivery.agent.tool.call?tag=service:delivery-service&tag=agent:delivery-agent&tag=tool:discover_eta_services&tag=outcome:success");
+```
+
+さらに execution-history 側でも `agent` / `model` / `tool` のカテゴリが確認されます。
+
+```java
+// DeliveryServiceApiTest.java（抜粋）
+assertThat(historyResponse.getBody().events())
+    .extracting(DeliveryExecutionHistoryEvent::category)
+    .contains("agent", "model", "tool");
+```
+
+## 観察された振る舞い
+
+- workflow 操作は `delivery.order.workflow` でタグ付きに観測できる。
+- 同一セッションの execution-history では、`workflow` と `downstream` の境界イベントを再構成できる。
+- agent を使う `delivery-service` では、`agent` / `model` / `tool` が独立カテゴリで記録され、サービス境界内の判断経路を追跡できる。
+
+## この観察が支持すること
+
+- 「サービス境界の責務分担」は設計時の説明だけでなく、運用中の観測データで再検証できる。
+- これは Products not Projects の実務面に効く。運用チームは障害時に「どの境界で失敗したか」を根拠付きで追跡できる。
+- エージェント導入後も、Smart Endpoints and Dumb Pipes の境界（workflow / downstream / tool）を可視化して維持できる。
+
+## 確認できる場所
+
+- `food-delivery-demo/order-service/src/test/java/com/mahitotsu/arachne/samples/delivery/orderservice/OrderServiceApiTest.java`
+- `food-delivery-demo/delivery-service/src/test/java/com/mahitotsu/arachne/samples/delivery/deliveryservice/DeliveryServiceApiTest.java`
+- 実行時 API: `GET /actuator/metrics` と `GET /api/order/execution-history/{sessionId}` / `GET /internal/delivery/execution-history/{sessionId}`

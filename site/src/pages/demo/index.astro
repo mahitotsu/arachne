@@ -8,7 +8,7 @@ const designRows = [
   {
     principle: 'AI エージェントは自然言語フロントドアとして追加する',
     impl: 'order-service に order-intake-agent を置いてユーザー入力の一次解釈を担わせ、menu-service・delivery-service・support-service は service-local agent として catalog grounding、ETA 判断、サポート対話を担わせます',
-    check: 'order-service の suggest API が direct item request / recommendation request を正規化し、その handoff を受けた menu-service が明示指定優先で grounded な候補を返す流れで確認できます',
+    check: 'order-service の suggest API が direct item request / recommendation request を正規化し、その handoff を受けた menu-service が明示指定優先で grounded な候補を返す流れで確認できます。自然言語の意図が capability 境界に接続される最初の段です',
     obs: '01-natural-language-front-door',
   },
   {
@@ -32,7 +32,7 @@ const designRows = [
   {
     principle: 'skill は業務知識の公開面として分離する',
     impl: 'menu-service と kitchen-service は商品説明・推薦ロジック・仕込みスケジュール方針を SKILL.md に分離します。スキルの発動条件も SKILL.md のフロントマターに記述し、サービスが起動時に動的に注入します',
-    check: '/agents のスキルタブで system prompt とは別に管理されているスキルドキュメントを確認できます',
+    check: '/agents のスキルタブで system prompt とは別に管理されているスキルドキュメントを確認できます。activationHint は業務担当者が直接関与できる運用面です',
     obs: '05-skill-separation',
     snippet: `# family-order-guide/SKILL.md（フロントマター抜粋）
 ---
@@ -43,7 +43,7 @@ activationHint: 家族・複数人・子ども向けの相談のとき
   {
     principle: 'サービス間の collaborator 解決は capability ベースで動的に行う',
     impl: 'order / kitchen / menu / support / delivery が起動時に registry-service へ自己登録し、ダウンストリーム解決は POST /registry/discover で行います',
-    check: 'delivery-service が外部 ETA アダプターを discover 経由で発見し、ETA を比較して推奨を返すフローで確認できます',
+    check: 'delivery-service が外部 ETA アダプターを discover 経由で発見し、ETA を比較して推奨を返すフローで確認できます。呼び出し元は相手サービス名を固定せず、能力記述で解決します',
     obs: '06-capability-discovery',
   },
   {
@@ -63,7 +63,7 @@ const principles = [
   {
     label: 'Products not Projects',
     tension: 'system prompt や skill ドキュメントは管理責任が曖昧になりやすい。エンジニア以外が更新できない形になると内容が古くなる。',
-    evidence: 'system prompt と skill は各サービスのソースコードとして管理される。skill には activationHint が YAML フロントマターで書かれ、業務担当者がコードを触らずに適用条件を変更できる。DeterministicModel パターンにより振る舞いは再現可能な形でテストされている。',
+    evidence: 'system prompt と skill は各サービスのソースコードとして管理される。skill には activationHint が YAML フロントマターで書かれ、業務担当者がコードを触らずに適用条件を変更できる。DeterministicModel パターンにより振る舞いは再現可能な形でテストされている。これによりワンチーム運用での業務側の関与深度が上がる。',
     where: '/agents のスキルタブ、testing-agents Essay',
   },
   {
@@ -75,7 +75,7 @@ const principles = [
   {
     label: 'Decentralized Governance / Decentralized Data Management',
     tension: 'サービスが互いを直接参照すると、デプロイの独立性が失われる。registry を使っても、使い方次第で中央集権的な構造になりうる。',
-    evidence: 'サービス間の collaborator 解決は POST /registry/discover（capability クエリ駆動）で行う。GET /registry/services は viewer 用途に分離し、サービス間の直接依存には使わない。各サービスは起動時に自己登録し、registry が落ちても既存の接続は維持される。',
+    evidence: 'サービス間の collaborator 解決は POST /registry/discover（capability クエリ駆動）で行う。GET /registry/services は viewer 用途に分離し、サービス間の直接依存には使わない。各サービスは起動時に自己登録し、registry が落ちても既存の接続は維持される。呼び出し元が相手のサービス名を持たないことで、独立進化の障壁を下げられる。',
     where: 'registry-service 行、capability-discovery Essay、/agents のサービスカード',
   },
 ];
@@ -93,14 +93,14 @@ const services = [
     port: '8081',
     role: 'catalog grounding・代替候補提示',
     agent: true,
-    note: 'order-service から受け取った正規化済み意図を live catalog に grounded な提案へ落とし込みます。direct item request では alias-based explicit match を優先し、exact match がない場合は menu-side alternatives だと明示します。欠品時は kitchen-service と連携して代替候補を提示します。',
+    note: 'order-service から受け取った正規化済み意図を live catalog に grounded な提案へ落とし込みます。direct item request では alias-based explicit match を優先し、exact match がない場合は menu-side alternatives だと明示します。欠品時は kitchen-service と連携して代替候補を提示します。skill の activationHint は業務担当者が直接更新できる面です。',
   },
   {
     name: 'kitchen-service',
     port: '8082',
     role: 'キッチン状況管理',
     agent: true,
-    note: '厨房のキャパシティと仕込み状況を管理します。注文確定時に準備スケジュールを調整し、混雑時は代替提案をエージェントが生成します。',
+    note: '厨房のキャパシティと仕込み状況を管理します。注文確定時に準備スケジュールを調整し、混雑時は代替提案をエージェントが生成します。業務知識は SKILL.md 側で管理でき、コード変更と分離されています。',
   },
   {
     name: 'delivery-service',
@@ -188,6 +188,18 @@ const surfaces = [
       このデモの主眼は、サービス数やエージェント数ではありません。<strong>各原則で何がぶつかりやすく、どう対応したか</strong>を確認することです。
       以下に、原則ごとの「両立が難しいポイント」と、その確認場所を対応させています。
     </p>
+    <p style="margin-top: 16px; padding: 12px; background: var(--bg-alt); border-left: 3px solid var(--accent); font-size: 0.95rem">
+      <strong>既存システムへの段階的導入を想定している場合：</strong> 以下の検証・統合優先度を参考にしてください。この順序は既存の設計原則から導出されており、各ステップで原則を損なわずに統合できます。
+      <br/><br/>
+      <strong>ステップ1：外付け会話窓口から始める</strong>（support-service 相当）
+      既存 API に一切の変更を加えず、独立した会話インターフェースを追加します。リスクが最小で、チームがエージェント運用に慣れるフェーズです。
+      <br/>
+      <strong>ステップ2：自然言語フロントドアを入口に追加する</strong>（order-intake-agent 相当）
+      既存 API 契約を変えず、API の手前に自然言語解釈層を追加します。入出力の型が既存システムと一致することで、変更の局所性が保証されます。
+      <br/>
+      <strong>ステップ3：service-local agent に展開する</strong>（menu-service / delivery-service 相当）
+      各サービスが独自の system prompt・skill・tool で判断を担うようにします。この段階で DeterministicModel パターンによるテスト整備の重要性が明らかになります。
+    </p>
   </section>
 
   <section class="panel">
@@ -216,8 +228,8 @@ const surfaces = [
     OS --> PS
     OS -.->|post-order| SS
     MS --> KS
-    OS -->|discover| RS
-    DS -->|discover| RS
+    OS -->|discover by capability\n(サービス名非依存)| RS
+    DS -->|discover by capability\n(サービス名非依存)| RS
     RS --> HA
     RS --> IA
     RS -. not available .-> IC
@@ -243,6 +255,7 @@ const surfaces = [
     B->>OS: POST /api/order/suggest
     OS->>OA: normalize intent
     OA-->>OS: NormalizedOrderIntent
+    Note right of OA: 自然言語意図を capability 境界へ接続
     OS->>MS: grounding handoff
     MS->>KS: inventory check
     KS-->>MS: stock + ETA

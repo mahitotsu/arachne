@@ -5,7 +5,7 @@ import SiteLayout from '../../layouts/SiteLayout.astro';
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
 const verificationScope =
-  'この結論は、food-delivery-demo の Observation 記録（コード断片・API 仕様・実行記録）を根拠にしています。ここで確認していない環境・期間・運用条件には、そのまま当てはめません。';
+  'この結論は、food-delivery-demo の Observation 記録（コード断片・API 仕様・実行記録）を根拠にしています。ここで確認していない環境・期間・運用条件には、そのまま当てはめません。重要な限定：この評決は、設計者自身が仮説に沿って設計・実装した demo への適用記録であり、独立した第三者による検証や、既存システムへの後付け適用を確認したものではありません。';
 
 const quickSummary = [
   'order-service と menu-service は、同じ LLM バックエンドを使っていても、各サービスが独立した prompt と tool で動いていた。境界は HTTP 契約で保たれていた。',
@@ -17,8 +17,11 @@ const quickSummary = [
 
 const verdict = {
   statement: 'このサイトで検証した範囲では、5 つの設計原則は両立でき、Fowler/Lewis の 4 特性とも矛盾しなかった。',
-  basis: '根拠は food-delivery-demo の Observation 記録（obs-01〜obs-07）。各原則について、後から再確認できる振る舞いを示した。未観測の環境や条件は、この結論の対象外とする。',
+  basis: '根拠は food-delivery-demo の Observation 記録（obs-01〜obs-08）。各原則について、後から再確認できる振る舞いを示した。未観測の環境や条件は、この結論の対象外とする。',
 };
+
+const secondStageVerdict =
+  '観察から見えてきたのは、整合性の確認にとどまりません。自然言語フロントドアは機能境界と利用者の意図の接続を強め、skill document はワンチーム内で業務側が直接関与できる運用深度を広げ、capability-based discovery は名指し依存を弱めました。これらは、マイクロサービスが掲げていた理想を、AI エージェント導入によってより実装可能な形へ前進させる方向を示しています。';
 
 const arguments_ = [
   {
@@ -108,6 +111,7 @@ const openQuestions = [
   'チームが複数あるとき、skill ドキュメントの所有権と変更権限をどう分けるか。',
   '複数サービスで同じ LLM バックエンドを使うとき、モデル選択・バージョン管理・コスト配分の責任分界をどう決めるか。',
   'capability クエリの書き方がサービスごとにばらつく場合、discover の信頼性をどう担保するか。',
+  'food-delivery-demo 単体断面では立証しきれない論点（後付け導入、長期運用での変化耐性）は、既存 Observation と混ぜずに別トラックの「追加検証」として段階的に公開する。',
 ];
 
 const implementationConstraints = [
@@ -147,6 +151,9 @@ const implementationConstraints = [
     <p class="panel__eyebrow">評決</p>
     <p style="font-size:1.05rem; font-weight:600; margin-bottom:12px">{verdict.statement}</p>
     <p>{verdict.basis}</p>
+    <p style="margin-top:12px; padding:10px 12px; border-left:3px solid var(--accent); background:var(--bg-alt); font-size:0.95rem; color:var(--text-muted)">
+      {secondStageVerdict}
+    </p>
   </section>
 
   <section class="panel">
@@ -219,6 +226,9 @@ const implementationConstraints = [
           <li style="margin-bottom:8px">{q}</li>
         ))}
       </ul>
+      <p style="font-size:0.85rem; color:var(--text-muted); margin-top:10px">
+        方針メモ: 追加検証は価値が高い一方、現在の結論根拠（obs-01〜obs-08）とは証拠線を分離して扱います。
+      </p>
     </article>
     <article class="panel panel--soft">
       <p class="panel__eyebrow">実装上の制約（設計の否定ではないもの）</p>
