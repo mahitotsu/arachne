@@ -82,4 +82,25 @@ public interface Agent {
      * Session-scoped state available to this agent.
      */
     AgentState getState();
+
+    /**
+     * Capture the current runtime state as an in-memory snapshot.
+     */
+    default AgentSnapshot takeSnapshot() {
+        return takeSnapshot(java.util.Map.of());
+    }
+
+    /**
+     * Capture the current runtime state as an in-memory snapshot with app metadata.
+     */
+    default AgentSnapshot takeSnapshot(java.util.Map<String, Object> appData) {
+        throw new UnsupportedOperationException("Snapshot capture is not supported by this agent implementation.");
+    }
+
+    /**
+     * Restore runtime state from a previously captured snapshot.
+     */
+    default void loadSnapshot(AgentSnapshot snapshot) {
+        throw new UnsupportedOperationException("Snapshot restore is not supported by this agent implementation.");
+    }
 }

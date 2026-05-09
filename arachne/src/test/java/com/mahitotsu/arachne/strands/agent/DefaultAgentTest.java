@@ -1,6 +1,7 @@
 package com.mahitotsu.arachne.strands.agent;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -28,12 +29,32 @@ import com.mahitotsu.arachne.strands.tool.Tool;
 import com.mahitotsu.arachne.strands.tool.ToolResult;
 import com.mahitotsu.arachne.strands.types.ContentBlock;
 import com.mahitotsu.arachne.strands.types.Message;
+
 import jakarta.validation.constraints.NotBlank;
 
 /**
  * Unit tests for {@link DefaultAgent}.
  */
 class DefaultAgentTest {
+
+    private static final class TrackingConversationManager extends NoOpConversationManager {
+
+        private Map<String, Object> restoredState = Map.of();
+
+        @Override
+        public Map<String, Object> getState() {
+            return Map.of("type", "TrackingConversationManager", "windowSize", 7);
+        }
+
+        @Override
+        public void restore(Map<String, Object> state) {
+            restoredState = state == null ? Map.of() : new java.util.LinkedHashMap<>(state);
+        }
+
+        Map<String, Object> restoredState() {
+            return restoredState;
+        }
+    }
 
     private static final class RecordingModel implements Model {
 
@@ -658,6 +679,88 @@ class DefaultAgentTest {
             assertThat(restoredAgent.getMessages().getFirst().content().getFirst())
                 .isEqualTo(com.mahitotsu.arachne.strands.types.ContentBlock.text(
                     SummarizingConversationManager.SUMMARY_MESSAGE_PREFIX + "summary"));
+            }
+
+            @Test
+            void takeSnapshotCapturesSessionFieldsAndAppDataAsIndependentCopies() {
+            NoOpHookRegistry hooks = new NoOpHookRegistry();
+            EventLoop eventLoop = new EventLoop(hooks);
+            DefaultAgent agent = new DefaultAgent(stubModel("Pong"), List.of(), eventLoop, hooks);
+
+            agent.getState().put("city", "Tokyo");
+            agent.run("Ping 1");
+
+            Map<String, Object> appData = new java.util.LinkedHashMap<>();
+            appData.put("tenant", "acme");
+            appData.put("meta", new java.util.LinkedHashMap<>(Map.of("region", "ap-northeast-1")));
+
+            AgentSnapshot snapshot = agent.takeSnapshot(appData);
+
+            agent.getState().put("city", "Osaka");
+            agent.run("Ping 2");
+            @SuppressWarnings("unchecked")
+            Map<String, Object> mutableMeta = (Map<String, Object>) appData.get("meta");
+            mutableMeta.put("region", "us-east-1");
+
+            assertThat(snapshot.scope()).isEqualTo(AgentSnapshot.SCOPE_AGENT);
+            assertThat(snapshot.schemaVersion()).isEqualTo(AgentSnapshot.SCHEMA_VERSION_1_0);
+            assertThat(((List<?>) snapshot.data().get(AgentSnapshot.FIELD_MESSAGES))).hasSize(2);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> snapshotState = (Map<String, Object>) snapshot.data().get(AgentSnapshot.FIELD_STATE);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> snapshotMeta = (Map<String, Object>) snapshot.appData().get("meta");
+            assertThat(snapshotState).containsEntry("city", "Tokyo");
+            assertThat(snapshotMeta).containsEntry("region", "ap-northeast-1");
+            }
+
+            @Test
+            void loadSnapshotRestoresOnlyFieldsIncludedInSnapshotData() {
+            NoOpHookRegistry hooks = new NoOpHookRegistry();
+            EventLoop eventLoop = new EventLoop(hooks);
+            DefaultAgent agent = new DefaultAgent(stubModel("Pong"), List.of(), eventLoop, hooks);
+
+            agent.getState().put("city", "Tokyo");
+            agent.run("Ping 1");
+
+            AgentSnapshot stateOnlySnapshot = new AgentSnapshot(
+                Map.of(AgentSnapshot.FIELD_STATE, Map.of("city", "Kyoto")),
+                Map.of());
+
+            agent.loadSnapshot(stateOnlySnapshot);
+
+            assertThat(agent.getState().get("city")).isEqualTo("Kyoto");
+            assertThat(agent.getMessages()).hasSize(2);
+            assertThat(agent.getMessages().getFirst()).isEqualTo(Message.user("Ping 1"));
+            }
+
+            @Test
+            void loadSnapshotRestoresConversationManagerAndInterruptState() {
+            NoOpHookRegistry hooks = new NoOpHookRegistry();
+            EventLoop eventLoop = new EventLoop(hooks);
+            TrackingConversationManager trackingManager = new TrackingConversationManager();
+            DefaultAgent agent = new DefaultAgent(
+                stubModel("Pong"),
+                List.of(),
+                eventLoop,
+                hooks,
+                null,
+                com.mahitotsu.arachne.strands.tool.BeanValidationSupport.defaultValidator(),
+                trackingManager,
+                null,
+                null,
+                new AgentState());
+
+            AgentInterrupt interrupt = new AgentInterrupt("i-1", "approval", Map.of("kind", "manual"), "tool-1", "approvalTool", Map.of(), "reason");
+            AgentSnapshot snapshot = new AgentSnapshot(
+                Map.of(
+                    AgentSnapshot.FIELD_CONVERSATION_MANAGER_STATE, Map.of("windowSize", 9),
+                    AgentSnapshot.FIELD_INTERRUPT_STATE, List.of(interrupt)),
+                Map.of());
+
+            agent.loadSnapshot(snapshot);
+
+            assertThat(trackingManager.restoredState()).containsEntry("windowSize", 9);
+            assertThat(agent.getPendingInterrupts()).singleElement().isEqualTo(interrupt);
             }
 
     record WeatherSummary(String answer, double confidence) {

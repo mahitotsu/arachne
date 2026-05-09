@@ -71,6 +71,29 @@ Integrate high-value changes from `refs/sdk-python` commit range `566e5ada..f862
 - Wired strict-tools propagation through `AgentFactoryModelResolver` default/merge/copy/override detection paths.
 - Added deterministic regression tests for request shaping, default propagation, named override propagation, and property binding containers.
 
+### Slice 6: Snapshot/State Parity (Non-breaking Subset)
+- Added new in-memory snapshot contract to `Agent`:
+   - `takeSnapshot()`
+   - `takeSnapshot(Map<String, Object> appData)`
+   - `loadSnapshot(AgentSnapshot snapshot)`
+- Introduced `AgentSnapshot` as a versioned runtime snapshot payload with:
+   - `scope=agent`
+   - `schemaVersion=1.0`
+   - `createdAt`
+   - `data`
+   - `appData`
+- Snapshot `data` fields currently captured/restored in Java parity subset:
+   - `messages`
+   - `state`
+   - `conversation_manager_state`
+   - `interrupt_state`
+- `loadSnapshot(...)` restores only fields present in `snapshot.data`, leaving absent fields unchanged.
+- Snapshot restore path reuses existing runtime/session contracts (`AgentSession` + `ConversationManager.restore(...)`) to avoid contract drift.
+- Added deterministic `DefaultAgentTest` coverage for:
+   - snapshot deep-copy behavior for state/appData
+   - partial restore semantics (field-presence based)
+   - conversation-manager state + pending interrupt restore
+
 ### Validation Result
 - Focused: `mvn -pl arachne -Dtest=SlidingWindowConversationManagerTest test` passed.
 - Focused: `mvn -pl arachne -Dtest=SummarizingConversationManagerTest test` passed.
@@ -79,13 +102,12 @@ Integrate high-value changes from `refs/sdk-python` commit range `566e5ada..f862
 - Module regression: `mvn -pl arachne test` passed.
 - Focused (module dir): `cd arachne && mvn -Dtest=BedrockModelRequestTest,AgentFactoryTest,AgentFactoryDefaultsResolverTest,ArachnePropertiesTest test` passed.
 - Module regression (module dir): `cd arachne && mvn test` passed.
+- Focused (module dir): `cd arachne && mvn -Dtest=DefaultAgentTest test` passed.
+- Module regression re-run (module dir): `cd arachne && mvn test` passed.
 
 ## Next Integration Slices
 
-1. **Snapshot/state parity subset**
-   - Compare Python snapshot APIs with existing Java session/state contracts and add missing non-breaking APIs.
-
-2. **Telemetry parity subset**
+1. **Telemetry parity subset**
    - Port deterministic, provider-agnostic telemetry improvements first.
 
 ## Guardrails

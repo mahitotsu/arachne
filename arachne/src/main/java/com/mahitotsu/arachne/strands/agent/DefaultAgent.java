@@ -362,6 +362,47 @@ public class DefaultAgent implements Agent {
         return state;
     }
 
+    @Override
+    public AgentSnapshot takeSnapshot() {
+        return takeSnapshot(Map.of());
+    }
+
+    @Override
+    public AgentSnapshot takeSnapshot(Map<String, Object> appData) {
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put(AgentSnapshot.FIELD_MESSAGES, List.copyOf(messages));
+        data.put(AgentSnapshot.FIELD_STATE, state.get());
+        data.put(AgentSnapshot.FIELD_CONVERSATION_MANAGER_STATE, conversationManager.getState());
+        data.put(AgentSnapshot.FIELD_INTERRUPT_STATE, List.copyOf(pendingInterrupts));
+        return new AgentSnapshot(data, appData);
+    }
+
+    @Override
+    public void loadSnapshot(AgentSnapshot snapshot) {
+        Objects.requireNonNull(snapshot, "snapshot must not be null");
+        snapshot.validate();
+
+        Map<String, Object> snapshotData = snapshot.data();
+
+        if (snapshotData.containsKey(AgentSnapshot.FIELD_MESSAGES)) {
+            messages.clear();
+            messages.addAll(readMessages(snapshotData.get(AgentSnapshot.FIELD_MESSAGES)));
+        }
+        if (snapshotData.containsKey(AgentSnapshot.FIELD_STATE)) {
+            state.replaceWith(asMap(snapshotData.get(AgentSnapshot.FIELD_STATE), AgentSnapshot.FIELD_STATE));
+        }
+        if (snapshotData.containsKey(AgentSnapshot.FIELD_CONVERSATION_MANAGER_STATE)) {
+            conversationManager.restore(asMap(
+                    snapshotData.get(AgentSnapshot.FIELD_CONVERSATION_MANAGER_STATE),
+                    AgentSnapshot.FIELD_CONVERSATION_MANAGER_STATE));
+        }
+        if (snapshotData.containsKey(AgentSnapshot.FIELD_INTERRUPT_STATE)) {
+            pendingInterrupts = readInterrupts(snapshotData.get(AgentSnapshot.FIELD_INTERRUPT_STATE));
+        }
+
+        persistSession();
+    }
+
     @SuppressWarnings("unchecked")
     private AgentResult runWithDefaultStructuredOutput(String prompt) {
         return run(prompt, (Class<Object>) defaultStructuredOutputType, structuredOutputPrompt);
@@ -526,5 +567,63 @@ public class DefaultAgent implements Agent {
     private record StructuredInvocation<T>(
             StructuredOutputContext<T> structuredOutputContext,
             List<Tool> invocationTools) {
+    }
+
+    private Map<String, Object> asMap(Object value, String fieldName) {
+        if (!(value instanceof Map<?, ?> raw)) {
+            throw new IllegalArgumentException("Snapshot field '" + fieldName + "' must be a map.");
+        }
+        LinkedHashMap<String, Object> normalized = new LinkedHashMap<>();
+        for (Map.Entry<?, ?> entry : raw.entrySet()) {
+            normalized.put(String.valueOf(entry.getKey()), copyValue(entry.getValue()));
+        }
+        return normalized;
+    }
+
+    private List<Message> readMessages(Object value) {
+        if (!(value instanceof List<?> rawList)) {
+            throw new IllegalArgumentException("Snapshot field '" + AgentSnapshot.FIELD_MESSAGES + "' must be a list.");
+        }
+        List<Message> restored = new ArrayList<>(rawList.size());
+        for (Object item : rawList) {
+            if (!(item instanceof Message message)) {
+                throw new IllegalArgumentException("Snapshot field '" + AgentSnapshot.FIELD_MESSAGES + "' contains a non-message value.");
+            }
+            restored.add(message);
+        }
+        return List.copyOf(restored);
+    }
+
+    private List<AgentInterrupt> readInterrupts(Object value) {
+        if (!(value instanceof List<?> rawList)) {
+            throw new IllegalArgumentException("Snapshot field '" + AgentSnapshot.FIELD_INTERRUPT_STATE + "' must be a list.");
+        }
+        List<AgentInterrupt> restored = new ArrayList<>(rawList.size());
+        for (Object item : rawList) {
+            if (!(item instanceof AgentInterrupt interrupt)) {
+                throw new IllegalArgumentException(
+                        "Snapshot field '" + AgentSnapshot.FIELD_INTERRUPT_STATE + "' contains a non-interrupt value.");
+            }
+            restored.add(interrupt);
+        }
+        return List.copyOf(restored);
+    }
+
+    private Object copyValue(Object value) {
+        if (value instanceof Map<?, ?> mapValue) {
+            LinkedHashMap<String, Object> copied = new LinkedHashMap<>();
+            for (Map.Entry<?, ?> entry : mapValue.entrySet()) {
+                copied.put(String.valueOf(entry.getKey()), copyValue(entry.getValue()));
+            }
+            return copied;
+        }
+        if (value instanceof List<?> listValue) {
+            List<Object> copied = new ArrayList<>(listValue.size());
+            for (Object item : listValue) {
+                copied.add(copyValue(item));
+            }
+            return copied;
+        }
+        return value;
     }
 }
