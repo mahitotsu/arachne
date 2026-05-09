@@ -90,6 +90,30 @@ Choose the smallest reference that matches your integration goal.
 
 These points matter in real usage today.
 
+## Python SDK Parity Snapshot
+
+The current branch has integrated the high-impact parity changes analyzed from
+`refs/sdk-python` (`566e5ada..f8621853`) that are inside Arachne's shipped boundary.
+
+Integrated parity areas:
+
+- conversation management parity: `window_size=0` behavior, tighter negative-value
+	validation, tool-heavy trim/split fallback, and proactive compression hook paths
+- Bedrock parity (opt-in): `serviceTier` and `strictTools`
+- snapshot/state parity (non-breaking subset): `takeSnapshot()`,
+	`takeSnapshot(Map<String, Object>)`, and `loadSnapshot(AgentSnapshot)`
+- telemetry/metrics parity at the existing observation boundary:
+	per-invocation usage exposure and `AgentResult.metrics().projectedContextSize()`
+- token/context accounting parity (non-breaking subset):
+	`Model.countTokens(...)` and `BeforeModelCallEvent.projectedInputTokens()`
+
+Boundary notes:
+
+- MCP and A2A parity deltas remain intentionally deferred and are not current shipped
+	Arachne parity targets.
+- span-tracer-specific telemetry parity is also deferred until Arachne introduces
+	a first-class tracing/span API boundary.
+
 - the only built-in model provider is AWS Bedrock
 - the main event loop is blocking; streaming is an opt-in callback path layered on top
 - streaming is output-only and does not provide bidirectional realtime or audio transport

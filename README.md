@@ -20,6 +20,7 @@ If you are evaluating or integrating Arachne, read these first:
 Use those documents for the detailed API, configuration surface, current constraints, and runnable sample selection.
 
 Treat [arachne/docs/project-status.md](arachne/docs/project-status.md) as the canonical source of truth for feature availability, shipped boundaries, and current constraints on this branch.
+Python SDK追従状況の恒久サマリも [arachne/docs/project-status.md](arachne/docs/project-status.md) に集約しています。
 
 ## Repository Layout
 
