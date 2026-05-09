@@ -14,6 +14,7 @@ public final class BeforeModelCallEvent {
     private final List<ToolSpec> toolSpecs;
     private String systemPrompt;
     private ToolSelection toolSelection;
+    private final Integer projectedInputTokens;
     private final AgentState state;
 
     public BeforeModelCallEvent(
@@ -21,11 +22,13 @@ public final class BeforeModelCallEvent {
             List<ToolSpec> toolSpecs,
             String systemPrompt,
             ToolSelection toolSelection,
+            Integer projectedInputTokens,
             AgentState state) {
         this.messages = Objects.requireNonNull(messages, "messages must not be null");
         this.toolSpecs = List.copyOf(Objects.requireNonNull(toolSpecs, "toolSpecs must not be null"));
         this.systemPrompt = systemPrompt;
         this.toolSelection = toolSelection;
+        this.projectedInputTokens = projectedInputTokens;
         this.state = Objects.requireNonNull(state, "state must not be null");
     }
 
@@ -51,6 +54,10 @@ public final class BeforeModelCallEvent {
 
     public void setToolSelection(ToolSelection toolSelection) {
         this.toolSelection = toolSelection;
+    }
+
+    public Integer projectedInputTokens() {
+        return projectedInputTokens;
     }
 
     public AgentState state() {

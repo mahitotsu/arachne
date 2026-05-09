@@ -40,6 +40,8 @@ import software.amazon.awssdk.services.bedrockruntime.model.ConverseResponse;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamMetadataEvent;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamOutput;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamResponseHandler;
+import software.amazon.awssdk.services.bedrockruntime.model.CountTokensRequest;
+import software.amazon.awssdk.services.bedrockruntime.model.CountTokensResponse;
 import software.amazon.awssdk.services.bedrockruntime.model.MessageStopEvent;
 import software.amazon.awssdk.services.bedrockruntime.model.StopReason;
 import software.amazon.awssdk.services.bedrockruntime.model.TokenUsage;
@@ -297,6 +299,56 @@ class BedrockModelRequestTest {
                 new ModelEvent.ToolUse("tool-1", "weather", Map.of("city", "Tokyo")),
                 new ModelEvent.Metadata("end_turn", ModelEvent.ZERO_USAGE));
         }
+
+    @Test
+    void countTokensBuildsConverseTokenRequestFromMessagesSystemPromptAndTools() {
+        AtomicBoolean called = new AtomicBoolean(false);
+        BedrockRuntimeClient client = (BedrockRuntimeClient) Proxy.newProxyInstance(
+            BedrockRuntimeClient.class.getClassLoader(),
+            new Class<?>[]{BedrockRuntimeClient.class},
+            (proxy, method, args) -> {
+                if (method.getName().equals("serviceName")) {
+                    return "BedrockRuntime";
+                }
+                if (method.getName().equals("close")) {
+                    return null;
+                }
+                if (method.getName().equals("countTokens")) {
+                    called.set(true);
+                    CountTokensRequest request = (CountTokensRequest) args[0];
+                    assertThat(request.modelId()).isEqualTo("test-model");
+                    assertThat(request.input().converse().messages()).hasSize(1);
+                    assertThat(request.input().converse().messages().getFirst().content().getFirst().text()).isEqualTo("hello");
+                    assertThat(request.input().converse().system()).hasSize(1);
+                    assertThat(request.input().converse().system().getFirst().text()).isEqualTo("Be concise.");
+                    assertThat(request.input().converse().toolConfig().toolChoice().tool().name()).isEqualTo("structured_output");
+                    return CountTokensResponse.builder().inputTokens(42).build();
+                }
+                throw new UnsupportedOperationException(method.getName());
+            });
+        BedrockModel model = new BedrockModel(client, null, "test-model");
+
+        Integer count = model.countTokens(
+            List.of(Message.user("hello")),
+            List.of(new ToolSpec("structured_output", "Final schema", null)),
+            "Be concise.",
+            ToolSelection.force("structured_output"));
+
+        assertThat(called).isTrue();
+        assertThat(count).isEqualTo(42);
+    }
+
+    @Test
+    void countTokensTranslatesSynchronousClientFailures() {
+        BedrockModel model = new BedrockModel(
+            clientFailing(new ServiceUnavailableException("temporary outage")),
+            null,
+            "test-model");
+
+        assertThatThrownBy(() -> model.countTokens(List.of(Message.user("hello")), List.of(), null, null))
+            .isInstanceOf(ModelRetryableException.class)
+            .hasMessageContaining("Bedrock temporarily failed the model request");
+    }
 
     @Test
     void buildStreamRequestIncludesPromptCachingAndForcedToolChoice() throws Exception {
@@ -774,7 +826,7 @@ class BedrockModelRequestTest {
                 if (method.getName().equals("close")) {
                     return null;
                 }
-                if (method.getName().equals("converse")) {
+                if (method.getName().equals("converse") || method.getName().equals("countTokens")) {
                     throw failure;
                 }
                 throw new UnsupportedOperationException(method.getName());

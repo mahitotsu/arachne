@@ -18,6 +18,7 @@ For full usage details, see [user-guide.md](user-guide.md).
 - Spring integration boundary keeps shared bean wiring in `ArachneAutoConfiguration` and runtime-local default resolution in `AgentFactory.builder(...)`
 - `AgentFactory.builder()` and `AgentFactory.builder("name")` for runtime-local agent creation
 - Bedrock-backed `Agent.run(String)`, `Agent.run(String, Class<T>)`, and `Agent.run(String, Class<T>, String)`, all returning `AgentResult`
+- provider-optional pre-invocation token estimation via `Model.countTokens(...)` with graceful fallback when unsupported
 - callback-based `Agent.stream(String, Consumer<AgentStreamEvent>)` plus structured-output overloads
 - configuration-driven defaults for model, system prompt, retry, conversation window, sessions, and built-ins
 
@@ -33,6 +34,7 @@ For full usage details, see [user-guide.md](user-guide.md).
 - structured output with generated JSON schema, optional builder-level defaults, custom force prompts, and runtime validation
 - Spring-managed `ArachneTemplateRenderer` for deterministic `T -> String` rendering after structured output completes
 - `AgentResult.metrics()` usage reporting, including Bedrock cache read/write token counters
+- `AgentResult.metrics().projectedContextSize()` as the derived next-turn baseline context size (`inputTokens + outputTokens`) when usage metadata is available
 
 ### Conversation And Sessions
 
@@ -54,6 +56,7 @@ For full usage details, see [user-guide.md](user-guide.md).
 ### Extensions And Control
 
 - lifecycle hooks through `HookProvider` and `HookRegistrar`
+- `BeforeModelCallEvent.projectedInputTokens()` for hook-level access to projected model-call input size
 - runtime-local `Plugin` bundling for hooks and tools
 - Spring hook discovery with `@ArachneHook`
 - observation-only Spring `ApplicationEvent` bridge

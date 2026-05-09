@@ -493,6 +493,7 @@ public class DefaultAgent implements Agent {
                 loopResult.text(),
                 messages,
                 loopResult.stopReason(),
+                loopResult.usage(),
                 state));
     }
 

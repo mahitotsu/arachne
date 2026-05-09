@@ -30,6 +30,7 @@ public final class ApplicationEventPublishingHookProvider implements HookProvide
                         event.prompt(),
                         null,
                         null,
+                        null,
                         List.copyOf(event.messages()),
                         Map.copyOf(event.state().get()))));
         registrar.afterInvocation(event -> publish(
@@ -39,6 +40,7 @@ public final class ApplicationEventPublishingHookProvider implements HookProvide
                         null,
                         event.text(),
                         event.stopReason(),
+                        event.usage(),
                         List.copyOf(event.messages()),
                         Map.copyOf(event.state().get()))));
         registrar.messageAdded(event -> publish(

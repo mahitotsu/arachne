@@ -149,7 +149,7 @@ class SlidingWindowConversationManagerTest {
                 Message.assistant("two")));
         DispatchingHookRegistry hooks = DispatchingHookRegistry.fromProviders(List.of(manager));
 
-        hooks.onBeforeModelCall(new BeforeModelCallEvent(messages, List.of(), null, null, new AgentState()));
+        hooks.onBeforeModelCall(new BeforeModelCallEvent(messages, List.of(), null, null, null, new AgentState()));
 
         assertThat(messages).hasSize(2);
         assertThat(messages.getFirst().content()).containsExactly(ContentBlock.text("second"));

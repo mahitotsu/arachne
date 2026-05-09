@@ -16,6 +16,7 @@ import com.mahitotsu.arachne.strands.hooks.HookProvider;
 import com.mahitotsu.arachne.strands.hooks.NoOpHookRegistry;
 import com.mahitotsu.arachne.strands.model.Model;
 import com.mahitotsu.arachne.strands.model.ModelEvent;
+import com.mahitotsu.arachne.strands.model.ModelException;
 import com.mahitotsu.arachne.strands.model.StreamingModel;
 import com.mahitotsu.arachne.strands.model.ToolSelection;
 import com.mahitotsu.arachne.strands.model.ToolSpec;
@@ -200,6 +201,78 @@ class DefaultAgentTest {
                 "messageAdded:USER",
                 "messageAdded:ASSISTANT",
                 "afterInvocation:model reply");
+    }
+
+    @Test
+    void runExposesPerInvocationUsageToAfterInvocationHooks() {
+        List<ModelEvent.Usage> observedUsage = new java.util.ArrayList<>();
+        HookProvider hookProvider = registrar -> registrar
+                .afterInvocation(event -> observedUsage.add(event.usage()));
+        DispatchingHookRegistry hooks = DispatchingHookRegistry.fromProviders(List.of(hookProvider));
+        EventLoop eventLoop = new EventLoop(hooks);
+        DefaultAgent agent = new DefaultAgent(stubModel("model reply"), List.of(), eventLoop, hooks);
+
+        AgentResult result = agent.run("hello");
+
+        assertThat(result.metrics().usage()).isEqualTo(new ModelEvent.Usage(10, 5, 0, 0));
+        assertThat(observedUsage).containsExactly(new ModelEvent.Usage(10, 5, 0, 0));
+    }
+
+    @Test
+    void runExposesProjectedInputTokensToBeforeModelCallHooks() {
+        List<Integer> observedProjectedTokens = new java.util.ArrayList<>();
+        Model model = new Model() {
+            @Override
+            public Iterable<ModelEvent> converse(List<Message> messages, List<ToolSpec> tools) {
+                return List.of(
+                        new ModelEvent.TextDelta("model reply"),
+                        new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(10, 5)));
+            }
+
+            @Override
+            public Integer countTokens(List<Message> messages, List<ToolSpec> tools, String systemPrompt, ToolSelection toolSelection) {
+                return 123;
+            }
+        };
+        HookProvider hookProvider = registrar -> registrar
+                .beforeModelCall(event -> observedProjectedTokens.add(event.projectedInputTokens()));
+        DispatchingHookRegistry hooks = DispatchingHookRegistry.fromProviders(List.of(hookProvider));
+        EventLoop eventLoop = new EventLoop(hooks);
+        DefaultAgent agent = new DefaultAgent(model, List.of(), eventLoop, hooks);
+
+        AgentResult result = agent.run("hello");
+
+        assertThat(result.text()).isEqualTo("model reply");
+        assertThat(observedProjectedTokens).containsExactly(123);
+        assertThat(result.metrics().projectedContextSize()).isEqualTo(15);
+    }
+
+    @Test
+    void runLeavesProjectedInputTokensUnsetWhenEstimationFails() {
+        List<Integer> observedProjectedTokens = new java.util.ArrayList<>();
+        Model model = new Model() {
+            @Override
+            public Iterable<ModelEvent> converse(List<Message> messages, List<ToolSpec> tools) {
+                return List.of(
+                        new ModelEvent.TextDelta("model reply"),
+                        new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(10, 5)));
+            }
+
+            @Override
+            public Integer countTokens(List<Message> messages, List<ToolSpec> tools, String systemPrompt, ToolSelection toolSelection) {
+                throw new ModelException("count failed");
+            }
+        };
+        HookProvider hookProvider = registrar -> registrar
+                .beforeModelCall(event -> observedProjectedTokens.add(event.projectedInputTokens()));
+        DispatchingHookRegistry hooks = DispatchingHookRegistry.fromProviders(List.of(hookProvider));
+        EventLoop eventLoop = new EventLoop(hooks);
+        DefaultAgent agent = new DefaultAgent(model, List.of(), eventLoop, hooks);
+
+        AgentResult result = agent.run("hello");
+
+        assertThat(result.text()).isEqualTo("model reply");
+        assertThat(observedProjectedTokens).containsExactly((Integer) null);
     }
 
     @Test

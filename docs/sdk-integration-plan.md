@@ -26,10 +26,13 @@ Integrate high-value changes from `refs/sdk-python` commit range `566e5ada..f862
 ### Bucket D: Snapshot/State APIs
 - Agent snapshot save/load additions and message metadata/state extensions.
 
-### Bucket E: MCP/A2A/Telemetry
+### Bucket E: Telemetry (Current Arachne Boundary)
+- telemetry span/usage attribute fixes that can map onto Arachne's existing hook or observation bridge without introducing a new tracing/runtime boundary.
+
+### Deferred Reference-Only Areas (Not Current Arachne Parity Scope)
 - MCP error/cleanup fixes.
 - A2A lifecycle support expansion.
-- telemetry span/usage attribute fixes.
+- Remaining telemetry changes that require a first-class OpenTelemetry/span tracer boundary rather than Arachne's current hook/application-event observation surface.
 
 ## Integrated In This Session (Completed)
 
@@ -94,6 +97,44 @@ Integrate high-value changes from `refs/sdk-python` commit range `566e5ada..f862
    - partial restore semantics (field-presence based)
    - conversation-manager state + pending interrupt restore
 
+### Slice 7: Telemetry Per-Invocation Usage Parity (Non-breaking Subset)
+- Exposed per-invocation `ModelEvent.Usage` through `AfterInvocationEvent` so hook-based telemetry can observe invocation-local usage without re-deriving it from accumulated conversation state.
+- Extended Spring lifecycle observation payloads so `ArachneLifecycleApplicationEvent.InvocationObservation` carries usage on the `afterInvocation` phase.
+- Kept the change provider-agnostic and additive:
+   - no model-provider-specific telemetry integration added
+   - no default runtime behavior changed when observation hooks are unused
+- Added deterministic regression coverage for:
+   - `DefaultAgentTest` asserting after-invocation hooks receive the same usage as `AgentResult.metrics()`
+   - `ArachneAutoConfigurationTest` asserting the Spring application-event bridge publishes `afterInvocation` usage
+
+### Telemetry Delta Reassessment (After Slice 7)
+- Re-extracted telemetry-related sdk-python commits in the analyzed range and classified them against Arachne's current shipped boundary.
+- Remaining telemetry-tagged reference commits currently fall into two groups:
+   - **Span-tracer-specific, not currently applicable to Arachne without a new public tracing boundary**
+      - `194c69b` emit system prompt on chat spans per GenAI semconv
+      - `cda2a55` restore explicit `span.end()` to fix end-time regression
+      - `ca6f599` add common GenAI attributes to event-loop cycle spans
+      - `4e3ad44` remove `force_flush` from tracer shutdown path
+   - **Better classified outside telemetry**
+      - `888c98c` estimate input tokens before model calls: this is a token/accounting feature touching hooks and metrics, and fits Bucket B better than Bucket E
+- Conclusion for current Arachne parity scope:
+   - telemetry parity is complete for the existing hook/application-event observation boundary
+   - MCP and A2A remain deferred and are not current parity targets
+   - remaining sdk-python telemetry tracer changes are not actionable until Arachne explicitly adopts a first-class tracing/span API
+
+### Slice 8: Token Projection Before Model Calls (Non-breaking Subset)
+- Added provider-optional token estimation to the `Model` contract with `countTokens(...)` for pre-invocation request sizing.
+- Implemented Bedrock-backed token counting via the AWS `CountTokens` API using the same message/system/tool request shape as normal `Converse` requests.
+- Extended `BeforeModelCallEvent` with `projectedInputTokens` so hooks can see the estimated size of the upcoming request before the model call starts.
+- Added `AgentResult.Metrics.projectedContextSize()` as the derived size of the next turn's baseline context (`inputTokens + outputTokens`) when usage metadata is available.
+- Kept the feature additive and non-fatal:
+   - providers may return `null` for token estimation
+   - event-loop estimation failures fall back to `null` projected tokens and do not block inference
+- Added deterministic regression coverage for:
+   - before-model hooks receiving projected token counts when supported
+   - graceful fallback to `null` when token estimation fails
+   - Bedrock token-count request shaping and exception translation
+
 ### Validation Result
 - Focused: `mvn -pl arachne -Dtest=SlidingWindowConversationManagerTest test` passed.
 - Focused: `mvn -pl arachne -Dtest=SummarizingConversationManagerTest test` passed.
@@ -104,11 +145,18 @@ Integrate high-value changes from `refs/sdk-python` commit range `566e5ada..f862
 - Module regression (module dir): `cd arachne && mvn test` passed.
 - Focused (module dir): `cd arachne && mvn -Dtest=DefaultAgentTest test` passed.
 - Module regression re-run (module dir): `cd arachne && mvn test` passed.
+- Focused (module dir): `cd arachne && mvn -Dtest=DefaultAgentTest,ArachneAutoConfigurationTest test` passed.
+- Module regression re-run (module dir): `cd arachne && mvn test` passed.
 
 ## Next Integration Slices
 
-1. **Telemetry parity subset**
-   - Port deterministic, provider-agnostic telemetry improvements first.
+1. **Current parity buckets**
+   - All current Arachne-boundary parity buckets in this sdk-python analysis range are integrated.
+   - Remaining reference deltas are deferred-only areas (`MCP`, `A2A`) or tracer-boundary work that Arachne does not currently ship.
+
+## Scope Notes
+- Arachne docs and ADRs currently treat MCP and A2A as deliberately deferred, not shipped parity gaps.
+- Do not count sdk-python MCP/A2A deltas as current integration backlog unless Arachne's public boundary is explicitly widened by a separate proposal/ADR.
 
 ## Guardrails
 - Keep `Agent -> EventLoop -> Model / Tool` readability unchanged.

@@ -27,7 +27,6 @@ import org.springframework.session.SessionRepository;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
-
 import com.mahitotsu.arachne.strands.agent.Agent;
 import com.mahitotsu.arachne.strands.agent.AgentResult;
 import com.mahitotsu.arachne.strands.hooks.HookProvider;
@@ -196,6 +195,9 @@ class ArachneAutoConfigurationTest {
                             "beforeModelCall",
                             "afterModelCall",
                             "afterInvocation");
+                        assertThat(collector.afterInvocationObservations())
+                            .singleElement()
+                            .satisfies(observation -> assertThat(observation.usage()).isEqualTo(new ModelEvent.Usage(1, 1, 0, 0)));
                 });
     }
 
@@ -552,14 +554,24 @@ class ArachneAutoConfigurationTest {
 
     static class LifecycleEventCollector implements ApplicationListener<ArachneLifecycleApplicationEvent> {
         private final CopyOnWriteArrayList<String> types = new CopyOnWriteArrayList<>();
+        private final CopyOnWriteArrayList<ArachneLifecycleApplicationEvent.InvocationObservation> afterInvocationObservations =
+                new CopyOnWriteArrayList<>();
 
         @Override
         public void onApplicationEvent(@NonNull ArachneLifecycleApplicationEvent event) {
             types.add(event.type());
+            if ("afterInvocation".equals(event.type())
+                    && event.payload() instanceof ArachneLifecycleApplicationEvent.InvocationObservation observation) {
+                afterInvocationObservations.add(observation);
+            }
         }
 
         List<String> types() {
             return List.copyOf(types);
+        }
+
+        List<ArachneLifecycleApplicationEvent.InvocationObservation> afterInvocationObservations() {
+            return List.copyOf(afterInvocationObservations);
         }
     }
 

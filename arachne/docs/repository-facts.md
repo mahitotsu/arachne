@@ -56,6 +56,7 @@ Top-level packages under `arachne/src/main/java/com/mahitotsu/arachne/strands`:
 - agent creation and Spring wiring: `arachne/src/main/java/com/mahitotsu/arachne/strands/spring`
 - runtime loop and orchestration: `arachne/src/main/java/com/mahitotsu/arachne/strands/agent` and `arachne/src/main/java/com/mahitotsu/arachne/strands/eventloop`
 - model integration and Bedrock behavior: `arachne/src/main/java/com/mahitotsu/arachne/strands/model`
+- pre-invocation token projection and count-token support: `arachne/src/main/java/com/mahitotsu/arachne/strands/model/Model.java`, `arachne/src/main/java/com/mahitotsu/arachne/strands/model/bedrock/BedrockModel.java`, and `arachne/src/main/java/com/mahitotsu/arachne/strands/hooks/BeforeModelCallEvent.java`
 - tool contracts and execution: `arachne/src/main/java/com/mahitotsu/arachne/strands/tool`
 - sessions and persistence: `arachne/src/main/java/com/mahitotsu/arachne/strands/session`
 - skills: `arachne/src/main/java/com/mahitotsu/arachne/strands/skills`

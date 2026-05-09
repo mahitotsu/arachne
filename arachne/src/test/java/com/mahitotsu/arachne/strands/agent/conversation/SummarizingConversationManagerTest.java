@@ -213,7 +213,7 @@ class SummarizingConversationManagerTest {
             Message.assistant("three")));
         DispatchingHookRegistry hooks = DispatchingHookRegistry.fromProviders(List.of(manager));
 
-        hooks.onBeforeModelCall(new BeforeModelCallEvent(messages, List.of(), null, null, new AgentState()));
+        hooks.onBeforeModelCall(new BeforeModelCallEvent(messages, List.of(), null, null, null, new AgentState()));
 
         assertThat(messages).hasSize(3);
         assertThat(messages.getFirst().content()).containsExactly(

@@ -6,6 +6,7 @@ import java.util.Objects;
 
 import org.springframework.context.ApplicationEvent;
 
+import com.mahitotsu.arachne.strands.model.ModelEvent;
 import com.mahitotsu.arachne.strands.model.ToolSpec;
 import com.mahitotsu.arachne.strands.tool.ToolResult;
 import com.mahitotsu.arachne.strands.types.Message;
@@ -37,6 +38,7 @@ public final class ArachneLifecycleApplicationEvent extends ApplicationEvent {
             String prompt,
             String text,
             String stopReason,
+            ModelEvent.Usage usage,
             List<Message> messages,
             Map<String, Object> state
     ) {}

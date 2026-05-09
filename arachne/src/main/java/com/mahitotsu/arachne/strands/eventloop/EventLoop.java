@@ -150,9 +150,11 @@ public class EventLoop {
             toolSelection = ToolSelection.force(structuredOutputContext.forcedToolName());
         }
 
+        Integer projectedInputTokens = estimateInputTokens(model, messages, toolSpecs, systemPrompt, toolSelection);
+
         // ── hook callsite: BeforeModelCall ──────────────────────────────────
         BeforeModelCallEvent beforeModelCallEvent = hooks.onBeforeModelCall(
-            new BeforeModelCallEvent(messages, toolSpecs, systemPrompt, toolSelection, state));
+            new BeforeModelCallEvent(messages, toolSpecs, systemPrompt, toolSelection, projectedInputTokens, state));
 
         List<ModelEvent> events = collectModelEvents(model, beforeModelCallEvent, eventConsumer);
 
@@ -323,6 +325,19 @@ public class EventLoop {
             collector.accept(event);
         }
         return List.copyOf(events);
+    }
+
+    private Integer estimateInputTokens(
+            Model model,
+            List<Message> messages,
+            List<ToolSpec> toolSpecs,
+            String systemPrompt,
+            ToolSelection toolSelection) {
+        try {
+            return model.countTokens(messages, toolSpecs, systemPrompt, toolSelection);
+        } catch (RuntimeException ignored) {
+            return null;
+        }
     }
 
     private static void emitModelEvent(ModelEvent event, Consumer<AgentStreamEvent> eventConsumer) {

@@ -40,4 +40,17 @@ public interface Model {
             ToolSelection toolSelection) {
         return converse(messages, tools, systemPrompt);
     }
+
+    /**
+     * Estimate the input token count for a model request before invocation.
+     *
+     * <p>Implementations may return {@code null} when token counting is unavailable.
+     */
+    default Integer countTokens(
+            List<Message> messages,
+            List<ToolSpec> tools,
+            String systemPrompt,
+            ToolSelection toolSelection) {
+        return null;
+    }
 }

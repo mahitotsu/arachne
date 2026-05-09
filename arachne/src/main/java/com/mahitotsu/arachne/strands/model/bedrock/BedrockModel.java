@@ -44,6 +44,9 @@ import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamMetada
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamOutput;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamRequest;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamResponseHandler;
+import software.amazon.awssdk.services.bedrockruntime.model.ConverseTokensRequest;
+import software.amazon.awssdk.services.bedrockruntime.model.CountTokensInput;
+import software.amazon.awssdk.services.bedrockruntime.model.CountTokensRequest;
 import software.amazon.awssdk.services.bedrockruntime.model.MessageStopEvent;
 import software.amazon.awssdk.services.bedrockruntime.model.ServiceTier;
 import software.amazon.awssdk.services.bedrockruntime.model.ServiceTierType;
@@ -221,6 +224,19 @@ public class BedrockModel implements StreamingModel {
     }
 
     @Override
+    public Integer countTokens(
+            List<Message> messages,
+            List<ToolSpec> tools,
+            String systemPrompt,
+            ToolSelection toolSelection) {
+        try {
+            return client.countTokens(buildCountTokensRequest(messages, tools, systemPrompt, toolSelection)).inputTokens();
+        } catch (RuntimeException exception) {
+            throw translateException(exception);
+        }
+    }
+
+    @Override
     public Iterable<ModelEvent> converse(List<Message> messages, List<ToolSpec> tools, String systemPrompt) {
         return converse(messages, tools, systemPrompt, null);
     }
@@ -339,6 +355,28 @@ public class BedrockModel implements StreamingModel {
         }
 
         return builder.build();
+    }
+
+    private CountTokensRequest buildCountTokensRequest(
+            List<Message> messages,
+            List<ToolSpec> tools,
+            String systemPrompt,
+            ToolSelection toolSelection) {
+        ConverseTokensRequest.Builder builder = ConverseTokensRequest.builder()
+                .messages(toBedrockMessages(messages));
+
+        if (systemPrompt != null && !systemPrompt.isBlank()) {
+            builder.system(buildSystemPromptBlocks(systemPrompt));
+        }
+
+        if (!tools.isEmpty()) {
+            builder.toolConfig(buildToolConfig(tools, toolSelection));
+        }
+
+        return CountTokensRequest.builder()
+                .modelId(modelId)
+                .input(CountTokensInput.fromConverse(builder.build()))
+                .build();
     }
 
     private String normalizeServiceTier(String configuredServiceTier) {

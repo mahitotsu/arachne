@@ -31,6 +31,13 @@ public final class AgentResult {
                 public Metrics {
                         Objects.requireNonNull(usage, "usage must not be null");
                 }
+
+                public Integer projectedContextSize() {
+                        if (usage.equals(ModelEvent.ZERO_USAGE)) {
+                                return null;
+                        }
+                        return usage.inputTokens() + usage.outputTokens();
+                }
         }
 
         public AgentResult(String text, List<Message> messages, Object stopReason) {
