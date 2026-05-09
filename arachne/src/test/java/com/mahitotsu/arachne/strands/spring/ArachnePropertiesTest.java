@@ -22,6 +22,8 @@ class ArachnePropertiesTest {
         assertThat(properties.getAgent().getRetry().getMaxDelay()).isEqualTo(Duration.ofSeconds(240));
         assertThat(properties.getModel().getBedrock().getCache().isSystemPrompt()).isFalse();
         assertThat(properties.getModel().getBedrock().getCache().isTools()).isFalse();
+        assertThat(properties.getModel().getBedrock().getServiceTier()).isNull();
+        assertThat(properties.getModel().getBedrock().isStrictTools()).isFalse();
     }
 
     @Test
@@ -30,11 +32,15 @@ class ArachnePropertiesTest {
 
         namedAgent.getModel().setRegion("us-west-2");
         namedAgent.getModel().getBedrock().getCache().setTools(Boolean.TRUE);
+        namedAgent.getModel().getBedrock().setServiceTier("priority");
+        namedAgent.getModel().getBedrock().setStrictTools(Boolean.TRUE);
         namedAgent.getBuiltIns().setInheritDefaults(Boolean.FALSE);
         namedAgent.getBuiltIns().setToolGroups(List.of("resource"));
 
         assertThat(namedAgent.getModel().getRegion()).isEqualTo("us-west-2");
         assertThat(namedAgent.getModel().getBedrock().getCache().getTools()).isTrue();
+        assertThat(namedAgent.getModel().getBedrock().getServiceTier()).isEqualTo("priority");
+        assertThat(namedAgent.getModel().getBedrock().getStrictTools()).isTrue();
         assertThat(namedAgent.getBuiltIns().getInheritDefaults()).isFalse();
         assertThat(namedAgent.getBuiltIns().getToolGroups()).containsExactly("resource");
     }

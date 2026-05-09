@@ -15,7 +15,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-
 import com.mahitotsu.arachne.strands.model.ModelEvent;
 import com.mahitotsu.arachne.strands.model.ModelException;
 import com.mahitotsu.arachne.strands.model.ModelRetryableException;
@@ -24,6 +23,7 @@ import com.mahitotsu.arachne.strands.model.ToolSelection;
 import com.mahitotsu.arachne.strands.model.ToolSpec;
 import com.mahitotsu.arachne.strands.types.ContentBlock;
 import com.mahitotsu.arachne.strands.types.Message;
+
 import software.amazon.awssdk.core.async.SdkPublisher;
 import software.amazon.awssdk.core.document.Document;
 import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeAsyncClient;
@@ -72,6 +72,44 @@ class BedrockModelRequestTest {
         assertThat(request.system()).hasSize(2);
         assertThat(request.system().getFirst().text()).isEqualTo("Be concise.");
         assertThat(request.system().get(1).cachePoint().type()).isEqualTo(CachePointType.DEFAULT);
+    }
+
+    @Test
+    void buildRequestIncludesConfiguredServiceTier() {
+        BedrockModel model = new BedrockModel(
+                "test-model",
+                "us-west-2",
+                BedrockModel.PromptCaching.DISABLED,
+                "priority");
+
+        var request = model.buildRequest(List.of(Message.user("hello")), List.of(), null, null);
+
+        assertThat(request.serviceTier()).isNotNull();
+        assertThat(request.serviceTier().typeAsString()).isEqualToIgnoringCase("priority");
+    }
+
+    @Test
+    void buildRequestOmitsServiceTierWhenBlank() {
+        BedrockModel model = new BedrockModel(
+                "test-model",
+                "us-west-2",
+                BedrockModel.PromptCaching.DISABLED,
+                "   ");
+
+        var request = model.buildRequest(List.of(Message.user("hello")), List.of(), null, null);
+
+        assertThat(request.serviceTier()).isNull();
+    }
+
+    @Test
+    void rejectsUnsupportedServiceTier() {
+        assertThatThrownBy(() -> new BedrockModel(
+                "test-model",
+                "us-west-2",
+                BedrockModel.PromptCaching.DISABLED,
+                "turbo"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("service tier");
     }
 
     @Test
@@ -154,6 +192,76 @@ class BedrockModelRequestTest {
     }
 
         @Test
+        void buildRequestAddsStrictFlagsAndAdditionalPropertiesWhenStrictToolsEnabled() throws Exception {
+                ObjectMapper objectMapper = new ObjectMapper();
+                var schema = objectMapper.readTree("""
+                        {
+                            "type": "object",
+                            "properties": {
+                                "city": {"type": "string"},
+                                "payload": {
+                                    "type": "object",
+                                    "properties": {
+                                        "unit": {"type": "string"}
+                                    }
+                                }
+                            }
+                        }
+                        """);
+                BedrockModel model = new BedrockModel(
+                                "test-model",
+                                "us-west-2",
+                                BedrockModel.PromptCaching.DISABLED,
+                                null,
+                                true);
+
+                var request = model.buildRequest(
+                                List.of(Message.user("hello")),
+                                List.of(new ToolSpec("weather", "Weather lookup", schema)),
+                                null,
+                                null);
+
+                var toolSpec = request.toolConfig().tools().getFirst().toolSpec();
+                assertThat(toolSpec.strict()).isTrue();
+                @SuppressWarnings("unchecked")
+                Map<String, Object> strictSchema = (Map<String, Object>) BedrockModel.documentToObject(toolSpec.inputSchema().json());
+                assertThat(strictSchema).containsEntry("additionalProperties", false);
+
+                @SuppressWarnings("unchecked")
+                Map<String, Object> properties = (Map<String, Object>) strictSchema.get("properties");
+                @SuppressWarnings("unchecked")
+                Map<String, Object> payload = (Map<String, Object>) properties.get("payload");
+                assertThat(payload).containsEntry("additionalProperties", false);
+        }
+
+        @Test
+        void buildRequestDoesNotMutateOriginalSchemaWhenStrictToolsEnabled() throws Exception {
+                ObjectMapper objectMapper = new ObjectMapper();
+                var schema = objectMapper.readTree("""
+                        {
+                            "type": "object",
+                            "properties": {
+                                "city": {"type": "string"}
+                            }
+                        }
+                        """);
+                BedrockModel model = new BedrockModel(
+                                "test-model",
+                                "us-west-2",
+                                BedrockModel.PromptCaching.DISABLED,
+                                null,
+                                true);
+
+                model.buildRequest(
+                                List.of(Message.user("hello")),
+                                List.of(new ToolSpec("weather", "Weather lookup", schema)),
+                                null,
+                                null);
+
+                assertThat(schema.has("additionalProperties")).isFalse();
+        }
+
+        @Test
         void injectedClientConstructorNormalizesBlankRegionAndNullPromptCaching() {
         BedrockModel model = new BedrockModel(unusedClient(), null, "test-model", "   ", null);
 
@@ -218,6 +326,32 @@ class BedrockModelRequestTest {
         assertThat(request.toolConfig().tools()).hasSize(2);
         assertThat(request.toolConfig().tools().get(1).cachePoint().type()).isEqualTo(CachePointType.DEFAULT);
     }
+
+        @Test
+        void buildStreamRequestIncludesConfiguredServiceTier() throws Exception {
+        BedrockModel model = new BedrockModel(
+            "test-model",
+            "us-west-2",
+            BedrockModel.PromptCaching.DISABLED,
+            "flex");
+        Method buildStreamRequest = BedrockModel.class.getDeclaredMethod(
+            "buildStreamRequest",
+            List.class,
+            List.class,
+            String.class,
+            ToolSelection.class);
+        buildStreamRequest.setAccessible(true);
+
+        var request = (software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamRequest) buildStreamRequest.invoke(
+            model,
+            List.of(Message.user("hello")),
+            List.of(),
+            null,
+            null);
+
+        assertThat(request.serviceTier()).isNotNull();
+        assertThat(request.serviceTier().typeAsString()).isEqualToIgnoringCase("flex");
+        }
 
     @Test
     void staticDocumentConvertersRoundTripNestedValues() throws Exception {

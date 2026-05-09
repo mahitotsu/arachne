@@ -491,6 +491,8 @@ public class ArachneProperties {
 
     public static class BedrockProperties {
         private CacheProperties cache = new CacheProperties();
+        private String serviceTier;
+        private boolean strictTools;
 
         public CacheProperties getCache() {
             return cache;
@@ -499,10 +501,28 @@ public class ArachneProperties {
         public void setCache(CacheProperties cache) {
             this.cache = cache;
         }
+
+        public String getServiceTier() {
+            return serviceTier;
+        }
+
+        public void setServiceTier(String serviceTier) {
+            this.serviceTier = serviceTier;
+        }
+
+        public boolean isStrictTools() {
+            return strictTools;
+        }
+
+        public void setStrictTools(boolean strictTools) {
+            this.strictTools = strictTools;
+        }
     }
 
     public static class BedrockOverrideProperties {
         private CacheOverrideProperties cache = new CacheOverrideProperties();
+        private String serviceTier;
+        private Boolean strictTools;
 
         public CacheOverrideProperties getCache() {
             return cache;
@@ -510,6 +530,22 @@ public class ArachneProperties {
 
         public void setCache(CacheOverrideProperties cache) {
             this.cache = cache;
+        }
+
+        public String getServiceTier() {
+            return serviceTier;
+        }
+
+        public void setServiceTier(String serviceTier) {
+            this.serviceTier = serviceTier;
+        }
+
+        public Boolean getStrictTools() {
+            return strictTools;
+        }
+
+        public void setStrictTools(Boolean strictTools) {
+            this.strictTools = strictTools;
         }
     }
 

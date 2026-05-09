@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.session.MapSessionRepository;
 
 import com.mahitotsu.arachne.strands.agent.Agent;
+import com.mahitotsu.arachne.strands.agent.conversation.ConversationManager;
 import com.mahitotsu.arachne.strands.hooks.Plugin;
 import com.mahitotsu.arachne.strands.model.Model;
 import com.mahitotsu.arachne.strands.model.ModelEvent;
@@ -57,6 +58,30 @@ class AgentFactoryTest {
         assertThat(model.getRegion()).isEqualTo("us-west-2");
         assertThat(model.getPromptCaching().systemPrompt()).isTrue();
         assertThat(model.getPromptCaching().tools()).isFalse();
+    }
+
+    @Test
+    void createDefaultModelPropagatesBedrockServiceTier() {
+        ArachneProperties.ModelProperties modelProperties = new ArachneProperties.ModelProperties();
+        modelProperties.setId("jp.amazon.nova-2-lite-v1:0");
+        modelProperties.setRegion("ap-northeast-1");
+        modelProperties.getBedrock().setServiceTier("priority");
+
+        BedrockModel model = (BedrockModel) AgentFactory.createDefaultModel(modelProperties);
+
+        assertThat(model.getServiceTier()).isEqualToIgnoringCase("priority");
+    }
+
+    @Test
+    void createDefaultModelPropagatesBedrockStrictTools() {
+        ArachneProperties.ModelProperties modelProperties = new ArachneProperties.ModelProperties();
+        modelProperties.setId("jp.amazon.nova-2-lite-v1:0");
+        modelProperties.setRegion("ap-northeast-1");
+        modelProperties.getBedrock().setStrictTools(true);
+
+        BedrockModel model = (BedrockModel) AgentFactory.createDefaultModel(modelProperties);
+
+        assertThat(model.isStrictTools()).isTrue();
     }
 
     @Test
@@ -148,6 +173,34 @@ class AgentFactoryTest {
 
         assertThat(agent.getTools()).extracting(tool -> tool.spec().name()).contains("pluginTool");
         assertThat(agent.getState().get("source")).isEqualTo("plugin");
+    }
+
+    @Test
+    void buildWiresConversationManagerHookProviders() {
+        ArachneProperties properties = new ArachneProperties();
+        Model model = (messages, tools) -> List.of(
+                new ModelEvent.TextDelta("ok"),
+                new ModelEvent.Metadata("end_turn", new ModelEvent.Usage(1, 1)));
+        AtomicInteger beforeModelCalls = new AtomicInteger();
+        ConversationManager conversationManager = new ConversationManager() {
+            @Override
+            public void applyManagement(List<com.mahitotsu.arachne.strands.types.Message> messages) {
+            }
+
+            @Override
+            public void registerHooks(com.mahitotsu.arachne.strands.hooks.HookRegistrar registrar) {
+                registrar.beforeModelCall(event -> beforeModelCalls.incrementAndGet());
+            }
+        };
+
+        Agent agent = new AgentFactory(properties, model)
+                .builder()
+                .conversationManager(conversationManager)
+                .build();
+
+        agent.run("hello");
+
+        assertThat(beforeModelCalls.get()).isGreaterThan(0);
     }
 
     @Test

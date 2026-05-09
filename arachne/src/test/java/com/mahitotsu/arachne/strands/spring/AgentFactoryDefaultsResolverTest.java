@@ -62,6 +62,8 @@ class AgentFactoryDefaultsResolverTest {
         analyst.getBuiltIns().setToolGroups(List.of("resource"));
         analyst.getSession().setId("analyst-session");
         analyst.getModel().getBedrock().getCache().setTools(true);
+        analyst.getModel().getBedrock().setServiceTier("flex");
+        analyst.getModel().getBedrock().setStrictTools(true);
         analyst.getRetry().setMaxAttempts(2);
         analyst.getRetry().setInitialDelay(Duration.ZERO);
         analyst.getRetry().setMaxDelay(Duration.ZERO);
@@ -86,6 +88,8 @@ class AgentFactoryDefaultsResolverTest {
         assertThat(model.getModelId()).isEqualTo("jp.amazon.nova-2-lite-v1:0");
         assertThat(model.getRegion()).isEqualTo("ap-northeast-1");
         assertThat(model.getPromptCaching().tools()).isTrue();
+        assertThat(model.getServiceTier()).isEqualToIgnoringCase("flex");
+        assertThat(model.isStrictTools()).isTrue();
         assertThat(defaults.retryStrategy()).isInstanceOf(ExponentialBackoffRetryStrategy.class);
     }
 

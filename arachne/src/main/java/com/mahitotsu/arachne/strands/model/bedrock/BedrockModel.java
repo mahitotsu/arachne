@@ -14,7 +14,8 @@ import java.util.logging.Logger;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.mahitotsu.arachne.strands.model.Model;
 import com.mahitotsu.arachne.strands.model.ModelEvent;
 import com.mahitotsu.arachne.strands.model.ModelException;
@@ -25,6 +26,7 @@ import com.mahitotsu.arachne.strands.model.ToolSelection;
 import com.mahitotsu.arachne.strands.model.ToolSpec;
 import com.mahitotsu.arachne.strands.types.ContentBlock;
 import com.mahitotsu.arachne.strands.types.Message;
+
 import software.amazon.awssdk.core.document.Document;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeAsyncClient;
@@ -43,6 +45,8 @@ import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamOutput
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamRequest;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamResponseHandler;
 import software.amazon.awssdk.services.bedrockruntime.model.MessageStopEvent;
+import software.amazon.awssdk.services.bedrockruntime.model.ServiceTier;
+import software.amazon.awssdk.services.bedrockruntime.model.ServiceTierType;
 import software.amazon.awssdk.services.bedrockruntime.model.SpecificToolChoice;
 import software.amazon.awssdk.services.bedrockruntime.model.SystemContentBlock;
 import software.amazon.awssdk.services.bedrockruntime.model.Tool;
@@ -95,12 +99,14 @@ public class BedrockModel implements StreamingModel {
     private final String modelId;
     private final String region;
     private final PromptCaching promptCaching;
+    private final String serviceTier;
+    private final boolean strictTools;
 
     /**
      * Create a BedrockModel using the default region and model.
      */
     public BedrockModel() {
-        this(DEFAULT_MODEL_ID, DEFAULT_REGION, PromptCaching.DISABLED);
+        this(DEFAULT_MODEL_ID, DEFAULT_REGION, PromptCaching.DISABLED, null, false);
     }
 
     /**
@@ -110,13 +116,23 @@ public class BedrockModel implements StreamingModel {
      * @param region AWS region, e.g. {@code "ap-northeast-1"}
      */
     public BedrockModel(String modelId, String region) {
-        this(modelId, region, PromptCaching.DISABLED);
+        this(modelId, region, PromptCaching.DISABLED, null, false);
     }
 
     public BedrockModel(String modelId, String region, PromptCaching promptCaching) {
+        this(modelId, region, promptCaching, null, false);
+    }
+
+    public BedrockModel(String modelId, String region, PromptCaching promptCaching, String serviceTier) {
+        this(modelId, region, promptCaching, serviceTier, false);
+    }
+
+    public BedrockModel(String modelId, String region, PromptCaching promptCaching, String serviceTier, boolean strictTools) {
         this.modelId = modelId;
         this.region = region == null || region.isBlank() ? DEFAULT_REGION : region;
         this.promptCaching = promptCaching == null ? PromptCaching.DISABLED : promptCaching;
+        this.serviceTier = normalizeServiceTier(serviceTier);
+        this.strictTools = strictTools;
         this.client = BedrockRuntimeClient.builder()
                 .region(Region.of(this.region))
                 .build();
@@ -132,11 +148,11 @@ public class BedrockModel implements StreamingModel {
      * @param modelId Bedrock model ID
      */
     public BedrockModel(BedrockRuntimeClient client, String modelId) {
-        this(client, null, modelId, DEFAULT_REGION, PromptCaching.DISABLED);
+        this(client, null, modelId, DEFAULT_REGION, PromptCaching.DISABLED, null, false);
     }
 
     public BedrockModel(BedrockRuntimeClient client, BedrockRuntimeAsyncClient asyncClient, String modelId) {
-        this(client, asyncClient, modelId, DEFAULT_REGION, PromptCaching.DISABLED);
+        this(client, asyncClient, modelId, DEFAULT_REGION, PromptCaching.DISABLED, null, false);
     }
 
     public BedrockModel(
@@ -145,11 +161,34 @@ public class BedrockModel implements StreamingModel {
             String modelId,
             String region,
             PromptCaching promptCaching) {
+        this(client, asyncClient, modelId, region, promptCaching, null, false);
+    }
+
+    public BedrockModel(
+            BedrockRuntimeClient client,
+            BedrockRuntimeAsyncClient asyncClient,
+            String modelId,
+            String region,
+            PromptCaching promptCaching,
+            String serviceTier) {
+        this(client, asyncClient, modelId, region, promptCaching, serviceTier, false);
+    }
+
+    public BedrockModel(
+            BedrockRuntimeClient client,
+            BedrockRuntimeAsyncClient asyncClient,
+            String modelId,
+            String region,
+            PromptCaching promptCaching,
+            String serviceTier,
+            boolean strictTools) {
         this.client = Objects.requireNonNull(client, "client must not be null");
         this.asyncClient = asyncClient;
         this.modelId = Objects.requireNonNull(modelId, "modelId must not be null");
         this.region = region == null || region.isBlank() ? DEFAULT_REGION : region;
         this.promptCaching = promptCaching == null ? PromptCaching.DISABLED : promptCaching;
+        this.serviceTier = normalizeServiceTier(serviceTier);
+        this.strictTools = strictTools;
     }
 
     /** The Bedrock model ID this instance is bound to. */
@@ -164,6 +203,14 @@ public class BedrockModel implements StreamingModel {
 
     public PromptCaching getPromptCaching() {
         return promptCaching;
+    }
+
+    public String getServiceTier() {
+        return serviceTier;
+    }
+
+    public boolean isStrictTools() {
+        return strictTools;
     }
 
     // ── Model interface ──────────────────────────────────────────────────────
@@ -259,6 +306,12 @@ public class BedrockModel implements StreamingModel {
             builder.toolConfig(buildToolConfig(tools, toolSelection));
         }
 
+        if (serviceTier != null) {
+            builder.serviceTier(ServiceTier.builder()
+                    .type(ServiceTierType.fromValue(serviceTier))
+                    .build());
+        }
+
         return builder.build();
     }
 
@@ -279,7 +332,31 @@ public class BedrockModel implements StreamingModel {
             builder.toolConfig(buildToolConfig(tools, toolSelection));
         }
 
+        if (serviceTier != null) {
+            builder.serviceTier(ServiceTier.builder()
+                    .type(ServiceTierType.fromValue(serviceTier))
+                    .build());
+        }
+
         return builder.build();
+    }
+
+    private String normalizeServiceTier(String configuredServiceTier) {
+        if (configuredServiceTier == null || configuredServiceTier.isBlank()) {
+            return null;
+        }
+        String candidate = configuredServiceTier.trim();
+        ServiceTierType parsed = ServiceTierType.fromValue(candidate);
+        if (parsed == ServiceTierType.UNKNOWN_TO_SDK_VERSION) {
+            parsed = ServiceTierType.fromValue(candidate.toUpperCase(java.util.Locale.ROOT));
+        }
+        if (parsed == ServiceTierType.UNKNOWN_TO_SDK_VERSION) {
+            parsed = ServiceTierType.fromValue(candidate.toLowerCase(java.util.Locale.ROOT));
+        }
+        if (parsed == ServiceTierType.UNKNOWN_TO_SDK_VERSION) {
+            throw new IllegalArgumentException("Unsupported Bedrock service tier: " + configuredServiceTier);
+        }
+        return parsed.toString();
     }
 
     private List<software.amazon.awssdk.services.bedrockruntime.model.Message> toBedrockMessages(List<Message> messages) {
@@ -347,15 +424,21 @@ public class BedrockModel implements StreamingModel {
 
     private ToolConfiguration buildToolConfig(List<ToolSpec> tools, ToolSelection toolSelection) {
         List<Tool> bedrockTools = new ArrayList<>(tools.stream().map(spec -> {
-            Document schemaDoc = jsonNodeToDocument(spec.inputSchema());
+            JsonNode schemaNode = strictTools
+                ? ensureStrictJsonSchema(spec.inputSchema())
+                : spec.inputSchema();
+            Document schemaDoc = jsonNodeToDocument(schemaNode);
+            ToolSpecification.Builder toolSpecificationBuilder = ToolSpecification.builder()
+                    .name(spec.name())
+                    .description(spec.description())
+                    .inputSchema(ToolInputSchema.builder()
+                            .json(schemaDoc)
+                            .build());
+            if (strictTools) {
+                toolSpecificationBuilder.strict(true);
+            }
             return Tool.builder()
-                    .toolSpec(ToolSpecification.builder()
-                            .name(spec.name())
-                            .description(spec.description())
-                            .inputSchema(ToolInputSchema.builder()
-                                    .json(schemaDoc)
-                                    .build())
-                            .build())
+                    .toolSpec(toolSpecificationBuilder.build())
                     .build();
         }).toList());
 
@@ -370,6 +453,80 @@ public class BedrockModel implements StreamingModel {
                     .build()));
         }
         return builder.build();
+    }
+
+    private JsonNode ensureStrictJsonSchema(JsonNode schema) {
+        if (schema == null || schema.isNull()) {
+            return schema;
+        }
+        JsonNode rootCopy = schema.deepCopy();
+        applyStrictJsonSchema(rootCopy, rootCopy);
+        return rootCopy;
+    }
+
+    private void applyStrictJsonSchema(JsonNode node, JsonNode root) {
+        if (!(node instanceof ObjectNode objectNode)) {
+            return;
+        }
+
+        applyStrictToDefinitions(objectNode, root);
+
+        if ("object".equals(objectNode.path("type").asText(null)) && !objectNode.has("additionalProperties")) {
+            objectNode.put("additionalProperties", false);
+        }
+
+        JsonNode properties = objectNode.get("properties");
+        if (properties instanceof ObjectNode propertiesObject) {
+            propertiesObject.elements().forEachRemaining(propertySchema -> applyStrictJsonSchema(propertySchema, root));
+        }
+
+        JsonNode items = objectNode.get("items");
+        if (items instanceof ObjectNode) {
+            applyStrictJsonSchema(items, root);
+        }
+
+        applyStrictToCompositions(objectNode, root, "anyOf");
+        applyStrictToCompositions(objectNode, root, "allOf");
+        applyStrictToCompositions(objectNode, root, "oneOf");
+
+        JsonNode ref = objectNode.get("$ref");
+        if (ref != null && ref.isTextual() && objectNode.size() > 1) {
+            JsonNode resolved = resolveRef(root, ref.asText());
+            if (resolved instanceof ObjectNode resolvedObject) {
+                ObjectNode merged = resolvedObject.deepCopy();
+                merged.setAll(objectNode);
+                merged.remove("$ref");
+                objectNode.removeAll();
+                objectNode.setAll(merged);
+                applyStrictJsonSchema(objectNode, root);
+            }
+        }
+    }
+
+    private void applyStrictToDefinitions(ObjectNode objectNode, JsonNode root) {
+        applyStrictToDefinitionBlock(objectNode.get("$defs"), root);
+        applyStrictToDefinitionBlock(objectNode.get("definitions"), root);
+    }
+
+    private void applyStrictToDefinitionBlock(JsonNode definitionBlock, JsonNode root) {
+        if (definitionBlock instanceof ObjectNode definitionObject) {
+            definitionObject.elements().forEachRemaining(definition -> applyStrictJsonSchema(definition, root));
+        }
+    }
+
+    private void applyStrictToCompositions(ObjectNode objectNode, JsonNode root, String fieldName) {
+        JsonNode composition = objectNode.get(fieldName);
+        if (composition instanceof ArrayNode compositionArray) {
+            compositionArray.elements().forEachRemaining(element -> applyStrictJsonSchema(element, root));
+        }
+    }
+
+    private JsonNode resolveRef(JsonNode root, String ref) {
+        if (ref == null || !ref.startsWith("#/")) {
+            return null;
+        }
+        JsonNode resolved = root.at(ref.substring(1));
+        return resolved.isMissingNode() ? null : resolved;
     }
 
     // ── Response mapping ────────────────────────────────────────────────────

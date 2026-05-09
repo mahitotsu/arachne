@@ -21,16 +21,23 @@ final class AgentFactoryModelResolver {
         BedrockModel.PromptCaching promptCaching = new BedrockModel.PromptCaching(
                 modelProperties.getBedrock().getCache().isSystemPrompt(),
                 modelProperties.getBedrock().getCache().isTools());
+        String serviceTier = modelProperties.getBedrock().getServiceTier();
+        boolean strictTools = modelProperties.getBedrock().isStrictTools();
 
         String modelId = modelProperties.getId();
         String region = modelProperties.getRegion();
         if (hasText(modelId)) {
-            return new BedrockModel(modelId, region, promptCaching);
+            return new BedrockModel(modelId, region, promptCaching, serviceTier, strictTools);
         }
         if (hasText(region)) {
-            return new BedrockModel(BedrockModel.DEFAULT_MODEL_ID, region, promptCaching);
+            return new BedrockModel(BedrockModel.DEFAULT_MODEL_ID, region, promptCaching, serviceTier, strictTools);
         }
-        return new BedrockModel(BedrockModel.DEFAULT_MODEL_ID, BedrockModel.DEFAULT_REGION, promptCaching);
+        return new BedrockModel(
+                BedrockModel.DEFAULT_MODEL_ID,
+                BedrockModel.DEFAULT_REGION,
+                promptCaching,
+                serviceTier,
+                strictTools);
     }
 
     static ResolvedModelDefaults resolveNamedModelDefaults(
@@ -68,6 +75,12 @@ final class AgentFactoryModelResolver {
                 merged.getBedrock().getCache().setTools(overrides.getBedrock().getCache().getTools());
             }
         }
+        if (overrides.getBedrock() != null && hasText(overrides.getBedrock().getServiceTier())) {
+            merged.getBedrock().setServiceTier(overrides.getBedrock().getServiceTier());
+        }
+        if (overrides.getBedrock() != null && overrides.getBedrock().getStrictTools() != null) {
+            merged.getBedrock().setStrictTools(overrides.getBedrock().getStrictTools());
+        }
         return merged;
     }
 
@@ -78,6 +91,8 @@ final class AgentFactoryModelResolver {
         copy.setRegion(source.getRegion());
         copy.getBedrock().getCache().setSystemPrompt(source.getBedrock().getCache().isSystemPrompt());
         copy.getBedrock().getCache().setTools(source.getBedrock().getCache().isTools());
+        copy.getBedrock().setServiceTier(source.getBedrock().getServiceTier());
+        copy.getBedrock().setStrictTools(source.getBedrock().isStrictTools());
         return copy;
     }
 
@@ -90,10 +105,15 @@ final class AgentFactoryModelResolver {
     }
 
     private static boolean hasBedrockOverride(ArachneProperties.BedrockOverrideProperties bedrockProperties) {
-        return bedrockProperties != null
-                && bedrockProperties.getCache() != null
+        if (bedrockProperties == null) {
+            return false;
+        }
+        boolean cacheOverride = bedrockProperties.getCache() != null
                 && (bedrockProperties.getCache().getSystemPrompt() != null
                 || bedrockProperties.getCache().getTools() != null);
+        return cacheOverride
+            || hasText(bedrockProperties.getServiceTier())
+            || bedrockProperties.getStrictTools() != null;
     }
 
     private static boolean hasText(String value) {
