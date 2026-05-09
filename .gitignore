@@ -27,3 +27,6 @@ Thumbs.db
 **/dist/
 *.tsbuildinfo
 npm-debug.log*
+
+# Sample local runtime data
+samples/session-jdbc/.arachne/
