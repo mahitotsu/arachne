@@ -1,6 +1,6 @@
 # Repository Metrics Latest
 
-Updated: 2026-04-21
+Updated: 2026-05-09
 
 This file is the latest persisted repository-metrics evaluation for Arachne.
 Raw build and analysis outputs still live under `arachne/target/`.
@@ -13,23 +13,23 @@ This file is the latest summarized evaluation, not the source report.
 
 ## Freshness
 
-- build and test status: partial fresh evidence from `mvn -f arachne/pom.xml -Dtest=DocumentedYamlExamplesTest test` on 2026-04-21
-- coverage and static analysis: read from existing `arachne/target/` reports; freshness `unconfirmed`
-- report-only context counts: collected on 2026-04-21 from the working tree
+- build and test status: fresh from `mvn -f arachne/pom.xml test` on 2026-05-09
+- coverage and static analysis: fresh from `mvn -f arachne/pom.xml -Pquality-report verify` on 2026-05-09
+- report-only context counts: collected on 2026-05-09 from the working tree
 
 ## Overall State
 
-- State: `INCOMPLETE`
-- Decision: current library metrics are mostly healthy, but the persisted coverage and static-analysis outputs were reused without a fresh `quality-report` run in this work unit.
+- State: `HEALTHY`
+- Decision: all thresholded library metrics are present and within configured limits after fixing CPD duplication and correcting SpotBugs exclusion matching.
 
 ## Thresholded Metrics
 
 | Metric | Value | Status |
 | --- | --- | --- |
-| Library Maven test status | partial pass evidence only | unconfirmed |
-| JaCoCo line coverage | 87.76% | ok |
-| JaCoCo branch coverage | 73.70% | ok |
-| SpotBugs total bug count | 106 | ok |
+| Library Maven test status | BUILD SUCCESS (262 run, 0 failed, 0 errors, 2 skipped) | ok |
+| JaCoCo line coverage | 87.79% | ok |
+| JaCoCo branch coverage | 74.29% | ok |
+| SpotBugs total bug count | 0 | ok |
 | PMD violation count | 0 | ok |
 | CPD duplication-group count | 0 | ok |
 
@@ -39,9 +39,11 @@ This file is the latest summarized evaluation, not the source report.
 | --- | --- |
 | Main Java file count | 109 |
 | Test Java file count | 37 |
-| Sample README count | 14 |
-| Operator console TypeScript source-file count | 14 |
+
+## Gaps
+
+- none
 
 ## Next Action
 
-- Run `mvn -f arachne/pom.xml -Pquality-report verify` before the next formal repository-metrics pass if you want a fully fresh saved snapshot.
+- No immediate remediation required; keep the normal quality gate by running `mvn -f arachne/pom.xml -Pquality-report verify` in regular repository-metrics passes.

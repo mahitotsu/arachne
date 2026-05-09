@@ -8,7 +8,6 @@ import java.util.Objects;
 import java.util.function.Consumer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-
 import com.mahitotsu.arachne.strands.agent.conversation.ConversationManager;
 import com.mahitotsu.arachne.strands.agent.conversation.NoOpConversationManager;
 import com.mahitotsu.arachne.strands.eventloop.EventLoop;
@@ -26,6 +25,7 @@ import com.mahitotsu.arachne.strands.tool.StructuredOutputTool;
 import com.mahitotsu.arachne.strands.tool.Tool;
 import com.mahitotsu.arachne.strands.types.ContentBlock;
 import com.mahitotsu.arachne.strands.types.Message;
+
 import jakarta.validation.Validator;
 
 /**
@@ -238,29 +238,14 @@ public class DefaultAgent implements Agent {
     @Override
     public <T> AgentResult run(String prompt, Class<T> outputType, String structuredOutputPrompt) {
         ensureNoPendingInterrupts();
-        Objects.requireNonNull(outputType, "outputType must not be null");
-
-        BeforeInvocationEvent beforeInvocationEvent = hooks.onBeforeInvocation(
-            new BeforeInvocationEvent(prompt, messages, state));
-
-        addMessage(Message.user(beforeInvocationEvent.prompt()));
-
-        StructuredOutputTool<T> structuredOutputTool = new StructuredOutputTool<>(
-            outputType,
-            new com.mahitotsu.arachne.strands.schema.JsonSchemaGenerator(objectMapper),
-            objectMapper,
-            validator,
-            structuredOutputPrompt);
-        StructuredOutputContext<T> structuredOutputContext = new StructuredOutputContext<>(structuredOutputTool);
-        List<Tool> invocationTools = new ArrayList<>(tools);
-        invocationTools.add(structuredOutputTool);
+        StructuredInvocation<T> structuredInvocation = prepareStructuredInvocation(prompt, outputType, structuredOutputPrompt);
 
         EventLoopResult loopResult = eventLoop.run(
                 model,
                 messages,
-                List.copyOf(invocationTools),
+                structuredInvocation.invocationTools(),
                 systemPrompt,
-                structuredOutputContext,
+                structuredInvocation.structuredOutputContext(),
                 state,
                 0);
 
@@ -277,7 +262,7 @@ public class DefaultAgent implements Agent {
             afterInvocationEvent.text(),
             List.copyOf(afterInvocationEvent.messages()),
             afterInvocationEvent.stopReason(),
-            structuredOutputContext.requireValue());
+            structuredInvocation.structuredOutputContext().requireValue());
     }
 
     @Override
@@ -310,31 +295,16 @@ public class DefaultAgent implements Agent {
             Class<T> outputType,
             String structuredOutputPrompt,
             Consumer<AgentStreamEvent> eventConsumer) {
-        Objects.requireNonNull(outputType, "outputType must not be null");
         Objects.requireNonNull(eventConsumer, "eventConsumer must not be null");
         ensureNoPendingInterrupts();
-
-        BeforeInvocationEvent beforeInvocationEvent = hooks.onBeforeInvocation(
-            new BeforeInvocationEvent(prompt, messages, state));
-
-        addMessage(Message.user(beforeInvocationEvent.prompt()));
-
-        StructuredOutputTool<T> structuredOutputTool = new StructuredOutputTool<>(
-            outputType,
-            new com.mahitotsu.arachne.strands.schema.JsonSchemaGenerator(objectMapper),
-            objectMapper,
-            validator,
-            structuredOutputPrompt);
-        StructuredOutputContext<T> structuredOutputContext = new StructuredOutputContext<>(structuredOutputTool);
-        List<Tool> invocationTools = new ArrayList<>(tools);
-        invocationTools.add(structuredOutputTool);
+        StructuredInvocation<T> structuredInvocation = prepareStructuredInvocation(prompt, outputType, structuredOutputPrompt);
 
         EventLoopResult loopResult = eventLoop.runStreaming(
             model,
             messages,
-            List.copyOf(invocationTools),
+            structuredInvocation.invocationTools(),
             systemPrompt,
-            structuredOutputContext,
+            structuredInvocation.structuredOutputContext(),
             state,
             0,
             eventConsumer);
@@ -352,7 +322,7 @@ public class DefaultAgent implements Agent {
                 afterInvocationEvent.text(),
                 List.copyOf(afterInvocationEvent.messages()),
                 afterInvocationEvent.stopReason(),
-                structuredOutputContext.requireValue());
+            structuredInvocation.structuredOutputContext().requireValue());
         eventConsumer.accept(new AgentStreamEvent.Complete(result));
         return result;
     }
@@ -528,5 +498,33 @@ public class DefaultAgent implements Agent {
         if (!pendingInterrupts.isEmpty()) {
             throw new IllegalStateException("This agent has pending interrupts. Resume the last result before starting a new invocation.");
         }
+    }
+
+    private <T> StructuredInvocation<T> prepareStructuredInvocation(
+            String prompt,
+            Class<T> outputType,
+            String structuredOutputPrompt) {
+        Objects.requireNonNull(outputType, "outputType must not be null");
+
+        BeforeInvocationEvent beforeInvocationEvent = hooks.onBeforeInvocation(
+                new BeforeInvocationEvent(prompt, messages, state));
+
+        addMessage(Message.user(beforeInvocationEvent.prompt()));
+
+        StructuredOutputTool<T> structuredOutputTool = new StructuredOutputTool<>(
+                outputType,
+                new com.mahitotsu.arachne.strands.schema.JsonSchemaGenerator(objectMapper),
+                objectMapper,
+                validator,
+                structuredOutputPrompt);
+        StructuredOutputContext<T> structuredOutputContext = new StructuredOutputContext<>(structuredOutputTool);
+        List<Tool> invocationTools = new ArrayList<>(tools);
+        invocationTools.add(structuredOutputTool);
+        return new StructuredInvocation<>(structuredOutputContext, List.copyOf(invocationTools));
+    }
+
+    private record StructuredInvocation<T>(
+            StructuredOutputContext<T> structuredOutputContext,
+            List<Tool> invocationTools) {
     }
 }
