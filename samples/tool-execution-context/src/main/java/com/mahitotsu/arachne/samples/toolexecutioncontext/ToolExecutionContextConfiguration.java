@@ -10,7 +10,6 @@ import org.springframework.context.annotation.Configuration;
 import com.mahitotsu.arachne.strands.model.Model;
 import com.mahitotsu.arachne.strands.model.ModelEvent;
 import com.mahitotsu.arachne.strands.tool.ExecutionContextPropagation;
-import com.mahitotsu.arachne.strands.types.ContentBlock;
 import com.mahitotsu.arachne.strands.types.Message;
 
 @Configuration(proxyBeanMethods = false)

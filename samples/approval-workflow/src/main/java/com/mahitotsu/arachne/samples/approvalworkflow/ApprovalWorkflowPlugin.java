@@ -4,7 +4,6 @@ import java.util.List;
 
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-
 import com.mahitotsu.arachne.strands.hooks.HookRegistrar;
 import com.mahitotsu.arachne.strands.hooks.Plugin;
 import com.mahitotsu.arachne.strands.model.ToolSpec;
