@@ -1,6 +1,6 @@
 # Approval Workflow Sample
 
-This sample is a runnable, Bedrock-free demo for a hook-driven approval workflow.
+This sample is a runnable demo for a hook-driven approval workflow.
 
 It demonstrates these current-main concepts together:
 
@@ -9,7 +9,7 @@ It demonstrates these current-main concepts together:
 - the application receives observation-only `ArachneLifecycleApplicationEvent` notifications from Spring
 - the runner resumes the paused invocation with `AgentResult.resume(...)`
 
-The sample uses a deterministic in-process `Model` bean, so you can verify the hook and interrupt flow without AWS credentials.
+Production runs use Bedrock by default. Tests pin `arachne.strands.model.provider=deterministicBuiltIn` so regression checks stay deterministic and AWS-free.
 
 ## Prerequisites
 
@@ -77,6 +77,13 @@ spring:
     name: arachne-approval-workflow
   main:
     web-application-type: none
+
+arachne:
+  strands:
+    model:
+      provider: bedrock
+      id: jp.amazon.nova-2-lite-v1:0
+      region: ap-northeast-1
 ```
 
-No Bedrock model configuration is required because the sample provides its own deterministic `Model` bean.
+The deterministic demo model bean is loaded only when `arachne.strands.model.provider=deterministicBuiltIn`.

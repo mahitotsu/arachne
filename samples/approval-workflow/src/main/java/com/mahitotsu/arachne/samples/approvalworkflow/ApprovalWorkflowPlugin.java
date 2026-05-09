@@ -2,6 +2,9 @@ package com.mahitotsu.arachne.samples.approvalworkflow;
 
 import java.util.List;
 
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+
 import com.mahitotsu.arachne.strands.hooks.HookRegistrar;
 import com.mahitotsu.arachne.strands.hooks.Plugin;
 import com.mahitotsu.arachne.strands.model.ToolSpec;
@@ -9,6 +12,8 @@ import com.mahitotsu.arachne.strands.tool.Tool;
 import com.mahitotsu.arachne.strands.tool.ToolResult;
 
 public class ApprovalWorkflowPlugin implements Plugin {
+
+    private static final JsonNodeFactory JSON = JsonNodeFactory.instance;
 
     @Override
     public void registerHooks(HookRegistrar registrar) {
@@ -20,12 +25,20 @@ public class ApprovalWorkflowPlugin implements Plugin {
         return List.of(new Tool() {
             @Override
             public ToolSpec spec() {
-                return new ToolSpec("approvalTool", "Accepts an approval payload for a travel request", null);
+                return new ToolSpec("approvalTool", "Accepts an approval payload for a travel request", inputSchema());
             }
 
             @Override
             public ToolResult invoke(Object input) {
                 return ToolResult.success("approval-tool-1", input);
+            }
+
+            private ObjectNode inputSchema() {
+                ObjectNode root = JSON.objectNode();
+                root.put("type", "object");
+                root.putObject("properties");
+                root.put("additionalProperties", true);
+                return root;
             }
         });
     }

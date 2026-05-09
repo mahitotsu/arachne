@@ -12,3 +12,10 @@ spring:
     init:
       mode: always
       schema-locations: classpath:schema.sql
+
+arachne:
+  strands:
+    model:
+      provider: bedrock
+      id: jp.amazon.nova-2-lite-v1:0
+      region: ap-northeast-1

@@ -7,7 +7,7 @@ It combines two concerns that usually appear together in real backend tools:
 - executor-boundary propagation of caller security context
 - downstream API calls that need caller-derived authorization
 
-The sample is deterministic and Bedrock-free so you can inspect the wiring locally.
+Production runs use Bedrock by default. Tests pin `arachne.strands.model.provider=deterministicBuiltIn` so local regression checks stay deterministic and AWS-free.
 
 ## What This Sample Teaches
 

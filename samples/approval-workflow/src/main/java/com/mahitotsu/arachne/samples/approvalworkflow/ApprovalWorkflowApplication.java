@@ -6,6 +6,7 @@ import java.util.Map;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 
 import com.mahitotsu.arachne.strands.model.Model;
@@ -22,6 +23,7 @@ public class ApprovalWorkflowApplication {
     }
 
     @Bean
+    @ConditionalOnProperty(name = "arachne.strands.model.provider", havingValue = "deterministicBuiltIn")
     @SuppressWarnings("unused")
     Model demoModel() {
         return new ApprovalWorkflowModel();

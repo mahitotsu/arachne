@@ -17,9 +17,9 @@ public class SkillActivationRunner implements ApplicationRunner {
     private final AgentFactory agentFactory;
     private final DemoSkillsModel demoSkillsModel;
 
-    SkillActivationRunner(AgentFactory agentFactory, DemoSkillsModel demoSkillsModel) {
+    SkillActivationRunner(AgentFactory agentFactory, org.springframework.beans.factory.ObjectProvider<DemoSkillsModel> demoSkillsModelProvider) {
         this.agentFactory = agentFactory;
-        this.demoSkillsModel = demoSkillsModel;
+        this.demoSkillsModel = demoSkillsModelProvider.getIfAvailable();
     }
 
     @Override
@@ -41,10 +41,16 @@ public class SkillActivationRunner implements ApplicationRunner {
         System.out.println("second.reply> " + restoredAgent.run(secondRequest).text());
         System.out.println("restored.loadedSkills> " + restoredAgent.getState().get("arachne.skills.loaded"));
 
-        List<String> prompts = demoSkillsModel.systemPrompts();
-        System.out.println("prompt.catalogPresent> " + prompts.getFirst().contains("<available_skills>"));
-        System.out.println("prompt.activeSkillPresentAfterRestore> " + prompts.getLast().contains("<active_skills>"));
-        System.out.println("prompt.resourceListPresentAfterRestore> " + prompts.getLast().contains("<resources>"));
+        if (demoSkillsModel != null) {
+            List<String> prompts = demoSkillsModel.systemPrompts();
+            System.out.println("prompt.catalogPresent> " + prompts.getFirst().contains("<available_skills>"));
+            System.out.println("prompt.activeSkillPresentAfterRestore> " + prompts.getLast().contains("<active_skills>"));
+            System.out.println("prompt.resourceListPresentAfterRestore> " + prompts.getLast().contains("<resources>"));
+        } else {
+            System.out.println("prompt.catalogPresent> n/a (bedrock)");
+            System.out.println("prompt.activeSkillPresentAfterRestore> n/a (bedrock)");
+            System.out.println("prompt.resourceListPresentAfterRestore> n/a (bedrock)");
+        }
     }
 
     private String observedToolTypes(Agent agent) {

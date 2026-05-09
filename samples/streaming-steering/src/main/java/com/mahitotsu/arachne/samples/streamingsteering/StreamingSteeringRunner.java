@@ -3,6 +3,7 @@ package com.mahitotsu.arachne.samples.streamingsteering;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
@@ -18,10 +19,9 @@ public class StreamingSteeringRunner implements ApplicationRunner {
     private final AgentFactory agentFactory;
     private final DemoStreamingSteeringModel demoModel;
 
-    @SuppressWarnings("unused")
-    StreamingSteeringRunner(AgentFactory agentFactory, DemoStreamingSteeringModel demoModel) {
+    StreamingSteeringRunner(AgentFactory agentFactory, ObjectProvider<DemoStreamingSteeringModel> demoModelProvider) {
         this.agentFactory = agentFactory;
-        this.demoModel = demoModel;
+        this.demoModel = demoModelProvider.getIfAvailable();
     }
 
     @Override
@@ -58,8 +58,13 @@ public class StreamingSteeringRunner implements ApplicationRunner {
         System.out.println("final.stopReason> " + result.stopReason());
         System.out.println("final.reply> " + result.text());
         System.out.println("tool.invocations> " + tool.invocations());
-        System.out.println("conversation.guidancePresent> " + demoModel.sawGuidanceMessage(agent.getMessages()));
-        System.out.println("model.invocations> " + demoModel.invocationCount());
+        if (demoModel != null) {
+            System.out.println("conversation.guidancePresent> " + demoModel.sawGuidanceMessage(agent.getMessages()));
+            System.out.println("model.invocations> " + demoModel.invocationCount());
+        } else {
+            System.out.println("conversation.guidancePresent> n/a (bedrock)");
+            System.out.println("model.invocations> n/a (bedrock)");
+        }
     }
 
     private String prompt(ApplicationArguments args) {

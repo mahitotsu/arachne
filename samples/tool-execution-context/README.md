@@ -7,7 +7,7 @@ Instead of one catch-all context object, Arachne splits the concern into two con
 - `ToolInvocationContext` for logical tool-call metadata such as tool name, tool use id, raw input, and `AgentState`
 - `ExecutionContextPropagation` for executor-boundary propagation of thread-local execution state such as request ids, MDC, or security context
 
-The sample is deterministic and Bedrock-free so you can inspect both concepts without AWS credentials.
+Production runs use Bedrock by default. Tests pin `arachne.strands.model.provider=deterministicBuiltIn` so local regression checks stay deterministic and AWS-free.
 
 ## Prerequisites
 
@@ -63,6 +63,13 @@ spring:
   main:
     banner-mode: off
     web-application-type: none
+
+arachne:
+  strands:
+    model:
+      provider: bedrock
+      id: jp.amazon.nova-2-lite-v1:0
+      region: ap-northeast-1
 ```
 
-No Bedrock model configuration is required because the sample provides its own deterministic `Model` bean.
+The deterministic demo model bean is loaded only when `arachne.strands.model.provider=deterministicBuiltIn`.

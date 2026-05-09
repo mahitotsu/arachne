@@ -3,6 +3,7 @@ package com.mahitotsu.arachne.samples.statefulbackendoperations;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -14,6 +15,7 @@ import com.mahitotsu.arachne.strands.types.Message;
 public class StatefulBackendModelConfiguration {
 
     @Bean
+        @ConditionalOnProperty(name = "arachne.strands.model.provider", havingValue = "deterministicBuiltIn")
     Model statefulBackendDemoModel() {
         return new Model() {
             private int step = 0;

@@ -3,6 +3,7 @@ package com.mahitotsu.arachne.samples.toolexecutioncontext;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -16,6 +17,7 @@ import com.mahitotsu.arachne.strands.types.Message;
 public class ToolExecutionContextConfiguration {
 
     @Bean
+    @ConditionalOnProperty(name = "arachne.strands.model.provider", havingValue = "deterministicBuiltIn")
     Model demoToolContextModel() {
         return new Model() {
             private boolean firstCall = true;

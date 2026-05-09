@@ -1,6 +1,6 @@
 # Skill Activation Sample
 
-This sample is a runnable, Bedrock-free demo for delayed skill activation.
+This sample is a runnable demo for delayed skill activation.
 
 It demonstrates these current-main concepts together:
 
@@ -12,7 +12,7 @@ It demonstrates these current-main concepts together:
 - loaded-skill persistence through `AgentState` and `session.id`
 - follow-up turns on a fresh runtime that reuse the loaded skill without reloading it
 
-The sample uses a deterministic in-process `Model` bean, so you can verify the delayed-loading flow without AWS credentials.
+Production runs use Bedrock by default. Tests pin `arachne.strands.model.provider=deterministicBuiltIn` so regression checks stay deterministic and AWS-free.
 
 ## Prerequisites
 
@@ -82,10 +82,14 @@ spring:
 
 arachne:
   strands:
+    model:
+      provider: bedrock
+      id: jp.amazon.nova-2-lite-v1:0
+      region: ap-northeast-1
     agent:
       system-prompt: "You are a release assistant. Use skills when they are relevant."
       session:
         id: skill-activation-demo
 ```
 
-No Bedrock model configuration is required because the sample provides its own deterministic `Model` bean.
+The deterministic demo model bean is loaded only when `arachne.strands.model.provider=deterministicBuiltIn`.

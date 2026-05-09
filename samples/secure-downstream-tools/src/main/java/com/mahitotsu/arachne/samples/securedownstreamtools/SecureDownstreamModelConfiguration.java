@@ -3,6 +3,7 @@ package com.mahitotsu.arachne.samples.securedownstreamtools;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -14,6 +15,7 @@ import com.mahitotsu.arachne.strands.types.Message;
 public class SecureDownstreamModelConfiguration {
 
     @Bean
+    @ConditionalOnProperty(name = "arachne.strands.model.provider", havingValue = "deterministicBuiltIn")
     Model secureDownstreamDemoModel() {
         return new Model() {
             private boolean firstCall = true;

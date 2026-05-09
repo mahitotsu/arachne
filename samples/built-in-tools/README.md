@@ -1,6 +1,6 @@
 # Built-In Tools Sample
 
-This sample is a runnable, Bedrock-free demo for the built-in tool baseline that now ships on the current main branch.
+This sample is a runnable demo for the built-in tool baseline that now ships on the current main branch.
 
 It demonstrates these current-main concepts together:
 
@@ -11,7 +11,7 @@ It demonstrates these current-main concepts together:
 - allowlisted classpath resource access through `resource_reader` and `resource_list`
 - the separation between built-in tools and annotation-discovered application tools
 
-The sample uses a deterministic in-process `Model` bean, so you can verify the built-in behavior without AWS credentials.
+Production runs use Bedrock by default. Tests pin `arachne.strands.model.provider=deterministicBuiltIn` so regression verification stays deterministic and AWS-free.
 
 ## Prerequisites
 
@@ -78,6 +78,10 @@ spring:
 
 arachne:
   strands:
+    model:
+      provider: bedrock
+      id: jp.amazon.nova-2-lite-v1:0
+      region: ap-northeast-1
     agent:
       built-ins:
         resources:
@@ -102,4 +106,4 @@ arachne:
           inherit-defaults: false
 ```
 
-No Bedrock model configuration is required because the sample provides its own deterministic `Model` bean.
+The deterministic demo model bean is loaded only when `arachne.strands.model.provider=deterministicBuiltIn`.

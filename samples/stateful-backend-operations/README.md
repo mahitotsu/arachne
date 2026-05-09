@@ -9,7 +9,7 @@ It focuses on four concerns that matter for real backend tool implementations:
 - logical invocation metadata through `ToolInvocationContext`
 - session-visible workflow state through `AgentState`
 
-The sample is deterministic and Bedrock-free.
+Production runs use Bedrock by default. Tests pin `arachne.strands.model.provider=deterministicBuiltIn` so regression checks stay deterministic and AWS-free.
 
 ## What This Sample Teaches
 
@@ -20,7 +20,7 @@ The sample is deterministic and Bedrock-free.
 
 ## Operation Flow
 
-The deterministic model performs this sequence:
+In deterministic test mode, the demo model performs this sequence:
 
 1. `prepare_account_update`
 2. `execute_account_update`

@@ -2,7 +2,7 @@
 
 This sample is a runnable Redis-backed session restore demo.
 
-It is intentionally Bedrock-free so you can verify session restore behavior without any AWS dependency.
+Production runs use Bedrock by default. Tests pin `arachne.strands.model.provider=deterministicBuiltIn` so session-restore regression checks stay deterministic and AWS-free.
 
 What it demonstrates:
 
@@ -75,4 +75,4 @@ docker compose down
 The sample uses Spring Boot for Redis connection properties and Spring Session for the repository bean.
 The runner builds a fresh `Agent` runtime from `AgentFactory`, and the fixed Arachne session id in `src/main/resources/application.yml` drives restore across launches.
 
-Because the model is a stub, the demo is deterministic and safe to rerun as many times as you want.
+The deterministic demo model bean is loaded only when `arachne.strands.model.provider=deterministicBuiltIn`.
