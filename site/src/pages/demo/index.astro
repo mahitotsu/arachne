@@ -4,6 +4,44 @@ import SiteLayout from '../../layouts/SiteLayout.astro';
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
+const comparisonTable = [
+  {
+    aspect: 'System Prompt 管理',
+    monolithic: '全ビジネスドメインのルールが一箇所に集約',
+    multiagent: '各サービスが独立した system prompt を管理。変更は該当サービスのテーム限定。',
+  },
+  {
+    aspect: 'Tool 権限の境界',
+    monolithic: '全サービスの全 API にアクセス権。権限の明確な分界がない。',
+    multiagent: '各エージェントは担当機能の tool のみ。サービス責務に沿った権限分離。',
+  },
+  {
+    aspect: 'チーム Ownership',
+    monolithic: 'エージェント全体を「誰が」保守するかが曖昧。変更による他ドメインへの波及に責任が分散。',
+    multiagent: 'エージェントはそのマイクロサービスを所有するチームが保守。責任は明確。',
+  },
+  {
+    aspect: '変更の影響範囲',
+    monolithic: '一つの system prompt 変更が全エージェント行動に波及。小さな調整も全体の再デプロイが必要。',
+    multiagent: '変更は該当サービスのみ。他サービスへの波及は HTTP 契約経由だけ。局所化できる。',
+  },
+  {
+    aspect: '業務知識の管理',
+    monolithic: 'ビジネスルールが prompt に混入。業務側が直接編集することが難しく、変更サイクルが遅い。',
+    multiagent: 'Skill ドキュメントとして業務知識を分離。activationHint は業務担当者が直接更新可能。',
+  },
+  {
+    aspect: 'Discoveryの信頼性',
+    monolithic: '固定的な API 呼び出し。サービス名や endpoint が変わるたびに prompt を編集。',
+    multiagent: 'Capability ベースの動的 discovery。サービス置き換え時に呼び出し元の変更が不要。',
+  },
+  {
+    aspect: 'Context 汚染',
+    monolithic: '複数ドメインの会話履歴が一つのコンテキストに混在。前の会話が後の判断に不意に影響する可能性。',
+    multiagent: '会話は該当サービスのエージェント内に閉じている。ドメイン間の状態漏洩がない。',
+  },
+];
+
 const designRows = [
   {
     principle: 'AI エージェントは自然言語フロントドアとして追加する',
@@ -181,6 +219,37 @@ const surfaces = [
     title="food-delivery-demo ── 原則の両立が難しい点を動くコードで検証する"
     summary="5 つの設計原則が矛盾せず、Fowler/Lewis の特性とも整合するか。food-delivery-demo はその問いを動くコードで確かめる実証環境です。"
   />
+
+  <section class="panel">
+    <p class="panel__eyebrow">単一巨大エージェント vs マルチエージェント（Arachne 実装）── 設計の違い</p>
+    <p style="font-size:0.9rem; color:var(--text-muted); margin:0 0 16px">
+      単一の巨大エージェントに全責務を集約した場合と、マイクロサービス原則に従ってマルチエージェントに分割した場合で、何が異なるか。
+      以下の対比表は、実装選択による具体的な差分を示しています。
+    </p>
+    <div style="overflow-x: auto; font-size: 0.85rem">
+      <table style="width:100%; border-collapse:collapse; line-height:1.6">
+        <thead>
+          <tr style="border-bottom: 2px solid var(--accent)">
+            <th style="text-align:left; padding:12px; font-weight:600; width:20%">観点</th>
+            <th style="text-align:left; padding:12px; font-weight:600; width:40%; color:var(--text-muted)">単一巨大エージェント</th>
+            <th style="text-align:left; padding:12px; font-weight:600; width:40%; background:rgba(var(--accent-rgb), 0.05)">Arachne マルチエージェント</th>
+          </tr>
+        </thead>
+        <tbody>
+          {comparisonTable.map((row, idx) => (
+            <tr style={`border-bottom: 1px solid var(--border); ${idx % 2 === 0 ? 'background: rgba(var(--bg-rgb), 0.5)' : ''}`}>
+              <td style="padding:12px; font-weight:500">{row.aspect}</td>
+              <td style="padding:12px; color:var(--text-muted)">{row.monolithic}</td>
+              <td style="padding:12px; background:rgba(var(--accent-rgb), 0.02)">{row.multiagent}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+    <p style="margin-top: 12px; font-size:0.85rem; color:var(--text-muted)">
+      各項目の詳細は下の「原則ごとの両立検証」セクションで確認できます。
+    </p>
+  </section>
 
   <section class="panel">
     <p class="panel__eyebrow">このデモの読み方</p>
