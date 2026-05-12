@@ -5,10 +5,10 @@ Arachne is a Java port of the Strands Agents Python SDK with Spring Boot integra
 Treat `refs/sdk-python` as behavioral reference material and do not edit it unless the user asks explicitly.
 
 ## Repository Operations
+- `arachne/docs/roadmap.md` は現在のフェーズ状態の正典。repo-wide な作業を始める前に必ず読む。
 - エリアの entry point と bounded read set は `.claude/repository-ops/repository-reading-guide.md` を参照する。
-- `/ship-changes` — 完了チェック → 検証 → コミット → プッシュ（準備不足の場合はブロック）
-- `/session-handoff` — 次セッション向け引き継ぎプロンプトの生成
-- ワークフローが変わったときは `CLAUDE.md`、`.claude/commands/`、`.claude/repository-ops/repository-reading-guide.md`、`memories/repo/status.md` を同じ作業単位で同期する。
+- セッション終了順序: `/ship-changes`（コミット・プッシュ）→ `/session-handoff`（引き継ぎプロンプト生成）
+- ワークフローが変わったときは `CLAUDE.md`、`.claude/commands/`、`.claude/repository-ops/repository-reading-guide.md`、`arachne/docs/roadmap.md` を同じ作業単位で同期する。
 
 ## Implementation Rules
 - Do not treat work as complete until it satisfies the published current scope and the task's explicit conditions.
