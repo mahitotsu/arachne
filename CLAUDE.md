@@ -44,7 +44,6 @@ Treat `refs/sdk-python` as behavioral reference material and do not edit it unle
   - `arachne/src/main/CLAUDE.md` for Java production code across Arachne, food-delivery, and samples
   - `arachne/src/test/CLAUDE.md` for Java test code
   - `food-delivery-demo/customer-ui/CLAUDE.md` for the Next.js + TypeScript frontend
-  - `.claude/CLAUDE.md` for Claude Code workflow and command maintenance
 - Keep scoped file content aligned to their real coverage. Do not leave stale constraints from previous themes.
 - Before starting a new implementation theme, review whether the existing scoped files are sufficient. If not, update or replace them for the new theme and remove stale constraints from the previous one.
 - During that review, check consistency with `arachne/docs/project-status.md`, relevant ADRs, test emphasis, and completion conditions.
