@@ -5,11 +5,11 @@ Arachne is a Java port of the Strands Agents Python SDK with Spring Boot integra
 Treat `refs/sdk-python` as behavioral reference material and do not edit it unless the user asks explicitly.
 
 ## Repository Operations
-- Treat `.github/repository-ops/` as the source of truth for repo restart, reading guidance, repository-structure-health policy, and repository metrics policy.
-- When the task is repo-wide, workflow-oriented, or you need to re-establish current state, read `.github/repository-ops/repository-snapshot.md` and `/memories/repo/status.md` before widening. Read `.github/repository-ops/repository-reading-guide.md` only when you need detailed entry points.
-- Use `.github/skills/repository-ops/SKILL.md` as the umbrella entry point when the right repository workflow is unclear.
-- Use `.github/prompts/close-action.prompt.md`, `.github/prompts/locality-check.prompt.md`, `.github/prompts/repository-metrics.prompt.md`, `.github/prompts/session-handoff.prompt.md`, and `.github/prompts/ship-changes.prompt.md` for operational preflight, locality checks, quantitative repository evaluation, handoff generation, and commit/push execution.
-- Keep `.github/repository-ops/`, related prompts and skills, and this file synchronized when the operating flow changes.
+- `memories/repo/status.md` は現在の作業状態の正典。repo-wide な作業を始める前に必ず読む。
+- エリアの entry point と bounded read set は `.claude/repository-ops/repository-reading-guide.md` を参照する。
+- `/ship-changes` — 完了チェック → 検証 → コミット → プッシュ（準備不足の場合はブロック）
+- `/session-handoff` — 次セッション向け引き継ぎプロンプトの生成
+- ワークフローが変わったときは `CLAUDE.md`、`.claude/commands/`、`.claude/repository-ops/repository-reading-guide.md`、`memories/repo/status.md` を同じ作業単位で同期する。
 
 ## Implementation Rules
 - Do not treat work as complete until it satisfies the published current scope and the task's explicit conditions.
@@ -40,10 +40,13 @@ Treat `refs/sdk-python` as behavioral reference material and do not edit it unle
 
 ## Implementation Theme Workflow
 - Keep durable repository-wide rules in this file.
-- Use `.github/instructions/` for scoped workflows that benefit from `applyTo`, including active implementation themes and reusable language- or layer-specific guidance that should not apply repository-wide.
-- Keep instruction filenames, descriptions, and `applyTo` scopes aligned to their real coverage. Do not leave marketplace- or phase-specific naming on files that now apply broadly.
-- When theme-specific files are needed, keep at most one implementation instruction file and one test-strategy instruction file for that theme, and give them narrow `applyTo` scopes.
-- Before starting a new implementation theme, review whether the existing scoped instruction files are sufficient. If not, update or replace them for the new theme and remove stale constraints from the previous one.
+- Use subdirectory `CLAUDE.md` files for scoped workflows, including active implementation themes and language- or layer-specific guidance that should not apply repository-wide:
+  - `arachne/src/main/CLAUDE.md` for Java production code across Arachne, food-delivery, and samples
+  - `arachne/src/test/CLAUDE.md` for Java test code
+  - `food-delivery-demo/customer-ui/CLAUDE.md` for the Next.js + TypeScript frontend
+  - `.claude/CLAUDE.md` for Claude Code workflow and command maintenance
+- Keep scoped file content aligned to their real coverage. Do not leave stale constraints from previous themes.
+- Before starting a new implementation theme, review whether the existing scoped files are sufficient. If not, update or replace them for the new theme and remove stale constraints from the previous one.
 - During that review, check consistency with `arachne/docs/project-status.md`, relevant ADRs, test emphasis, and completion conditions.
 
 ## ADR Workflow
@@ -53,7 +56,7 @@ Treat `refs/sdk-python` as behavioral reference material and do not edit it unle
 
 ## Exploration Discipline
 - For normal implementation and test work, begin from the smallest trusted surface that can identify the target area.
-- Start with `arachne/docs/project-status.md`, this file, and the relevant active `.github/instructions/*.instructions.md` file before widening to implementation, tests, samples, or ADRs.
+- Start with `arachne/docs/project-status.md`, this file, and the relevant scoped `CLAUDE.md` before widening to implementation, tests, samples, or ADRs.
 - In multi-module Java work, identify the owning Maven module, package, or service first. Read its nearest implementation and matching tests before tracing adjacent modules.
 - Use the nearest `pom.xml`, module-local `src/main`, and module-local `src/test` trees as the default first-pass scope unless the task clearly crosses a published contract boundary.
 - Use broad guides such as `arachne/docs/user-guide.md` and `arachne/docs/README.md` as maps or follow-up references, not as default front-to-back first-pass reading.

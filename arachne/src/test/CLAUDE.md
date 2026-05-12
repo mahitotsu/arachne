@@ -1,8 +1,3 @@
----
-description: "Use when adding or updating Java tests across Arachne modules, marketplace services, and samples. Reinforces target-test-first reading, contract-focused assertions, and bounded cross-module expansion."
-applyTo: "{arachne,food-delivery-demo,samples}/**/src/test/**"
----
-
 # Java Test Workflow
 
 - Start from the target test class or the nearest existing regression test before reading wider implementation or documentation surfaces.

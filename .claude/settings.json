@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git status*)",
+      "Bash(git log*)",
+      "Bash(git diff*)",
+      "Bash(find . *)",
+      "Bash(find arachne*)",
+      "Bash(find samples*)",
+      "Bash(find food-delivery-demo*)",
+      "Bash(ls*)",
+      "Bash(wc -l *)",
+      "Bash(rg *)",
+      "Bash(awk -F,*)"
+    ]
+  }
+}
