@@ -23,6 +23,38 @@ Completion criteria:
 - ADR documenting the Micrometer boundary
 - `mvn test` passes with regression coverage for the default (no-metrics) path
 
+### Phase 1.5: Extended Reasoning and Citations
+
+Goal: Surface Bedrock-native extended reasoning and citation blocks in Arachne so that Claude 4-series users can access model thinking traces and document citations without leaving the Spring Boot integration. The Bedrock API already supports both; Arachne needs only the Java type mapping and event-loop pass-through.
+
+Completion criteria:
+
+- `reasoningContent` content block type added to `Message` / content block model
+- EventLoop passes reasoning blocks through without stripping them
+- `AgentResult` exposes reasoning blocks alongside the text response
+- `CitationsContentBlock` and `Citation` types added for Bedrock document-citation use cases
+- At least one sample or integration test demonstrating extended reasoning output
+- `mvn test` passes with regression coverage confirming existing non-reasoning paths are unaffected
+
+---
+
+### Phase 1.6: Hook Enhancements (AfterToolCallEvent retry and AfterInvocationEvent resume)
+
+Goal: Bring two hook-level capabilities that exist in the Python SDK into parity. Both are additive and non-breaking for existing hook consumers.
+
+- `AfterToolCallEvent.retry` — allow a hook to discard the current tool result and re-invoke the tool, mirroring the existing model-retry pattern on `AfterModelCallEvent`.
+- `AfterInvocationEvent.resume` — allow a hook to supply the next agent input immediately after an invocation completes, enabling autonomous looping patterns without external orchestration.
+
+Completion criteria:
+
+- `AfterToolCallEvent` exposes a `retry()` / `requestRetry()` method; the EventLoop re-invokes the tool when set
+- `AfterInvocationEvent` exposes a `resume(Object)` method; the agent re-invokes itself with the supplied input when set
+- Both capabilities are opt-in and do not affect hooks that do not set them
+- Tests cover the retry path, the resume path, and the unchanged default paths
+- `mvn test` passes with no regressions
+
+---
+
 ### Phase 2: MCP Support
 
 Goal: Allow Arachne agents to invoke MCP tools. Leverage Spring AI's MCP client infrastructure rather than implementing MCP from scratch, so Spring Boot developers get a consistent dependency model.
