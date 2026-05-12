@@ -5,7 +5,6 @@ Arachne is a Java port of the Strands Agents Python SDK with Spring Boot integra
 Treat `refs/sdk-python` as behavioral reference material and do not edit it unless the user asks explicitly.
 
 ## Repository Operations
-- `memories/repo/status.md` は現在の作業状態の正典。repo-wide な作業を始める前に必ず読む。
 - エリアの entry point と bounded read set は `.claude/repository-ops/repository-reading-guide.md` を参照する。
 - `/ship-changes` — 完了チェック → 検証 → コミット → プッシュ（準備不足の場合はブロック）
 - `/session-handoff` — 次セッション向け引き継ぎプロンプトの生成
